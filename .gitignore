@@ -39,3 +39,6 @@ venv/
 # ===== OS / 杂项 =====
 .DS_Store
 *.log
+
+# scene review renders (regenerable via render_scene.py)
+assets/scene_review/
