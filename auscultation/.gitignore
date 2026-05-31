@@ -1,0 +1,24 @@
+# ───── 不入库: 大文件 + 真实患者医学影像(隐私) + 模型许可 + 版权文献 ─────
+# 数据集(35GB; 含真实脊柱侧弯裸背患者影像 → 隐私; HuMMan视频; SMPL模型许可)
+data/humman/
+data/smpl/
+data/densepose_model/
+data/densepose_coco/
+data/scoliosis_back/
+data/_viz_humman/
+data/sample_gallery/
+data/dataset_sample/
+# 生成的训练数据集(用 gen_dataset.py 重建)
+data/dataset/img/
+data/dataset/iuv/
+data/dataset/manifest.jsonl
+# 训练产物
+outputs/*
+!outputs/.gitignore
+# 版权文献(本地保留)
+reference/
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
