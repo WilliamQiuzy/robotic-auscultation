@@ -24,7 +24,8 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # 让 ausc/ 顶层模块可导入
-from augment import _xform_points, hflip, occlude_arm, photometric, LR_SWAP  # noqa: E402
+from augment import (_xform_points, clinical_lighting, hflip, occlude_medical,  # noqa: E402
+                     sensor_degrade, LR_SWAP)
 
 ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)  # ④ 对称: ±θ 成对, 不放大角度
 
@@ -103,14 +104,18 @@ def augment_once(sample: dict, rng, target=(384, 384)) -> dict:
     s = crop_to_framing(s, framing, rng, target=target)
     s["region"] = region
 
-    # ① 光照
-    s["image"] = photometric(s["image"], rng)
+    # ① 临床光照(色温/检查灯不均匀/渐晕, 保皮肤纹理)
+    s["image"] = clinical_lighting(s["image"], rng)
 
-    # ② 手臂+听诊器遮挡(最关键, 高概率) —— 遮在某个可见听诊点上
+    # ② 临床遮挡(听诊器臂/ECG导线/电极/检查服边, 最关键) —— 遮在某个可见听诊点上
     if rng.random() < 0.6:
         vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
         if vis:
-            s["image"] = occlude_arm(s["image"], vis[rng.randint(len(vis))], rng)
+            s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
+
+    # ③ 相机退化(运动模糊/JPEG/传感器噪声, 中概率)
+    if rng.random() < 0.4:
+        s["image"] = sensor_degrade(s["image"], rng)
     return s
 
 

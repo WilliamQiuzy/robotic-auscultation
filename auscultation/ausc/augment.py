@@ -169,6 +169,81 @@ def occlude_arm(img, target_uv, rng=None, color=(120, 125, 130)):
     return img
 
 
+def clinical_lighting(image, rng=None):
+    """临床光照(保皮肤纹理): 色温暖/冷 + 不均匀方向光(检查灯) + 渐晕。比纯 photometric 更贴临床。"""
+    rng = rng or np.random
+    img = image.astype(np.float32)
+    img = img * rng.uniform(0.85, 1.12) + rng.uniform(-10, 10)            # 整体亮度/对比(温和)
+    t = rng.uniform(-1, 1)                                                # 色温
+    img[:, :, 0] *= (1 + 0.07 * t); img[:, :, 2] *= (1 - 0.07 * t)
+    H, W = img.shape[:2]
+    if rng.random() < 0.6:                                               # 单侧检查灯(方向梯度)
+        a = rng.uniform(0, 2 * np.pi)
+        yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+        g = (xx / W - 0.5) * np.cos(a) + (yy / H - 0.5) * np.sin(a)
+        img *= (1 + rng.uniform(0.10, 0.30) * g[:, :, None])
+    if rng.random() < 0.5:                                               # 渐晕
+        yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
+        rr = ((xx / W - 0.5) ** 2 + (yy / H - 0.5) ** 2) ** 0.5
+        img *= (1 - rng.uniform(0.15, 0.38) * (rr / rr.max())[:, :, None] ** 2)
+    g = rng.uniform(0.85, 1.18)                                          # gamma
+    img = 255 * np.clip(img, 0, 255) / 255
+    img = 255 * (img / 255) ** g
+    return np.clip(img, 0, 255).astype(np.uint8)
+
+
+def occlude_medical(img, target_uv, rng=None):
+    """临床遮挡(只改图不动标签): 随机 听诊器臂 / ECG导线 / 电极 / 检查服边。"""
+    rng = rng or np.random
+    kind = rng.choice(["arm", "wires", "electrodes", "gown"])
+    if kind == "arm":
+        return occlude_arm(img, target_uv, rng)
+    img = img.copy(); H, W = img.shape[:2]
+    if kind == "wires":                                                  # ECG 导线: 几根细线
+        for _ in range(rng.randint(2, 4)):
+            p0 = (rng.randint(0, W), rng.randint(0, H // 3))
+            p1 = (int(target_uv[0]) + rng.randint(-W // 8, W // 8), int(target_uv[1]) + rng.randint(-H // 8, H // 8))
+            pal = [(40, 40, 40), (220, 220, 60), (60, 60, 220), (220, 60, 60)]
+            col = pal[rng.randint(len(pal))]
+            cv2.line(img, p0, p1, col, rng.randint(2, 4), cv2.LINE_AA)
+    elif kind == "electrodes":                                           # 电极贴片: 浅色圆+中心点
+        for _ in range(rng.randint(2, 4)):
+            c = (rng.randint(int(0.2 * W), int(0.8 * W)), rng.randint(int(0.2 * H), int(0.8 * H)))
+            r = rng.randint(int(0.03 * W), int(0.06 * W))
+            cv2.circle(img, c, r, (235, 235, 230), -1, cv2.LINE_AA)
+            cv2.circle(img, c, max(2, r // 3), (120, 120, 120), -1, cv2.LINE_AA)
+    else:                                                                # 检查服/铺巾边: 一侧浅色块
+        side = rng.choice(["top", "bottom", "left", "right"])
+        col = tuple(int(c) for c in (np.array([225, 225, 235]) * rng.uniform(0.85, 1.0)))
+        f = rng.uniform(0.12, 0.28)
+        if side == "top": cv2.rectangle(img, (0, 0), (W, int(H * f)), col, -1)
+        elif side == "bottom": cv2.rectangle(img, (0, int(H * (1 - f))), (W, H), col, -1)
+        elif side == "left": cv2.rectangle(img, (0, 0), (int(W * f), H), col, -1)
+        else: cv2.rectangle(img, (int(W * (1 - f)), 0), (W, H), col, -1)
+    return img
+
+
+def sensor_degrade(image, rng=None):
+    """相机退化(贴真实采集, 保纹理为主): 随机 运动模糊 / 轻高斯模糊 / JPEG / 传感器噪声。"""
+    rng = rng or np.random
+    img = image.copy()
+    k = rng.choice(["motion", "blur", "jpeg", "noise", "none"])
+    if k == "motion":
+        ks = rng.choice([5, 7, 9]); ker = np.zeros((ks, ks), np.float32)
+        if rng.random() < 0.5: ker[ks // 2, :] = 1.0
+        else: ker[:, ks // 2] = 1.0
+        img = cv2.filter2D(img, -1, ker / ks)
+    elif k == "blur":
+        img = cv2.GaussianBlur(img, (3, 3), 0)
+    elif k == "jpeg":
+        q = int(rng.randint(35, 75))
+        ok, enc = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, q])
+        if ok: img = cv2.imdecode(enc, cv2.IMREAD_COLOR)
+    elif k == "noise":
+        img = np.clip(img.astype(np.float32) + rng.normal(0, rng.uniform(3, 10), img.shape), 0, 255).astype(np.uint8)
+    return img
+
+
 if __name__ == "__main__":
     # 自测: 造一张假样本跑通
     img = (np.random.rand(480, 640, 3) * 255).astype(np.uint8)

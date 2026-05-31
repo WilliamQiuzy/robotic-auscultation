@@ -17,7 +17,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from augment import LR_SWAP, hflip, occlude_arm, photometric  # noqa: E402
+from augment import LR_SWAP, clinical_lighting, hflip, occlude_medical, sensor_degrade  # noqa: E402
 from common import ManifestWriter, write_sample  # noqa: E402
 from humman_label import define_ausc_vertices  # noqa: E402
 from render_iuv import load_uv_mapping, project, rasterize_iuv  # noqa: E402
@@ -147,11 +147,13 @@ def _augment(base, rng):
             s["points"][nm] = {"xy": (float(v[0]), float(v[1])), "visible": bool(0 <= v[0] < W and 0 <= v[1] < H)}
     if region == "back" and rng.random() < 0.5:
         f = hflip(s, lr_swap=LR_SWAP); f["region"] = region; s = f
-    s["image"] = photometric(s["image"], rng)
+    s["image"] = clinical_lighting(s["image"], rng)
     if rng.random() < 0.6:
         vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
         if vis:
-            s["image"] = occlude_arm(s["image"], vis[rng.randint(len(vis))], rng)
+            s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
+    if rng.random() < 0.4:
+        s["image"] = sensor_degrade(s["image"], rng)
     return s
 
 

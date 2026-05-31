@@ -47,8 +47,8 @@ def main():
 
     def run_scoliosis(out):
         import scoliosis
-        scoliosis.generate(args.scoliosis_labels, args.scoliosis_imgs, args.smpl_model, out,
-                           n_aug=args.n_aug or 14, seed=args.seed)
+        scoliosis.generate(args.scoliosis_labels, args.scoliosis_imgs, args.smpl_model, args.uv, out,
+                           n_aug=args.n_aug or 12, seed=args.seed)
 
     def run_synthetic(out):
         import synthetic
