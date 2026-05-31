@@ -22,9 +22,11 @@ from common import ManifestWriter, write_sample  # noqa: E402
 from humman_label import define_ausc_vertices  # noqa: E402
 from render_iuv import load_uv_mapping, project, rasterize_iuv  # noqa: E402
 
-# 多人种肤色调色板 (RGB, 浅→深)
-SKIN = np.array([[235, 201, 178], [222, 183, 156], [206, 158, 124],
-                 [178, 126, 96], [141, 96, 70], [104, 70, 52], [78, 52, 40]], np.float32)
+# 真实肤色 albedo: 据 ITA/Xiao2017 在 CIELAB 沿真实肤色轨迹取值再转 sRGB。
+# a*≈13-16(红度,各人种近似), b*黄度(东亚偏黄), L*主导(白人浅→非洲深棕)。浅→深。
+SKIN = np.array([[212, 170, 154], [201, 156, 138], [193, 148, 121], [179, 132, 106],
+                 [164, 116, 90], [146, 101, 79], [128, 88, 68], [110, 74, 57],
+                 [91, 62, 49], [78, 54, 43]], np.float32)
 
 # 取景三档(全部近距, 部署相机离得近/人拍得大): span倍数小=更近。
 # torso画面占比≈fill/k → F1上半身填满~85% / F2躯干填满~105% / F3胸背特写~140%。
@@ -118,7 +120,7 @@ def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, frami
     ac = P[list(ausc[view].values())].mean(0); torso_h = float(P[torso_idx, 1].ptp())
     k, fill, cyoff = FRAMINGS[framing]
     cam = _make_cam(ac[0], ac[1] + cyoff * torso_h, torso_h * k, H, W, focal, fill, R)
-    skin = SKIN[rng.randint(len(SKIN))] * rng.uniform(0.9, 1.02)
+    skin = SKIN[rng.randint(len(SKIN))] * rng.uniform(0.95, 1.05)   # MST 已覆盖范围, 仅个体微抖
     img = _render_rgb(verts, faces, cam, H, W, skin, rng)
     I, U, V, _ = rasterize_iuv(verts, cam, uvmap, H, W)
     iuv = np.dstack([I, (U * 255).astype(np.uint8), (V * 255).astype(np.uint8)])
