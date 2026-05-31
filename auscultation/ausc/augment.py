@@ -63,9 +63,10 @@ def photometric(image, rng=None):
     """亮度/对比/gamma/模糊/高斯噪声(抗临床光照差异); 不影响标签。"""
     rng = rng or np.random
     img = image.astype(np.float32)
-    img = img * rng.uniform(0.7, 1.3) + rng.uniform(-20, 20)      # 对比+亮度
+    # 温和: 避免把浅肤色曝成全白(原 ×1.3+gamma0.7 会过曝)
+    img = img * rng.uniform(0.82, 1.12) + rng.uniform(-12, 12)    # 对比+亮度
     img = np.clip(img, 0, 255)
-    g = rng.uniform(0.7, 1.4)                                     # gamma
+    g = rng.uniform(0.85, 1.18)                                   # gamma(不再大幅提亮)
     img = 255 * (img / 255) ** g
     if rng.random() < 0.3:
         k = rng.choice([3, 5]); img = cv2.GaussianBlur(img, (k, k), 0)

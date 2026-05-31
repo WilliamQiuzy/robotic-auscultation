@@ -23,14 +23,15 @@ from humman_label import define_ausc_vertices  # noqa: E402
 from render_iuv import load_uv_mapping, project, rasterize_iuv  # noqa: E402
 
 # 多人种肤色调色板 (RGB, 浅→深)
-SKIN = np.array([[247, 213, 188], [231, 188, 160], [206, 158, 124],
+SKIN = np.array([[235, 201, 178], [222, 183, 156], [206, 158, 124],
                  [178, 126, 96], [141, 96, 70], [104, 70, 52], [78, 52, 40]], np.float32)
 
-# 取景三档: (中心=听诊区, span基准=躯干高, span倍数, 画面占比, 中心上移(torso_h比例))  远→近
+# 取景三档(全部近距, 部署相机离得近/人拍得大): span倍数小=更近。
+# torso画面占比≈fill/k → F1上半身填满~85% / F2躯干填满~105% / F3胸背特写~140%。
 FRAMINGS = {
-    "F1_far":  (1.90, 0.85, 0.05),
-    "F2_mid":  (1.20, 0.86, 0.02),
-    "F3_near": (0.72, 0.90, 0.10),
+    "F1_upper": (1.00, 0.85, 0.05),   # 上半身填满 (~85%)
+    "F2_torso": (0.80, 0.86, 0.05),   # 躯干填满 (~105%)
+    "F3_near":  (0.60, 0.90, 0.10),   # 胸/背特写 (~150%, 听诊区居中)
 }
 ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)
 
@@ -87,12 +88,13 @@ def _render_rgb(verts, faces, cam, H, W, skin, rng):
     mesh = trimesh.Trimesh(verts, faces, process=False)
     mesh.visual.vertex_colors = _skin_colors(verts, skin, rng)
     pm = pyrender.Mesh.from_trimesh(mesh, smooth=True)
-    scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.45, 0.45, 0.45])
+    scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.4, 0.4, 0.4])
     scene.add(pm)
     pose4 = np.linalg.inv(np.vstack([np.hstack([cam["R"], cam["T"][:, None]]), [0, 0, 0, 1]])) @ np.diag([1.0, -1, -1, 1])
     K = cam["K"]
     scene.add(pyrender.IntrinsicsCamera(fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2], znear=0.05, zfar=20), pose=pose4)
-    for d, it in [((-0.5, -0.6, -1.0), 2.8), ((0.7, -0.2, -0.8), 1.5), ((0, 0.4, 1.0), 1.0)]:
+    # 柔光(收敛强度: 原 2.8/1.5/1.0 会把浅肤色曝白)
+    for d, it in [((-0.5, -0.6, -1.0), 0.9), ((0.7, -0.2, -0.8), 0.5), ((0, 0.4, 1.0), 0.3)]:
         lp = np.eye(4); z = -np.array(d, float); z /= np.linalg.norm(z)
         x = np.cross([0, 1, 0], z); x /= np.linalg.norm(x); lp[:3, :3] = np.c_[x, np.cross(z, x), z]
         scene.add(pyrender.DirectionalLight(color=np.ones(3), intensity=it), pose=pose4 @ lp)
@@ -116,7 +118,7 @@ def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, frami
     ac = P[list(ausc[view].values())].mean(0); torso_h = float(P[torso_idx, 1].ptp())
     k, fill, cyoff = FRAMINGS[framing]
     cam = _make_cam(ac[0], ac[1] + cyoff * torso_h, torso_h * k, H, W, focal, fill, R)
-    skin = SKIN[rng.randint(len(SKIN))] * rng.uniform(0.92, 1.06)
+    skin = SKIN[rng.randint(len(SKIN))] * rng.uniform(0.9, 1.02)
     img = _render_rgb(verts, faces, cam, H, W, skin, rng)
     I, U, V, _ = rasterize_iuv(verts, cam, uvmap, H, W)
     iuv = np.dstack([I, (U * 255).astype(np.uint8), (V * 255).astype(np.uint8)])
@@ -134,8 +136,10 @@ def _augment(base, rng):
     ang = float(rng.choice(ROT_CHOICES))
     if ang != 0.0:
         M = cv2.getRotationMatrix2D((W / 2, H / 2), ang, 1.0)
-        s["image"] = cv2.warpAffine(s["image"], M, (W, H), flags=cv2.INTER_LINEAR)
-        s["iuv"] = cv2.warpAffine(s["iuv"], M, (W, H), flags=cv2.INTER_NEAREST)
+        bgc = tuple(int(c) for c in s["image"][0, 0])   # 旋转露出的角填背景灰(非黑)
+        s["image"] = cv2.warpAffine(s["image"], M, (W, H), flags=cv2.INTER_LINEAR,
+                                    borderMode=cv2.BORDER_CONSTANT, borderValue=bgc)
+        s["iuv"] = cv2.warpAffine(s["iuv"], M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0)
         for nm, p in s["points"].items():
             v = M @ np.array([p["xy"][0], p["xy"][1], 1.0])
             s["points"][nm] = {"xy": (float(v[0]), float(v[1])), "visible": bool(0 <= v[0] < W and 0 <= v[1] < H)}

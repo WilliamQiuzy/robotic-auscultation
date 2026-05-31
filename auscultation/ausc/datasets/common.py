@@ -30,7 +30,7 @@ ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)  # ④ 对称: ±θ 成对, 不放�
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。
-FRAMINGS_2D = {"F1_far": 3.4, "F2_mid": 2.1, "F3_near": 1.35}
+FRAMINGS_2D = {"F1_upper": 1.9, "F2_torso": 1.45, "F3_near": 1.1}
 
 
 def crop_to_framing(sample, framing, rng, target=(384, 384)):
@@ -65,10 +65,11 @@ def _rotate(sample: dict, ang_deg: float) -> dict:
     img = sample["image"]
     h, w = img.shape[:2]
     M = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), ang_deg, 1.0)
-    out = {"image": cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_LINEAR, borderValue=(0, 0, 0)),
+    # 真实图旋转: 边缘复制(避免黑角; 比纯色填充自然)。IUV 露出区填 0(背景)。
+    out = {"image": cv2.warpAffine(img, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE),
            "region": sample.get("region")}
     if sample.get("iuv") is not None:
-        out["iuv"] = cv2.warpAffine(sample["iuv"], M, (w, h), flags=cv2.INTER_NEAREST)
+        out["iuv"] = cv2.warpAffine(sample["iuv"], M, (w, h), flags=cv2.INTER_NEAREST, borderValue=0)
     pts = {}
     for nm, p in sample["points"].items():
         xy = p["xy"] if isinstance(p, dict) else p
