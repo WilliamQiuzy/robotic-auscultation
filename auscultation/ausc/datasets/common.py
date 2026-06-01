@@ -28,7 +28,7 @@ from augment import (_xform_points, cast_shadow, clinical_lighting, hflip, hue_s
                      occlude_medical, perspective_warp, random_erase,
                      sensor_degrade, specular, LR_SWAP)
 
-ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)  # ④ 对称: ±θ 成对, 不放大角度
+ROT_CHOICES = (0.0, -8.0, 8.0)  # 旋转仅 ±8°(±15太过), 对称
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。

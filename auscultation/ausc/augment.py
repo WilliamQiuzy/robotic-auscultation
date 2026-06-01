@@ -200,12 +200,12 @@ def occlude_robot_arm(img, target_uv, rng=None):
     edge = ["top", "left", "right"][rng.randint(3)]
     sx = {"top": tx + rng.randint(-W // 5, W // 5), "left": 0, "right": W - 1}[edge]
     sy = {"top": 0, "left": rng.randint(0, H // 2), "right": rng.randint(0, H // 2)}[edge]
-    n_mid = rng.randint(2, 4)                                            # 中间关节数(2-3)→始终多节, 不退化成线
+    n_mid = rng.randint(2, 3)                                            # 中间关节数(2)→稳定多节, 不退化成线
     pts = [(sx, sy)]
     for i in range(1, n_mid + 1):
         t = i / (n_mid + 1)
-        pts.append((int(sx + (tx - sx) * t + rng.randint(-W // 9, W // 9)),
-                    int(sy + (ty - sy) * t + rng.randint(-H // 9, H // 9))))
+        pts.append((int(sx + (tx - sx) * t + rng.randint(-W // 16, W // 16)),   # 偏移更小→更规整, 不乱折
+                    int(sy + (ty - sy) * t + rng.randint(-H // 16, H // 16))))
     pts.append((tx, ty))
     th = int(rng.uniform(0.06, 0.085) * W)                               # 连杆够粗且稳定
     cv2.circle(img, (sx, sy), int(th * 0.9), (55, 57, 64), -1, cv2.LINE_AA)   # 入口基座
@@ -240,58 +240,50 @@ def occlude_endeffector(img, target_uv, rng=None):
     return img
 
 
+def occlude_electrodes(img, rng=None, n=None):
+    """ECG电极贴片: 白色pad + 金属按扣, 贴在躯干上(医生贴的监护电极)。清晰可见。"""
+    rng = rng or np.random
+    img = img.copy(); H, W = img.shape[:2]
+    n = n if n is not None else rng.randint(3, 6)
+    for _ in range(n):
+        cx, cy = rng.randint(int(0.22 * W), int(0.78 * W)), rng.randint(int(0.22 * H), int(0.78 * H))
+        r = rng.randint(int(0.05 * W), int(0.075 * W))
+        cv2.circle(img, (cx, cy), r, (236, 234, 228), -1, cv2.LINE_AA)          # 白色贴片
+        cv2.circle(img, (cx, cy), r, (172, 170, 165), 2, cv2.LINE_AA)           # 边
+        cv2.circle(img, (cx, cy), max(3, int(r * 0.45)), (135, 138, 146), -1, cv2.LINE_AA)  # 金属按扣
+        cv2.circle(img, (cx, cy), max(2, int(r * 0.45)), (185, 188, 196), 1, cv2.LINE_AA)
+    return img
+
+
 def occlude_medical(img, target_uv, rng=None):
-    """临床/机器人遮挡(只改图不动标签): 随机 机械臂 / 末端听诊器 / 电极。
-    (已去掉粗糙的ECG彩色导线 + 检查服边)"""
+    """临床/机器人遮挡(只改图不动标签): 机械臂 / 末端听诊器 / 电极。"""
     rng = rng or np.random
     kind = rng.choice(["robot_arm", "robot_arm", "endeffector", "electrodes"])  # 机械臂权重高
     if kind == "robot_arm":
         return occlude_robot_arm(img, target_uv, rng)
     if kind == "endeffector":
         return occlude_endeffector(img, target_uv, rng)
-    img = img.copy(); H, W = img.shape[:2]
-    if kind == "wires":                                                  # ECG 导线: 几根细线
-        for _ in range(rng.randint(2, 4)):
-            p0 = (rng.randint(0, W), rng.randint(0, H // 3))
-            p1 = (int(target_uv[0]) + rng.randint(-W // 8, W // 8), int(target_uv[1]) + rng.randint(-H // 8, H // 8))
-            pal = [(40, 40, 40), (220, 220, 60), (60, 60, 220), (220, 60, 60)]
-            col = pal[rng.randint(len(pal))]
-            cv2.line(img, p0, p1, col, rng.randint(2, 4), cv2.LINE_AA)
-    elif kind == "electrodes":                                           # 电极贴片: 浅色圆+中心点
-        for _ in range(rng.randint(2, 4)):
-            c = (rng.randint(int(0.2 * W), int(0.8 * W)), rng.randint(int(0.2 * H), int(0.8 * H)))
-            r = rng.randint(int(0.03 * W), int(0.06 * W))
-            cv2.circle(img, c, r, (235, 235, 230), -1, cv2.LINE_AA)
-            cv2.circle(img, c, max(2, r // 3), (120, 120, 120), -1, cv2.LINE_AA)
-    else:                                                                # 检查服/铺巾边: 一侧浅色块
-        side = rng.choice(["top", "bottom", "left", "right"])
-        col = tuple(int(c) for c in (np.array([225, 225, 235]) * rng.uniform(0.85, 1.0)))
-        f = rng.uniform(0.12, 0.28)
-        if side == "top": cv2.rectangle(img, (0, 0), (W, int(H * f)), col, -1)
-        elif side == "bottom": cv2.rectangle(img, (0, int(H * (1 - f))), (W, H), col, -1)
-        elif side == "left": cv2.rectangle(img, (0, 0), (int(W * f), H), col, -1)
-        else: cv2.rectangle(img, (int(W * (1 - f)), 0), (W, H), col, -1)
-    return img
+    return occlude_electrodes(img, rng)
 
 
 def sensor_degrade(image, rng=None):
     """相机退化(贴真实采集, 保纹理为主): 随机 运动模糊 / 轻高斯模糊 / JPEG / 传感器噪声。"""
     rng = rng or np.random
     img = image.copy()
-    k = rng.choice(["motion", "blur", "jpeg", "noise", "none"])
+    k = rng.choice(["motion", "blur", "jpeg", "noise"])      # 去 none, 调用即出效果且明显
     if k == "motion":
-        ks = rng.choice([5, 7, 9]); ker = np.zeros((ks, ks), np.float32)
+        ks = int(rng.choice([9, 13, 17])); ker = np.zeros((ks, ks), np.float32)
         if rng.random() < 0.5: ker[ks // 2, :] = 1.0
         else: ker[:, ks // 2] = 1.0
         img = cv2.filter2D(img, -1, ker / ks)
     elif k == "blur":
-        img = cv2.GaussianBlur(img, (3, 3), 0)
+        ks = int(rng.choice([5, 7, 9])); img = cv2.GaussianBlur(img, (ks, ks), 0)
     elif k == "jpeg":
-        q = int(rng.randint(35, 75))
+        q = int(rng.randint(18, 45))                         # 低质量, 块效应明显
         ok, enc = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, q])
         if ok: img = cv2.imdecode(enc, cv2.IMREAD_COLOR)
     elif k == "noise":
-        img = np.clip(img.astype(np.float32) + rng.normal(0, rng.uniform(3, 10), img.shape), 0, 255).astype(np.uint8)
+        img = np.clip(img.astype(np.float32) + rng.normal(0, rng.uniform(10, 25), img.shape), 0, 255).astype(np.uint8)
     return img
 
 
