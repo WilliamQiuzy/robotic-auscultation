@@ -32,8 +32,8 @@ ROT_CHOICES = (0.0, -8.0, 8.0)  # 旋转仅 ±8°(±15太过), 对称
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。
-# side = 躯干尺寸 × 倍数(以躯干中心裁, 身体居中)。远→近。
-FRAMINGS_2D = {"F1_upper": 2.6, "F2_torso": 1.9, "F3_near": 1.4, "F4_zoom": 1.1}
+# side = 躯干尺寸 × 倍数。倍数跨越1.0才有真实缩放: F1>1宽景(缩小/多上下文) → F4<1放大进胸。
+FRAMINGS_2D = {"F1_upper": 1.15, "F2_torso": 0.88, "F3_near": 0.64, "F4_zoom": 0.46}
 
 
 def crop_to_framing(sample, framing, rng, target=(384, 384)):
@@ -57,9 +57,8 @@ def crop_to_framing(sample, framing, rng, target=(384, 384)):
         cx, cy = p0.mean(0); extent = max(float(p0.ptp(0).max()), 8.0)
     side = extent * FRAMINGS_2D[framing]
     pts = np.array([(p["xy"] if isinstance(p, dict) else p) for p in sample["points"].values()])
-    if len(pts):                                      # 保证听诊点都在框内(+边距)
-        need = 2.2 * max(float(np.abs(pts[:, 0] - cx).max()), float(np.abs(pts[:, 1] - cy).max()))
-        side = max(side, need)
+    if len(pts):                                      # 下限: 仅保证点的跨度+小边距在框内(温和, 不压垮缩放分级)
+        side = max(side, 1.4 * float(max(pts[:, 0].ptp(), pts[:, 1].ptp())))
     side = int(np.clip(side, 24, min(H, W)))
     cx += rng.uniform(-0.04, 0.04) * side; cy += rng.uniform(-0.04, 0.04) * side
     x0 = int(np.clip(cx - side / 2, 0, W - side)); y0 = int(np.clip(cy - side / 2, 0, H - side))

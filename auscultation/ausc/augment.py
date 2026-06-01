@@ -240,30 +240,31 @@ def occlude_endeffector(img, target_uv, rng=None):
     return img
 
 
-def occlude_electrodes(img, rng=None, n=None):
-    """ECG电极贴片: 白色pad + 金属按扣, 贴在躯干上(医生贴的监护电极)。清晰可见。"""
+def occlude_electrodes(img, rng=None, anchor=None):
+    """ECG电极: 小白pad+金属按扣, 按胸前导联(V1-V6)弧形排布(非随机大圆)。锚点=听诊区。"""
     rng = rng or np.random
     img = img.copy(); H, W = img.shape[:2]
-    n = n if n is not None else rng.randint(3, 6)
-    for _ in range(n):
-        cx, cy = rng.randint(int(0.22 * W), int(0.78 * W)), rng.randint(int(0.22 * H), int(0.78 * H))
-        r = rng.randint(int(0.05 * W), int(0.075 * W))
-        cv2.circle(img, (cx, cy), r, (236, 234, 228), -1, cv2.LINE_AA)          # 白色贴片
-        cv2.circle(img, (cx, cy), r, (172, 170, 165), 2, cv2.LINE_AA)           # 边
-        cv2.circle(img, (cx, cy), max(3, int(r * 0.45)), (135, 138, 146), -1, cv2.LINE_AA)  # 金属按扣
-        cv2.circle(img, (cx, cy), max(2, int(r * 0.45)), (185, 188, 196), 1, cv2.LINE_AA)
+    r = int(rng.uniform(0.020, 0.030) * W)                       # 小(真实电极)
+    ax, ay = anchor if anchor is not None else (0.5 * W, 0.40 * H)
+    span = rng.uniform(0.20, 0.32) * W
+    n = rng.randint(5, 7)                                        # V1-V6
+    for i in range(n):
+        t = i / (n - 1)
+        x = int(np.clip(ax - (t - 0.15) * span * 0.7 + rng.randint(-4, 4), r, W - r))   # 右→左
+        y = int(np.clip(ay + t * span * 0.45 + rng.randint(-4, 4), r, H - r))           # 略向下(向腋下弧)
+        cv2.circle(img, (x, y), r, (236, 234, 228), -1, cv2.LINE_AA)          # 白色贴片
+        cv2.circle(img, (x, y), r, (172, 170, 165), 1, cv2.LINE_AA)
+        cv2.circle(img, (x, y), max(2, int(r * 0.42)), (135, 138, 146), -1, cv2.LINE_AA)  # 金属按扣
     return img
 
 
 def occlude_medical(img, target_uv, rng=None):
-    """临床/机器人遮挡(只改图不动标签): 机械臂 / 末端听诊器 / 电极。"""
+    """临床/机器人遮挡(只改图不动标签): 机械臂 / 电极(已去末端听诊器)。"""
     rng = rng or np.random
-    kind = rng.choice(["robot_arm", "robot_arm", "endeffector", "electrodes"])  # 机械臂权重高
+    kind = rng.choice(["robot_arm", "robot_arm", "electrodes"])  # 机械臂权重高
     if kind == "robot_arm":
         return occlude_robot_arm(img, target_uv, rng)
-    if kind == "endeffector":
-        return occlude_endeffector(img, target_uv, rng)
-    return occlude_electrodes(img, rng)
+    return occlude_electrodes(img, rng, anchor=target_uv)
 
 
 def sensor_degrade(image, rng=None):
