@@ -192,12 +192,60 @@ def clinical_lighting(image, rng=None):
     return np.clip(img, 0, 255).astype(np.uint8)
 
 
-def occlude_medical(img, target_uv, rng=None):
-    """临床遮挡(只改图不动标签): 随机 听诊器臂 / ECG导线 / 电极 / 检查服边。"""
+def occlude_robot_arm(img, target_uv, rng=None):
+    """机器人机械臂(分节金属连杆+关节)伸向听诊点 + 末端听诊头。模拟第三人称看机器人作业。"""
     rng = rng or np.random
-    kind = rng.choice(["arm", "wires", "electrodes", "gown"])
-    if kind == "arm":
-        return occlude_arm(img, target_uv, rng)
+    img = img.copy(); H, W = img.shape[:2]
+    tx, ty = int(target_uv[0]), int(target_uv[1])
+    edge = ["top", "left", "right"][rng.randint(3)]
+    sx = {"top": tx + rng.randint(-W // 5, W // 5), "left": 0, "right": W - 1}[edge]
+    sy = {"top": 0, "left": rng.randint(0, H // 2), "right": rng.randint(0, H // 2)}[edge]
+    n = rng.randint(2, 4)                                                # 连杆节数
+    pts = [(sx, sy)]
+    for i in range(1, n):
+        t = i / n
+        pts.append((int(sx + (tx - sx) * t + rng.randint(-W // 10, W // 10)),
+                    int(sy + (ty - sy) * t + rng.randint(-H // 10, H // 10))))
+    pts.append((tx, ty))
+    th = rng.randint(int(0.045 * W), int(0.085 * W))
+    for a, b in zip(pts[:-1], pts[1:]):
+        cv2.line(img, a, b, (70, 72, 80), th + 4, cv2.LINE_AA)           # 暗边
+        cv2.line(img, a, b, (150, 152, 158), th, cv2.LINE_AA)           # 金属
+        cv2.line(img, a, b, (200, 202, 208), max(1, th // 4), cv2.LINE_AA)  # 高光
+    for p in pts[1:-1]:                                                  # 关节
+        cv2.circle(img, p, th // 2 + 3, (60, 62, 70), -1, cv2.LINE_AA)
+        cv2.circle(img, p, th // 3, (120, 122, 130), -1, cv2.LINE_AA)
+    r = rng.randint(int(0.04 * W), int(0.065 * W))                       # 末端听诊头
+    cv2.circle(img, (tx, ty), r, (55, 55, 60), -1, cv2.LINE_AA)
+    cv2.circle(img, (tx, ty), r, (185, 188, 195), max(2, r // 6), cv2.LINE_AA)
+    return img
+
+
+def occlude_endeffector(img, target_uv, rng=None):
+    """末端执行器贴在听诊点(接触时近景): 3D打印支架 + 听诊头膜面 + 导管出框。"""
+    rng = rng or np.random
+    img = img.copy(); H, W = img.shape[:2]
+    tx, ty = int(target_uv[0]), int(target_uv[1])
+    r = rng.randint(int(0.05 * W), int(0.085 * W))
+    bw, bh = int(r * 1.6), int(r * 1.1)                                  # 3D打印支架(浅灰块)
+    cv2.rectangle(img, (tx - bw // 2, ty - r - bh), (tx + bw // 2, ty - r + bh // 3), (205, 205, 210), -1, cv2.LINE_AA)
+    cv2.rectangle(img, (tx - bw // 2, ty - r - bh), (tx + bw // 2, ty - r + bh // 3), (120, 120, 128), 2, cv2.LINE_AA)
+    cv2.circle(img, (tx, ty), r, (45, 46, 50), -1, cv2.LINE_AA)          # 听诊头膜面
+    cv2.circle(img, (tx, ty), r, (190, 192, 200), max(2, r // 6), cv2.LINE_AA)
+    cv2.circle(img, (tx, ty), int(r * 0.6), (72, 74, 80), -1, cv2.LINE_AA)
+    ex = 0 if rng.random() < 0.5 else W - 1; ey = rng.randint(0, H // 3)  # 导管
+    cv2.line(img, (tx, ty - r - bh // 2), (ex, ey), (40, 40, 45), rng.randint(4, 8), cv2.LINE_AA)
+    return img
+
+
+def occlude_medical(img, target_uv, rng=None):
+    """临床/机器人遮挡(只改图不动标签): 随机 机械臂 / 末端听诊器 / ECG导线 / 电极 / 检查服边。"""
+    rng = rng or np.random
+    kind = rng.choice(["robot_arm", "robot_arm", "endeffector", "wires", "electrodes", "gown"])  # 机械臂权重高
+    if kind == "robot_arm":
+        return occlude_robot_arm(img, target_uv, rng)
+    if kind == "endeffector":
+        return occlude_endeffector(img, target_uv, rng)
     img = img.copy(); H, W = img.shape[:2]
     if kind == "wires":                                                  # ECG 导线: 几根细线
         for _ in range(rng.randint(2, 4)):
