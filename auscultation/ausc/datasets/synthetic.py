@@ -35,7 +35,7 @@ FRAMINGS = {
     "F1_upper": (1.00, 0.85, 0.05),   # 上半身填满 (~85%)
     "F2_torso": (0.80, 0.86, 0.05),   # 躯干填满 (~105%)
     "F3_near":  (0.60, 0.90, 0.10),   # 胸/背特写 (~150%, 听诊区居中)
-    "F4_zoom":  (0.45, 0.92, 0.10),   # 极近景: 听诊区放大填满(机械臂作业近距)
+    "F4_zoom":  (0.55, 0.92, 0.08),   # 极近景: 听诊区放大(机械臂作业近距, 不过裁)
 }
 ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)
 
@@ -224,12 +224,10 @@ def _augment(base, rng):
     if rng.random() < 0.25:
         s["image"] = cast_shadow(s["image"], rng)
     # ── 遮挡 ──
-    if rng.random() < 0.6:                                       # 手臂/听诊器/ECG导线/电极遮挡(无头发)
+    if rng.random() < 0.6:                                       # 机械臂/末端听诊器/电极遮挡(无头发/无导线)
         vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
         if vis:
             s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
-    if rng.random() < 0.2:
-        s["image"] = random_erase(s["image"], rng)
     if rng.random() < 0.4:
         s["image"] = sensor_degrade(s["image"], rng)
     return s

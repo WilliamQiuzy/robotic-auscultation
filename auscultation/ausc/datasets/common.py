@@ -32,7 +32,8 @@ ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)  # ④ 对称: ±θ 成对, 不放�
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。
-FRAMINGS_2D = {"F1_upper": 1.9, "F2_torso": 1.45, "F3_near": 1.1, "F4_zoom": 0.9}
+# side = 听诊点区域跨度 × 倍数。远→近。最近一档也保证点+边距在画面里(见 crop_to_framing 下限)。
+FRAMINGS_2D = {"F1_upper": 3.2, "F2_torso": 2.3, "F3_near": 1.7, "F4_zoom": 1.35}
 
 
 def crop_to_framing(sample, framing, rng, target=(384, 384)):
@@ -41,8 +42,9 @@ def crop_to_framing(sample, framing, rng, target=(384, 384)):
     pts = np.array([p["xy"] if isinstance(p, dict) else p for p in sample["points"].values()])
     cx, cy = pts.mean(0)
     extent = max(float(pts.ptp(0).max()), 8.0)
-    side = int(np.clip(extent * FRAMINGS_2D[framing], 24, min(H, W)))
-    cx += rng.uniform(-0.06, 0.06) * side; cy += rng.uniform(-0.06, 0.06) * side
+    side = extent * FRAMINGS_2D[framing]
+    side = int(np.clip(max(side, extent * 1.3), 24, min(H, W)))   # 下限: 始终容纳全部点+边距(不过度裁切)
+    cx += rng.uniform(-0.05, 0.05) * side; cy += rng.uniform(-0.05, 0.05) * side
     x0 = int(np.clip(cx - side / 2, 0, W - side)); y0 = int(np.clip(cy - side / 2, 0, H - side))
     tw, th = target
     out = {"image": cv2.resize(img[y0:y0 + side, x0:x0 + side], (tw, th), interpolation=cv2.INTER_LINEAR),
@@ -114,13 +116,11 @@ def augment_once(sample: dict, rng, target=(384, 384)) -> dict:
     if rng.random() < 0.25:
         s["image"] = cast_shadow(s["image"], rng)
     # 遮挡(听诊器臂/ECG导线/电极/检查服 + 头发) + 随机擦除
-    if rng.random() < 0.6:                                       # 手臂/听诊器/ECG导线/电极(无头发)
+    if rng.random() < 0.6:                                       # 机械臂/末端听诊器/电极(无头发/无导线)
         vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
         if vis:
             s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
-    if rng.random() < 0.2:
-        s["image"] = random_erase(s["image"], rng)
-    # 相机退化
+    # 相机退化(运动模糊/JPEG/噪声)
     if rng.random() < 0.4:
         s["image"] = sensor_degrade(s["image"], rng)
     return s

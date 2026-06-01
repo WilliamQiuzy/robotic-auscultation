@@ -200,24 +200,26 @@ def occlude_robot_arm(img, target_uv, rng=None):
     edge = ["top", "left", "right"][rng.randint(3)]
     sx = {"top": tx + rng.randint(-W // 5, W // 5), "left": 0, "right": W - 1}[edge]
     sy = {"top": 0, "left": rng.randint(0, H // 2), "right": rng.randint(0, H // 2)}[edge]
-    n = rng.randint(2, 4)                                                # 连杆节数
+    n_mid = rng.randint(2, 4)                                            # 中间关节数(2-3)→始终多节, 不退化成线
     pts = [(sx, sy)]
-    for i in range(1, n):
-        t = i / n
-        pts.append((int(sx + (tx - sx) * t + rng.randint(-W // 10, W // 10)),
-                    int(sy + (ty - sy) * t + rng.randint(-H // 10, H // 10))))
+    for i in range(1, n_mid + 1):
+        t = i / (n_mid + 1)
+        pts.append((int(sx + (tx - sx) * t + rng.randint(-W // 9, W // 9)),
+                    int(sy + (ty - sy) * t + rng.randint(-H // 9, H // 9))))
     pts.append((tx, ty))
-    th = rng.randint(int(0.045 * W), int(0.085 * W))
-    for a, b in zip(pts[:-1], pts[1:]):
-        cv2.line(img, a, b, (70, 72, 80), th + 4, cv2.LINE_AA)           # 暗边
-        cv2.line(img, a, b, (150, 152, 158), th, cv2.LINE_AA)           # 金属
-        cv2.line(img, a, b, (200, 202, 208), max(1, th // 4), cv2.LINE_AA)  # 高光
-    for p in pts[1:-1]:                                                  # 关节
-        cv2.circle(img, p, th // 2 + 3, (60, 62, 70), -1, cv2.LINE_AA)
-        cv2.circle(img, p, th // 3, (120, 122, 130), -1, cv2.LINE_AA)
-    r = rng.randint(int(0.04 * W), int(0.065 * W))                       # 末端听诊头
-    cv2.circle(img, (tx, ty), r, (55, 55, 60), -1, cv2.LINE_AA)
-    cv2.circle(img, (tx, ty), r, (185, 188, 195), max(2, r // 6), cv2.LINE_AA)
+    th = int(rng.uniform(0.06, 0.085) * W)                               # 连杆够粗且稳定
+    cv2.circle(img, (sx, sy), int(th * 0.9), (55, 57, 64), -1, cv2.LINE_AA)   # 入口基座
+    for a, b in zip(pts[:-1], pts[1:]):                                  # 金属连杆(暗边+金属+高光)
+        cv2.line(img, a, b, (62, 64, 72), th + 6, cv2.LINE_AA)
+        cv2.line(img, a, b, (152, 155, 162), th, cv2.LINE_AA)
+        cv2.line(img, a, b, (205, 207, 213), max(2, th // 4), cv2.LINE_AA)
+    for p in pts[1:-1]:                                                  # 关节(暗座+亮轴)
+        cv2.circle(img, p, th // 2 + 4, (52, 54, 62), -1, cv2.LINE_AA)
+        cv2.circle(img, p, max(3, th // 3), (130, 133, 140), -1, cv2.LINE_AA)
+    r = int(rng.uniform(0.045, 0.065) * W)                               # 末端听诊头
+    cv2.circle(img, (tx, ty), r + 3, (60, 62, 70), -1, cv2.LINE_AA)
+    cv2.circle(img, (tx, ty), r, (50, 50, 55), -1, cv2.LINE_AA)
+    cv2.circle(img, (tx, ty), r, (190, 193, 200), max(2, r // 6), cv2.LINE_AA)
     return img
 
 
@@ -239,9 +241,10 @@ def occlude_endeffector(img, target_uv, rng=None):
 
 
 def occlude_medical(img, target_uv, rng=None):
-    """临床/机器人遮挡(只改图不动标签): 随机 机械臂 / 末端听诊器 / ECG导线 / 电极 / 检查服边。"""
+    """临床/机器人遮挡(只改图不动标签): 随机 机械臂 / 末端听诊器 / 电极。
+    (已去掉粗糙的ECG彩色导线 + 检查服边)"""
     rng = rng or np.random
-    kind = rng.choice(["robot_arm", "robot_arm", "endeffector", "wires", "electrodes", "gown"])  # 机械臂权重高
+    kind = rng.choice(["robot_arm", "robot_arm", "endeffector", "electrodes"])  # 机械臂权重高
     if kind == "robot_arm":
         return occlude_robot_arm(img, target_uv, rng)
     if kind == "endeffector":
