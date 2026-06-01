@@ -22,3 +22,10 @@ __pycache__/
 *.pyc
 *.pyo
 .DS_Store
+
+# 密钥(绝不入库)
+.env
+*.env
+data/bedlam_skin/
+data/_candidates/
+data/smpl_assets/

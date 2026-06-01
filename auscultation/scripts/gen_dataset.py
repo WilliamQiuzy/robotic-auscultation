@@ -36,6 +36,8 @@ def main():
     ap.add_argument("--scoliosis_labels", default=_p("data", "scoliosis_back", "labels_hmr2.pkl"))
     ap.add_argument("--scoliosis_imgs", default=_p("data", "scoliosis_back"))
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--bedlam_skin", default=None, help="[synthetic] BEDLAM真皮 SMPL albedo 目录(给定则用真实纹理)")
+    ap.add_argument("--smpl_uv_obj", default=_p("data", "smpl_assets", "smpl_uv_full.obj"), help="[synthetic] SMPL UV obj")
     args = ap.parse_args()
 
     ds = args.dataset
@@ -53,7 +55,8 @@ def main():
     def run_synthetic(out):
         import synthetic
         synthetic.generate(args.smpl_model, args.uv, out,
-                           n_subjects=args.n_subjects, n_aug=args.n_aug or 6, seed=args.seed)
+                           n_subjects=args.n_subjects, n_aug=args.n_aug or 6, seed=args.seed,
+                           texture_dir=args.bedlam_skin, smpl_uv_obj=args.smpl_uv_obj)
 
     if ds == "all":
         run_humman(os.path.join(args.out, "humman"))

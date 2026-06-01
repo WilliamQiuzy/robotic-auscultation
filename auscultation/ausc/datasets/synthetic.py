@@ -83,13 +83,53 @@ def _make_cam(cx, cy, span, H, W, focal, fill, R):
     return {"K": K, "R": R, "T": np.array([-cx, -cy, d], np.float32)}
 
 
-def _render_rgb(verts, faces, cam, H, W, skin, rng):
-    """pyrender 平滑Phong + 三点柔光 → RGB(纯色柔背景合成)。"""
+# ───── BEDLAM 真实皮肤纹理渲染(SMPL UV) ─────
+def parse_obj(path):
+    """解析 smpl_uv_full.obj → vt(Nvt,2), face_v(F,3 SMPL顶点idx), face_vt(F,3 vt idx)。"""
+    vt, fv, fvt = [], [], []
+    for ln in open(path):
+        if ln.startswith("vt "):
+            _, a, b = ln.split()[:3]; vt.append((float(a), float(b)))
+        elif ln.startswith("f "):
+            t = ln.split()[1:4]
+            fv.append([int(x.split("/")[0]) - 1 for x in t])
+            fvt.append([int(x.split("/")[1]) - 1 for x in t])
+    return np.array(vt, np.float32), np.array(fv, np.int64), np.array(fvt, np.int64)
+
+
+def _vnormals(verts, faces):
+    n = np.zeros_like(verts); tri = verts[faces]
+    fn = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+    for i in range(3):
+        np.add.at(n, faces[:, i], fn)
+    return n / (np.linalg.norm(n, axis=1, keepdims=True) + 1e-9)
+
+
+def _textured_mesh(verts, obj, albedo_rgb):
+    """用 BEDLAM albedo(SMPL UV) 建带纹理的 pyrender.Mesh(平滑法线)。"""
+    import pyrender
+    vt, face_v, face_vt = obj
+    nrm = _vnormals(verts, face_v)
+    pos = verts[face_v].reshape(-1, 3).astype(np.float32)
+    nor = nrm[face_v].reshape(-1, 3).astype(np.float32)
+    uv = vt[face_vt].reshape(-1, 2).astype(np.float32).copy()
+    uv[:, 1] = 1.0 - uv[:, 1]                                    # OBJ->glTF v 翻转
+    idx = np.arange(len(pos), dtype=np.int64).reshape(-1, 3)
+    tex = pyrender.Texture(source=albedo_rgb, source_channels="RGB")
+    mat = pyrender.MetallicRoughnessMaterial(baseColorTexture=tex, metallicFactor=0.0, roughnessFactor=0.7)
+    return pyrender.Mesh(primitives=[pyrender.Primitive(positions=pos, normals=nor, texcoord_0=uv, indices=idx, material=mat)])
+
+
+def _render_rgb(verts, faces, cam, H, W, skin, rng, tex_rgb=None, obj=None):
+    """pyrender 平滑Phong + 三点柔光 → RGB。tex_rgb给定→用BEDLAM真皮纹理, 否则程序化肤色。"""
     import pyrender
     import trimesh
-    mesh = trimesh.Trimesh(verts, faces, process=False)
-    mesh.visual.vertex_colors = _skin_colors(verts, skin, rng)
-    pm = pyrender.Mesh.from_trimesh(mesh, smooth=True)
+    if tex_rgb is not None and obj is not None:
+        pm = _textured_mesh(verts, obj, tex_rgb)
+    else:
+        mesh = trimesh.Trimesh(verts, faces, process=False)
+        mesh.visual.vertex_colors = _skin_colors(verts, skin, rng)
+        pm = pyrender.Mesh.from_trimesh(mesh, smooth=True)
     scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.4, 0.4, 0.4])
     scene.add(pm)
     pose4 = np.linalg.inv(np.vstack([np.hstack([cam["R"], cam["T"][:, None]]), [0, 0, 0, 1]])) @ np.diag([1.0, -1, -1, 1])
@@ -107,8 +147,10 @@ def _render_rgb(verts, faces, cam, H, W, skin, rng):
     return np.where((a > 10)[:, :, None], rgb, bg).astype(np.uint8)
 
 
-def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, framing, H, W, focal):
-    """渲染一个 base sample: RGB + 稠密IUV + 听诊点(相机取景 F1/F2/F3)。"""
+def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, framing, H, W, focal,
+                 obj=None, textures=None):
+    """渲染一个 base sample: RGB + 稠密IUV + 听诊点(相机取景 F1/F2/F3)。
+    textures给定(BEDLAM真皮路径列表)→用真实纹理; 否则程序化肤色。"""
     import torch
     betas = np.clip(rng.normal(0, 1.4, (1, 10)), -3, 3).astype(np.float32)
     pose = _seated_pose(rng) if posture == "seated" else _natural_pose(rng)
@@ -120,8 +162,11 @@ def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, frami
     ac = P[list(ausc[view].values())].mean(0); torso_h = float(P[torso_idx, 1].ptp())
     k, fill, cyoff = FRAMINGS[framing]
     cam = _make_cam(ac[0], ac[1] + cyoff * torso_h, torso_h * k, H, W, focal, fill, R)
-    skin = SKIN[rng.randint(len(SKIN))] * rng.uniform(0.95, 1.05)   # MST 已覆盖范围, 仅个体微抖
-    img = _render_rgb(verts, faces, cam, H, W, skin, rng)
+    tex_rgb = None
+    if textures:
+        tex_rgb = cv2.imread(textures[rng.randint(len(textures))])[:, :, ::-1].copy()  # BEDLAM真皮 albedo
+    skin = SKIN[rng.randint(len(SKIN))] * rng.uniform(0.95, 1.05)   # 程序化兜底
+    img = _render_rgb(verts, faces, cam, H, W, skin, rng, tex_rgb=tex_rgb, obj=obj)
     I, U, V, _ = rasterize_iuv(verts, cam, uvmap, H, W)
     iuv = np.dstack([I, (U * 255).astype(np.uint8), (V * 255).astype(np.uint8)])
     uv, _ = project(verts, cam)
@@ -157,8 +202,11 @@ def _augment(base, rng):
     return s
 
 
-def generate(smpl_model, uv, out, n_subjects=400, n_aug=3, res=512, focal=1100.0, seed=0):
-    """纯仿真 pyrender 量产。需 GPU+EGL。每受试者 × 站/坐 × 前/后 × F1/F2/F3 × (1+n_aug)。"""
+def generate(smpl_model, uv, out, n_subjects=400, n_aug=3, res=512, focal=1100.0, seed=0,
+             texture_dir=None, smpl_uv_obj=None):
+    """纯仿真 pyrender 量产。需 GPU+EGL。每受试者 × 站/坐 × 前/后 × F1/F2/F3 × (1+n_aug)。
+    texture_dir(BEDLAM真皮 SMPL albedo 目录)+ smpl_uv_obj 给定 → 用真实皮肤纹理; 否则程序化肤色。"""
+    import glob
     import smplx
     model = smplx.SMPL(model_path=smpl_model, gender="neutral", batch_size=1)
     faces = model.faces
@@ -166,13 +214,19 @@ def generate(smpl_model, uv, out, n_subjects=400, n_aug=3, res=512, focal=1100.0
     ausc = define_ausc_vertices(model)
     from humman_label import infer_side  # noqa: F401 (确保模块就绪)
     torso_idx = _torso_indices(uvmap)
+    obj = textures = None
+    if texture_dir and smpl_uv_obj:
+        obj = parse_obj(smpl_uv_obj)
+        textures = sorted(glob.glob(os.path.join(texture_dir, "*.png")))
+        print(f"[synthetic] BEDLAM 真皮纹理: {len(textures)} 张, UV={os.path.basename(smpl_uv_obj)}")
     with ManifestWriter(out) as mw:
         for si in range(n_subjects):
             for posture in ("standing", "seated"):
                 for view in ("front", "back"):
                     for fr in FRAMINGS:
                         r = np.random.RandomState(seed * 100003 + si * 97 + (hash((posture, view, fr)) % 1000))
-                        base = _render_base(model, faces, uvmap, ausc, torso_idx, r, view, posture, fr, res, res, focal)
+                        base = _render_base(model, faces, uvmap, ausc, torso_idx, r, view, posture, fr, res, res, focal,
+                                            obj=obj, textures=textures)
                         bid = f"syn{si:05d}_{posture}_{view}_{fr}"
                         mw.add(write_sample(out, bid + "_canon", base))
                         for k in range(n_aug):
