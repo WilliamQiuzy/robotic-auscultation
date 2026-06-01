@@ -32,19 +32,36 @@ ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)  # ④ 对称: ±θ 成对, 不放�
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。
-# side = 听诊点区域跨度 × 倍数。远→近。最近一档也保证点+边距在画面里(见 crop_to_framing 下限)。
-FRAMINGS_2D = {"F1_upper": 3.2, "F2_torso": 2.3, "F3_near": 1.7, "F4_zoom": 1.35}
+# side = 躯干尺寸 × 倍数(以躯干中心裁, 身体居中)。远→近。
+FRAMINGS_2D = {"F1_upper": 2.6, "F2_torso": 1.9, "F3_near": 1.4, "F4_zoom": 1.1}
 
 
 def crop_to_framing(sample, framing, rng, target=(384, 384)):
-    """以听诊点区域为中心的正方形裁剪, 边长按取景档(F1/F2/F3)缩放 → 远/中/近景。"""
+    """以【躯干中心】为中心的正方形裁剪(身体居中, 不偏心), 边长按取景档×躯干尺寸 → 远/中/近景。
+    中心从 IUV 躯干块(前胸part2/后背part1)质心取; 保证全部听诊点在框内。"""
     img = sample["image"]; H, W = img.shape[:2]
-    pts = np.array([p["xy"] if isinstance(p, dict) else p for p in sample["points"].values()])
-    cx, cy = pts.mean(0)
-    extent = max(float(pts.ptp(0).max()), 8.0)
+    iuv = sample.get("iuv"); region = sample.get("region")
+    part = 2 if region == "front" else 1
+    mask = None
+    if iuv is not None:
+        m = iuv[:, :, 0] == part
+        if m.sum() < 50:
+            m = iuv[:, :, 0] > 0                      # 兜底: 全身体素
+        if m.sum() >= 50:
+            mask = m
+    if mask is not None:                              # 躯干中心 + 躯干尺寸
+        ys, xs = np.where(mask); cx, cy = float(xs.mean()), float(ys.mean())
+        extent = float(max(xs.ptp(), ys.ptp()))
+    else:                                             # 无IUV兜底: 用点
+        p0 = np.array([p["xy"] if isinstance(p, dict) else p for p in sample["points"].values()])
+        cx, cy = p0.mean(0); extent = max(float(p0.ptp(0).max()), 8.0)
     side = extent * FRAMINGS_2D[framing]
-    side = int(np.clip(max(side, extent * 1.3), 24, min(H, W)))   # 下限: 始终容纳全部点+边距(不过度裁切)
-    cx += rng.uniform(-0.05, 0.05) * side; cy += rng.uniform(-0.05, 0.05) * side
+    pts = np.array([(p["xy"] if isinstance(p, dict) else p) for p in sample["points"].values()])
+    if len(pts):                                      # 保证听诊点都在框内(+边距)
+        need = 2.2 * max(float(np.abs(pts[:, 0] - cx).max()), float(np.abs(pts[:, 1] - cy).max()))
+        side = max(side, need)
+    side = int(np.clip(side, 24, min(H, W)))
+    cx += rng.uniform(-0.04, 0.04) * side; cy += rng.uniform(-0.04, 0.04) * side
     x0 = int(np.clip(cx - side / 2, 0, W - side)); y0 = int(np.clip(cy - side / 2, 0, H - side))
     tw, th = target
     out = {"image": cv2.resize(img[y0:y0 + side, x0:x0 + side], (tw, th), interpolation=cv2.INTER_LINEAR),

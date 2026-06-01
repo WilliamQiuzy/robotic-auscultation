@@ -178,9 +178,9 @@ def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, frami
                   global_orient=torch.zeros(1, 3), transl=torch.zeros(1, 3))
     verts = o.vertices[0].numpy()
     R = _jitter_view(VIEW_R[view], rng); P = (R @ verts.T).T   # 随机相机视角(方位/俯仰/滚转)
-    ac = P[list(ausc[view].values())].mean(0); torso_h = float(P[torso_idx, 1].ptp())
+    tc = P[torso_idx].mean(0); torso_h = float(P[torso_idx, 1].ptp())   # 对准躯干中心(身体居中, 不偏心)
     k, fill, cyoff = FRAMINGS[framing]
-    cam = _make_cam(ac[0], ac[1] + cyoff * torso_h, torso_h * k, H, W, focal, fill, R)
+    cam = _make_cam(tc[0], tc[1] + cyoff * torso_h, torso_h * k, H, W, focal, fill, R)
     tex_rgb = None
     if textures:
         tex_rgb = cv2.imread(textures[rng.randint(len(textures))])[:, :, ::-1].copy()  # BEDLAM真皮 albedo
