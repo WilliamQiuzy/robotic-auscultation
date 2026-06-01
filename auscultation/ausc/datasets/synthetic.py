@@ -112,8 +112,7 @@ def _textured_mesh(verts, obj, albedo_rgb):
     nrm = _vnormals(verts, face_v)
     pos = verts[face_v].reshape(-1, 3).astype(np.float32)
     nor = nrm[face_v].reshape(-1, 3).astype(np.float32)
-    uv = vt[face_vt].reshape(-1, 2).astype(np.float32).copy()
-    uv[:, 1] = 1.0 - uv[:, 1]                                    # OBJ->glTF v 翻转
+    uv = vt[face_vt].reshape(-1, 2).astype(np.float32).copy()    # BEDLAM 纹理: 不翻 v(实测 no-flip 对齐)
     idx = np.arange(len(pos), dtype=np.int64).reshape(-1, 3)
     tex = pyrender.Texture(source=albedo_rgb, source_channels="RGB")
     mat = pyrender.MetallicRoughnessMaterial(baseColorTexture=tex, metallicFactor=0.0, roughnessFactor=0.7)
@@ -124,19 +123,22 @@ def _render_rgb(verts, faces, cam, H, W, skin, rng, tex_rgb=None, obj=None):
     """pyrender 平滑Phong + 三点柔光 → RGB。tex_rgb给定→用BEDLAM真皮纹理, 否则程序化肤色。"""
     import pyrender
     import trimesh
-    if tex_rgb is not None and obj is not None:
+    textured = tex_rgb is not None and obj is not None
+    if textured:
         pm = _textured_mesh(verts, obj, tex_rgb)
     else:
         mesh = trimesh.Trimesh(verts, faces, process=False)
         mesh.visual.vertex_colors = _skin_colors(verts, skin, rng)
         pm = pyrender.Mesh.from_trimesh(mesh, smooth=True)
-    scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[0.4, 0.4, 0.4])
+    amb = 0.55 if textured else 0.4                              # 真皮纹理 albedo 偏暗 → 调亮
+    scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[amb, amb, amb])
     scene.add(pm)
     pose4 = np.linalg.inv(np.vstack([np.hstack([cam["R"], cam["T"][:, None]]), [0, 0, 0, 1]])) @ np.diag([1.0, -1, -1, 1])
     K = cam["K"]
     scene.add(pyrender.IntrinsicsCamera(fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2], znear=0.05, zfar=20), pose=pose4)
-    # 柔光(收敛强度: 原 2.8/1.5/1.0 会把浅肤色曝白)
-    for d, it in [((-0.5, -0.6, -1.0), 0.9), ((0.7, -0.2, -0.8), 0.5), ((0, 0.4, 1.0), 0.3)]:
+    lights = [((-0.4, -0.5, -1.0), 1.5), ((0.6, -0.2, -0.8), 0.8), ((0, 0.4, 1.0), 0.5)] if textured \
+        else [((-0.5, -0.6, -1.0), 0.9), ((0.7, -0.2, -0.8), 0.5), ((0, 0.4, 1.0), 0.3)]
+    for d, it in lights:
         lp = np.eye(4); z = -np.array(d, float); z /= np.linalg.norm(z)
         x = np.cross([0, 1, 0], z); x /= np.linalg.norm(x); lp[:3, :3] = np.c_[x, np.cross(z, x), z]
         scene.add(pyrender.DirectionalLight(color=np.ones(3), intensity=it), pose=pose4 @ lp)
