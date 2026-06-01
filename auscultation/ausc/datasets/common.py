@@ -24,14 +24,15 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # 让 ausc/ 顶层模块可导入
-from augment import (_xform_points, clinical_lighting, hflip, occlude_medical,  # noqa: E402
-                     sensor_degrade, LR_SWAP)
+from augment import (_xform_points, cast_shadow, clinical_lighting, hflip, hue_shift,  # noqa: E402
+                     occlude_medical, perspective_warp, random_erase,
+                     sensor_degrade, specular, LR_SWAP)
 
 ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)  # ④ 对称: ±θ 成对, 不放大角度
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。
-FRAMINGS_2D = {"F1_upper": 1.9, "F2_torso": 1.45, "F3_near": 1.1}
+FRAMINGS_2D = {"F1_upper": 1.9, "F2_torso": 1.45, "F3_near": 1.1, "F4_zoom": 0.9}
 
 
 def crop_to_framing(sample, framing, rng, target=(384, 384)):
@@ -88,32 +89,38 @@ def augment_once(sample: dict, rng, target=(384, 384)) -> dict:
          "points": {k: dict(v) for k, v in sample["points"].items()},
          "region": region}
 
-    # ④ 小角度旋转(对称集合, 含 0=不转)
-    ang = float(rng.choice(ROT_CHOICES))
-    if ang != 0.0:
-        s = _rotate(s, ang)
+    # 几何: 透视视角抖动 或 对称旋转(二选一)
+    if rng.random() < 0.45:
+        f = perspective_warp(s, rng); f["region"] = region; s = f
+    else:
+        ang = float(rng.choice(ROT_CHOICES))
+        if ang != 0.0:
+            s = _rotate(s, ang)
 
-    # ③ 水平翻转 + 换 L/R —— 仅后背(肺双侧对称); 前胸心点不对称, 永不翻转
+    # 水平翻转 + 换 L/R —— 仅后背(肺双侧对称); 前胸心点不对称, 永不翻转
     if region == "back" and rng.random() < 0.5:
-        f = hflip(s, lr_swap=LR_SWAP)
-        f["region"] = region
-        s = f
+        f = hflip(s, lr_swap=LR_SWAP); f["region"] = region; s = f
 
-    # ⑤ 取景 F1远/F2中/F3近(随机一档, 以听诊区居中正方形裁剪, 不拉伸)
-    framing = rng.choice(list(FRAMINGS_2D))
-    s = crop_to_framing(s, framing, rng, target=target)
+    # 取景 F1远/F2中/F3近/F4极近(随机一档, 以听诊区居中正方形裁剪)
+    s = crop_to_framing(s, rng.choice(list(FRAMINGS_2D)), rng, target=target)
     s["region"] = region
 
-    # ① 临床光照(色温/检查灯不均匀/渐晕, 保皮肤纹理)
+    # 光照/外观
     s["image"] = clinical_lighting(s["image"], rng)
-
-    # ② 临床遮挡(听诊器臂/ECG导线/电极/检查服边, 最关键) —— 遮在某个可见听诊点上
-    if rng.random() < 0.6:
+    if rng.random() < 0.4:
+        s["image"] = hue_shift(s["image"], rng)
+    if rng.random() < 0.3:
+        s["image"] = specular(s["image"], rng)
+    if rng.random() < 0.25:
+        s["image"] = cast_shadow(s["image"], rng)
+    # 遮挡(听诊器臂/ECG导线/电极/检查服 + 头发) + 随机擦除
+    if rng.random() < 0.6:                                       # 手臂/听诊器/ECG导线/电极(无头发)
         vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
         if vis:
             s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
-
-    # ③ 相机退化(运动模糊/JPEG/传感器噪声, 中概率)
+    if rng.random() < 0.2:
+        s["image"] = random_erase(s["image"], rng)
+    # 相机退化
     if rng.random() < 0.4:
         s["image"] = sensor_degrade(s["image"], rng)
     return s

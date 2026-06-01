@@ -17,7 +17,8 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-from augment import LR_SWAP, clinical_lighting, hflip, occlude_medical, sensor_degrade  # noqa: E402
+from augment import (LR_SWAP, cast_shadow, clinical_lighting, hflip, hue_shift,  # noqa: E402
+                     occlude_medical, perspective_warp, random_erase, sensor_degrade, specular)
 from common import ManifestWriter, write_sample  # noqa: E402
 from humman_label import define_ausc_vertices  # noqa: E402
 from render_iuv import load_uv_mapping, project, rasterize_iuv  # noqa: E402
@@ -34,6 +35,7 @@ FRAMINGS = {
     "F1_upper": (1.00, 0.85, 0.05),   # 上半身填满 (~85%)
     "F2_torso": (0.80, 0.86, 0.05),   # 躯干填满 (~105%)
     "F3_near":  (0.60, 0.90, 0.10),   # 胸/背特写 (~150%, 听诊区居中)
+    "F4_zoom":  (0.45, 0.92, 0.10),   # 极近景: 听诊区放大填满(机械臂作业近距)
 }
 ROT_CHOICES = (0.0, -8.0, 8.0, -15.0, 15.0)
 
@@ -50,6 +52,16 @@ def _rz(deg):
 
 # 相机朝向(实测): 正面=绕x转180°(正面朝相机+头朝上); 背面=绕z转180°
 VIEW_R = {"front": _rx(180.0), "back": _rz(180.0)}
+
+
+def _jitter_view(R0, rng, yaw=18.0, pitch=12.0, roll=7.0):
+    """相机视角随机抖动(方位/俯仰/滚转, 域随机化): 保持正/背面可见前提下变视角。"""
+    a, b, c = (np.radians(rng.uniform(-yaw, yaw)), np.radians(rng.uniform(-pitch, pitch)),
+               np.radians(rng.uniform(-roll, roll)))
+    Ry = np.array([[np.cos(a), 0, np.sin(a)], [0, 1, 0], [-np.sin(a), 0, np.cos(a)]], np.float32)
+    Rx = np.array([[1, 0, 0], [0, np.cos(b), -np.sin(b)], [0, np.sin(b), np.cos(b)]], np.float32)
+    Rz = np.array([[np.cos(c), -np.sin(c), 0], [np.sin(c), np.cos(c), 0], [0, 0, 1]], np.float32)
+    return (Rz @ Rx @ Ry @ R0).astype(np.float32)
 
 
 def _natural_pose(rng):
@@ -130,18 +142,23 @@ def _render_rgb(verts, faces, cam, H, W, skin, rng, tex_rgb=None, obj=None):
         mesh = trimesh.Trimesh(verts, faces, process=False)
         mesh.visual.vertex_colors = _skin_colors(verts, skin, rng)
         pm = pyrender.Mesh.from_trimesh(mesh, smooth=True)
-    amb = 0.55 if textured else 0.4                              # 真皮纹理 albedo 偏暗 → 调亮
+    amb = rng.uniform(0.45, 0.62) if textured else rng.uniform(0.35, 0.48)   # 环境光随机
     scene = pyrender.Scene(bg_color=[0, 0, 0, 0], ambient_light=[amb, amb, amb])
     scene.add(pm)
     pose4 = np.linalg.inv(np.vstack([np.hstack([cam["R"], cam["T"][:, None]]), [0, 0, 0, 1]])) @ np.diag([1.0, -1, -1, 1])
     K = cam["K"]
     scene.add(pyrender.IntrinsicsCamera(fx=K[0, 0], fy=K[1, 1], cx=K[0, 2], cy=K[1, 2], znear=0.05, zfar=20), pose=pose4)
-    lights = [((-0.4, -0.5, -1.0), 1.5), ((0.6, -0.2, -0.8), 0.8), ((0, 0.4, 1.0), 0.5)] if textured \
-        else [((-0.5, -0.6, -1.0), 0.9), ((0.7, -0.2, -0.8), 0.5), ((0, 0.4, 1.0), 0.3)]
-    for d, it in lights:
-        lp = np.eye(4); z = -np.array(d, float); z /= np.linalg.norm(z)
-        x = np.cross([0, 1, 0], z); x /= np.linalg.norm(x); lp[:3, :3] = np.c_[x, np.cross(z, x), z]
-        scene.add(pyrender.DirectionalLight(color=np.ones(3), intensity=it), pose=pose4 @ lp)
+    # 随机光源(方向/强度/色温都转一转, 域随机化): 1主光 + 1-2补光, 朝向被摄体(-z)一侧
+    base_it = 1.5 if textured else 0.9
+    n_l = rng.randint(2, 4)
+    for li in range(n_l):
+        d = np.array([rng.uniform(-1, 1), rng.uniform(-0.8, 0.8), -abs(rng.uniform(0.4, 1.2))], np.float32)
+        it = base_it * (rng.uniform(0.7, 1.3) if li == 0 else rng.uniform(0.2, 0.6))   # 主光强/补光弱
+        ct = rng.uniform(-0.12, 0.12)                                                  # 色温(暖/冷)
+        col = np.clip([1 + ct, 1.0, 1 - ct], 0.6, 1.3)
+        z = -d / np.linalg.norm(d); x = np.cross([0, 1, 0], z)
+        x = x / (np.linalg.norm(x) + 1e-9); lp = np.eye(4); lp[:3, :3] = np.c_[x, np.cross(z, x), z]
+        scene.add(pyrender.DirectionalLight(color=col, intensity=float(it)), pose=pose4 @ lp)
     r = pyrender.OffscreenRenderer(W, H)
     color, _ = r.render(scene, flags=pyrender.RenderFlags.RGBA); r.delete()
     rgb, a = color[:, :, :3], color[:, :, 3]
@@ -160,7 +177,7 @@ def _render_base(model, faces, uvmap, ausc, torso_idx, rng, view, posture, frami
         o = model(betas=torch.tensor(betas), body_pose=torch.tensor(pose),
                   global_orient=torch.zeros(1, 3), transl=torch.zeros(1, 3))
     verts = o.vertices[0].numpy()
-    R = VIEW_R[view]; P = (R @ verts.T).T
+    R = _jitter_view(VIEW_R[view], rng); P = (R @ verts.T).T   # 随机相机视角(方位/俯仰/滚转)
     ac = P[list(ausc[view].values())].mean(0); torso_h = float(P[torso_idx, 1].ptp())
     k, fill, cyoff = FRAMINGS[framing]
     cam = _make_cam(ac[0], ac[1] + cyoff * torso_h, torso_h * k, H, W, focal, fill, R)
@@ -182,23 +199,37 @@ def _augment(base, rng):
     region = base["region"]; H, W = base["image"].shape[:2]
     s = {"image": base["image"].copy(), "iuv": base["iuv"].copy(),
          "points": {k: dict(v) for k, v in base["points"].items()}, "region": region}
-    ang = float(rng.choice(ROT_CHOICES))
-    if ang != 0.0:
-        M = cv2.getRotationMatrix2D((W / 2, H / 2), ang, 1.0)
-        bgc = tuple(int(c) for c in s["image"][0, 0])   # 旋转露出的角填背景灰(非黑)
-        s["image"] = cv2.warpAffine(s["image"], M, (W, H), flags=cv2.INTER_LINEAR,
-                                    borderMode=cv2.BORDER_CONSTANT, borderValue=bgc)
-        s["iuv"] = cv2.warpAffine(s["iuv"], M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0)
-        for nm, p in s["points"].items():
-            v = M @ np.array([p["xy"][0], p["xy"][1], 1.0])
-            s["points"][nm] = {"xy": (float(v[0]), float(v[1])), "visible": bool(0 <= v[0] < W and 0 <= v[1] < H)}
+    # ── 几何: 透视视角抖动 或 对称旋转(二选一) ──
+    if rng.random() < 0.45:
+        f = perspective_warp(s, rng); f["region"] = region; s = f
+    else:
+        ang = float(rng.choice(ROT_CHOICES))
+        if ang != 0.0:
+            M = cv2.getRotationMatrix2D((W / 2, H / 2), ang, 1.0)
+            bgc = tuple(int(c) for c in s["image"][0, 0])
+            s["image"] = cv2.warpAffine(s["image"], M, (W, H), flags=cv2.INTER_LINEAR,
+                                        borderMode=cv2.BORDER_CONSTANT, borderValue=bgc)
+            s["iuv"] = cv2.warpAffine(s["iuv"], M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0)
+            for nm, p in s["points"].items():
+                v = M @ np.array([p["xy"][0], p["xy"][1], 1.0])
+                s["points"][nm] = {"xy": (float(v[0]), float(v[1])), "visible": bool(0 <= v[0] < W and 0 <= v[1] < H)}
     if region == "back" and rng.random() < 0.5:
         f = hflip(s, lr_swap=LR_SWAP); f["region"] = region; s = f
+    # ── 光照/外观(只改图) ──
     s["image"] = clinical_lighting(s["image"], rng)
-    if rng.random() < 0.6:
+    if rng.random() < 0.4:
+        s["image"] = hue_shift(s["image"], rng)
+    if rng.random() < 0.3:
+        s["image"] = specular(s["image"], rng)
+    if rng.random() < 0.25:
+        s["image"] = cast_shadow(s["image"], rng)
+    # ── 遮挡 ──
+    if rng.random() < 0.6:                                       # 手臂/听诊器/ECG导线/电极遮挡(无头发)
         vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
         if vis:
             s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
+    if rng.random() < 0.2:
+        s["image"] = random_erase(s["image"], rng)
     if rng.random() < 0.4:
         s["image"] = sensor_degrade(s["image"], rng)
     return s

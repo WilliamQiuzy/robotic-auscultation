@@ -244,6 +244,89 @@ def sensor_degrade(image, rng=None):
     return img
 
 
+def perspective_warp(sample, rng=None, mag=0.055):
+    """小透视/视角抖动(相机非正对患者): image/iuv/points 同步。比纯旋转更真实的视角变化。"""
+    rng = rng or np.random
+    img = sample["image"]; H, W = img.shape[:2]
+    src = np.float32([[0, 0], [W, 0], [W, H], [0, H]])
+    dst = src + rng.uniform(-mag, mag, (4, 2)).astype(np.float32) * np.float32([W, H])
+    M = cv2.getPerspectiveTransform(src, dst)
+    bgc = tuple(int(c) for c in img[0, 0])
+    out = {"region": sample.get("region"),
+           "image": cv2.warpPerspective(img, M, (W, H), flags=cv2.INTER_LINEAR,
+                                        borderMode=cv2.BORDER_CONSTANT, borderValue=bgc)}
+    if sample.get("iuv") is not None:
+        out["iuv"] = cv2.warpPerspective(sample["iuv"], M, (W, H), flags=cv2.INTER_NEAREST, borderValue=0)
+    pts = {}
+    for nm, p in (sample.get("points") or {}).items():
+        xy = p["xy"] if isinstance(p, dict) else p
+        v = M @ np.array([xy[0], xy[1], 1.0]); v = v / v[2]
+        pts[nm] = dict(xy=(float(v[0]), float(v[1])), visible=bool(0 <= v[0] < W and 0 <= v[1] < H))
+    out["points"] = pts
+    return out
+
+
+def occlude_hair(img, rng=None):
+    """长发/发丝遮挡(垂到肩/上背): 几缕深色波浪带。只改图。"""
+    rng = rng or np.random
+    img = img.copy(); H, W = img.shape[:2]
+    pal = [(30, 25, 22), (62, 46, 36), (22, 18, 16), (95, 78, 64), (45, 30, 25)]
+    col = pal[rng.randint(len(pal))]
+    for _ in range(rng.randint(2, 6)):
+        x = rng.randint(0, W); pts = []
+        for y in range(0, int(H * rng.uniform(0.3, 0.75)), 10):
+            x += rng.randint(-13, 13); pts.append([int(np.clip(x, 0, W - 1)), y])
+        if len(pts) > 1:
+            cv2.polylines(img, [np.array(pts, np.int32)], False, col, rng.randint(3, 10), cv2.LINE_AA)
+    return img
+
+
+def cast_shadow(img, rng=None):
+    """软投影阴影(检查灯下手臂/设备投影到身上)。只改图。"""
+    rng = rng or np.random
+    f = img.astype(np.float32); H, W = img.shape[:2]
+    m = np.zeros((H, W), np.float32)
+    poly = np.array([[rng.randint(0, W), rng.randint(0, H)] for _ in range(rng.randint(3, 6))], np.int32)
+    cv2.fillConvexPoly(m, cv2.convexHull(poly), 1.0)
+    m = cv2.GaussianBlur(m, (0, 0), rng.uniform(20, 55))
+    f *= (1 - rng.uniform(0.22, 0.48) * m[:, :, None])
+    return np.clip(f, 0, 255).astype(np.uint8)
+
+
+def specular(img, rng=None):
+    """皮肤高光(油光/出汗在检查灯下反光): 软亮斑。只改图。"""
+    rng = rng or np.random
+    f = img.astype(np.float32); H, W = img.shape[:2]
+    m = np.zeros((H, W), np.float32)
+    for _ in range(rng.randint(1, 3)):
+        cv2.circle(m, (rng.randint(0, W), rng.randint(int(0.2 * H), int(0.75 * H))),
+                   rng.randint(int(0.05 * W), int(0.14 * W)), 1.0, -1)
+    m = cv2.GaussianBlur(m, (0, 0), rng.uniform(14, 30))
+    f += rng.uniform(0.12, 0.32) * m[:, :, None] * 130
+    return np.clip(f, 0, 255).astype(np.uint8)
+
+
+def random_erase(img, rng=None):
+    """随机擦除(cutout, 抗遮挡鲁棒): 1-2 块矩形填随机色/噪声。只改图。"""
+    rng = rng or np.random
+    img = img.copy(); H, W = img.shape[:2]
+    for _ in range(rng.randint(1, 3)):
+        w = rng.randint(int(0.06 * W), int(0.18 * W)); h = rng.randint(int(0.06 * H), int(0.18 * H))
+        x = rng.randint(0, W - w); y = rng.randint(0, H - h)
+        img[y:y + h, x:x + w] = (rng.randint(0, 255, (h, w, 3), np.uint8) if rng.random() < 0.5
+                                 else int(rng.uniform(60, 200)))
+    return img
+
+
+def hue_shift(image, rng=None):
+    """轻色相偏移(不同相机/白平衡)。"""
+    rng = rng or np.random
+    hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV).astype(np.float32)
+    hsv[:, :, 0] = (hsv[:, :, 0] + rng.uniform(-7, 7)) % 180
+    hsv[:, :, 1] = np.clip(hsv[:, :, 1] * rng.uniform(0.85, 1.15), 0, 255)
+    return cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+
+
 if __name__ == "__main__":
     # 自测: 造一张假样本跑通
     img = (np.random.rand(480, 640, 3) * 255).astype(np.uint8)
