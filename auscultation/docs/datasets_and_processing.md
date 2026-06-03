@@ -2,7 +2,7 @@
 
 本文件记录**我们用了哪些数据集**、**每个数据集怎么处理成可训练标签**，供训练同学理解与复现。配合 [model_architecture.md](./model_architecture.md)（模型结构）与 [engineering.md](./engineering.md)（工程细节）看。
 
-> 任务：训练**感知模块**——从第三人称相机图像预测**稠密身体表面对应(DensePose-IUV)**，并读出听诊点（前胸 4 心点 / 后背 8 肺点）。
+> 任务：训练**感知模块**——从第三人称相机图像预测**稠密身体表面对应(DensePose-IUV)**，并**按任务**读出听诊点（心→前胸心点 / 肺→后背肺点）。点集是**任务条件化**的, 且因标签全由 SMPL 顶点合成, 点的数量/位置可自由定义。
 
 ---
 
@@ -25,9 +25,11 @@
 
 完整流水线：`scripts/gen_dataset.py` → `ausc/datasets/`（输出 `manifest.jsonl + img/ + iuv/`）。各步骤：
 
-### 1. 听诊点定义（`ausc/humman_label.py: define_ausc_vertices`）
-- **前胸 4 心点**（Tsumura 标准）：主动脉瓣 / 肺动脉瓣 / 三尖瓣 / 二尖瓣。
-- **后背 8 肺点**（Lopes 标准）：L1-L4 / R1-R4（4 层双侧）。
+### 1. 听诊点定义（`ausc/humman_label.py: define_ausc_vertices`）—— **任务条件化, 可自由扩展**
+按**任务**定义点集, 每个点 = 一个固定 SMPL 顶点索引(渲染进 IUV/投影成 2D 点):
+- **心音任务 / 前胸**（Tsumura 标准, 当前 4 点, 可扩到 6–8）：主动脉瓣 / 肺动脉瓣 / 三尖瓣 / 二尖瓣（+ 可加 Erb 点等）。
+- **肺音任务 / 后背**（Lopes 标准, 当前 8 点）：L1-L4 / R1-R4（4 层双侧）。
+> **点集是自由的设计参数**:所有监督标签都由 SMPL 顶点**渲染合成**(三数据集一致, 无人工标注), 想改点的数量/位置 → 在 `define_ausc_vertices` 换顶点 + 重跑生成器即可, 零标注成本。
 - 定义为 **SMPL 固定顶点**（按解剖比例从模板选，经临床医生审阅微调）。标定：+x=患者左，-x=患者右，躯干核心 |x|<0.16。
 - ⚠️ 体表近似（SMPL 无肋骨），区域级精度；精确落点靠 Stage3 音频闭环。
 
@@ -44,10 +46,10 @@
 - 弯腰：脊柱(neck-pelvis)在相机系若大幅指向相机轴(tilt>0.5) → 前缩/下蹲 reject。
 - 作用：剔除侧转、弯腰、下蹲等动作帧（HuMMan 是动作数据集，必须过滤）。
 
-### 5. 转正（`ausc/augment.py: upright`）
-- 按 SMPL 脊柱方向把图像旋转到躯干竖直，并裁到人体。
+### 5. 转正（内联于 `ausc/datasets/humman._base_sample`）
+- 按 SMPL 脊柱方向(pelvis→neck)把图像/IUV/点旋转到躯干竖直，并裁到躯干 bbox。
 
-### 6. 数据增强（`ausc/augment.py` + `ausc/datasets/common.augment_once`）—— 经合理性评估的 **5 种核心**（针对第三人称固定相机 + Trossen/WidowX 臂）
+### 6. 数据增强（算子库 `ausc/augment.py` + 编排 `ausc/datasets/common.augment_once`）—— 针对第三人称固定相机 + 实验室 WidowX/Trossen 桌面侧装臂
 
 > 原则：增强必须匹配**部署分布**，盲目堆砌（如大角度旋转）反而有害。**训练时随机组合这 5 种**生成每张，不枚举。
 
@@ -73,7 +75,7 @@
 
 - **synthetic**：`ausc/datasets/synthetic.FRAMINGS` = 三档**相机距离**（真透视重渲染）。
 - **HuMMan / scoliosis**（2D真实图）：`common.FRAMINGS_2D` = 按听诊点跨度三档**裁剪**。
-- × {前胸4心点 / 后背8肺点} × {坐 / 站}。**每 base → 1规范 + ~n_aug 随机叠加(光照/遮挡/对称旋转/翻转[仅后背])**。
+- × {心任务=前胸点集 / 肺任务=后背点集} × {坐 / 站}。**每 base → 1规范 + ~n_aug 随机叠加(光照/遮挡/对称旋转/翻转[仅后背])**。
 
 ### 7. 负样本（`ausc/datasets/humman.py`，~25%）
 | 类型 | 内容 |
@@ -99,14 +101,14 @@
 **核心包 `ausc/`**
 | 模块 | 作用 |
 |---|---|
-| `ausc/humman_label.py` | **听诊点定义（前胸4/后背8, SMPL顶点, 唯一权威）** + SMPL投影 + `infer_side`前后判别 |
+| `ausc/humman_label.py` | **听诊点定义（按任务: 心前胸/肺后背, SMPL顶点, 唯一权威, 可自由增删）** + SMPL投影 + `infer_side`前后判别 |
 | `ausc/render_iuv.py` | 渲染稠密 IUV 标签 |
 | `ausc/frame_filter.py` | 姿态/朝向过滤（front/back/reject + 弯腰检测） |
 | `ausc/augment.py` | 5 种核心增强算子（裁剪/光照/翻转/手臂遮挡/旋转） |
 | `ausc/humman_io.py` | HuMMan 视频 IO（`find_kinect_videos`） |
 | `ausc/datasets/common.py` | 标签 schema + manifest 写入 + **5种增强的随机组合 `augment_once`** |
 | `ausc/datasets/humman.py` | HuMMan → 稠密IUV + 前胸/后背点 + 负样本 |
-| `ausc/datasets/scoliosis.py` | 裸背 → 后背8点（点监督, 用 `labels_hmr2.pkl`） |
+| `ausc/datasets/scoliosis.py` | 裸背 → 后背肺点 + 稠密IUV（用重拟合 `scol_refit.pkl`） |
 | `ausc/datasets/synthetic.py` | **pyrender 纯仿真**：平滑Phong + 连续程序化皮肤(多人种) + 坐/站 + F1/F2/F3取景 + 稠密IUV。⚠️ 需 GPU+EGL(`PYOPENGL_PLATFORM=egl`) |
 | `ausc/models/`, `ausc/training/` | ☐ 感知模型 / 训练循环（占位, 见各自 README） |
 

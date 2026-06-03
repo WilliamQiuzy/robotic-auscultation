@@ -16,8 +16,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import json  # noqa: E402
 
-from augment import occlude_arm  # noqa: E402,F401  (增强经 common 调用)
-from common import ManifestWriter, augment_once, write_sample  # noqa: E402
+from common import ManifestWriter, augment_once, write_sample  # noqa: E402  (增强全经 common.augment_once)
 from frame_filter import classify_frame, front_core_indices  # noqa: E402
 from humman_io import find_kinect_videos  # noqa: E402
 from humman_label import define_ausc_vertices  # noqa: E402

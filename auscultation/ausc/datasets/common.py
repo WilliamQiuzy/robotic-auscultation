@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""数据集生成共用件: 标签 schema / manifest 写入 / 5 种核心增强的随机组合。
+"""数据集生成共用件: 标签 schema / manifest 写入 / 增强的随机组合编排。
 
 所有 generator(humman/scoliosis/synthetic)都把单帧整理成统一 **base sample**:
     {"image": HxWx3 uint8(RGB),
      "iuv":   HxWx3 uint8(R=part0..24,G=U*255,B=V*255) 或 None(无稠密标签, 仅点监督),
      "points":{name:{"xy":(x,y),"visible":bool}},
      "region":"front"|"back"}
-再由 `augment_once` 施加【随机组合】的 5 种增强, 由 `write_sample` 落盘 + 出 manifest 行。
+再由 `augment_once` 施加【随机组合】的增强, 由 `write_sample` 落盘 + 出 manifest 行。
 
-5 种核心增强(经合理性评估, 匹配第三人称固定相机 + Trossen/WidowX 臂部署分布):
-  ① 光照/对比/gamma/噪声      photometric
-  ② 手臂+听诊器遮挡(最关键)   occlude_arm
-  ③ 水平翻转+换 L/R (仅后背!) hflip+LR_SWAP   ← 前胸心点不对称, 禁止翻转
-  ④ 小角度旋转(严格 ±θ 对称) _rotate, 仅取 {0,±8,±15}
-  ⑤ 取景 F1远/F2中/F3近        crop_to_framing  ← 定死的三档景别(非随机抖动)
-❌ 已剔除: 大角度旋转(固定机位不会出现)/垂直翻转/枚举式重组合。
+增强编排(匹配第三人称固定相机 + 实验室 WidowX/Trossen 桌面侧装臂的部署分布):
+  几何  perspective_warp 透视抖动 或 _rotate 对称小角度 ±8°(二选一)
+        hflip+LR_SWAP 水平翻转换 L/R —— 仅后背(肺双侧对称), 前胸心点不对称禁翻
+        crop_to_framing 取景 F1远/F2中/F3近/F4极近(正方形真像素裁剪, 不补边)
+  外观  clinical_lighting / hue_shift / specular / cast_shadow
+  遮挡  occlude_medical → 机械臂从右下方够向听诊点(电极已弃用)
+  退化  sensor_degrade 运动模糊/高斯模糊/JPEG/噪声
+所有几何算子同步变换 image/iuv/points; IUV 用 NEAREST 缩放保标签离散。
 """
 import json
 import os
@@ -25,8 +26,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # 让 ausc/ 顶层模块可导入
 from augment import (_xform_points, cast_shadow, clinical_lighting, hflip, hue_shift,  # noqa: E402
-                     occlude_medical, perspective_warp, random_erase,
-                     sensor_degrade, specular, LR_SWAP)
+                     occlude_medical, perspective_warp, sensor_degrade, specular, LR_SWAP)
 
 ROT_CHOICES = (0.0, -8.0, 8.0)  # 旋转仅 ±8°(±15太过), 对称
 
@@ -132,10 +132,9 @@ def augment_once(sample: dict, rng, target=(384, 384)) -> dict:
     if rng.random() < 0.25:
         s["image"] = cast_shadow(s["image"], rng)
     # 遮挡(听诊器臂/ECG导线/电极/检查服 + 头发) + 随机擦除
-    if rng.random() < 0.6:                                       # 机械臂/末端听诊器/电极(无头发/无导线)
-        vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
-        if vis:
-            s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
+    if rng.random() < 0.6:                                       # 机械臂遮挡(从右下方够向听诊点; 电极已弃用)
+        s["image"] = occlude_medical(s["image"], s["points"], rng,
+                                     region=region, iuv=s.get("iuv"))
     # 相机退化(运动模糊/JPEG/噪声)
     if rng.random() < 0.4:
         s["image"] = sensor_degrade(s["image"], rng)

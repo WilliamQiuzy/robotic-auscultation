@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from augment import (LR_SWAP, cast_shadow, clinical_lighting, hflip, hue_shift,  # noqa: E402
-                     occlude_medical, perspective_warp, random_erase, sensor_degrade, specular)
+                     occlude_medical, perspective_warp, sensor_degrade, specular)
 from common import ManifestWriter, write_sample  # noqa: E402
 from humman_label import define_ausc_vertices  # noqa: E402
 from render_iuv import load_uv_mapping, project, rasterize_iuv  # noqa: E402
@@ -225,10 +225,9 @@ def _augment(base, rng):
     if rng.random() < 0.25:
         s["image"] = cast_shadow(s["image"], rng)
     # ── 遮挡 ──
-    if rng.random() < 0.6:                                       # 机械臂/末端听诊器/电极遮挡(无头发/无导线)
-        vis = [p["xy"] for p in s["points"].values() if p.get("visible")]
-        if vis:
-            s["image"] = occlude_medical(s["image"], vis[rng.randint(len(vis))], rng)
+    if rng.random() < 0.6:                                       # 机械臂遮挡(从右下方够向听诊点)
+        s["image"] = occlude_medical(s["image"], s["points"], rng,
+                                     region=region, iuv=s.get("iuv"))
     if rng.random() < 0.4:
         s["image"] = sensor_degrade(s["image"], rng)
     return s

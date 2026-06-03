@@ -194,12 +194,17 @@ RGB-D ─[ViT]──┐        │
 
 → 感知模型主要跑在**第三人称视角**；腕部视角做接触/局部修正。
 
-### 数据增强 pipeline（`augment.py`，五点已实现）
+### 数据增强 pipeline（算子库 `augment.py`，编排 `datasets/common.augment_once`）
 
-裁剪+缩放+平移(`random_resized_crop`)模拟近景/上身 → 出框点 `visible=False` 不计损失 → 光照增强(`photometric`)抗临床光照 → 水平翻转(`hflip`,需换患者左右 `LR_SWAP`+IUV对称) → 深度(RGB-D)入输入给尺度。两视角预设 `VIEW_PRESETS={thirdperson, arm}`。标签(稠密IUV/点)随增强同步变换。
+每个 base sample 施加一次**随机组合**(标签[稠密IUV/点]随几何算子同步变换；IUV 用 NEAREST 缩放保 part 离散；出框点 `visible=False` 不计损失)：
 
-**原则**：预训练不管双视角"协同"(那是imitation/控制)，但增强必须覆盖**部署相机的图像统计**。
-**待补缺口**(审查所得，按重要性)：① **手臂+听诊器遮挡**(部署必然发生，最该加；贴遮挡块) ② **视角俯仰角**(用 HuMMan 10个Kinect多视角，或重渲染) ③ **背景替换**(用IUV mask抠人) ④ **深度噪声/空洞** ⑤ 相机内参/FOV/畸变 ⑥ 坐姿 ⑦ 裸皮(靠in-domain微调)。
+- **几何**：`perspective_warp` 透视抖动 **或** `_rotate` 对称小角度 ±8°(二选一) → `hflip`+`LR_SWAP` 水平翻转换 L/R(**仅后背**，前胸心点不对称禁翻) → `crop_to_framing` 取景 **F1远/F2中/F3近/F4极近**(正方形真像素裁剪，**不补边**，居中于 IUV 躯干质心)。
+- **外观**：`clinical_lighting`(色温+单侧检查灯方向光+渐晕+gamma) / `hue_shift` / `specular` / `cast_shadow`。
+- **遮挡**：`occlude_medical` → `occlude_robot_arm`(桌面侧装机械臂从**右下方**够向听诊点；电极贴片已弃用——医学位置在合成图上不可靠)。
+- **退化**：`sensor_degrade`(运动模糊/高斯模糊/JPEG/传感器噪声)。
+
+**原则**：预训练不管双视角"协同"(那是imitation/控制)，但增强必须覆盖**部署相机的图像统计**。取景缩放(F1→F4)是关键增强——不是怎么拍，是拍哪个部分。
+**待补缺口**(按重要性)：① **视角俯仰角**(用 HuMMan 10个Kinect多视角，或重渲染) ② **背景替换**(用IUV mask抠人) ③ **深度噪声/空洞**(若 RGB-D) ④ 相机内参/FOV/畸变。
 
 **帧级正面/背面过滤器** `frame_filter.py`(SMPL躯干法向vs相机→front/back/reject)。⚠️ **iPhone 相机固定在受试者正前方→只产出 front(心脏)标签；肺(后背)标签需下 Kinect 后向相机**(10个环绕，~19GB/part，同时可当视角增强)。静态直立帧 IUV 对齐好；动态/蹲弯帧崩且与临床无关，靠此过滤器剔除。
 

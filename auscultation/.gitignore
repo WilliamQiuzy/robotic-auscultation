@@ -29,3 +29,8 @@ __pycache__/
 data/bedlam_skin/
 data/_candidates/
 data/smpl_assets/
+
+# 训练产物: 每-epoch 大权重只本地留存(审计), git 只放 best.pt + 配置/指标/日志/评测
+outputs/**/ep*.pt
+outputs/**/last.pt
+outputs/perc_v0/eval/*_overlays/

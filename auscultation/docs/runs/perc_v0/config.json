@@ -1,0 +1,12 @@
+{
+  "root": "data/dataset/synthetic",
+  "encoder": "dinov2_vitb14",
+  "res": 518,
+  "epochs": 20,
+  "bs": 16,
+  "lr": 0.0003,
+  "workers": 12,
+  "val_frac": 0.08,
+  "out": "outputs/perc_v0",
+  "frozen": 1
+}

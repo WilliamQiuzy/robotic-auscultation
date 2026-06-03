@@ -4,7 +4,7 @@
 
 > 参考文献见 [`reference/`](./reference)：Tsumura 2022（解剖图谱 + 弹簧力控）、Zhu/Hauser 2022（点云配准 + 声音质量贝叶斯优化闭环）、Lopes 2023（深度学习定点）。
 >
-> **工程流程详解见 [`docs/engineering.md`](./docs/engineering.md)**（每个 Phase 的细节 + 数据双轨道 + 自动标注方案）。
+> **文档索引**:[`docs/engineering.md`](./docs/engineering.md)(工程流程/每 Phase 细节)、[`docs/model_architecture.md`](./docs/model_architecture.md)(三模块结构 + Target Hand-off 接口)、[`docs/datasets_and_processing.md`](./docs/datasets_and_processing.md)(感知数据)、[`docs/training.md`](./docs/training.md)(训练流程 + 反馈方案:BC→chunking→HG-DAgger→audio-RL)。
 
 ## 我们与现有工作的本质区别（这是项目的立身之本）
 
@@ -50,41 +50,44 @@
 
 ## 感知训练数据（三个数据集 + 数据处理，估算）
 
-详见 [`docs/datasets_and_processing.md`](./docs/datasets_and_processing.md)；展示图见 [`data/_viz_humman/`](./data/_viz_humman)（`_SHOWCASE_humman/synthetic/scoliosis.png`）。
+详见 [`docs/datasets_and_processing.md`](./docs/datasets_and_processing.md)；增强总览图见 [`data/_viz_synthetic/`](./data/_viz_synthetic)（`AUG_humman_all / AUG_scoliosis_all / AUG_synthetic_all.png`，以及 scoliosis 临床复核图 `SCOL_doctor_check.png`）。
 
-| 数据集 | 可用原图（过滤后，前胸+后背） | 每原图处理→训练图 | 训练图小计 |
+实测数(锁定管线)：
+
+| 数据集 | 可用原图 | 每原图→训练图 | 训练图小计 |
 |---|---|---|---|
-| **HuMMan**（受控影棚+SMPL真值） | ~12,600（前~5.5k + 后~7.1k；后背多视角则~23k） | 1规范 + ~6 随机组合增强（`--n_aug 6`）| ~88,000（多视角后背~160k）|
-| **Scoliosis**（真实裸背，仅后背，HMR2.0拟合标） | 86（干净竖幅；188中剔除102张X光拼图；标签已存 `data/scoliosis_back/labels_hmr2.pkl`）| 1规范 + ~14 随机组合增强（`--n_aug 14`，珍贵→榨满）| ~1,200+ |
-| **Synthetic**（pyrender 纯仿真，体型/肤色人种/坐站可控）| 受试者数可调（如 400）× 站坐 × 前后 × F1/F2/F3 三档取景 | 每 base + ~3 随机增强 | ~19,000（400受试者时）|
+| **HuMMan**（受控影棚+SMPL真值） | **592**（前 579 + 后 13；每序列取 1 最正帧。后背少因本机仅下 part_01 Kinect）| 1规范 + 6 随机组合增强 + ~25%负样本（`--n_aug 6`）| **≈ 4,292** |
+| **Scoliosis**（真实裸背，仅后背，HMR2.0拟合标） | **86**（干净竖幅，标签 `data/scoliosis_back/` + 重拟合 `scol_refit.pkl`）| 1规范 + 12 随机组合增强（`--n_aug 12`，珍贵→榨满）| **1,118** |
+| **Synthetic**（pyrender 纯仿真，体型/肤色人种/坐站可控）| **6,400**（400 受试者 × 站/坐 × 前/后 × F1–F4 四档取景）| 每 base + 3 随机增强（`--n_aug 3`）| **25,600** |
 
-- **可用原图合计 ≈ 17,700 张**（HuMMan后背用多视角则 ~28,000）。
-- **可训练图合计 ≈ 15 万张**（增强倍数由 `--n_aug` 控 + ~25%负样本；HuMMan后背多视角则 ~23 万）。
-- 增强 = **5 种核心**（光照 / 手臂+听诊器遮挡 / 水平翻转[仅后背] / 小角度对称旋转±8/±15 / 尺度裁剪）的**随机组合**，非固定枚举；旋转严格 ±θ 对称（Trossen 臂）。详见 [`docs/datasets_and_processing.md`](./docs/datasets_and_processing.md) §六。
-- 主力预训练量来自 HuMMan + Synthetic，Scoliosis 作后背 in-domain 微调，**听诊点定义=前胸4(Tsumura)/后背8(Lopes)，唯一权威定义在 `ausc/humman_label.define_ausc_vertices`**。
+- **可用原图合计 ≈ 7,078 张**；**可训练图合计 ≈ 31,000 张**（增强倍数由 `--n_aug` 控）。
+- 增强 = 一套算子的**随机组合**（几何：透视/±8°对称旋转 + 后背水平翻转换L/R；外观：临床光照/色相/高光/阴影；遮挡：机械臂从右下够向听诊点；退化：运动模糊/JPEG/噪声），取景 F1远→F4近为关键增强。详见 [`docs/datasets_and_processing.md`](./docs/datasets_and_processing.md) §六。
+- 主力预训练量来自 HuMMan + Synthetic，Scoliosis 作后背 in-domain 微调。**听诊点按任务定义(心→前胸 / 肺→后背)，且因标签全由 SMPL 顶点合成、可自由增删点位**——当前 **心 5 区(APETM, Bates')/肺 8 点(Lopes)**;解剖定义在 `ausc/humman_label.define_ausc_vertices`，任务→点集路由在 `ausc/tasks.py`。
 
 ## 代码结构
 
 ```
 auscultation/
 ├── ausc/                      # 核心 Python 包(感知数据 + 模型)
-│   ├── humman_label.py        # 听诊点定义(前4/后8, SMPL顶点, 唯一权威) + 投影 + infer_side
+│   ├── humman_label.py        # 听诊点【解剖定义】(SMPL顶点, 唯一权威: 心前胸5/肺后背8) + 投影 + infer_side
+│   ├── tasks.py               # Perception→Action 任务路由: task(heart/lung)→点集+听诊顺序(为将来 task 参数预留)
 │   ├── render_iuv.py          # 稠密 IUV 标签渲染
 │   ├── frame_filter.py        # 姿态/朝向过滤(front/back/reject + 弯腰检测)
-│   ├── augment.py             # 5 种核心增强算子
+│   ├── augment.py             # 增强算子库(几何/外观/遮挡-机械臂/退化)
 │   ├── humman_io.py           # HuMMan 视频 IO
 │   ├── datasets/              # ★ 三数据集批量生成器
-│   │   ├── common.py          #   标签 schema / manifest / 5种增强随机组合
+│   │   ├── common.py          #   标签 schema / manifest / 增强随机组合编排(augment_once)
 │   │   ├── humman.py          #   HuMMan → 稠密IUV+点(前胸/后背+负样本)
-│   │   ├── scoliosis.py       #   裸背 → 后背8点(点监督, 用 labels_hmr2.pkl)
-│   │   └── synthetic.py       #   pyrender纯仿真(平滑Phong+多人种肤色+坐/站+F1/F2/F3取景, 需GPU+EGL)
+│   │   ├── scoliosis.py       #   裸背 → 后背肺点(稠密IUV, 用 scol_refit.pkl)
+│   │   └── synthetic.py       #   pyrender纯仿真(BEDLAM真皮+坐/站+前后+F1–F4取景, 需GPU+EGL)
 │   ├── models/                # ☐ 感知模型(占位, 见 models/README.md)
 │   └── training/              # ☐ 训练循环(占位, 见 training/README.md)
 ├── scripts/
 │   ├── gen_dataset.py         # ★ 统一生成入口: --dataset {humman,scoliosis,synthetic,all}
-│   ├── qc/                    # 质检/展示(qc_render/qc_back/spotcheck/sample_gallery/estimate_usable)
-│   ├── gpu/                   # GPU 脚本(label_scoliosis_hmr2_gpu / download_scoliosis)
-│   └── _deprecated/           # 废弃探索代码(COCO + DensePose 旧路线), 勿用
+│   ├── qc/                    # 质检/展示: aug_showcase(X-OR增强总览) / scol_doctor_check(临床复核)
+│   │                          #   / draw_architecture + build_architecture_pptx(结构图) / spotcheck / estimate_usable
+│   ├── gpu/                   # GPU 脚本(label_scoliosis_hmr2_gpu / refit_scoliosis / download_scoliosis)
+│   └── _deprecated/           # 废弃探索代码(COCO+DensePose旧路线 + 旧QC qc_render/qc_back/sample_gallery), 勿用
 ├── configs/data_gen.yaml      # 生成配置
 └── data/dataset/, outputs/    # 生成数据集 / 训练产物(不入库)
 ```

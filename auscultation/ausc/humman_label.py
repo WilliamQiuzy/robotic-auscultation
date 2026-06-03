@@ -52,12 +52,14 @@ def define_ausc_vertices(model):
         d = (y[cand] - ty) ** 2 + (x[cand] - tx) ** 2
         return int(cand[np.argmin(d)])
 
-    # 【前胸心脏 4 瓣膜点】严格按 Tsumura 标准(无Erb)。x<0=患者右,x>0=患者左。
+    # 【前胸心脏 5 区】Bates' 标准, 助记 APETM(含 Erb 第三听诊区)。x<0=患者右,x>0=患者左。
+    # dict 顺序 = 听诊顺序(心底→心尖)。任务→点集路由见 ausc/tasks.py。
     cardiac = {
-        "aortic":    pick(-0.045, 0.13, True),  # 主动脉瓣: 第2肋间 患者右胸骨旁
-        "pulmonary": pick(+0.045, 0.13, True),  # 肺动脉瓣: 第2肋间 患者左胸骨旁
-        "tricuspid": pick(+0.035, 0.055, True),  # 三尖瓣: 第4肋间 左下胸骨缘(医生校正:原-0.01太低)
-        "mitral":    pick(+0.09, 0.035, True),   # 二尖瓣/心尖: 第5肋间 左锁骨中线(医生校正:原-0.06落剑突)
+        "aortic":    pick(-0.045, 0.13, True),   # 主动脉瓣区: 第2肋间 患者右胸骨旁
+        "pulmonary": pick(+0.045, 0.13, True),   # 肺动脉瓣区: 第2肋间 患者左胸骨旁
+        "erb":       pick(+0.040, 0.090, True),  # Erb 第三听诊区: 第3肋间 左胸骨缘(S1+S2均清)
+        "tricuspid": pick(+0.035, 0.055, True),  # 三尖瓣区: 第4肋间 左下胸骨缘(医生校正:原-0.01太低)
+        "mitral":    pick(+0.09, 0.035, True),   # 二尖瓣区/心尖: 第5肋间 左锁骨中线(医生校正:原-0.06落剑突)
     }
     # 【后背肺 8 点】严格按 Lopes 标准(L1-L4 + R1-R4, 4层双侧)。上排稍靠脊柱避肩胛。
     lung = {}
