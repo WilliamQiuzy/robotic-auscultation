@@ -55,7 +55,7 @@ def landmark_addresses(uv_mat, smpl_model):
 
 
 def readout(pred_part, pred_uv, addr):
-    """从预测 IUV(part HxW, uv 2xHxW)按地址反查 2D 点。返回 (x,y) 或 None。"""
+    """硬 argmin: 在 part==p 的像素里找 (U,V) 最接近地址的单像素。返回 (x,y) 或 None。"""
     part, u, v = addr
     ys, xs = np.where(pred_part == part)
     if len(xs) == 0:
@@ -65,14 +65,26 @@ def readout(pred_part, pred_uv, addr):
     return float(xs[j]), float(ys[j])
 
 
+def readout_soft(part_prob_p, pred_uv, addr, gx, gy, tau=0.01):
+    """soft-argmax 地址亲和热图: A = P(part=p) · exp(-||UV-地址||²/τ), 取期望位置(亚像素抗噪)。"""
+    _, u, v = addr
+    d2 = (pred_uv[0] - u) ** 2 + (pred_uv[1] - v) ** 2
+    A = part_prob_p * np.exp(-d2 / tau)
+    s = A.sum()
+    if s < 1e-8:
+        return None
+    return float((A * gx).sum() / s), float((A * gy).sum() / s)
+
+
 @torch.no_grad()
-def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None):
+def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None, readout_mode="soft", tau=0.01):
     model.eval()
     ds = AuscIUVDataset(root, rows if max_n is None else rows[:max_n], res)
     inter = np.zeros(N_PARTS); union = np.zeros(N_PARTS)
     pix_ok = pix_tot = 0
     uv_err = uv_n = 0.0
     lm_err = {"front": [], "back": []}                  # 像素误差(@res)
+    gy, gx = np.mgrid[0:res, 0:res].astype(np.float32)  # soft-argmax 用的坐标网格
     dumped = 0
     for k in range(len(ds)):
         s = ds[k]
@@ -81,6 +93,7 @@ def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None):
             pl, puv = model(img)
         pred_part = pl.argmax(1)[0].cpu().numpy().astype(np.int32)
         pred_uv = puv[0].float().cpu().numpy()
+        part_prob = torch.softmax(pl.float(), 1)[0].cpu().numpy() if readout_mode == "soft" else None
         gt_part = s["part"].numpy(); gt_uv = s["uv"].numpy()
         # 稠密: mIoU + acc(前景)
         fg = gt_part > 0
@@ -95,14 +108,18 @@ def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None):
         for nm, (x, y, vis) in s["points"].items():
             if not vis or nm not in addr:
                 continue
-            p = readout(pred_part, pred_uv, addr[nm])
+            if readout_mode == "soft":
+                p = readout_soft(part_prob[addr[nm][0]], pred_uv, addr[nm], gx, gy, tau)
+            else:
+                p = readout(pred_part, pred_uv, addr[nm])
             if p is None:
                 continue
             e = ((p[0] - x) ** 2 + (p[1] - y) ** 2) ** 0.5
             lm_err[reg if reg in lm_err else "front"].append(e)
         # 定性叠加图
         if dump and dumped < 6:
-            _dump_overlay(s, pred_part, pred_uv, addr, os.path.join(dump, f"eval_{dumped}.png"))
+            _dump_overlay(s, pred_part, pred_uv, addr, os.path.join(dump, f"eval_{dumped}.png"),
+                          part_prob=part_prob, gx=gx, gy=gy, tau=tau, mode=readout_mode)
             dumped += 1
     iou = inter[1:] / np.maximum(union[1:], 1)
     valid = union[1:] > 0
@@ -121,7 +138,7 @@ def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None):
     return res_d
 
 
-def _dump_overlay(s, pred_part, pred_uv, addr, path):
+def _dump_overlay(s, pred_part, pred_uv, addr, path, part_prob=None, gx=None, gy=None, tau=0.01, mode="soft"):
     import matplotlib
     matplotlib.use("Agg"); import matplotlib.pyplot as plt
     img = ((s["image"].numpy().transpose(1, 2, 0) * IMAGENET_STD + IMAGENET_MEAN) * 255).clip(0, 255).astype(np.uint8)
@@ -133,7 +150,10 @@ def _dump_overlay(s, pred_part, pred_uv, addr, path):
     for nm, (x, y, vis) in s["points"].items():
         if vis and nm in addr:
             cv2.circle(ov, (int(x), int(y)), 6, (40, 230, 40), 2)   # GT 绿
-            p = readout(pred_part, pred_uv, addr[nm])
+            if mode == "soft" and part_prob is not None:
+                p = readout_soft(part_prob[addr[nm][0]], pred_uv, addr[nm], gx, gy, tau)
+            else:
+                p = readout(pred_part, pred_uv, addr[nm])
             if p:
                 cv2.circle(ov, (int(p[0]), int(p[1])), 6, (230, 40, 40), -1)  # 预测 红
     fig, ax = plt.subplots(1, 3, figsize=(13, 5))
@@ -157,6 +177,8 @@ def main():
     ap.add_argument("--all", action="store_true", help="评整个数据集(否则只评 val 划分)")
     ap.add_argument("--max_n", type=int, default=400)
     ap.add_argument("--dump", default=None, help="定性叠加图输出目录")
+    ap.add_argument("--readout", default="soft", choices=["soft", "argmin"], help="听诊点读出: soft-argmax(默认) / 硬argmin")
+    ap.add_argument("--tau", type=float, default=0.01, help="soft-argmax UV 亲和温度")
     args = ap.parse_args()
     device = "cuda"
 
@@ -179,8 +201,9 @@ def main():
         _, rows = split_manifest(args.root)
     if args.dump:
         os.makedirs(args.dump, exist_ok=True)
-    r = evaluate(model, args.root or "", rows, addr, args.res, device, max_n=args.max_n, dump=args.dump)
-    print(f"\n===== [{args.tag}] n={r['n']} =====")
+    r = evaluate(model, args.root or "", rows, addr, args.res, device, max_n=args.max_n, dump=args.dump,
+                 readout_mode=args.readout, tau=args.tau)
+    print(f"\n===== [{args.tag}] n={r['n']} (readout={args.readout}) =====")
     print(f"  part mIoU      : {r['miou']:.3f}")
     print(f"  part pix-acc   : {r['pix_acc']:.3f}")
     print(f"  UV L1 (fg)     : {r['uv_l1']:.4f}")

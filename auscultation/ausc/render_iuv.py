@@ -43,24 +43,41 @@ def project(verts, cam):
 
 
 def rasterize_iuv(smpl_verts, cam, uvmap, H, W):
-    """返回 (I_map HxW uint8 0..24, U_map, V_map float, mask). painter 算法(远→近)。"""
-    import cv2
+    """返回 (I_map HxW uint8 0..24, U_map, V_map float[0,1], mask). painter 算法(远→近)。
+    U,V 用【逐像素重心插值】(非逐面均值): 三角面内 U,V 按重心坐标连续插值,
+    使 UV→像素 的映射连续可分辨(关键: 后背单 part 内 8 个肺点全靠 UV 精度区分)。"""
     v2s, U, V, faces, fpart = uvmap
     dp_xyz = smpl_verts[v2s]                                 # (7829,3)
     uv2d, depth = project(dp_xyz, cam)                       # (7829,2),(7829,)
     fdepth = depth[faces].mean(1)
-    order = np.argsort(-fdepth)                              # 远的先画
+    order = np.argsort(-fdepth)                              # 远的先画(painter: 近的覆盖远的)
     I_map = np.zeros((H, W), np.uint8)
     U_map = np.zeros((H, W), np.float32); V_map = np.zeros((H, W), np.float32)
     for fi in order:
-        tri = uv2d[faces[fi]]
+        tri = uv2d[faces[fi]]                                # (3,2)
         if np.any(~np.isfinite(tri)):
             continue
-        poly = np.round(tri).astype(np.int32)
-        cv2.fillConvexPoly(I_map, poly, int(fpart[fi]))
-        # U,V: 用三顶点均值近似填充(快; 精确需逐像素重心,留给GPU版)
-        cv2.fillConvexPoly(U_map, poly, float(U[faces[fi]].mean()))
-        cv2.fillConvexPoly(V_map, poly, float(V[faces[fi]].mean()))
+        (ax, ay), (bx, by), (cx, cy) = tri
+        x0 = max(int(np.floor(min(ax, bx, cx))), 0); x1 = min(int(np.ceil(max(ax, bx, cx))), W - 1)
+        y0 = max(int(np.floor(min(ay, by, cy))), 0); y1 = min(int(np.ceil(max(ay, by, cy))), H - 1)
+        if x1 < x0 or y1 < y0:
+            continue
+        denom = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy)
+        if abs(denom) < 1e-9:
+            continue
+        xs = np.arange(x0, x1 + 1); ys = np.arange(y0, y1 + 1)
+        gx, gy = np.meshgrid(xs, ys)                         # bbox 像素网格
+        l0 = ((by - cy) * (gx - cx) + (cx - bx) * (gy - cy)) / denom   # 重心坐标
+        l1 = ((cy - ay) * (gx - cx) + (ax - cx) * (gy - cy)) / denom
+        l2 = 1.0 - l0 - l1
+        inside = (l0 >= -1e-4) & (l1 >= -1e-4) & (l2 >= -1e-4)         # 三角内
+        if not inside.any():
+            continue
+        vi = faces[fi]; Uv = U[vi]; Vv = V[vi]
+        yy = gy[inside]; xx = gx[inside]
+        I_map[yy, xx] = int(fpart[fi])
+        U_map[yy, xx] = (l0[inside] * Uv[0] + l1[inside] * Uv[1] + l2[inside] * Uv[2]).astype(np.float32)
+        V_map[yy, xx] = (l0[inside] * Vv[0] + l1[inside] * Vv[1] + l2[inside] * Vv[2]).astype(np.float32)
     return I_map, U_map, V_map, I_map > 0
 
 
