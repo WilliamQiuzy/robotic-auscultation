@@ -24,9 +24,14 @@ from dataset import AuscIUVDataset, split_manifest, split_manifests, collate, su
 from eval import evaluate as eval_landmarks, landmark_addresses  # noqa: E402
 
 
+def _is_synth(r):
+    """合成样本判定: id 以 syn 开头(与目录名无关, 比 _root 子串稳)。"""
+    return r.get("id", "").startswith("syn")
+
+
 def _group(r):
     """采样分组: 合成 / 真实正面 / 真实后背(瓶颈)。"""
-    if "synthetic" in r.get("_root", ""):
+    if _is_synth(r):
         return "syn"
     return "realback" if r.get("region") == "back" else "realfront"
 
@@ -132,7 +137,7 @@ def main():
     va = DataLoader(AuscIUVDataset(args.root, va_rows, args.res), batch_size=args.bs, shuffle=False,
                     num_workers=args.workers, collate_fn=collate, pin_memory=True)
     # 真实后背 held-out(选 ckpt 用) + landmark 地址
-    real_back = [r for r in va_rows if r.get("region") == "back" and "synthetic" not in r.get("_root", "")]
+    real_back = [r for r in va_rows if r.get("region") == "back" and not _is_synth(r)]
     sel_addr, _ = landmark_addresses(args.uv, args.smpl) if args.select == "realback_pck" else (None, None)
     print(f"[select] 依据={args.select} | 真实后背 held-out={len(real_back)}")
 
