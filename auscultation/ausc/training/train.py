@@ -5,6 +5,7 @@
 数据已含增强(生成器烘焙), 这里不再二次增强。
 """
 import argparse
+import json
 import os
 import sys
 import time
@@ -19,7 +20,29 @@ sys.path.insert(0, os.path.join(ROOT, "ausc", "models"))
 sys.path.insert(0, os.path.join(ROOT, "ausc", "training"))
 
 from iuv_model import DenseIUVModel, iuv_loss          # noqa: E402
-from dataset import AuscIUVDataset, split_manifest, collate  # noqa: E402
+from dataset import AuscIUVDataset, split_manifest, split_manifests, collate, subject_key  # noqa: E402
+
+
+def audit_config(args, frozen_encoder: bool):
+    """Return the persisted training config without deprecated/conflicting flags."""
+    cfg = vars(args).copy()
+    cfg.pop("frozen", None)
+    cfg["frozen_encoder"] = bool(frozen_encoder)
+    cfg["trainable_encoder"] = not bool(frozen_encoder)
+    return cfg
+
+
+def lr_record(opt):
+    """Name optimizer learning rates by param group for readable metrics history."""
+    out = {}
+    for idx, group in enumerate(opt.param_groups):
+        name = group.get("name") or f"group{idx}"
+        out[f"lr_{name}"] = group["lr"]
+    return out
+
+
+def format_lr_record(record):
+    return " ".join(f"{k} {v:.2e}" for k, v in record.items())
 
 
 def run_val(model, loader, device):
@@ -38,7 +61,10 @@ def run_val(model, loader, device):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--root", required=True, help="数据集目录(含 manifest.jsonl/img/iuv)")
+    ap.add_argument("--root", default=None, help="单数据集目录(含 manifest.jsonl/img/iuv)")
+    ap.add_argument("--roots", default=None, help="多数据集混训, 逗号分隔目录(优先于 --root)")
+    ap.add_argument("--unfreeze", type=int, default=0, help="1=解冻编码器微调(差分学习率)")
+    ap.add_argument("--enc_lr_mult", type=float, default=0.1, help="解冻时编码器 lr = lr*该值")
     ap.add_argument("--encoder", default="dinov2_vitb14")
     ap.add_argument("--res", type=int, default=518)
     ap.add_argument("--epochs", type=int, default=20)
@@ -47,29 +73,46 @@ def main():
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--val_frac", type=float, default=0.08)
     ap.add_argument("--out", default="outputs/perc_v0")
-    ap.add_argument("--frozen", type=int, default=1)
+    ap.add_argument("--frozen", type=int, default=None, help=argparse.SUPPRESS)  # deprecated; use --unfreeze
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     device = "cuda"
+    frozen = not bool(args.unfreeze)
     # 审计记录: 配置 + 指标历史(供反思/复核, 不只存结果)
-    import json as _json
     with open(os.path.join(args.out, "config.json"), "w") as f:
-        _json.dump(vars(args), f, indent=2)
+        json.dump(audit_config(args, frozen_encoder=frozen), f, indent=2)
     metrics_path = os.path.join(args.out, "metrics.jsonl")
     open(metrics_path, "w").close()
 
-    tr_rows, va_rows = split_manifest(args.root, val_frac=args.val_frac)
-    print(f"[data] train={len(tr_rows)} val={len(va_rows)} (按 subject 划分)")
+    if args.roots:
+        roots = [r.strip() for r in args.roots.split(",") if r.strip()]
+        tr_rows, va_rows = split_manifests(roots, val_frac=args.val_frac)
+        print(f"[data] 混训 {roots}")
+    else:
+        assert args.root, "需指定 --root 或 --roots"
+        tr_rows, va_rows = split_manifest(args.root, val_frac=args.val_frac)
+    # 校验无受试者泄漏 + 持久化 val 划分(供 eval 精确复现, 防"同人不同视角"泄漏)
+    tr_subs = {subject_key(r["id"]) for r in tr_rows}
+    va_subs = {subject_key(r["id"]) for r in va_rows}
+    leak = tr_subs & va_subs
+    assert not leak, f"train/val 受试者泄漏(必须为空): {list(leak)[:8]}"
+    json.dump(va_rows, open(os.path.join(args.out, "val_split.json"), "w"))
+    print(f"[data] train={len(tr_rows)} val={len(va_rows)} | 受试者 train {len(tr_subs)}/val {len(va_subs)} 重叠 {len(leak)} (真subject切分, 已存val_split.json)")
     tr = DataLoader(AuscIUVDataset(args.root, tr_rows, args.res), batch_size=args.bs, shuffle=True,
                     num_workers=args.workers, collate_fn=collate, drop_last=True, pin_memory=True)
     va = DataLoader(AuscIUVDataset(args.root, va_rows, args.res), batch_size=args.bs, shuffle=False,
                     num_workers=args.workers, collate_fn=collate, pin_memory=True)
 
-    model = DenseIUVModel(encoder=args.encoder, frozen_encoder=bool(args.frozen)).to(device)
-    params = [p for p in model.parameters() if p.requires_grad]
-    n_train = sum(p.numel() for p in params)
-    print(f"[model] {args.encoder} frozen={bool(args.frozen)} | 可训练参数 {n_train/1e6:.1f}M")
-    opt = torch.optim.AdamW(params, lr=args.lr, weight_decay=1e-4)
+    model = DenseIUVModel(encoder=args.encoder, frozen_encoder=frozen).to(device)
+    if args.unfreeze:
+        opt = torch.optim.AdamW([
+            {"params": model.encoder.parameters(), "lr": args.lr * args.enc_lr_mult, "name": "encoder"},
+            {"params": model.head.parameters(), "lr": args.lr, "name": "head"}], weight_decay=1e-4)
+    else:
+        opt = torch.optim.AdamW([{"params": [p for p in model.parameters() if p.requires_grad],
+                                  "lr": args.lr, "name": "head"}], weight_decay=1e-4)
+    n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"[model] {args.encoder} unfreeze={bool(args.unfreeze)} | 可训练参数 {n_train/1e6:.1f}M")
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs * len(tr))
     scaler = torch.cuda.amp.GradScaler()
 
@@ -92,15 +135,21 @@ def main():
         vloss = run_val(model, va, device)
         sec = time.time() - t0
         msg = " ".join(f"{k} {run[k]/len(tr):.4f}" for k in run)
-        lr_now = sched.get_last_lr()[0]
-        print(f"[ep{ep}] {msg} | val {vloss:.4f} | lr {lr_now:.2e} | {sec:.0f}s", flush=True)
-        ckpt = {"head": model.head.state_dict(), "args": vars(args), "epoch": ep, "val": vloss}
+        lrs = lr_record(opt)
+        print(f"[ep{ep}] {msg} | val {vloss:.4f} | {format_lr_record(lrs)} | {sec:.0f}s", flush=True)
+        # 解冻微调: 必须存【整模型】(编码器也变了); 冻结: 只存 head 即可
+        if args.unfreeze:
+            ckpt = {"model": model.state_dict(), "args": vars(args), "epoch": ep, "val": vloss}
+        else:
+            ckpt = {"head": model.head.state_dict(), "args": vars(args), "epoch": ep, "val": vloss}
         torch.save(ckpt, os.path.join(args.out, "last.pt"))
-        torch.save(ckpt, os.path.join(args.out, f"ep{ep:02d}.pt"))   # 每 epoch 独立留存(审计)
+        if not args.unfreeze:                                        # 全模型 ckpt ~350MB, 解冻时只留 best/last
+            torch.save(ckpt, os.path.join(args.out, f"ep{ep:02d}.pt"))   # 冻结: 每 epoch 独立留存(审计)
         with open(metrics_path, "a") as f:                            # 指标历史(供反思)
-            rec = {"epoch": ep, "val": vloss, "lr": lr_now, "sec": round(sec, 1)}
+            rec = {"epoch": ep, "val": vloss, "sec": round(sec, 1)}
+            rec.update(lrs)
             rec.update({k: round(run[k] / len(tr), 5) for k in run})
-            f.write(_json.dumps(rec) + "\n")
+            f.write(json.dumps(rec) + "\n")
         if vloss < best:
             best = vloss; torch.save(ckpt, os.path.join(args.out, "best.pt"))
             print(f"  ↳ saved best (val {best:.4f})", flush=True)

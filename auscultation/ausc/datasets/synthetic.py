@@ -12,6 +12,7 @@
 import os
 os.environ.setdefault("PYOPENGL_PLATFORM", "egl")
 import sys
+import zlib
 
 import cv2
 import numpy as np
@@ -31,14 +32,18 @@ SKIN = np.array([[212, 170, 154], [201, 156, 138], [193, 148, 121], [179, 132, 1
 
 # 取景三档(全部近距, 部署相机离得近/人拍得大): span倍数小=更近。
 # torso画面占比≈fill/k → F1上半身填满~85% / F2躯干填满~105% / F3胸背特写~140%。
-# (span倍数, 画面占比, 中心上移) 躯干占比≈fill/k。清晰缩放: 远(躯干~60%)→极近(~180%)
+# (span倍数, 画面占比, 中心上移) 躯干占比≈fill/k。保持三档部署取景, 不生成极近局部裁切。
 FRAMINGS = {
     "F1_upper": (1.45, 0.86, 0.05),   # 远: 上半身(躯干~60%, 多上下文)
     "F2_torso": (1.00, 0.86, 0.05),   # 中: 躯干填满 (~86%)
     "F3_near":  (0.70, 0.90, 0.08),   # 近: 胸/背特写 (~128%)
-    "F4_zoom":  (0.50, 0.92, 0.05),   # 极近: 听诊区放大 (~184%)
 }
 ROT_CHOICES = (0.0, -8.0, 8.0)   # 旋转仅 ±8°(±15太过)
+
+
+def variant_seed_offset(posture, view, framing):
+    """稳定的 variant seed offset; 避免 Python 内置 hash 的跨进程随机 salt。"""
+    return zlib.crc32(f"{posture}|{view}|{framing}".encode("utf-8")) % 1000
 
 
 def _rx(deg):
@@ -228,8 +233,8 @@ def _augment(base, rng):
     if rng.random() < 0.6:                                       # 机械臂遮挡(从右下方够向听诊点)
         s["image"] = occlude_medical(s["image"], s["points"], rng,
                                      region=region, iuv=s.get("iuv"))
-    if rng.random() < 0.4:
-        s["image"] = sensor_degrade(s["image"], rng)
+    if rng.random() < 0.2:
+        s["image"] = sensor_degrade(s["image"], rng, severity="mild")
     return s
 
 
@@ -255,7 +260,7 @@ def generate(smpl_model, uv, out, n_subjects=400, n_aug=3, res=512, focal=1100.0
             for posture in ("standing", "seated"):
                 for view in ("front", "back"):
                     for fr in FRAMINGS:
-                        r = np.random.RandomState(seed * 100003 + si * 97 + (hash((posture, view, fr)) % 1000))
+                        r = np.random.RandomState(seed * 100003 + si * 97 + variant_seed_offset(posture, view, fr))
                         base = _render_base(model, faces, uvmap, ausc, torso_idx, r, view, posture, fr, res, res, focal,
                                             obj=obj, textures=textures)
                         bid = f"syn{si:05d}_{posture}_{view}_{fr}"

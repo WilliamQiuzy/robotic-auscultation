@@ -11,7 +11,7 @@
 增强编排(匹配第三人称固定相机 + 实验室 WidowX/Trossen 桌面侧装臂的部署分布):
   几何  perspective_warp 透视抖动 或 _rotate 对称小角度 ±8°(二选一)
         hflip+LR_SWAP 水平翻转换 L/R —— 仅后背(肺双侧对称), 前胸心点不对称禁翻
-        crop_to_framing 取景 F1远/F2中/F3近/F4极近(正方形真像素裁剪, 不补边)
+        crop_to_framing 取景 F1远/F2中/F3近(正方形真像素裁剪, 不补边)
   外观  clinical_lighting / hue_shift / specular / cast_shadow
   遮挡  occlude_medical → 机械臂从右下方够向听诊点(电极已弃用)
   退化  sensor_degrade 运动模糊/高斯模糊/JPEG/噪声
@@ -32,8 +32,8 @@ ROT_CHOICES = (0.0, -8.0, 8.0)  # 旋转仅 ±8°(±15太过), 对称
 
 # 取景三档(2D 真实图裁剪): side = 听诊点纵向跨度 × 倍数。远→近。
 # 与 synthetic 相机三档(F1远/F2中/F3近)一致, 见 datasets_and_processing.md 取景分类。
-# side = 躯干尺寸 × 倍数。倍数跨越1.0才有真实缩放: F1>1宽景(缩小/多上下文) → F4<1放大进胸。
-FRAMINGS_2D = {"F1_upper": 1.15, "F2_torso": 0.88, "F3_near": 0.64, "F4_zoom": 0.46}
+# side = 躯干尺寸 × 倍数。F1>1宽景(缩小/多上下文) → F3近景; 不再做低分辨率真实图极近放大。
+FRAMINGS_2D = {"F1_upper": 1.15, "F2_torso": 0.88, "F3_near": 0.74}
 
 
 def crop_to_framing(sample, framing, rng, target=(384, 384)):
@@ -119,7 +119,7 @@ def augment_once(sample: dict, rng, target=(384, 384)) -> dict:
     if region == "back" and rng.random() < 0.5:
         f = hflip(s, lr_swap=LR_SWAP); f["region"] = region; s = f
 
-    # 取景 F1远/F2中/F3近/F4极近(随机一档, 以听诊区居中正方形裁剪)
+    # 取景 F1远/F2中/F3近(随机一档, 以听诊区居中正方形裁剪)
     s = crop_to_framing(s, rng.choice(list(FRAMINGS_2D)), rng, target=target)
     s["region"] = region
 
@@ -135,9 +135,9 @@ def augment_once(sample: dict, rng, target=(384, 384)) -> dict:
     if rng.random() < 0.6:                                       # 机械臂遮挡(从右下方够向听诊点; 电极已弃用)
         s["image"] = occlude_medical(s["image"], s["points"], rng,
                                      region=region, iuv=s.get("iuv"))
-    # 相机退化(运动模糊/JPEG/噪声)
-    if rng.random() < 0.4:
-        s["image"] = sensor_degrade(s["image"], rng)
+    # 相机退化(运动模糊/JPEG/噪声): 低分辨率真实图要保纹理, 只温和少量加入。
+    if rng.random() < 0.2:
+        s["image"] = sensor_degrade(s["image"], rng, severity="mild")
     return s
 
 

@@ -146,7 +146,9 @@ def _dump_overlay(s, pred_part, pred_uv, addr, path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True)
-    ap.add_argument("--root", required=True)
+    ap.add_argument("--root", default=None, help="单数据集目录(配合 --all / --val 划分)")
+    ap.add_argument("--val_split", default=None, help="训练存的 val_split.json: 精确复现 held-out 行(无泄漏)")
+    ap.add_argument("--only_root", default=None, help="配合 --val_split: 只评 _root 含该子串的数据集(分域报)")
     ap.add_argument("--tag", default="eval")
     ap.add_argument("--res", type=int, default=518)
     ap.add_argument("--encoder", default="dinov2_vitb14")
@@ -160,16 +162,24 @@ def main():
 
     model = DenseIUVModel(encoder=args.encoder, frozen_encoder=True).to(device)
     ck = torch.load(args.ckpt, map_location=device)
-    model.head.load_state_dict(ck["head"]); model.eval()
+    if "model" in ck:                          # 解冻微调: 整模型(编码器+头)
+        model.load_state_dict(ck["model"])
+    else:                                      # 冻结: 仅 head(编码器=原预训练)
+        model.head.load_state_dict(ck["head"])
+    model.eval()
     addr, _ = landmark_addresses(args.uv, args.smpl)
-    if args.all:
+    if args.val_split:                          # 精确复现训练的 held-out(无泄漏); 行内自带 _root
+        rows = json.load(open(args.val_split))
+        if args.only_root:
+            rows = [r for r in rows if args.only_root in r.get("_root", "")]
+    elif args.all:
         rows = [json.loads(l) for l in open(os.path.join(args.root, "manifest.jsonl"))]
-        rows = [r for r in rows if r.get("is_valid") and r.get("iuv")]
+        rows = [{**r, "_root": args.root} for r in rows if r.get("is_valid") and r.get("iuv")]
     else:
         _, rows = split_manifest(args.root)
     if args.dump:
         os.makedirs(args.dump, exist_ok=True)
-    r = evaluate(model, args.root, rows, addr, args.res, device, max_n=args.max_n, dump=args.dump)
+    r = evaluate(model, args.root or "", rows, addr, args.res, device, max_n=args.max_n, dump=args.dump)
     print(f"\n===== [{args.tag}] n={r['n']} =====")
     print(f"  part mIoU      : {r['miou']:.3f}")
     print(f"  part pix-acc   : {r['pix_acc']:.3f}")

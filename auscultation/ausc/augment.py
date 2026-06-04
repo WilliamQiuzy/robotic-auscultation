@@ -9,7 +9,7 @@ IUV 一律 INTER_NEAREST 缩放(保 part 标签离散, 不插值串类)。
   几何   perspective_warp  : 小透视/视角抖动(相机非正对)
          (common._rotate)  : 对称小角度旋转 ±8°(在 common 内, 与裁剪同模块)
          hflip + LR_SWAP   : 水平翻转+换 L/R —— 仅后背(肺双侧对称), 前胸心点不对称禁翻
-         (common.crop_to_framing): 取景 F1远/F2中/F3近/F4极近
+         (common.crop_to_framing): 取景 F1远/F2中/F3近
   外观   clinical_lighting : 色温 + 单侧检查灯方向光 + 渐晕 + gamma
          hue_shift         : 轻色相/白平衡偏移
          specular          : 皮肤高光/油光
@@ -176,22 +176,28 @@ def occlude_medical(img, points, rng=None, region="front", iuv=None):
     return occlude_robot_arm(img, vis[rng.randint(len(vis))][1], rng)
 
 
-def sensor_degrade(image, rng=None):
-    """相机退化(贴真实采集, 保纹理为主): 随机 运动模糊 / 轻高斯模糊 / JPEG / 传感器噪声。"""
+def sensor_degrade(image, rng=None, severity="mild"):
+    """相机退化(贴真实采集, 保纹理为主): 随机运动模糊 / 轻高斯模糊 / JPEG / 传感器噪声。
+
+    severity="mild" 用于真实裸背/HuMMan增强, 避免把本来就低分辨率的皮肤纹理打碎;
+    severity="strong" 仅保留给未来明确需要重退化鲁棒性的实验。
+    """
     rng = rng or np.random
     img = image.copy()
     k = rng.choice(["motion", "blur", "jpeg", "noise"])      # 去 none, 调用即出效果且明显
+    strong = severity == "strong"
     if k == "motion":
-        ks = int(rng.choice([9, 13, 17])); ker = np.zeros((ks, ks), np.float32)
+        ks = int(rng.choice([7, 9, 11] if not strong else [9, 13, 17])); ker = np.zeros((ks, ks), np.float32)
         if rng.random() < 0.5: ker[ks // 2, :] = 1.0
         else: ker[:, ks // 2] = 1.0
         img = cv2.filter2D(img, -1, ker / ks)
     elif k == "blur":
-        ks = int(rng.choice([5, 7, 9])); img = cv2.GaussianBlur(img, (ks, ks), 0)
+        ks = int(rng.choice([3, 5] if not strong else [5, 7, 9])); img = cv2.GaussianBlur(img, (ks, ks), 0)
     elif k == "jpeg":
-        q = int(rng.randint(18, 45))                         # 低质量, 块效应明显
+        q = int(rng.randint(45, 76) if not strong else rng.randint(18, 45))
         ok, enc = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, q])
         if ok: img = cv2.imdecode(enc, cv2.IMREAD_COLOR)
     elif k == "noise":
-        img = np.clip(img.astype(np.float32) + rng.normal(0, rng.uniform(10, 25), img.shape), 0, 255).astype(np.uint8)
+        sigma = rng.uniform(4, 10) if not strong else rng.uniform(10, 25)
+        img = np.clip(img.astype(np.float32) + rng.normal(0, sigma, img.shape), 0, 255).astype(np.uint8)
     return img

@@ -1,0 +1,16 @@
+{
+  "root": null,
+  "roots": "data/dataset/humman,data/dataset/synthetic,data/dataset/scoliosis",
+  "unfreeze": 1,
+  "enc_lr_mult": 0.1,
+  "encoder": "dinov2_vitb14",
+  "res": 518,
+  "epochs": 15,
+  "bs": 8,
+  "lr": 0.0003,
+  "workers": 12,
+  "val_frac": 0.08,
+  "out": "outputs/perc_v1",
+  "frozen_encoder": false,
+  "trainable_encoder": true
+}
