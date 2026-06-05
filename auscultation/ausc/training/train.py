@@ -36,6 +36,13 @@ def _group(r):
     return "realback" if r.get("region") == "back" else "realfront"
 
 
+def parse_balance_targets(spec):
+    """'syn:0.3,realfront:0.25,realback:0.45' → (("syn",0.3),...)。空=默认。"""
+    if not spec:
+        return (("syn", 0.4), ("realfront", 0.3), ("realback", 0.3))
+    return tuple((k, float(v)) for k, v in (kv.split(":") for kv in spec.split(",")))
+
+
 def make_balanced_sampler(rows, targets=(("syn", 0.4), ("realfront", 0.3), ("realback", 0.3))):
     """WeightedRandomSampler: 按域分组上采样(真实后背稀缺→提权), 每 batch 近目标配比。"""
     import collections
@@ -93,6 +100,8 @@ def main():
     ap.add_argument("--lora_alpha", type=int, default=32)
     ap.add_argument("--weight_decay", type=float, default=0.05, help="AdamW weight decay(抗过拟合, v1=1e-4偏低)")
     ap.add_argument("--balance", type=int, default=1, help="1=按域分组均衡上采样(合成/真实前/真实后)")
+    ap.add_argument("--balance_targets", default="", help="域配比 'syn:0.3,realfront:0.25,realback:0.45'; 空=默认 0.4/0.3/0.3")
+    ap.add_argument("--ema", type=float, default=0.0, help=">0 启用权重EMA(如0.999); 每epoch也用EMA权重评测真实后背选best")
     ap.add_argument("--select", default="realback_pck", choices=["realback_pck", "valloss"],
                     help="选 best ckpt 的依据(默认真实后背 PCK@10, 而非混合 val-loss)")
     ap.add_argument("--smpl", default="data/smpl/SMPL_NEUTRAL.pkl")
@@ -132,7 +141,7 @@ def main():
     print(f"[data] train={len(tr_rows)} val={len(va_rows)} | 受试者 train {len(tr_subs)}/val {len(va_subs)} 重叠 {len(leak)} (真subject切分, 已存val_split.json)")
     sampler = None
     if args.balance:
-        sampler, gc = make_balanced_sampler(tr_rows)
+        sampler, gc = make_balanced_sampler(tr_rows, targets=parse_balance_targets(args.balance_targets))
         print(f"[data] 域分组均衡采样: {gc} → 目标 syn0.4/realfront0.3/realback0.3")
     tr = DataLoader(AuscIUVDataset(args.root, tr_rows, args.res), batch_size=args.bs,
                     shuffle=(sampler is None), sampler=sampler,
@@ -165,6 +174,24 @@ def main():
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs * len(tr))
     scaler = torch.cuda.amp.GradScaler()
 
+    ema = None
+    if args.ema > 0:                                    # 权重EMA: 平滑可训参数, 评测/存盘用EMA权重
+        ema = {n: p.detach().clone() for n, p in model.named_parameters() if p.requires_grad}
+        print(f"[ema] 启用 decay={args.ema} (跟踪 {len(ema)} 个可训张量)", flush=True)
+
+    def swap_in_ema():
+        """把 EMA 权重换进模型(返回 live 备份以便还原)。"""
+        live = {}
+        for n, p in model.named_parameters():
+            if n in ema:
+                live[n] = p.detach().clone(); p.data.copy_(ema[n])
+        return live
+
+    def restore_live(live):
+        for n, p in model.named_parameters():
+            if n in live:
+                p.data.copy_(live[n])
+
     best_score = -1e9; best_ep = -1
     for ep in range(args.epochs):
         model.train(); t0 = time.time(); run = {}
@@ -177,10 +204,16 @@ def main():
                 pl, puv = model(img)
                 loss, parts = iuv_loss(pl, puv, part, uv)
             scaler.scale(loss).backward(); scaler.step(opt); scaler.update(); sched.step()
+            if ema is not None:                         # EMA 更新(仅可训参数)
+                with torch.no_grad():
+                    for n, p in model.named_parameters():
+                        if n in ema:
+                            ema[n].mul_(args.ema).add_(p.detach(), alpha=1.0 - args.ema)
             for k, v in {"loss": loss.item(), **parts}.items():
                 run[k] = run.get(k, 0.0) + v
             if it % 50 == 0:
                 print(f"  ep{ep} it{it}/{len(tr)} loss {loss.item():.4f} ce {parts['ce']:.4f} uv {parts['uv_l1']:.4f}", flush=True)
+        live_bak = swap_in_ema() if ema is not None else None   # EMA: 用平滑权重评测+存盘
         vloss = run_val(model, va, device)
         # 真实后背 landmark PCK@10(选 ckpt 依据; 比混合 val-loss 更对齐 headline)
         rb_pck = None
@@ -212,6 +245,8 @@ def main():
         if score > best_score:
             best_score = score; best_ep = ep; torch.save(ckpt, os.path.join(args.out, "best.pt"))
             print(f"  ↳ saved best (ep{ep}, {args.select}={score:.4f})", flush=True)
+        if live_bak is not None:                         # 还原 live 权重继续训练
+            restore_live(live_bak)
     print(f"[done] best={args.select} {best_score:.4f} @ ep{best_ep} → {args.out}")
 
 
