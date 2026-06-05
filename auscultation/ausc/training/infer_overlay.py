@@ -17,6 +17,7 @@ from iuv_model import DenseIUVModel, N_PARTS                      # noqa: E402
 from dataset import IMAGENET_MEAN, IMAGENET_STD                  # noqa: E402
 from eval import readout_soft, _forward_maps                     # noqa: E402
 from render_iuv import load_uv_mapping                           # noqa: E402
+from tasks import task_region, task_landmarks, list_tasks        # noqa: E402
 
 
 def region_names(addr, region):
@@ -104,6 +105,7 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--imgs", required=True, help="目录或逗号分隔图路径")
     ap.add_argument("--region", default="back", choices=["back", "front"])
+    ap.add_argument("--task", default=None, help="任务路由(优先于--region): heart→前胸5点 / lung→后背8点(见 ausc/tasks.py)")
     ap.add_argument("--encoder", default="dinov2_vitb14")
     ap.add_argument("--res", type=int, default=518)
     ap.add_argument("--tau", type=float, default=0.01)
@@ -121,7 +123,13 @@ def main():
 
     m = load_model(args.ckpt, args.encoder, device)
     addr, _ = landmark_addresses(args.uv, args.smpl)
-    names = region_names(addr, args.region)
+    if args.task:                                          # 任务路由(单一权威 ausc/tasks.py): 任务→区域+有序点集
+        region = task_region(args.task)
+        names = [n for n in task_landmarks(args.task) if n in addr]
+        print(f"[task] {args.task} → region={region} | 听诊点(顺序)={names}")
+    else:
+        region = args.region
+        names = region_names(addr, region)
     res = args.res
     gy, gx = np.mgrid[0:res, 0:res].astype(np.float32)
 
@@ -152,7 +160,10 @@ def main():
             cv2.circle(ov, (int(p[0]), int(p[1])), 7, (255, 255, 255), 1)
         conf, metrics, flags = (None, {}, [])
         if args.gate:
-            conf, metrics, flags = posture_confidence(pts, pred_part, res, args.region)
+            conf, metrics, flags = posture_confidence(pts, pred_part, res, region)
+            # 视角与任务区域一致性校验(全自动: 不匹配→flag, 机械臂换帧/换视角)
+            if (region == "back") != (side == "back"):
+                flags = ["view_task_mismatch"] + flags; conf = min(conf, 0.3)
             col = (40, 200, 40) if conf >= args.conf_thr else (230, 160, 40)
             cv2.putText(ov, f"conf={conf:.2f}", (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.8, col, 2)
             for j, fl in enumerate(flags[:3]):
