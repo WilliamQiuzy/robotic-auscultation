@@ -25,4 +25,33 @@
 
 ### 2026-06-05 启动
 - 恢复 4090(instance 39462559)。读 refit_scoliosis / synthetic DR 旋钮 / data_gen 配置。
-- 数据集搜索: Scoliosis1K=剪影脱敏无RGB(不可用); Roboflow nude-back=已有; THuman/3DBodyTex=gated。结论=自主可得的真实裸背增量有限 → 重心放 HuMMan后向帧 + 训练手段 + 免费eval增益。
+- 数据集搜索: Scoliosis1K=剪影脱敏无RGB(不可用); Roboflow nude-back=已有; THuman/3DBodyTex=gated。结论=自主可得的真实裸背增量有限。
+- **box 数据现状**: 处理好的训练集在(humman4282/syn19200/scoliosis1118), 但原始数据(HuMMan Kinect/scoliosis原图/bedlam皮肤)已清。**本地有 scoliosis 86原图+labels_hmr2.pkl+UV+SMPL**(可重增强)。
+
+### A. 免费 eval 增益(完成)
+- **τ 扫描**(v3 best scoliosis): PCK@10 在 τ=0.01 最优(0.67); τ=0.02 中位更小(5.5%)但@10略降。**保持 0.01**。
+- **多尺度 TTA**(已实现 eval._forward_maps + --tta): scales (1.0,1.14,1.27) → 后背 **PCK@10 0.67→0.68 / PCK@5 0.42→0.44 / 中位6.1%**, 前胸 0.91 不掉, 无 L/R 风险。**采纳为标准评测/部署协议(+0.01 免费)**。
+
+### B. 训练手段短扫描(完成, 4配置×4epoch, 92点训练侧held-out, 单尺度)
+| 配置 | best real-back | 备注 |
+|---|---|---|
+| A_base r16 | 0.475 @ep3 | 基线 |
+| **B_over 后背过采样0.45** | **0.518 @ep0** | **最优 +0.04** |
+| C_ema EMA0.999 | 0.471 @ep1 | ≈基线 |
+| D_r32 rank32 | 0.427 @ep1 | 更差(容量大→过拟合) |
+- 结论: **后背过采样=最佳训练杠杆**; EMA≈基线; rank32更差。绝对值低于v3训练侧0.604=短调度混淆 → 用完整15ep复现。
+
+### C. v4 完整候选(进行中, 15ep, 均带过采样后背0.45)
+- **v4a = ViT-B + r16 + 过采样**(隔离过采样 vs v3)
+- **v4b = ViT-L/14 + r16 + 过采样, bs6**(编码器天花板; ViT-L预下载成功304M)
+- 跑完各域 TTA 评测对比 v3(0.68), 选最优=终版。
+
+### 编码器天花板 A/B(队列, sweep后)
+- **决策=DINOv2 ViT-L/14**(embed1024 vs B的768): 同 torch.hub loader, build_encoder 已支持 dinov2_*, apply_lora 模块名一致 → **零改码, 仅 --encoder dinov2_vitl14**。无 gating。
+- DINOv3(facebook/dinov3-vitb16): **gated**(需网页接受Meta许可)→ 无法自主, 延后。Sapiens: 集成重 + 可能gated, 延后。
+
+### 队列
+1. [跑] B 训练扫描 → 选最优配置
+2. [待] DINOv2 ViT-L/14 LoRA 编码器 A/B
+3. [待] 合并 最优配置+最优编码器 → 终版 v4(配 TTA 评测)
+4. [备] scoliosis 重增强(本地有原图) / Sapiens(若 ViT-L 有效再考虑更大)
