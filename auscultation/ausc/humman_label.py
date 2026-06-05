@@ -52,21 +52,65 @@ def define_ausc_vertices(model):
         d = (y[cand] - ty) ** 2 + (x[cand] - tx) ** 2
         return int(cand[np.argmin(d)])
 
+    def pick_back_pair(off, ty, nz_max):
+        """Pick symmetric posterior lung vertices for one level.
+
+        The lateral lower lung field has side-facing normals, so a strict
+        N_z < -0.2 posterior-only filter clamps points toward the spine.  Pick
+        the two sides jointly with a relaxed per-level normal threshold, then
+        penalize left/right height and mirror asymmetry.
+        """
+        core = (
+            (np.abs(x) < 0.18)
+            & (y > -0.25)
+            & (y < 0.19)
+            & (z < 0.02)
+            & (N[:, 2] < nz_max)
+        )
+        r_cand = np.where(core & (x < 0))[0]
+        l_cand = np.where(core & (x > 0))[0]
+        if len(r_cand) == 0 or len(l_cand) == 0:
+            raise RuntimeError("no posterior lung candidates for symmetric pair")
+        r_cand = r_cand[np.argsort((x[r_cand] + off) ** 2 + (y[r_cand] - ty) ** 2)[:220]]
+        l_cand = l_cand[np.argsort((x[l_cand] - off) ** 2 + (y[l_cand] - ty) ** 2)[:220]]
+        best = None
+        for ri in r_cand:
+            for li in l_cand:
+                score = (
+                    (x[ri] + off) ** 2
+                    + (x[li] - off) ** 2
+                    + 2.0 * ((y[ri] - ty) ** 2 + (y[li] - ty) ** 2)
+                    + 8.0 * (y[ri] - y[li]) ** 2
+                    + 5.0 * (x[ri] + x[li]) ** 2
+                )
+                if best is None or score < best[0]:
+                    best = (score, int(ri), int(li))
+        return best[1], best[2]
+
     # 【前胸心脏 5 区】Bates' 标准, 助记 APETM(含 Erb 第三听诊区)。x<0=患者右,x>0=患者左。
     # dict 顺序 = 听诊顺序(心底→心尖)。任务→点集路由见 ausc/tasks.py。
+    # 按标准 APETM 图(heart_auscul_points.png)沿真实肋间高度铺开: 锁骨 y≈0.19, 每肋间≈0.035,
+    # 2nd→5th ICS 纵跨~0.12; 原定义压在上中胸 8cm 内、心尖偏高 → 已拉开纵向、心尖下移更外侧。
     cardiac = {
-        "aortic":    pick(-0.045, 0.13, True),   # 主动脉瓣区: 第2肋间 患者右胸骨旁
-        "pulmonary": pick(+0.045, 0.13, True),   # 肺动脉瓣区: 第2肋间 患者左胸骨旁
-        "erb":       pick(+0.040, 0.090, True),  # Erb 第三听诊区: 第3肋间 左胸骨缘(S1+S2均清)
-        "tricuspid": pick(+0.035, 0.055, True),  # 三尖瓣区: 第4肋间 左下胸骨缘(医生校正:原-0.01太低)
-        "mitral":    pick(+0.09, 0.035, True),   # 二尖瓣区/心尖: 第5肋间 左锁骨中线(医生校正:原-0.06落剑突)
+        "aortic":    pick(-0.045, 0.135, True),  # 主动脉瓣区: 第2肋间 患者右胸骨旁
+        "pulmonary": pick(+0.045, 0.135, True),  # 肺动脉瓣区: 第2肋间 患者左胸骨旁
+        "erb":       pick(+0.040, 0.100, True),  # Erb 第三听诊区: 第3肋间 左胸骨缘(S1+S2均清)
+        "tricuspid": pick(+0.040, 0.055, True),  # 三尖瓣区: 第4肋间 左下胸骨缘
+        "mitral":    pick(+0.095, 0.015, True),  # 二尖瓣区/心尖: 第5肋间 左锁骨中线(↓更低更外, 对齐标准心尖)
     }
-    # 【后背肺 8 点】严格按 Lopes 标准(L1-L4 + R1-R4, 4层双侧)。上排稍靠脊柱避肩胛。
+    # 【后背肺 8 点】按 posterior lung auscultation 标准图对齐:
+    #   - 上肺野位于肩胛上缘附近, 略外展;
+    #   - 中间两层更靠近脊柱旁/肺门区域;
+    #   - 下肺野向外侧肺底展开。
+    # 之前使用 4 层等宽双列, 会把点做成两条竖线, 与临床 posterior 路径不一致。
     lung = {}
-    # 4 层全在后肺野内(肩/锁骨~下肋缘 T10), 最低 -0.08 在腰椎(spine1=-0.11)之上, 不到腰/内裤
-    for i, (ty, off) in enumerate([(0.17, 0.07), (0.06, 0.07), (-0.01, 0.07), (-0.08, 0.07)]):
-        lung[f"R{i+1}"] = pick(-off, ty, False)   # R=患者右=x<0
-        lung[f"L{i+1}"] = pick(+off, ty, False)   # L=患者左=x>0
+    # 4 层全在后肺野内(肩/锁骨~下肋缘 T10), 最低 -0.075 在腰椎(spine1=-0.11)之上, 不到腰/内裤。
+    # nz_max 按层放宽: 下肺野需要外侧胸壁顶点, 这些点法向会更偏侧面。
+    for i, (ty, off, nz_max) in enumerate([(0.145, 0.085, 0.05), (0.065, 0.050, 0.08),
+                                           (-0.005, 0.070, 0.10), (-0.075, 0.120, 0.12)]):
+        ri, li = pick_back_pair(off, ty, nz_max)
+        lung[f"R{i+1}"] = ri   # R=患者右=x<0
+        lung[f"L{i+1}"] = li   # L=患者左=x>0
     return {"front": cardiac, "back": lung}
 
 
