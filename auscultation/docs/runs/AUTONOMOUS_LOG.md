@@ -58,6 +58,18 @@
 - **素材**: `assets/clinical_bg/` 9张铺巾/墙背景板(从lab图裁), 铺巾主色RGB~(184,189,184)。
 - **合成对齐计划(下一大迭代, 需GPU+pyrender env重建)**: ①torso穿衣纹理(图像空间叠灰针织+衣褶+领, IUV标签不变=听诊点在衣下=符合临床) ②蓝铺巾背景合成 ③坐姿背面取景匹配。可低成本: 把86张真实scoliosis裸背叠合成衬衫→穿衣真实后背训练样本。
 
+### 编码器天花板 A/B 结论(完成, 负面)
+- **DINOv2 ViT-L/14**(v3-exact config, 只换编码器, 15ep, bs6): 训练侧 real-back PCK@10 best=**0.474 @ep9**, 全程 0.40–0.47 徘徊。
+- **vs v3(ViT-B) 0.604 @ep1 → ViT-L 低 0.13, 显著更差**。更大编码器(冻结基座+LoRA+小头)在这点真实数据上反而不如 ViT-B。**已杀, 省 GPU**。
+- 结论坐实: **编码器不是杠杆; 真杠杆 = 点位正确性 + 域对齐 + TTA**。
+- (踩坑: `python -u | grep` 无 --line-buffered → 写文件块缓冲, epoch行卡缓冲区; 可靠进度看 metrics.jsonl / ckpt 文件。)
+
+### ★ 点位对齐标准(2026-06-05, 用户给 lung/heart 标准图)
+- **心脏(我改)**: cardiac 5点按标准APETM沿真实肋间纵向铺开(纵跨8cm→12cm), 心尖mitral下移更外(0.035→0.015, 0.09→0.095)。验证图 heart_zoom_v2。commit 51f3246。
+- **肺(codex改)**: pick_back_pair(强制左右对称)+ 分层nz_max(放宽下层法向→外侧肺底可选) → 修了我诊断的 左右不对称 + 外展钳死 两问题。
+- **任务路由(我接通)**: infer_overlay --task heart|lung 用 ausc/tasks.py 选区域+有序点集 + 视角×任务一致性校验(mismatch→flag+低conf)。commit 06416e7。
+- follow-up: realign_lung_points.py 目前只覆盖back manifest点; 前胸心点定义也改了→front manifest点也需realign(eval/inference实时addr已自动用新点, 不受影响)。
+
 ### 队列
 1. [跑] B 训练扫描 → 选最优配置
 2. [待] DINOv2 ViT-L/14 LoRA 编码器 A/B
