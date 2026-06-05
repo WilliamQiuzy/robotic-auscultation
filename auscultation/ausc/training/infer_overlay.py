@@ -25,43 +25,46 @@ def region_names(addr, region):
     return sorted(back) if region == "back" else [n for n in addr if n not in back]
 
 
-def posture_gate(points, pred_part, res, region):
-    """部署姿态质量门: 据 后背占比/肺点双侧展开/对称/纵向覆盖 判 PASS / REPOSITION。
-    points: {name:(x,y)}; pred_part: (H,W) argmax part。返回 (ok, reasons, metrics)。"""
-    reasons = []
+def posture_confidence(points, pred_part, res, region):
+    """全自动置信度(无人在回路): 据 后背占比/肺点双侧展开/对称/纵向覆盖 给 [0,1] 分。
+    用途: 多帧时自动挑最高分那帧喂机械臂; 分数作机器信号(低分→更保守/换帧)。无"叫人重摆"。
+    返回 (conf, metrics, flags)。"""
+    flags = []
     fg = pred_part > 0
     torso = np.isin(pred_part, [1, 2])
     back_px = int((pred_part == 1).sum()); front_px = int((pred_part == 2).sum())
     back_frac = back_px / max(1, back_px + front_px)
-    if fg.sum() < 0.04 * res * res:
-        reasons.append("人太小/太远(前景占比低)→ 靠近, 让躯干填中部")
-    if region == "back" and back_frac < 0.80:
-        reasons.append(f"后背占比低({back_frac:.2f})→ 后背正对相机, 不要转身/前倾")
-    # 躯干宽高(像素 bbox)
+    fg_frac = float(fg.sum()) / (res * res)
     ys, xs = np.where(torso if torso.sum() > 50 else fg)
     tw = (xs.max() - xs.min() + 1) if len(xs) else res
     th = (ys.max() - ys.min() + 1) if len(ys) else res
     cx = (xs.min() + xs.max()) / 2 if len(xs) else res / 2
     pts = np.array(list(points.values())) if points else np.zeros((0, 2))
-    if len(pts) >= 4:
-        xspread = (pts[:, 0].max() - pts[:, 0].min()) / max(1, tw)
-        yspread = (pts[:, 1].max() - pts[:, 1].min()) / max(1, th)
-        if xspread < 0.20:
-            reasons.append(f"肺点横向未展开({xspread:.2f})→ 坐直、肩部正对(转身会聚成一条)")
-        if yspread < 0.18:
-            reasons.append(f"肺点纵向跨度小({yspread:.2f})→ 取景纳入上背到下背")
-        # 左右平衡: L* 应在中线一侧, R* 另一侧
-        L = np.array([points[n] for n in points if n[0] == "L"])
-        R = np.array([points[n] for n in points if n[0] == "R"])
-        if len(L) and len(R):
-            if not (L[:, 0].mean() - cx) * (R[:, 0].mean() - cx) < 0:
-                reasons.append("左右肺点未分居中线两侧→ 后背正对、不要侧身")
-    else:
-        reasons.append("有效肺点过少→ 检查后背是否清晰可见")
-    metrics = {"back_frac": round(back_frac, 3),
-               "xspread": round(float((pts[:, 0].max() - pts[:, 0].min()) / max(1, tw)), 3) if len(pts) >= 4 else None,
-               "n_pts": int(len(pts))}
-    return (len(reasons) == 0), reasons, metrics
+    xspread = float((pts[:, 0].max() - pts[:, 0].min()) / max(1, tw)) if len(pts) >= 4 else 0.0
+    yspread = float((pts[:, 1].max() - pts[:, 1].min()) / max(1, th)) if len(pts) >= 4 else 0.0
+    L = np.array([points[n] for n in points if n[0] == "L"]) if points else np.zeros((0, 2))
+    R = np.array([points[n] for n in points if n[0] == "R"]) if points else np.zeros((0, 2))
+    balanced = 1.0 if (len(L) and len(R) and (L[:, 0].mean() - cx) * (R[:, 0].mean() - cx) < 0) else 0.0
+
+    def soft(v, lo, hi):                                  # lo→0, hi→1 线性饱和
+        return float(np.clip((v - lo) / max(1e-6, hi - lo), 0, 1))
+    s_side = soft(back_frac, 0.5, 0.9) if region == "back" else soft(1 - back_frac, 0.5, 0.9)
+    s_size = soft(fg_frac, 0.03, 0.12)
+    s_x = soft(xspread, 0.12, 0.30)
+    s_y = soft(yspread, 0.10, 0.25)
+    s_n = soft(len(pts), 4, 8)
+    conf = float(np.clip(0.30 * s_side + 0.12 * s_size + 0.22 * s_x + 0.14 * s_y + 0.10 * s_n + 0.12 * balanced, 0, 1))
+    if back_frac < 0.8 and region == "back":
+        flags.append("low_back_frac")
+    if xspread < 0.18:
+        flags.append("points_collapsed")
+    if balanced < 1:
+        flags.append("LR_imbalance")
+    if len(pts) < 8:
+        flags.append("missing_points")
+    metrics = {"conf": round(conf, 3), "back_frac": round(back_frac, 3), "fg_frac": round(fg_frac, 3),
+               "xspread": round(xspread, 3), "yspread": round(yspread, 3), "n_pts": int(len(pts))}
+    return conf, metrics, flags
 
 
 def landmark_addresses(uv_path, smpl_path):
@@ -106,7 +109,8 @@ def main():
     ap.add_argument("--tau", type=float, default=0.01)
     ap.add_argument("--tta", default=None)
     ap.add_argument("--up_bias", type=float, default=0.12, help="中心裁上偏(把坐姿躯干居中)")
-    ap.add_argument("--gate", type=int, default=0, help="1=姿态质量门(PASS/REPOSITION + 原因)")
+    ap.add_argument("--gate", type=int, default=0, help="1=全自动置信度+多帧自动挑最优(无人在回路)")
+    ap.add_argument("--conf_thr", type=float, default=0.6, help="置信度阈值(标注色; 低于→机械臂更保守/换帧)")
     ap.add_argument("--smpl", default="data/smpl/SMPL_NEUTRAL.pkl")
     ap.add_argument("--uv", default="data/densepose_coco/uv_data/UV_Processed.mat")
     ap.add_argument("--out", default="infer_out")
@@ -122,6 +126,7 @@ def main():
     gy, gx = np.mgrid[0:res, 0:res].astype(np.float32)
 
     files = args.imgs.split(",") if "," in args.imgs or args.imgs.endswith((".jpg", ".png", ".JPG")) else sorted(glob.glob(os.path.join(args.imgs, "*")))
+    ranking = []
     for f in files:
         raw = cv2.imread(f)
         if raw is None:
@@ -145,14 +150,13 @@ def main():
             pts[nm] = (float(p[0]), float(p[1]))
             cv2.circle(ov, (int(p[0]), int(p[1])), 6, (255, 40, 40), -1)
             cv2.circle(ov, (int(p[0]), int(p[1])), 7, (255, 255, 255), 1)
-        gate_ok, reasons, metrics = (None, [], {})
+        conf, metrics, flags = (None, {}, [])
         if args.gate:
-            gate_ok, reasons, metrics = posture_gate(pts, pred_part, res, args.region)
-            verdict = "PASS" if gate_ok else "REPOSITION"
-            col = (40, 200, 40) if gate_ok else (230, 60, 60)
-            cv2.putText(ov, verdict, (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.9, col, 2)
-            for j, rs in enumerate(reasons[:3]):
-                cv2.putText(ov, rs[:22], (8, res - 12 - 18 * j), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 60, 60), 1)
+            conf, metrics, flags = posture_confidence(pts, pred_part, res, args.region)
+            col = (40, 200, 40) if conf >= args.conf_thr else (230, 160, 40)
+            cv2.putText(ov, f"conf={conf:.2f}", (8, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.8, col, 2)
+            for j, fl in enumerate(flags[:3]):
+                cv2.putText(ov, fl, (8, res - 12 - 18 * j), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (230, 120, 40), 1)
         # part 分割图
         try:
             import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
@@ -165,10 +169,15 @@ def main():
         panel = np.concatenate([im, seg, ov], axis=1)
         out = os.path.join(args.out, os.path.splitext(os.path.basename(f))[0] + f"_{side}.png")
         cv2.imwrite(out, panel[:, :, ::-1])
-        gate_str = ""
+        gate_str = f" | {metrics} flags={flags}" if args.gate else ""
+        print(f"{os.path.basename(f)} side={side}{gate_str} -> {out}")
         if args.gate:
-            gate_str = f" | GATE={'PASS' if gate_ok else 'REPOSITION'} {metrics}" + ("" if gate_ok else f" reasons={reasons}")
-        print(f"{os.path.basename(f)} side={side}(back_px={back_px},front_px={front_px}){gate_str} -> {out}")
+            ranking.append((conf, os.path.basename(f), out))
+    if args.gate and ranking:
+        ranking.sort(reverse=True)
+        best = ranking[0]
+        print(f"\n[auto-select] 最优帧(喂机械臂)= {best[1]} conf={best[0]:.3f}  | 全部: " +
+              ", ".join(f"{b[1]}:{b[0]:.2f}" for b in ranking))
 
 
 if __name__ == "__main__":
