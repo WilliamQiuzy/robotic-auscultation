@@ -82,10 +82,11 @@ def _forward_maps(model, img, res, tta_scales=None):
     tta_scales: 多尺度 TTA(如 (1.0,1.14,1.27)); 各尺度 softmax(part)+uv 上采样到 res 后平均(纯几何, 不动 part/UV 语义, 安全)。"""
     scales = tta_scales or (1.0,)
     prob_sum = None; uv_sum = None
+    use_cuda = img.is_cuda
     for sc in scales:
         s = max(1, round(res * sc / 14)) * 14            # DINOv2 patch=14 对齐
         x = F.interpolate(img, size=(s, s), mode="bilinear", align_corners=False) if s != res else img
-        with torch.autocast("cuda", dtype=torch.float16):
+        with torch.autocast("cuda", dtype=torch.float16, enabled=use_cuda):
             pl, puv = model(x)
         prob = torch.softmax(pl.float(), 1)
         if s != res:
@@ -94,7 +95,7 @@ def _forward_maps(model, img, res, tta_scales=None):
         prob_sum = prob if prob_sum is None else prob_sum + prob
         uv_sum = puv.float() if uv_sum is None else uv_sum + puv.float()
     n = len(scales)
-    return (prob_sum / n)[0].cpu().numpy(), (uv_sum / n)[0].cpu().numpy()
+    return (prob_sum / n)[0].detach().cpu().numpy(), (uv_sum / n)[0].detach().cpu().numpy()
 
 
 @torch.no_grad()

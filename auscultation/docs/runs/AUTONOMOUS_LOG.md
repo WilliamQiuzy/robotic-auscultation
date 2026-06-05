@@ -50,6 +50,14 @@
 - **决策=DINOv2 ViT-L/14**(embed1024 vs B的768): 同 torch.hub loader, build_encoder 已支持 dinov2_*, apply_lora 模块名一致 → **零改码, 仅 --encoder dinov2_vitl14**。无 gating。
 - DINOv3(facebook/dinov3-vitb16): **gated**(需网页接受Meta许可)→ 无法自主, 延后。Sapiens: 集成重 + 可能gated, 延后。
 
+### ★ 关键转向: 真实部署域曝光(2026-06-05, 用户给实验室照片)
+- `data/lab_sample_data/back/` 3张实验室实拍(用户: 未来真实数据+action训练数据基本长这样, 仿真要对齐)。
+- **域特征**: ①**穿衣**(灰色polo, 衣褶/领/红条纹) ②坐姿背面头部可见 ③**蓝色手术铺巾背景**(挂墙角+铺座面)+米色墙 ④竖构图3:4躯干居中第三人称略高 ⑤均匀室内光。
+- **v3实测**(infer_overlay.py CPU+TTA, 见 docs/runs/lab_domain/): part分割连贯+正确判后背(泛化好); 肺点正背那张合理, 转身姿势会聚到一侧。**结论=模型能用但 穿衣/坐姿/铺巾 是off-distribution**。
+- **新增工具**: `ausc/training/infer_overlay.py`(无GT推理+叠加, FORCE_CPU可CPU跑); `eval._forward_maps` autocast兼容CPU。
+- **素材**: `assets/clinical_bg/` 9张铺巾/墙背景板(从lab图裁), 铺巾主色RGB~(184,189,184)。
+- **合成对齐计划(下一大迭代, 需GPU+pyrender env重建)**: ①torso穿衣纹理(图像空间叠灰针织+衣褶+领, IUV标签不变=听诊点在衣下=符合临床) ②蓝铺巾背景合成 ③坐姿背面取景匹配。可低成本: 把86张真实scoliosis裸背叠合成衬衫→穿衣真实后背训练样本。
+
 ### 队列
 1. [跑] B 训练扫描 → 选最优配置
 2. [待] DINOv2 ViT-L/14 LoRA 编码器 A/B
