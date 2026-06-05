@@ -51,6 +51,42 @@ def build_encoder(name: str, frozen: bool = True):
     raise ValueError(f"unknown encoder '{name}' (v0 支持 dinov2_*; Sapiens 待接)")
 
 
+# ── LoRA(低秩适配, 替全解冻: 冻结基座, 只训低秩 A/B + 头, 强正则 + ckpt 小)──
+class LoRALinear(nn.Module):
+    """frozen base Linear + 低秩旁路 scale·B(A(x))。"""
+    def __init__(self, base: nn.Linear, r: int = 16, alpha: int = 32):
+        super().__init__()
+        self.base = base
+        for p in self.base.parameters():
+            p.requires_grad_(False)
+        self.A = nn.Linear(base.in_features, r, bias=False)
+        self.B = nn.Linear(r, base.out_features, bias=False)
+        nn.init.kaiming_uniform_(self.A.weight, a=5 ** 0.5)
+        nn.init.zeros_(self.B.weight)                       # 初始 LoRA=0 → 起点=原模型
+        self.scale = alpha / r
+
+    def forward(self, x):
+        return self.base(x) + self.scale * self.B(self.A(x))
+
+
+def apply_lora(model, r: int = 16, alpha: int = 32, targets=("qkv", "proj", "fc1", "fc2")):
+    """把 DINOv2 注意力/MLP 的目标 Linear 换成 LoRALinear; 冻结基座, 仅 LoRA A/B + 头可训。"""
+    enc = model.encoder.backbone
+    enc.train()                                              # LoRA 需要 encoder forward 走 grad
+    model.encoder.frozen = False
+    for mod in enc.modules():
+        for cn, child in list(mod.named_children()):
+            if isinstance(child, nn.Linear) and cn in targets:
+                setattr(mod, cn, LoRALinear(child, r, alpha))
+    for p in model.encoder.parameters():                     # 先全冻
+        p.requires_grad_(False)
+    for m in model.encoder.modules():                        # 再只放开 LoRA A/B
+        if isinstance(m, LoRALinear):
+            for p in list(m.A.parameters()) + list(m.B.parameters()):
+                p.requires_grad_(True)
+    return model
+
+
 # ── IUV 头 ──────────────────────────────────────────────────────
 class IUVHead(nn.Module):
     """轻量卷积解码器: patch 特征 → (part_logits[25], uv[2]) 全分辨率。"""

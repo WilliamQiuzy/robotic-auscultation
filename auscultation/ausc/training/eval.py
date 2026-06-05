@@ -182,12 +182,19 @@ def main():
     args = ap.parse_args()
     device = "cuda"
 
-    model = DenseIUVModel(encoder=args.encoder, frozen_encoder=True).to(device)
     ck = torch.load(args.ckpt, map_location=device)
-    if "model" in ck:                          # 解冻微调: 整模型(编码器+头)
-        model.load_state_dict(ck["model"])
-    else:                                      # 冻结: 仅 head(编码器=原预训练)
-        model.head.load_state_dict(ck["head"])
+    if ck.get("kind") == "lora":               # LoRA: 原DINOv2基座 + 注入低秩 + 载 A/B+头
+        from iuv_model import apply_lora
+        model = DenseIUVModel(encoder=args.encoder, frozen_encoder=False).to(device)
+        apply_lora(model, r=ck["lora_rank"], alpha=ck["lora_alpha"])
+        model.load_state_dict(ck["lora_head"], strict=False)
+        model.to(device)                           # A/B 注入后重新搬到 GPU
+    else:
+        model = DenseIUVModel(encoder=args.encoder, frozen_encoder=True).to(device)
+        if "model" in ck:                      # 全解冻: 整模型
+            model.load_state_dict(ck["model"])
+        else:                                  # 冻结: 仅 head
+            model.head.load_state_dict(ck["head"])
     model.eval()
     addr, _ = landmark_addresses(args.uv, args.smpl)
     if args.val_split:                          # 精确复现训练的 held-out(无泄漏); 行内自带 _root

@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.join(ROOT, "ausc"))
 sys.path.insert(0, os.path.join(ROOT, "ausc", "models"))
 sys.path.insert(0, os.path.join(ROOT, "ausc", "training"))
 
-from iuv_model import DenseIUVModel, iuv_loss          # noqa: E402
+from iuv_model import DenseIUVModel, iuv_loss, apply_lora  # noqa: E402
 from dataset import AuscIUVDataset, split_manifest, split_manifests, collate, subject_key  # noqa: E402
 from eval import evaluate as eval_landmarks, landmark_addresses  # noqa: E402
 
@@ -88,6 +88,9 @@ def main():
     ap.add_argument("--roots", default=None, help="多数据集混训, 逗号分隔目录(优先于 --root)")
     ap.add_argument("--unfreeze", type=int, default=0, help="1=解冻编码器微调(差分学习率)")
     ap.add_argument("--enc_lr_mult", type=float, default=0.1, help="解冻时编码器 lr = lr*该值")
+    ap.add_argument("--lora", type=int, default=0, help="1=LoRA(冻结基座+低秩适配, 替全解冻; 强正则+小ckpt)")
+    ap.add_argument("--lora_rank", type=int, default=16)
+    ap.add_argument("--lora_alpha", type=int, default=32)
     ap.add_argument("--weight_decay", type=float, default=0.05, help="AdamW weight decay(抗过拟合, v1=1e-4偏低)")
     ap.add_argument("--balance", type=int, default=1, help="1=按域分组均衡上采样(合成/真实前/真实后)")
     ap.add_argument("--select", default="realback_pck", choices=["realback_pck", "valloss"],
@@ -141,16 +144,24 @@ def main():
     sel_addr, _ = landmark_addresses(args.uv, args.smpl) if args.select == "realback_pck" else (None, None)
     print(f"[select] 依据={args.select} | 真实后背 held-out={len(real_back)}")
 
-    model = DenseIUVModel(encoder=args.encoder, frozen_encoder=frozen).to(device)
-    if args.unfreeze:
+    model = DenseIUVModel(encoder=args.encoder, frozen_encoder=(frozen and not args.lora)).to(device)
+    if args.lora:
+        apply_lora(model, r=args.lora_rank, alpha=args.lora_alpha)   # 冻结基座, 只训 LoRA A/B + 头
+        model.to(device)                                            # 新注入的 A/B 在 CPU, 重新搬到 GPU
+        opt = torch.optim.AdamW([{"params": [p for p in model.parameters() if p.requires_grad],
+                                  "lr": args.lr, "name": "lora_head"}], weight_decay=args.weight_decay)
+        mode_str = f"LoRA(r{args.lora_rank}/a{args.lora_alpha})"
+    elif args.unfreeze:
         opt = torch.optim.AdamW([
             {"params": model.encoder.parameters(), "lr": args.lr * args.enc_lr_mult, "name": "encoder"},
             {"params": model.head.parameters(), "lr": args.lr, "name": "head"}], weight_decay=args.weight_decay)
+        mode_str = "full-unfreeze"
     else:
         opt = torch.optim.AdamW([{"params": [p for p in model.parameters() if p.requires_grad],
                                   "lr": args.lr, "name": "head"}], weight_decay=args.weight_decay)
+        mode_str = "frozen-head"
     n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"[model] {args.encoder} unfreeze={bool(args.unfreeze)} | 可训练参数 {n_train/1e6:.1f}M")
+    print(f"[model] {args.encoder} {mode_str} | 可训练参数 {n_train/1e6:.2f}M")
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs * len(tr))
     scaler = torch.cuda.amp.GradScaler()
 
@@ -181,10 +192,15 @@ def main():
         msg = " ".join(f"{k} {run[k]/len(tr):.4f}" for k in run)
         lrs = lr_record(opt)
         print(f"[ep{ep}] {msg} | val {vloss:.4f} | realback_PCK10 {rb_pck} | {format_lr_record(lrs)} | {sec:.0f}s", flush=True)
-        if args.unfreeze:
-            ckpt = {"model": model.state_dict(), "args": vars(args), "epoch": ep, "val": vloss, "rb_pck": rb_pck}
+        meta = {"args": vars(args), "epoch": ep, "val": vloss, "rb_pck": rb_pck}
+        if args.lora:                                       # 只存可训(LoRA A/B + 头), 基座=原DINOv2可重建
+            tk = {n for n, p in model.named_parameters() if p.requires_grad}
+            ckpt = {"kind": "lora", "lora_rank": args.lora_rank, "lora_alpha": args.lora_alpha,
+                    "lora_head": {k: v.detach().cpu() for k, v in model.state_dict().items() if k in tk}, **meta}
+        elif args.unfreeze:
+            ckpt = {"model": model.state_dict(), **meta}
         else:
-            ckpt = {"head": model.head.state_dict(), "args": vars(args), "epoch": ep, "val": vloss, "rb_pck": rb_pck}
+            ckpt = {"head": model.head.state_dict(), **meta}
         torch.save(ckpt, os.path.join(args.out, "last.pt"))
         if not args.unfreeze:                                        # 全模型 ckpt ~350MB, 解冻时只留 best/last
             torch.save(ckpt, os.path.join(args.out, f"ep{ep:02d}.pt"))
