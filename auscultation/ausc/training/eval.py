@@ -43,15 +43,19 @@ def landmark_addresses(uv_mat, smpl_model):
     m = smplx.SMPL(model_path=smpl_model, gender="neutral", batch_size=1)
     ausc = define_ausc_vertices(m)
     addr = {}
-    for region in ("front", "back"):
-        for nm, vi in ausc[region].items():
-            dp = np.where(v2s == vi)[0]
-            if len(dp) == 0:
-                continue
-            parts = [p for d in dp for p in vert_parts.get(int(d), [])]
-            if not parts:
-                continue
-            addr[nm] = (Counter(parts).most_common(1)[0][0], float(U[dp].mean()), float(V[dp].mean()))
+    # 前胸(心脏): 由 SMPL 顶点索引推导 (part,U,V)
+    for nm, vi in ausc["front"].items():
+        dp = np.where(v2s == vi)[0]
+        if len(dp) == 0:
+            continue
+        parts = [p for d in dp for p in vert_parts.get(int(d), [])]
+        if not parts:
+            continue
+        addr[nm] = (Counter(parts).most_common(1)[0][0], float(U[dp].mean()), float(V[dp].mean()))
+    # 后背(肺): 用权威 V6A 直接地址常量(顶点太稀疏无法表达; 见 humman_label.LUNG_ADDR_V6A)
+    from humman_label import LUNG_ADDR_V6A
+    for nm, a in LUNG_ADDR_V6A.items():
+        addr[nm] = (int(a[0]), float(a[1]), float(a[2]))
     return addr, ausc
 
 

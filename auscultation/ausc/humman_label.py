@@ -98,24 +98,30 @@ def define_ausc_vertices(model):
         "tricuspid": pick(+0.040, 0.055, True),  # 三尖瓣区: 第4肋间 左下胸骨缘
         "mitral":    pick(+0.095, 0.015, True),  # 二尖瓣区/心尖: 第5肋间 左锁骨中线(↓更低更外, 对齐标准心尖)
     }
-    # 【后背肺 8 点】按 posterior lung auscultation 标准图对齐:
-    #   - 上肺野位于肩胛上缘附近, 略外展;
-    #   - 中间两层更靠近脊柱旁/肺门区域;
-    #   - 下肺野向外侧肺底展开。
-    # 之前使用 4 层等宽双列, 会把点做成两条竖线, 与临床 posterior 路径不一致。
+    # 【后背肺点】权威读出地址 = 模块常量 LUNG_ADDR_V6A(直接 (part,U,V), 见下方)。
+    # 这里返回的 back 顶点仅供数据生成器(humman/scoliosis/frame_filter)初值投影,
+    # 会被 scripts/realign_lung_points(按 LUNG_ADDR_V6A 从稠密IUV读出)覆盖。
+    # 注: 后背 SMPL 顶点的 (U,V) 太稀疏, 无法表达 V6A 连续位置, 故读出走 LUNG_ADDR_V6A 而非顶点。
     lung = {}
-    # 4 层全在后肺野内(肩/锁骨~下肋缘 T10), 最低 -0.075 在腰椎(spine1=-0.11)之上, 不到腰/内裤。
-    # nz_max 按层放宽: 下肺野需要外侧胸壁顶点, 这些点法向会更偏侧面。
     for i, (ty, off, nz_max) in enumerate([(0.145, 0.085, 0.05), (0.065, 0.050, 0.08),
                                            (-0.005, 0.070, 0.10), (-0.075, 0.120, 0.12)]):
         ri, li = pick_back_pair(off, ty, nz_max)
-        lung[f"R{i+1}"] = ri   # R=患者右=x<0
-        lung[f"L{i+1}"] = li   # L=患者左=x>0
+        lung[f"R{i+1}"] = ri; lung[f"L{i+1}"] = li
     return {"front": cardiac, "back": lung}
 
 
 # DensePose 躯干块: part2=前胸, part1=后背 (与 render_iuv 的 I 通道一致)
 FRONT_TORSO_PART, BACK_TORSO_PART = 2, 1
+
+# 【后背肺点标准 V6A】= (part=1, U, V) 直接地址, 5 层双侧, R=患者右(低V)/L=患者左(高V)。
+# 由临床医生在干净参考图上手标 → 取其稠密 IUV 的 (U,V) → 对称化得到(见 docs)。
+# U=垂直(0顶1底, 围肩胛骨/上中背), V=水平(0.5脊柱). 单一权威, 改这里即改全管线读点。
+_V6A_U = (0.200, 0.300, 0.390, 0.470, 0.540)
+_V6A_DV = (0.212, 0.135, 0.096, 0.159, 0.216)
+LUNG_ADDR_V6A = {}
+for _i in range(5):
+    LUNG_ADDR_V6A[f"R{_i+1}"] = (BACK_TORSO_PART, _V6A_U[_i], 0.5 - _V6A_DV[_i])  # 患者右=低V
+    LUNG_ADDR_V6A[f"L{_i+1}"] = (BACK_TORSO_PART, _V6A_U[_i], 0.5 + _V6A_DV[_i])  # 患者左=高V
 
 
 def infer_side(part_map):

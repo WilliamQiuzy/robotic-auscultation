@@ -30,8 +30,8 @@ TASKS = {
     },
     "lung": {
         "region": "back",                                               # 后背
-        "landmarks": ["R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4"],   # 肺尖→肺底, 左右对比阶梯
-        "desc": "Pulmonary auscultation — posterior, 8 points (4 levels bilateral, Lopes)",
+        "landmarks": ["R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4", "R5", "L5"],  # 肺尖→肺底, 左右对比阶梯
+        "desc": "Pulmonary auscultation — posterior, 10 points (5 levels bilateral, V6A 标准, 围肩胛骨)",
     },
     # 将来可注册: "lung_full"(后+前+侧, 含右中叶/左舌叶), "abdomen"(四象限) ...
 }
