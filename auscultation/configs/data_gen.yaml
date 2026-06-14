@@ -1,0 +1,33 @@
+# 数据集生成配置(参考默认值; CLI 参数覆盖)。
+# 入口: scripts/gen_dataset.py
+
+common:
+  smpl_model: data/smpl/SMPL_NEUTRAL.pkl
+  uv: data/densepose_coco/uv_data/UV_Processed.mat
+  target: [384, 384]          # 训练分辨率
+  seed: 0
+
+# 5 种核心增强(随机组合, 见 ausc/datasets/common.augment_once):
+#   ① 光照  ② 手臂+听诊器遮挡(最关键)  ③ 水平翻转+换L/R(仅后背)
+#   ④ 小角度旋转(严格 ±θ 对称, 仅 ±8/±15)  ⑤ 尺度/裁剪抖动
+# ❌ 已剔除: 大角度旋转 / 垂直翻转 / 枚举式重组合
+augment:
+  rotation_choices: [0, -8, 8, -15, 15]   # 对称, 不放大角度
+  flip_back_only: true                     # 前胸心点不对称, 禁止翻转
+  occlusion_prob: 0.6
+
+datasets:
+  humman:
+    root: data/humman
+    n_aug: 6
+    neg_ratio: 0.25
+    out: data/dataset/humman
+  scoliosis:
+    labels: data/scoliosis_back/labels_hmr2.pkl
+    imgs: data/scoliosis_back
+    n_aug: 14          # 真实数据珍贵(仅 86 张), 增强榨满
+    out: data/dataset/scoliosis
+  synthetic:
+    n_subjects: 200
+    n_aug: 6
+    out: data/dataset/synthetic
