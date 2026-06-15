@@ -79,11 +79,15 @@ def silence_ratio(x, sr):
 
 
 def snr_db(x, sr):
-    """估 SNR: 高/低百分位帧能量之比(无参考)。信号=90 分位, 噪声底=10 分位。"""
-    r = _frame_rms(x, sr); r = r[r > 0]
+    """估 SNR: 活跃帧的 高/低百分位帧能量之比(无参考)。信号=90 分位, 噪声底=10 分位。
+    只在活跃帧(>5% 峰值)上算噪声底 —— 否则长静音(如没贴好/无接触)把噪声底压到~0, SNR 虚高。"""
+    r = _frame_rms(x, sr)
     if len(r) < 3:
         return 0.0
-    noise = np.percentile(r, 10); sigp = np.percentile(r, 90)
+    active = r[r > 0.05 * np.max(r)]
+    if len(active) < 3:                                  # 几乎全静音 → 视作无信号
+        return 0.0
+    noise = np.percentile(active, 10); sigp = np.percentile(active, 90)
     return float(20.0 * np.log10((sigp + 1e-9) / (noise + 1e-9)))
 
 
