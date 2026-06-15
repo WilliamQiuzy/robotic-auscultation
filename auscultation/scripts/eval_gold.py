@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""部署域金标准评估: 模型预测点 vs 人工金标点(解剖正确性, 独立于IUV自一致)。
+"""⚠️ LEGACY: 这是【IUV-地址法读出】的金标评估(readout_soft on 固定地址), 评的是旧路线。
+   **评估生产模型(landmark 头 perc_lmh_v4)请用 scripts/eval_landmark_gold.py。**
+   本脚本保留用于复现旧 IUV-地址法基线(v7 = 57%)。
+
+部署域金标准评估: 模型预测点 vs 人工金标点(解剖正确性, 独立于IUV自一致)。
 gold 与预测同在 center_square res=518 画布空间。
 指标(每图, 对有金标的点): mean_err%(/res), PCK@5%, PCK@10%(阈值=0.05/0.10*res)。
-用法: python scripts/eval_gold.py --ckpt outputs/perc_v7_multiview/best.pt --imgs /workspace/lab_back --gold data/lab_sample_data/_gold/gold_points.json"""
+用法: python scripts/eval_gold.py --ckpt outputs/perc_v7_multiview/best.pt --imgs lab_back --gold gold.json"""
 import argparse, glob, os, sys, json
 import numpy as np, cv2
 HERE=os.path.dirname(os.path.abspath(__file__)); ROOT=os.path.abspath(os.path.join(HERE,".."))

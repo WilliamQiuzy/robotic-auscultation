@@ -6,8 +6,9 @@
 每张出 3 文件(_1photo/_2iuv/_3points)。听诊点读出彻底脱离 HMR2/V6A 地址(金标证明地址法仅57%)。
 
 用法:
-  python scripts/deploy_landmark.py --ckpt outputs/perc_lmh_v3/best.pt \
+  python scripts/deploy_landmark.py \
     --imgs data/lab_sample_data/back --out outputs/deploy_lmh --review_thr 12
+  # 默认 --ckpt = outputs/perc_lmh_v4/best.pt (生产模型, 后背肺 10 点)
 """
 import argparse, glob, os, sys
 import numpy as np, cv2, torch
