@@ -11,6 +11,7 @@
 纯 numpy/scipy, 不依赖 librosa/soundfile(自带 wave 读取, 支持 16/24/32-bit PCM, 统一重采样 16k mono)。
 注: Q_proxy 是**启发式弱标**(自监督), 权重见 DEFAULT_WEIGHTS; 真值校准用 SPRSound 'Poor Quality'。
 """
+import os
 import wave
 import numpy as np
 from scipy import signal as sps
@@ -118,6 +119,32 @@ def spectral_feats(x, sr, flat_band=(50.0, 2000.0)):
     return centroid, flatness, rolloff
 
 
+# ── 失败模式专用特征(运动/削波/掉接触)──────────────────────────────────────
+def low_freq_ratio(x, sr, cutoff=100.0):
+    """<cutoff Hz 功率占比。高 = 低频隆隆(运动/手法摩擦)或心跳污染。"""
+    f, pxx = sps.welch(x, fs=sr, nperseg=min(4096, len(x)))
+    return float(np.sum(pxx[f < cutoff]) / (np.sum(pxx) + 1e-12))
+
+
+def flattop_ratio(x):
+    """波形贴顶比: |x| 接近自身峰值的样本占比。高 = 削波/过载(削顶压缩)。"""
+    mx = float(np.max(np.abs(x)))
+    if mx < 1e-4:
+        return 0.0
+    return float(np.mean(np.abs(x) > 0.98 * mx))
+
+
+def zero_run_ratio(x, sr, min_ms=50.0):
+    """处于"硬零长段(≥min_ms)"的样本占比。抓间歇掉接触(区别于正常呼吸间隙)。"""
+    z = (np.abs(x) < 1e-4).astype(np.int8)
+    if not z.any():
+        return 0.0
+    d = np.diff(np.concatenate([[0], z, [0]]))
+    starts = np.where(d == 1)[0]; ends = np.where(d == -1)[0]
+    lens = ends - starts
+    return float(np.sum(lens[lens >= int(min_ms / 1000.0 * sr)]) / len(x))
+
+
 # ── ① 呼吸周期 / 气流可检测性 ────────────────────────────────────────────────
 def respiratory_periodicity(x, sr):
     """包络自相关找呼吸节律 → (周期性强度∈[0,1], 估计呼吸周期 s)。
@@ -139,32 +166,78 @@ def respiratory_periodicity(x, sr):
     return float(max(0.0, ac[k])), float(k / env_sr)
 
 
-# ── ④ 综合 Q_proxy ──────────────────────────────────────────────────────────
-DEFAULT_WEIGHTS = {                                      # 子分加权(在 SPRSound PQ 上校准)
-    "snr": 0.25, "periodicity": 0.20, "band": 0.20,
-    "flatness": 0.15, "silence": 0.10, "clip": 0.05, "kurtosis": 0.05,
+# ── ④ 综合 Q_proxy(阈值 + 权重可校准, 见 scripts/audio/calibrate_proxies.py)──
+# 每个子分由 (good_anchor, bad_anchor) 线性映射到 [0,1]: s = clip01((v-bad)/(good-bad))。
+# 这套 (anchor, weight) 是【对我们部署失败模式(噪声/无接触/运动/削波)校准】的, 不是对 SPRSound 临床 PQ。
+# 校准脚本会用合成退化集重估并写 calibration.json; 下面是默认/兜底值。
+_METRIC_KEY = {                                          # 子分名 → analyze() 里的原始指标名
+    "snr": "snr_db", "periodicity": "periodicity", "band": "band_power_ratio",
+    "flatness": "spectral_flatness", "silence": "silence_ratio",
+    "clip": "clipping_ratio", "kurtosis": "energy_kurtosis",
+    "lowfreq": "low_freq_ratio", "flattop": "flattop_ratio", "dropout": "zero_run_ratio",
 }
+DEFAULT_ANCHORS = {                                      # [good_anchor, bad_anchor]
+    "snr": [24.0, 6.0], "periodicity": [0.40, 0.0], "band": [0.65, 0.15],
+    "flatness": [0.15, 0.60], "silence": [0.40, 0.80], "clip": [0.0, 0.05],
+    "kurtosis": [4.0, 20.0], "lowfreq": [0.10, 0.45], "flattop": [0.002, 0.05],
+    "dropout": [0.0, 0.10],
+}
+DEFAULT_WEIGHTS = {
+    "snr": 0.18, "periodicity": 0.12, "band": 0.15, "flatness": 0.10, "silence": 0.08,
+    "clip": 0.05, "kurtosis": 0.07, "lowfreq": 0.12, "flattop": 0.08, "dropout": 0.05,
+}
+CONFIG = {"anchors": dict(DEFAULT_ANCHORS), "weights": dict(DEFAULT_WEIGHTS)}
 
 
-def subscores(m):
-    """把原始指标映射成 [0,1] 子分(高=好), 用于综合 Q_proxy。"""
-    return {
-        "snr": _c01((m["snr_db"] - 6.0) / 18.0),                 # 6dB→0, 24dB→1
-        "periodicity": _c01(m["periodicity"] / 0.40),            # ≥0.4→1
-        "band": _c01((m["band_power_ratio"] - 0.15) / 0.50),     # 带功率比
-        "flatness": 1.0 - _c01((m["spectral_flatness"] - 0.15) / 0.45),  # 越平=越噪→低分
-        "silence": 1.0 - _c01((m["silence_ratio"] - 0.40) / 0.40),       # >40% 静音扣分
-        "clip": 1.0 - _c01(m["clipping_ratio"] * 20.0),          # 5% 削波→0
-        "kurtosis": 1.0 - _c01((m["energy_kurtosis"] - 4.0) / 16.0),     # 突发→低分
+def load_calibration(path):
+    """载入校准产出的 calibration.json(更新 CONFIG 的 anchors/weights)。"""
+    import json
+    c = json.load(open(path))
+    if "anchors" in c:
+        CONFIG["anchors"].update(c["anchors"])
+    if "weights" in c:
+        CONFIG["weights"] = c["weights"]
+    return CONFIG
+
+
+def subscores(m, anchors=None):
+    """把原始指标映射成 [0,1] 子分(高=好)。anchors=None → 用 CONFIG。"""
+    A = anchors or CONFIG["anchors"]
+    out = {}
+    for name, mk in _METRIC_KEY.items():
+        good, bad = A[name]
+        out[name] = _c01((m[mk] - bad) / (good - bad + 1e-9))
+    return out
+
+
+def q_proxy(m, weights=None, anchors=None):
+    w = weights or CONFIG["weights"]
+    s = subscores(m, anchors)
+    tot = sum(w.values()) + 1e-9
+    return float(sum(w[k] * s[k] for k in w) / tot)
+
+
+# ── 顶层 ─────────────────────────────────────────────────────────────────────
+def metrics_from_signal(x, sr=TARGET_SR, clip_ref=None):
+    """内存信号(建议已重采样到 16k mono)→ dict(原始指标 + 子分 + q_proxy)。
+    部署期滑窗 / 合成退化校准都复用本函数。clip_ref: 算削波的信号(默认 x)。"""
+    cr = clipping_ratio(clip_ref if clip_ref is not None else x)
+    centroid, flatness, rolloff = spectral_feats(x, sr)
+    per, breath_T = respiratory_periodicity(x, sr)
+    m = {
+        "snr_db": snr_db(x, sr), "clipping_ratio": cr,
+        "silence_ratio": silence_ratio(x, sr), "energy_kurtosis": energy_kurtosis(x, sr),
+        "band_power_ratio": band_power_ratio(x, sr),
+        "spectral_centroid": centroid, "spectral_flatness": flatness, "spectral_rolloff": rolloff,
+        "periodicity": per, "breath_period_s": breath_T,
+        "low_freq_ratio": low_freq_ratio(x, sr), "flattop_ratio": flattop_ratio(x),
+        "zero_run_ratio": zero_run_ratio(x, sr),
     }
+    m["q_proxy"] = q_proxy(m)
+    m["subscores"] = subscores(m)
+    return m
 
 
-def q_proxy(m, weights=DEFAULT_WEIGHTS):
-    s = subscores(m)
-    return float(sum(weights[k] * s[k] for k in weights))
-
-
-# ── 顶层: 一条 wav → 全部指标 + Q_proxy ──────────────────────────────────────
 def analyze(path, target_sr=TARGET_SR):
     """读 wav → dict(原始指标 + 子分 + q_proxy + 元信息)。失败返回 {'error':...}。"""
     try:
@@ -173,24 +246,8 @@ def analyze(path, target_sr=TARGET_SR):
         return {"error": f"read: {e}"}
     if len(x_nat) < 8:
         return {"error": "too short"}
-    clip = clipping_ratio(x_nat)                          # 削波在原始 sr 上算
     x, sr = resample(x_nat, sr_nat, target_sr)
-    centroid, flatness, rolloff = spectral_feats(x, sr)
-    per, breath_T = respiratory_periodicity(x, sr)
-    m = {
-        "snr_db": snr_db(x, sr),
-        "clipping_ratio": clip,
-        "silence_ratio": silence_ratio(x, sr),
-        "energy_kurtosis": energy_kurtosis(x, sr),
-        "band_power_ratio": band_power_ratio(x, sr),
-        "spectral_centroid": centroid,
-        "spectral_flatness": flatness,
-        "spectral_rolloff": rolloff,
-        "periodicity": per,
-        "breath_period_s": breath_T,
-    }
-    m["q_proxy"] = q_proxy(m)
-    m["subscores"] = subscores(m)
+    m = metrics_from_signal(x, sr, clip_ref=x_nat)       # 削波在原始 sr 上算
     m["fs_native"] = int(sr_nat)
     m["dur_s"] = round(len(x_nat) / sr_nat, 3)
     return m
@@ -205,3 +262,12 @@ def auc(score_pos_is_high, labels):
         return float("nan")
     r = rankdata(s)
     return float((r[y == 1].sum() - npos * (npos + 1) / 2.0) / (npos * nneg))
+
+
+# 自动加载同目录 calibration.json(若存在)→ 用对【我们失败模式】校准后的 anchors/weights
+_CALIB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "calibration.json")
+if os.path.exists(_CALIB_PATH):
+    try:
+        load_calibration(_CALIB_PATH)
+    except Exception:
+        pass
