@@ -4,6 +4,7 @@
 > 与项目既定范围一致(感知侧已 lock 到 posterior-lung)。
 > 本文是声学质量模块的**策略 + 数据 + 设计**总纲,对应 [`model_architecture.md`](./model_architecture.md) **③ 音频驱动主动搜索**里的**音频质量模型 Q**。
 > 机器可读清单见 [`scripts/audio/datasets_registry.yaml`](../scripts/audio/datasets_registry.yaml);下载脚本 [`scripts/audio/download_audio_datasets.sh`](../scripts/audio/download_audio_datasets.sh);代码落点 [`ausc/audio/`](../ausc/audio)。
+> **自采肺音的标注/采集/训练协议**(与机械臂场景绑定)见 [`acoustic_annotation_and_training.md`](./acoustic_annotation_and_training.md)。
 > **License 路线 = 研究/非商用**:OPERA / AuscultaBase 等 CC-BY-NC 模型可**直接使用**(只需发表时遵守署名/非商用)。
 > 全部数据集/模型/license 事实在 2026-06-15 经联网核验,标 ⚠️ 的需人工再确认。
 
