@@ -1,0 +1,350 @@
+# 听诊声学质量模块 — 开源数据集 + 预训练模型登记表
+# ============================================================================
+# 用途: 给 scripts/audio/download_audio_datasets.sh 读取; 也是人读的权威清单。
+# 字段:
+#   access:   open | credentialed | gated | request | unverified
+#             open=直接下载; credentialed=PhysioNet 实名认证; gated=HF 接受条款;
+#             request=需向作者/机构申请; unverified=链接未证实(慎用)
+#   license:  许可证; commercial=是否可商用 (true/false/unknown)
+#   quality_labels: 是否含信号质量/噪声标签(本模块的金标)
+#   priority: anchor=主力(有质量标) | support=辅助/多样性 | research_only=仅研究(NC/无license) | ssl=自监督预训练
+# 全部事实在 2026-06-15 经联网核验; 标 unverified/flag 的需人工再确认。
+# ============================================================================
+
+heart_datasets:
+  cinc2016:
+    name: "PhysioNet/CinC Challenge 2016 — Heart Sound Recordings"
+    url: "https://physionet.org/content/challenge-2016/1.0.0/"
+    access: credentialed          # PhysioNet 开放但需注册/接受 DUA
+    license: "ODC-BY 1.0"
+    commercial: true
+    size: "3126 train recordings, 5-120s"
+    sample_rate_hz: 2000
+    format: wav
+    device: "heterogeneous (multi-contributor)"
+    quality_labels: true          # 每条 cardiologist 评 good/poor + 'unsure'
+    quality_note: "per-recording good/poor signal-quality flag + clean/noisy test split + 'unsure' label — 最直接的心音质量金标"
+    priority: anchor
+
+  circor_digiscope:
+    name: "CirCor DigiScope (PhysioNet/CinC 2022)"
+    url: "https://physionet.org/content/circor-heart-sound/1.0.3/"
+    hf_mirror: "luyangliuable/circor-heart-sound"   # 便利镜像, 优先用 PhysioNet 原始
+    access: credentialed
+    license: "ODC-BY 1.0"
+    commercial: true
+    size: "5272 recordings / 1568 encounters / 1452 patients (0-21y)"
+    sample_rate_hz: 4000
+    format: "wav + wfdb"
+    device: "DigiScope electronic stethoscope"      # 与我们机械臂电子听诊器同类
+    quality_labels: weak          # murmur=Present/Absent/Unknown; Unknown≈不可判≈差音质
+    quality_note: "'Unknown' 作弱质量标; 设备与我们的电子听诊器最接近(儿科)"
+    priority: anchor
+
+  pascal_heart:
+    name: "PASCAL Heart Sounds Challenge (2011)"
+    url: "https://www.peterjbentley.com/heartchallenge/index.html"
+    mirror_note: "官方站常挂; 用 Kaggle/GitHub 镜像并核对文件数 A=176 B=656"
+    access: unverified            # 官方 host 不稳定
+    license: "academic challenge"
+    commercial: unknown
+    size: "A: 176 files; B: 656 files (~1.6h)"
+    sample_rate_hz: null
+    format: "wav/aif"
+    device: "A: iStethoscope iPhone; B: DigiScope"
+    quality_labels: true          # A 有 'Artifact' 纯噪声类; B 有 noisy 子集
+    quality_note: "'Artifact' + noisy 子集 = 现成的负样本(非诊断音)"
+    priority: support
+
+  ephnogram:
+    name: "EPHNOGRAM (simultaneous ECG + PCG)"
+    url: "https://physionet.org/content/ephnogram/1.0.0/"
+    access: credentialed
+    license: "ODC-BY 1.0"
+    commercial: true
+    size: "69 recordings / 24 adults"
+    sample_rate_hz: 8000
+    format: "mat + wfdb"
+    device: "custom w/ digital stethoscope + ambient-noise mics"
+    quality_labels: true          # 含 'low quality'(电极脱落/饱和)标注 + 环境噪声参考通道
+    quality_note: "小但有 low-quality 标 + 环境噪声参考通道(可建噪声模型)"
+    priority: support
+
+  zchsound:
+    name: "ZCHSound (ZJU pediatric CHD, 2024)"
+    url: "https://ieeexplore.ieee.org/document/10384868/"
+    access: request               # 'open-source' 但只找到论文/机构途径
+    license: unknown
+    commercial: unknown
+    size: "1259 participants; clean vs noisy 两子集"
+    sample_rate_hz: null
+    format: wav
+    device: "electronic stethoscope"
+    quality_labels: true          # 明确 clean(高质) vs noisy(低质) 划分 — 近乎现成质量金标
+    quality_note: "★概念最贴合: 现成 clean/noisy 划分。但下载 URL 未证实 — 先人工确认访问途径"
+    priority: anchor
+    flag: "access URL unverified (IEEE 418/403)"
+
+  yaseen2018:
+    name: "Yaseen 2018 (5-class heart sound)"
+    url: "https://github.com/yaseen21khan/Classification-of-Heart-Sound-Signal-Using-Multiple-Features-"
+    access: open
+    license: "open (GitHub)"
+    commercial: unknown
+    size: "1000 recordings (5x200), 1-4s"
+    sample_rate_hz: 8000
+    format: wav
+    device: "mixed/unknown"
+    quality_labels: false         # 仅干净样本
+    quality_note: "无质量标; 仅作 clean 正样本/无标域数据"
+    priority: support
+
+lung_datasets:
+  icbhi2017:
+    name: "ICBHI 2017 Respiratory Sound Database"
+    url: "https://bhichallenge.med.auth.gr/ICBHI_2017_Challenge"
+    kaggle_mirror: "vbookshelf/respiratory-sound-database"   # 官方站 TLS 证书过期, 用此镜像
+    access: open
+    license: "research-use"
+    commercial: unknown
+    size: "920 recordings / 126 subjects / ~5.5h / 6898 cycles"
+    sample_rate_hz: "4000/10000/44100 (mixed — 显式重采样)"
+    format: wav
+    device: "Littmann 3200, WelchAllyn Meditron (electronic) + AKG C417L + Littmann Classic II SE"
+    quality_labels: false         # 噪声存在但未标; crackle/wheeze + 呼吸周期标
+    quality_note: "设备多样性(4种)→ 防过拟合单一听诊器; 杂音类比转移; 显式重采样"
+    priority: anchor              # 设备多样性 anchor(非质量标 anchor)
+
+  sprsound:
+    name: "SPRSound (SJTU pediatric respiratory)"
+    url: "https://github.com/SJTU-YONGFU-RESEARCH-GRP/SPRSound"
+    access: open
+    license: "CC-BY-4.0"
+    commercial: true
+    size: "2683 records / 9089 events / 292 participants (peds)"
+    sample_rate_hz: null          # README 未列, repo 内确认
+    format: "wav + json"
+    device: "Yunting model II electronic stethoscope"
+    quality_labels: true          # ★record 级 'Poor Quality' 类 (187 条)
+    quality_note: "★唯一现成肺音质量金标: 'Poor Quality' 类。本模块肺音主锚"
+    priority: anchor
+
+  hf_lung_v1:
+    name: "HF_Lung_V1"
+    url: "https://gitlab.com/techsupportHF/HF_Lung_V1"
+    access: open
+    license: "CC-BY-4.0"
+    commercial: true
+    size: "9765 x 15s clips / 279 participants"
+    sample_rate_hz: 4000
+    format: wav
+    device: "Littmann 3200 + HF-Type-1 (8-mic array); ICU/呼吸机患者"
+    quality_labels: false         # 但 ICU 高噪声 = 天然难例; 含吸/呼相标
+    quality_note: "ICU/呼吸机段=真实高噪声硬负例; 呼吸相标→无气流/无呼吸质量代理"
+    priority: support
+
+  kauh:
+    name: "KAUH lung sounds (Mendeley)"
+    url: "https://data.mendeley.com/datasets/jwyy9np4gv/3"
+    access: open
+    license: "CC-BY-4.0"
+    commercial: true
+    size: "112 subjects / 336 files (3 filter modes)"
+    sample_rate_hz: null
+    format: "wav + zsa"
+    device: "Littmann 3200 (electronic, Bluetooth)"
+    quality_labels: false
+    quality_note: "干净参考分布; 直接下载方便(DOI 10.17632/jwyy9np4gv.3)"
+    priority: support
+
+  respiratory_tr:
+    name: "RespiratoryDatabase@TR (multichannel)"
+    url: "https://data.mendeley.com/datasets/p9z4h98s6j/1"
+    paper: "https://arxiv.org/pdf/2101.10946"
+    access: open
+    license: "CC-BY-4.0"
+    commercial: true
+    size: "77 subjects / 12-ch lung + 4-ch heart"
+    sample_rate_hz: 4000
+    format: null                  # Mendeley 页未列 — 看 arXiv
+    device: "digital stethoscopes (multichannel)"
+    quality_labels: false
+    quality_note: "多通道→空间/SNR一致性特征; 同时有心+肺"
+    priority: support
+
+ssl_pretrain_audio:
+  # 仅用于自监督预训练(非听诊器, 手机/麦克风呼吸咳嗽), 别进有监督质量集
+  coswara:
+    name: "Coswara (breath/cough/voice)"
+    url: "https://github.com/iiscleap/Coswara-Data"
+    zenodo: "https://zenodo.org/records/7188627"
+    access: open
+    license: "CC-BY-4.0"
+    commercial: true
+    device: "phone mic (非听诊器)"
+    quality_labels: false
+    priority: ssl
+  coughvid:
+    name: "COUGHVID (>20k coughs)"
+    url: "https://zenodo.org/records/4048312"
+    access: open
+    license: "CC"
+    commercial: unknown
+    device: "web/phone mic (非听诊器)"
+    quality_labels: false
+    priority: ssl
+
+# ============================================================================
+pretrained_models:
+  hear:
+    name: "HeAR — Google Health Acoustic Representations"
+    repo: "google/hear-pytorch"          # 也有 google/hear (TF); Vertex AI Model Garden
+    access: gated                         # HF 登录 + 接受 HAI-DEF 条款
+    license: "HAI-DEF terms"
+    commercial: true                      # FAQ 允许商用, 但有'医疗器械'豁免条款 — 读条款
+    pretrain: "313M x 2s health sounds (cough/breathing, 无心音)"
+    input: "16kHz mono, 2s clips"
+    output: "512-d embedding (ViT-L MAE)"
+    role: "肺/呼吸音质量的最强可商用 frozen embedder"
+    priority: anchor
+    flag: "gated; 心音覆盖弱(预训练无心音)"
+  opera:
+    name: "OPERA — OPen Respiratory Acoustic foundation model (Cambridge)"
+    repo: "evelyn0414/OPERA"              # CT/CE/GT 三变体; GitHub github.com/evelyn0414/OPERA
+    access: open
+    license: "CC-BY-NC-4.0"
+    commercial: false                     # ★非商用 — 仅研究/蒸馏, 不可进产品
+    pretrain: "~136k samples / ~404h respiratory only (无心音)"
+    input: "16kHz, 8s, 64-mel"
+    output: "768-d (OPERA-CT)"
+    role: "最强 ungated 呼吸编码器; 仅作研究/teacher 蒸馏"
+    priority: research_only
+    flag: "NON-COMMERCIAL — 不可 ship"
+  auscultabase:
+    name: "AuscultaBase (heart+lung+bowel)"
+    repo: "https://github.com/applewpj/AuscultaBase"   # 权重在 Google Drive
+    access: open
+    license: "mixed/unclear (部分 NC)"
+    commercial: unknown
+    pretrain: "11 datasets / 40k recordings / 322h (含 CinC2016, CirCor2022)"
+    input: "spectrogram"
+    output: "contrastive encoder"
+    role: "★唯一听过心音的已放权重模型; 但 license 含糊"
+    priority: research_only
+    flag: "权重在 Google Drive; license 含糊 — 浏览器确认"
+  cardiophon:
+    name: "CardioPHON (heart-sound SSL + quality head)"
+    repo: "https://git.lih.lu/vdespotovic/cardiophon"
+    paper: "https://arxiv.org/abs/2511.04533"
+    access: unverified            # 自托管 GitLab, 未证实权重可下
+    license: unknown
+    commercial: unknown
+    pretrain: "6 public heart-sound datasets (~13k recordings, BYOL-A)"
+    input: "4kHz, log-mel 96x64"
+    output: "3072-d"
+    role: "★与本任务最贴合: 心音 SSL + 质量评估头。首选心音 teacher/对照"
+    priority: anchor
+    flag: "repo/权重/license 未证实 — 浏览器确认"
+  wavlm:
+    name: "WavLM (Microsoft, noise/overlap-aware)"
+    repo: "microsoft/wavlm-base-plus"     # 也有 -large
+    access: open
+    license: "CC-BY-SA-3.0"               # 非 MIT(常被误标)
+    commercial: true                      # 允许但需署名+相同方式共享
+    pretrain: "speech + 去噪/重叠 (94k h)"
+    input: "16kHz raw waveform"
+    output: "768-d (base) / 1024-d (large)"
+    role: "★质量代理首选先验: 预训练含噪声/重叠→embedding 已编码 SNR/干扰"
+    priority: anchor
+    flag: "CC-BY-SA-3.0 — 商用前确认"
+  beats:
+    name: "BEATs (Microsoft, audio SSL SOTA)"
+    repo: "https://github.com/microsoft/unilm/tree/master/beats"   # 权重在 OneDrive, 无官方 HF
+    access: open
+    license: "MIT"
+    commercial: true
+    pretrain: "AudioSet (AS-2M) SSL"
+    input: "16kHz, 128-mel"
+    output: "768-d (~90M)"
+    role: "最强且 license 干净的通用 frozen backbone"
+    priority: anchor
+  panns_cnn14:
+    name: "PANNs / CNN14 (AudioSet)"
+    repo: "https://github.com/qiuqiangkong/audioset_tagging_cnn"   # 权重 Zenodo; pip panns-inference
+    access: open
+    license: "MIT"
+    commercial: true
+    pretrain: "AudioSet (527 cls)"
+    input: "32kHz, 64-mel"
+    output: "2048-d + 527 logits"
+    role: "轻量易用 baseline embedder"
+    priority: support
+  clap_laion:
+    name: "CLAP (LAION, 文本-音频零样本)"
+    repo: "laion/clap-htsat-unfused"
+    access: open
+    license: "Apache-2.0"
+    commercial: true
+    pretrain: "LAION-Audio-630K + AudioSet (audio-text)"
+    input: "48kHz, 64-mel"
+    output: "512-d joint audio/text"
+    role: "零样本: 用 'muffled/clipped/noisy' 文本探针, 无标打质量分"
+    priority: support
+  yamnet:
+    name: "YAMNet (Google, 轻量)"
+    repo: "https://github.com/tensorflow/models/tree/master/research/audioset/yamnet"
+    access: open
+    license: "Apache-2.0"
+    commercial: true
+    pretrain: "AudioSet (521 cls), MobileNet-v1"
+    input: "16kHz mono"
+    output: "1024-d + 521 scores"
+    role: "极轻/快; 可做 on-device 廉价质量门"
+    priority: support
+
+# ============================================================================
+quality_tools:   # 自监督质量代理 / 分割 / 参考-free 质量的开源代码
+  pypcg:
+    name: "pyPCG (Tang 2021 SQI 实现)"
+    repo: "https://github.com/mulkr/pyPCG-toolbox"   # pip install pyPCG_toolbox
+    license: "GPL-3.0"                                # 商用注意 copyleft
+    computes: "autocorr_max, env_std, periodicity_score, raw_kurt, sentropy"
+    use: "心音 SQI 特征 → 自监督弱标/teacher"
+    priority: anchor
+  grooby_sqi:
+    name: "Grooby Heart-and-Lung Signal-Quality Estimation (5-level SQI)"
+    repo: "https://github.com/egrooby-monash/Heart-and-Lung-Signal-Quality-Estimation"
+    license: "GPL-3.0"                                # MATLAB
+    computes: "power ratios, autocorrelation periodicity, SNR (心+肺通用)"
+    use: "心肺多级 SQI → 弱标/teacher 信号"
+    priority: anchor
+  springer_seg:
+    name: "Springer Heart-Sound Segmentation (HSMM, S1/S2)"
+    repo: "https://github.com/davidspringer/Springer-Segmentation-Code"
+    python_port: "https://github.com/EchoStatements/Springer-Segmentation-Python"  # ⚠️无 LICENSE
+    license: "GPL-3.0 (MATLAB 原版)"
+    computes: "S1/systole/S2/diastole 分割 + 周期规则性"
+    use: "S1/S2 可检测性/规则性 → 心音质量代理"
+    priority: support
+  biosppy:
+    name: "BioSPPy (有 pcg 模块)"
+    repo: "https://github.com/PIA-Group/BioSPPy"     # biosppy.signals.pcg 确认存在
+    license: "BSD-3"
+    computes: "pcg, identify_heart_sounds, homomorphic_filter, get_avg_heart_rate; .resp"
+    use: "Python 内最好的免费 PCG 分割 + 呼吸"
+    priority: support
+  torchaudio_squim:
+    name: "torchaudio SQUIM (参考-free 质量)"
+    repo: "torchaudio.pipelines.SQUIM_OBJECTIVE / SQUIM_SUBJECTIVE"
+    license: "BSD-2"
+    computes: "无参考估计 STOI/PESQ/SI-SDR (OBJECTIVE); MOS via NMR (SUBJECTIVE)"
+    use: "参考-free 质量回归模板(语音训练, 需迁移验证)"
+    priority: support
+  nisqa:
+    name: "NISQA (多维无参考质量)"
+    repo: "https://github.com/gabrielmittag/NISQA"
+    license: "code MIT, weights CC-BY-NC-SA-4.0"      # 权重非商用
+    computes: "MOS + Noisiness/Coloration/Discontinuity/Loudness"
+    use: "★最佳架构模板: 多维质量(noisiness≈运动伪影, discontinuity≈听诊器掉接触)"
+    priority: anchor
+    flag: "权重非商用; 借架构而非分数"
