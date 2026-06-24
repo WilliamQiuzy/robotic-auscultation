@@ -22,8 +22,9 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path[:0] = [os.path.join(HERE, "audio"),
+sys.path[:0] = [HERE, os.path.join(HERE, "audio"),
                 os.path.join(ROOT, "mechanical_sensor", "force_feedback")]
+from health import audio_status, force_status  # noqa: E402
 
 
 def _peaks(x: np.ndarray, fs: float, min_gap_s: float, k: float) -> np.ndarray:
@@ -49,7 +50,7 @@ def calibrate_tap_sync(seconds: float = 10.0, grid_hz: float = 1000.0,
     with AudioStream(audio_device, pick_channel=audio_channel, buffer_seconds=seconds + 3.0) as au, \
          ForceSensor(hall_port, cal, log_csv=tmp_csv) as _fs:
         time.sleep(0.6)
-        print(f">>> TAP the diaphragm SHARPLY ~4-5 times over the next {seconds:.0f}s <<<", flush=True)
+        print(f">>> BUMP the probe straight DOWN onto a hard surface SHARPLY ~5 times ({seconds:.0f}s) <<<", flush=True)
         time.sleep(seconds)
         win = au.latest_window(seconds)
 
@@ -77,21 +78,28 @@ def calibrate_tap_sync(seconds: float = 10.0, grid_hz: float = 1000.0,
     eg = np.interp(tg, t_env, env)
 
     # ---- detect taps in each, match nearest ----
-    a_idx = _peaks(eg, grid_hz, 0.4, 3.5)
-    f_idx = _peaks(fg_hp, grid_hz, 0.4, 2.5)
+    a_idx = _peaks(eg, grid_hz, 0.5, 4.0)
+    f_idx = _peaks(fg_hp, grid_hz, 0.5, 2.0)
     a_t, f_t = tg[a_idx], tg[f_idx]
     deltas = []
-    for at in a_t:
-        if len(f_t):
-            j = int(np.argmin(np.abs(f_t - at)))
-            if abs(f_t[j] - at) < 0.25:        # within 250 ms -> same tap
-                deltas.append(f_t[j] - at)
+    for ft_one in f_t:                          # anchor on the reliable force impulses
+        if len(a_t):
+            j = int(np.argmin(np.abs(a_t - ft_one)))
+            if abs(a_t[j] - ft_one) < 0.25:     # within 250 ms -> same bump
+                deltas.append(ft_one - a_t[j])
     deltas = np.array(deltas)
+    # FAULT DETECTION: a device may be streaming but dead (stethoscope OFF -> audio at noise
+    # floor; Hall loose -> force frozen). Don't report an offset computed from noise.
+    a_health = audio_status(win.samples, win.sr)
+    f_health = force_status(ff)
+    faulted = a_health["status"] != "OK" or f_health["status"] != "OK"
     res = {
+        "audio_health": a_health, "force_health": f_health, "faulted": faulted,
         "n_audio_taps": int(len(a_t)), "n_force_taps": int(len(f_t)),
+        "force_swing_n": round(float(ff.max() - ff.min()), 2) if len(ff) else None,
         "n_matched": int(len(deltas)),
-        "offset_ms": round(float(np.median(deltas) * 1000), 1) if len(deltas) else None,
-        "offset_std_ms": round(float(np.std(deltas) * 1000), 1) if len(deltas) > 1 else None,
+        "offset_ms": (None if faulted else round(float(np.median(deltas) * 1000), 1)) if len(deltas) else None,
+        "offset_std_ms": round(float(np.std(deltas) * 1000), 1) if (len(deltas) > 1 and not faulted) else None,
         "note": "offset = force_t - audio_t; add to audio timestamps to align force.",
     }
     try:
@@ -107,9 +115,14 @@ if __name__ == "__main__":
     a = ap.parse_args()
     r = calibrate_tap_sync(seconds=a.seconds)
     import json
-    print(json.dumps(r, indent=2))
-    if r["n_matched"] >= 2:
+    from health import warn
+    print(json.dumps({k: v for k, v in r.items() if k not in ("audio_health", "force_health")}, indent=2))
+    af = warn("stethoscope/audio", r["audio_health"])
+    ff_bad = warn("force sensor", r["force_health"])
+    if af or ff_bad:
+        print("\nRESULT: ⚠️ device fault above — fix it and retry (NO offset computed from a dead device).")
+    elif r["n_matched"] >= 2:
         print(f"\nRESULT: audio<->force offset = {r['offset_ms']:+} ms "
               f"(+/- {r['offset_std_ms']} ms over {r['n_matched']} taps)")
     else:
-        print("\nRESULT: not enough matched taps - tap sharper / more times and retry")
+        print("\nRESULT: devices OK but not enough matched taps — bump sharper/more and retry")

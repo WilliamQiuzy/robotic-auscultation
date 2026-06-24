@@ -39,8 +39,9 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)  # auscultation/
-sys.path[:0] = [os.path.join(HERE, "audio"), os.path.join(HERE, "perception"),
+sys.path[:0] = [HERE, os.path.join(HERE, "audio"), os.path.join(HERE, "perception"),
                 os.path.join(ROOT, "mechanical_sensor", "force_feedback")]
+from health import audio_status, force_status, warn  # noqa: E402
 
 
 def _write_wav(path: str, samples: np.ndarray, sr: int) -> None:
@@ -122,12 +123,16 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                 next_obs += dt
             time.sleep(0.002)
 
-        # finalize: audio dump + manifest
+        # finalize: audio dump + health + manifest
         audio_t0 = None
+        a_health = {"status": "NO_DATA"}
         if "audio" in streams:
             w = streams["audio"].latest_window(seconds)
             _write_wav(os.path.join(sdir, "audio.wav"), w.samples, w.sr)
             audio_t0 = w.t_start
+            a_health = audio_status(w.samples, w.sr)
+        force_vals = [r[1] for r in obs_rows if r[1] != ""]
+        f_health = force_status(force_vals) if force_vals else {"status": "NO_DATA"}
         if writer is not None:
             writer.release()
         with open(os.path.join(sdir, "rgb_times.csv"), "w") as fp:
@@ -151,10 +156,13 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                        "n_rgb_frames": len(rgb_times), "n_depth_frames": len(depth_times),
                        "has_depth": bool(depth_times)} if "cam" in streams else None,
             "n_obs": len(obs_rows),
+            "health": {"audio": a_health, "force": f_health},
         }
         with open(os.path.join(sdir, "manifest.json"), "w") as fp:
             json.dump(manifest, fp, indent=2)
-    print(f"[rec] done: {len(rgb_times)} rgb frames, {len(obs_rows)} obs rows -> {sdir}")
+    bad = warn("stethoscope/audio", a_health) | warn("force sensor", f_health)
+    print(f"[rec] {'⚠️ recorded WITH a device fault (see above) ' if bad else ''}done: "
+          f"{len(rgb_times)} rgb frames, {len(obs_rows)} obs rows -> {sdir}")
     return sdir
 
 

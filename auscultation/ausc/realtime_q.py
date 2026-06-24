@@ -22,7 +22,8 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
-sys.path[:0] = [os.path.join(HERE, "audio"), os.path.join(ROOT, "mechanical_sensor", "force_feedback")]
+sys.path[:0] = [HERE, os.path.join(HERE, "audio"), os.path.join(ROOT, "mechanical_sensor", "force_feedback")]
+from health import audio_status  # noqa: E402
 
 
 def band_energy_proxy(samples: np.ndarray, sr: int = 16000, lo: float = 90.0, hi: float = 1100.0) -> float:
@@ -79,11 +80,13 @@ def run_live(seconds: float = 12.0, hop_s: float = 1.0, window_s: float = 8.0,
         t0 = time.monotonic()
         while time.monotonic() - t0 < seconds:
             w = au.latest_window(window_s)
+            ah = audio_status(w.samples, w.sr)            # fault detection: stethoscope off?
             force_n = fs.read().force_n if fs else 4.0   # no force -> assume in-band for the demo
             out = sq.update(w.samples, w.sr, force_n)
             bar = "#" * int(out["p_usable"] * 30)
+            tag = "" if ah["status"] == "OK" else f"  ⚠️ audio {ah['status']} ({ah['peak_db']}dB: stethoscope off?)"
             print(f"  force={out['force_n']:.2f}N gate={'OPEN ' if out['gate'] else 'shut '} "
-                  f"q_raw={out['q_raw']:.2f}  P(usable)={out['p_usable']:.2f} |{bar}", flush=True)
+                  f"q_raw={out['q_raw']:.2f}  P(usable)={out['p_usable']:.2f} |{bar}{tag}", flush=True)
             time.sleep(hop_s)
 
 
