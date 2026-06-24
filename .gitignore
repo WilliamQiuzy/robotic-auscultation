@@ -1,0 +1,65 @@
+# ===== 密钥 / 凭证 —— 绝不提交 =====
+.env
+.env.*
+!.env.example
+**/instance.env
+*.key
+*.pem
+*_key
+*_key.pub
+
+# ===== AWS/Vast 操作状态文件(含实例/资源 ID)=====
+.aws_*
+
+# ===== 第三方 baseline clone(由 clone_baselines.sh 各端自行 clone)=====
+/VLA-baselines/
+/WAM-baselines/*/
+!/WAM-baselines/lingbot-va-eval/
+
+# ===== 模型权重 / 大文件 =====
+*.safetensors
+*.ckpt
+*.pth
+*.bin
+ckpt/
+checkpoints/
+
+# ===== 输出 / 结果视频(可再生)=====
+*.mp4
+*.avi
+outputs/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+
+# ===== OS / 杂项 =====
+.DS_Store
+*.log
+
+# scene review renders (regenerable via render_scene.py)
+assets/scene_review/
+
+# ===== secrets (additional) =====
+openai.txt
+
+# ===== auscultation: large data + regenerable artifacts (never commit) =====
+auscultation/data/
+auscultation/server_backups/
+auscultation/sam-3d-body-dinov3/
+auscultation/mechanical_sensor/generated/
+**/.pytest_cache/
+
+# ===== private clinical annotations =====
+lung_qa_*.json
+
+# ===== large media / CAD artifacts (regenerable / not code) =====
+*.HEIC
+*.heic
+*.MOV
+*.step
+*.stl
+*.docx

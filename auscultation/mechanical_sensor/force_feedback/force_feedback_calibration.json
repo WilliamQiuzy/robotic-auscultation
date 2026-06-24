@@ -1,0 +1,19 @@
+{
+  "variant": "v7A_hall_displacement_recommended",
+  "measurement_type": "spring_compression_to_force",
+  "spring_rate_n_per_mm": 0.38,
+  "zero_compression_mm": 0.0,
+  "target_force_n": 4.0,
+  "max_screened_force_n": 8.0,
+  "travel_limit_mm": 24.0,
+  "recommended_max_travel_use_fraction": 0.75,
+  "target_update_rate_hz": 100,
+  "max_allowed_latency_ms": 50,
+  "force_noise_gate_n_rms": 0.1,
+  "calibration_error_gate_n": 0.25,
+  "serial_protocol": {
+    "preferred_json_line": "{\"t_ms\": 1234, \"disp_mm\": 10.53}",
+    "fallback_csv_line": "1234,10.53",
+    "computed_force": "force_n = spring_rate_n_per_mm * max(0, disp_mm - zero_compression_mm)"
+  }
+}
