@@ -188,7 +188,7 @@ class StreamingAuscultationTracker:
         det = None
         det3d = iuv3d = None
         if want_detect and self.detector is not None and rgb_full is not None:
-            det = self.detector.detect(rgb_full)
+            det = self.detector.detect(rgb_full, depth, self.intr)
             if det is not None:
                 self._last_detect_t = t
                 det3d, iuv3d = self._detection_3d(det, depth)

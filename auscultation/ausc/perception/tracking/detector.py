@@ -42,7 +42,7 @@ class DetectorResult:
 class LandmarkDetector(Protocol):
     """Minimal contract the tracker depends on (so it can be mocked in tests)."""
 
-    def detect(self, rgb_full: np.ndarray) -> Optional[DetectorResult]:
+    def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         ...
 
 
@@ -106,9 +106,13 @@ class DenseIUVDetector:
             if d not in sys.path:
                 sys.path.insert(0, d)
 
-    def _preprocess(self, rgb_full: np.ndarray) -> Tuple["np.ndarray", CropTransform]:
+    def _preprocess(self, rgb_full: np.ndarray, depth=None, intr=None
+                    ) -> Tuple["np.ndarray", CropTransform]:
         import cv2
-        h, w = rgb_full.shape[:2]
+        if depth is not None and intr is not None:        # depth-centered, pad-not-clamp, invertible
+            from .geometry import back_square_crop
+            return back_square_crop(rgb_full, depth, intr)
+        h, w = rgb_full.shape[:2]                          # RGB-only fallback (no depth)
         crop = CropTransform.center_square(h, w, self.res, self.up_bias)
         sq = rgb_full[crop.y0:crop.y0 + crop.side, crop.x0:crop.x0 + crop.side]
         im = cv2.resize(sq, (self.res, self.res), interpolation=cv2.INTER_AREA)
@@ -132,10 +136,10 @@ class DenseIUVDetector:
         flip = float(np.mean(d) / self.res * 100.0)
         return float(np.clip(1.0 - flip / self.review_scale, 0.02, 1.0))
 
-    def detect(self, rgb_full: np.ndarray) -> Optional[DetectorResult]:
+    def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         if rgb_full is None:
             return None
-        im, crop = self._preprocess(rgb_full)
+        im, crop = self._preprocess(rgb_full, depth, intr)
         xy, part, uv = self._points_from_im(im)
         xy = self._structure(xy)  # enforce R/L parallel + even spacing
         conf = self._flip_conf(im, xy) if self.compute_confidence else 0.8

@@ -154,7 +154,7 @@ class SyntheticDetector:
     def set_truth(self, gt_pixels_full: np.ndarray) -> None:
         self._gt_full = np.asarray(gt_pixels_full, dtype=np.float64)
 
-    def detect(self, rgb_full: np.ndarray) -> Optional[DetectorResult]:
+    def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         if self._gt_full is None:
             return None
         H, W = rgb_full.shape[:2]
