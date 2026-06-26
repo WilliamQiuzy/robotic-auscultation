@@ -190,6 +190,53 @@ def axial_noise_var(z_m: np.ndarray, k: float = 0.0025, floor_mm: float = 1.5) -
     return sigma * sigma
 
 
+def _pad_extract(img: np.ndarray, x0: float, y0: float, side: float) -> np.ndarray:
+    """Extract a side×side window at (x0,y0) (may be negative / overflow the image) with
+    zero-padding — NEVER clamps, so the requested square is returned exactly (keeps the
+    anatomical centre centred and the crop affine invertible)."""
+    import cv2
+    H, W = img.shape[:2]
+    x0i, y0i, s = int(round(x0)), int(round(y0)), int(round(side))
+    x1i, y1i = x0i + s, y0i + s
+    pl, pt = max(0, -x0i), max(0, -y0i)
+    pr, pb = max(0, x1i - W), max(0, y1i - H)
+    sub = img[max(0, y0i):min(H, y1i), max(0, x0i):min(W, x1i)]
+    if pl or pt or pr or pb:
+        sub = cv2.copyMakeBorder(sub, pt, pb, pl, pr, cv2.BORDER_CONSTANT, value=0)
+    return sub
+
+
+def back_square_crop(rgb: np.ndarray, depth: np.ndarray, intr: "Intrinsics",
+                     margin: float = 0.20, head_frac: float = 0.15, stride: int = 4,
+                     min_px: int = 80) -> Tuple[np.ndarray, "CropTransform"]:
+    """Depth-centred, pad-not-clamp, **invertible** square crop of the patient's back.
+
+    Replaces ``center_square`` / ``iuv_back_crop``. Centres on the patient (depth body mask,
+    not the image centre), trims the head, sizes the square to contain the WHOLE back, and pads
+    (never clamps) so no lung column is sliced off and ``CropTransform.det_to_full`` inverts
+    exactly (origin may be negative). Returns (518×518 RGB, CropTransform). Falls back to a
+    full-height centre square only if the depth mask is too small.
+    """
+    import cv2
+    H, W = rgb.shape[:2]
+    P = pointmap_from_depth(depth, intr, stride=stride)
+    m = body_band_mask(P)
+    ys, xs = np.nonzero(m)
+    if len(ys) < min_px:
+        s = min(H, W); x0 = (W - s) // 2; y0 = (H - s) // 2
+        return (cv2.resize(_pad_extract(rgb, x0, y0, s), (518, 518), interpolation=cv2.INTER_AREA),
+                CropTransform(x0, y0, s, 518))
+    x0, x1 = xs.min() * stride, xs.max() * stride
+    y0, y1 = ys.min() * stride, ys.max() * stride
+    y0b = y0 + head_frac * (y1 - y0)                         # trim head → back fills the square
+    cx, cy = (x0 + x1) / 2.0, (y0b + y1) / 2.0
+    side = max(x1 - x0, y1 - y0b) * (1.0 + margin)
+    sx0, sy0 = cx - side / 2.0, cy - side / 2.0
+    img = _pad_extract(rgb, sx0, sy0, side)
+    return (cv2.resize(img, (518, 518), interpolation=cv2.INTER_AREA),
+            CropTransform(int(round(sx0)), int(round(sy0)), int(round(side)), 518))
+
+
 # ── SE(3) helpers ───────────────────────────────────────────────────────────
 def make_T(R: np.ndarray, t: np.ndarray) -> np.ndarray:
     T = np.eye(4)
