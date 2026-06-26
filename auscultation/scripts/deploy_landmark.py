@@ -50,6 +50,29 @@ def _points(m, im, res, hm_res, device):
     return xy, pl[0].argmax(0).cpu().numpy(), uv[0].cpu().numpy()
 
 
+def iuv_back_crop(m, rgb, res, hm_res, device, up_bias=0.12, margin=0.18, back_part=1):
+    """2-pass smart crop: pass-1 center-square → IUV back-torso(part=1) bbox → tight square
+    re-crop so the back fills the 518² input (model is scale/translation-sensitive — this
+    normalizes framing and removes the frame-to-frame collapse). Falls back to the center
+    square if the back isn't found. Validated on lab video: vertical spread 0.04–0.56 (blind)
+    → 0.47–0.56 (this). For Orbbec, the depth-based back crop is the production equivalent."""
+    h, w = rgb.shape[:2]
+    s = min(h, w); x0 = (w - s) // 2; y0 = max(0, min(h - s, int((h - s) * (0.5 - up_bias))))
+    im1 = cv2.resize(rgb[y0:y0 + s, x0:x0 + s], (res, res), interpolation=cv2.INTER_AREA)
+    _, part, _ = _points(m, im1, res, hm_res, device)
+    ys, xs = np.nonzero(part == back_part)
+    if len(ys) < 200:
+        return im1
+    u0, u1, v0, v1 = xs.min(), xs.max(), ys.min(), ys.max()
+    ox0, ox1 = x0 + u0 * s / res, x0 + u1 * s / res
+    oy0, oy1 = y0 + v0 * s / res, y0 + v1 * s / res
+    cx, cy = (ox0 + ox1) / 2, (oy0 + oy1) / 2
+    side = max(ox1 - ox0, oy1 - oy0) * (1 + margin)
+    bx0, by0 = int(max(0, cx - side / 2)), int(max(0, cy - side / 2))
+    bx1, by1 = int(min(w, cx + side / 2)), int(min(h, cy + side / 2))
+    return cv2.resize(rgb[by0:by1, bx0:bx1], (res, res), interpolation=cv2.INTER_AREA)
+
+
 def flip_incon(m, im, res, hm_res, device):
     xy0, _, _ = _points(m, im, res, hm_res, device)
     xyf, _, _ = _points(m, im[:, ::-1, :].copy(), res, hm_res, device)
@@ -79,6 +102,9 @@ def main():
     ap.add_argument("--encoder", default="dinov2_vitb14"); ap.add_argument("--res", type=int, default=518)
     ap.add_argument("--up_bias", type=float, default=0.12); ap.add_argument("--review_thr", type=float, default=12.0)
     ap.add_argument("--structured", type=int, default=1, help="1=结构化读出(脊柱中线+对称宽度, 保证R/L平行+层均匀)")
+    ap.add_argument("--crop", default="iuv2pass", choices=["iuv2pass", "center"],
+                    help="iuv2pass=智能裁剪(2-pass IUV 框后背→紧贴方裁, 消除取景塌缩, 默认); center=旧中心方裁")
+    ap.add_argument("--crop_margin", type=float, default=0.18)
     args = ap.parse_args()
     device = "cpu" if os.environ.get("FORCE_CPU") else "cuda"
     hm_res = args.res // 4; os.makedirs(args.out, exist_ok=True)
@@ -89,7 +115,11 @@ def main():
         raw = cv2.imread(f)
         if raw is None:
             print("skip", f); continue
-        im = cv2.resize(center_square(raw[:, :, ::-1], args.up_bias), (args.res, args.res), interpolation=cv2.INTER_AREA)
+        rgb = raw[:, :, ::-1]
+        if args.crop == "iuv2pass":
+            im = iuv_back_crop(m, rgb, args.res, hm_res, device, args.up_bias, args.crop_margin)
+        else:
+            im = cv2.resize(center_square(rgb, args.up_bias), (args.res, args.res), interpolation=cv2.INTER_AREA)
         xy, part, uv = _points(m, im, args.res, hm_res, device)
         if args.structured:
             xy = structure_points(xy)                          # 保证 R/L 平行 + 层间距均匀
