@@ -30,13 +30,23 @@ TASKS = {
     },
     "lung": {
         "region": "back",                                               # 后背
-        "landmarks": ["R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4"],   # 肺尖→肺底, 左右对比阶梯
-        "desc": "Pulmonary auscultation — posterior, 8 points (4 levels bilateral, Lopes)",
+        "landmarks": ["R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4", "R5", "L5"],  # 肺尖→肺底, 左右对比阶梯
+        "desc": "Pulmonary auscultation — posterior, 10 points (5 levels bilateral, V6A 标准, 围肩胛骨)",
     },
     # 将来可注册: "lung_full"(后+前+侧, 含右中叶/左舌叶), "abdomen"(四象限) ...
 }
 
 DEFAULT_TASK = "heart"
+
+# 直接监督的 landmark 头【固定通道顺序】(后背肺10 + 前胸心5 = 15)。
+# 训练时把样本里出现的点按名映射到通道; 后背样本只激活 0..9, 前胸样本只激活 10..14(其余 mask=0)。
+# 改动需与 humman_label.define_ausc_vertices / TASKS 的点名保持一致。
+LANDMARK_ORDER = [
+    "R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4", "R5", "L5",   # lung 后背 (channels 0..9)
+    "aortic", "pulmonary", "erb", "tricuspid", "mitral",          # heart 前胸 (channels 10..14)
+]
+LANDMARK_INDEX = {nm: i for i, nm in enumerate(LANDMARK_ORDER)}
+N_LANDMARKS = len(LANDMARK_ORDER)
 
 
 def list_tasks() -> list:

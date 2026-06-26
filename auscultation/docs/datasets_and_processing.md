@@ -2,7 +2,25 @@
 
 本文件记录**我们用了哪些数据集**、**每个数据集怎么处理成可训练标签**，供训练同学理解与复现。配合 [model_architecture.md](./model_architecture.md)（模型结构）与 [engineering.md](./engineering.md)（工程细节）看。
 
-> 任务：训练**感知模块**——从第三人称相机图像预测**稠密身体表面对应(DensePose-IUV)**，并**按任务**读出听诊点（心→前胸心点 / 肺→后背肺点）。点集是**任务条件化**的, 且因标签全由 SMPL 顶点合成, 点的数量/位置可自由定义。
+> 任务：训练**感知模块**——从第三人称相机图像预测**稠密身体表面对应(DensePose-IUV)**，并**按任务**读出听诊点（心→前胸心点 / 肺→后背肺点）。点集是**任务条件化**的, 且因标签全由 SMPL 顶点/地址合成, 点的数量/位置可自由定义。
+
+---
+
+## 当前训练数据(2026-06-07)
+
+| 数据集 | 有效张数 | 后背 | 前胸 | 类型 | 备注 |
+|---|---:|---:|---:|---|---|
+| humman | 4144 | 91 | 4053 | 真实(影棚) | iPhone 正面为主 |
+| **humman_v2** | **5019** | **5019** | 0 | **真实穿衣后背(717 受试者)** | part01+02 Kinect 后向帧, GT SMPL |
+| scoliosis | 1118 | 1118 | 0 | 真实裸背 | 86 受试者 × 增强, HMR2 拟合 |
+| scoliosis_clinical | 256 | 256 | 0 | 真实裸背→穿衣+铺巾域增强 | clinical_domainify |
+| syn2 | 19200 | 9600 | 9600 | 合成(BEDLAM 皮肤) | pyrender |
+| **合计(有效)** | **29737** | **16084** | **13653** | | |
+
+- **真实后背 ≈ 6484**(humman_v2 + scoliosis + clinical + humman),从最初 91 增至 6484。
+- **点位标准(2026-06)**: 前胸 = **5 点 APETM**(aortic/pulmonary/erb/tricuspid/mitral, Bates'); 后背 = **10 点 V6A**(5 层双侧, 围肩胛骨, 由临床医生在参考图手标→稠密IUV读(U,V)对称化, 见 `humman_label.LUNG_ADDR_V6A`)。
+- **IUV 标签来源**: HuMMan=**多相机 GT SMPL**(最准); scoliosis/真实图=**HMR2 单图拟合**(弱环节, 可升级 CameraHMR/NLF/SAM-3D-Body, 但多 gated)。
+- ❌ **合成域对齐方向已弃**(用户决策): 改为收集真实穿衣数据(HuMMan part01+02 已全下; 后续 3DPW/网图)。
 
 ---
 
@@ -10,10 +28,13 @@
 
 | 数据集 | 位置 | 内容 | 角色 | 备注 |
 |---|---|---|---|---|
-| **HuMMan**（point 子集） | `data/humman/` | 907 序列：`smpl_params`(SMPL 参数) + `point_cameras`(10 Kinect+1 iPhone 的 K/R/T) + `iphone_color`(907 mp4) + `point_kinect_color_part_01`(453 序列×10 相机) | **感知预训练主力**（渲染稠密 IUV 标签） | 受控影棚、穿衣、RGB-D、有 SMPL 真值。iPhone 只拍正面；后背用 Kinect 后向相机。part_02(~454 序列)未下 |
+| **HuMMan**（point 子集） | `data/humman/`(处理后); 原始在训练机 `/root/humman_data/` | 907 序列：`smpl_params` + `point_cameras`(10 Kinect+1 iPhone) + `iphone_color`(正面) + **`point_kinect_color_part_01+02`(已全下, 717 序列有后向 Kinect)** | **感知预训练主力 + 穿衣真实后背**（GT SMPL 渲染 IUV） | 受控影棚、穿衣、有多相机 GT SMPL。iPhone 正面；后背用 Kinect 后向相机。**两个 kinect part 已全下** |
+| **humman_v2**（穿衣真实后背） | `data/dataset/humman_v2/`(训练机) | 717 受试者后向 Kinect 帧 → 5019 后背样本(GT IUV + V6A 点) | **打 lab 穿衣后背域差的主力真实数据** | 由 part01+02 生成, `gen_dataset --dataset humman --humman_root /root/humman_data` |
 | **SMPL 模型** | `data/smpl/SMPL_NEUTRAL.pkl` | SMPL 中性人体模型(6890 顶点) | 由 SMPL 参数算顶点 → 投影/渲染 | v1.1.0，已去 chumpy 转纯 numpy |
 | **DensePose UV 映射** | `data/densepose_coco/uv_data/UV_Processed.mat` | SMPL 顶点 → DensePose (I,U,V) | 渲染稠密 IUV 标签的基础 | 7829 DP 顶点 / 13774 面 / 24 部位 |
-| **脊柱侧弯裸背** | `data/scoliosis_back/` | 193 张真实**裸背**图 + COCO 背部分割 | **后背/肺 in-domain 微调 + 肤色/人种多样性** | 真实皮肤、含深肤色、躯干近景 |
+| **脊柱侧弯裸背** | `data/scoliosis_back/` | 86 受试者真实**裸背**图(HMR2 拟合) | 后背/肺 in-domain 真实裸背 | 真实皮肤、含深肤色; SMPL 表达不了侧弯曲率(标签噪声) |
+| **scoliosis_clinical** | `data/dataset/scoliosis_clinical/` | scoliosis canon → 叠衬衫 + 临床铺巾背景(256) | 穿衣+铺巾域适配代理 | `scripts/clinical_domainify.py`; IUV/点不变 |
+| **syn2**（合成) | `data/dataset/syn2/` | pyrender + BEDLAM 真皮(19200) | 稠密 IUV 预训练 + 姿态/相机多样性 | 合成域; 用户已弃"靠合成补域差" |
 | 音频（计划复用） | — | CirCor(PhysioNet 心音)、ICBHI(呼吸音)、HLS-CMDS(Littmann CORE 心肺) | 声音质量评估器预训练 | Stage3 音频闭环用 |
 | 自采临床集（计划） | — | 机器人第三人称 RGB-D，裸/病号服，真实临床取景 | in-domain 微调 + 验证 | 最贴部署分布 |
 
@@ -27,8 +48,9 @@
 
 ### 1. 听诊点定义（`ausc/humman_label.py: define_ausc_vertices`）—— **任务条件化, 可自由扩展**
 按**任务**定义点集, 每个点 = 一个固定 SMPL 顶点索引(渲染进 IUV/投影成 2D 点):
-- **心音任务 / 前胸**（Tsumura 标准, 当前 4 点, 可扩到 6–8）：主动脉瓣 / 肺动脉瓣 / 三尖瓣 / 二尖瓣（+ 可加 Erb 点等）。
-- **肺音任务 / 后背**（Lopes 标准, 当前 8 点）：L1-L4 / R1-R4（4 层双侧）。
+- **心音任务 / 前胸**（**APETM 5 点**, Bates'）：aortic / pulmonary / erb / tricuspid / mitral —— 沿真实肋间纵向铺开, 心尖更低更外。SMPL 顶点定义(`define_ausc_vertices['front']`)。
+- **肺音任务 / 后背**（**V6A 10 点 = 5 层双侧**, 围肩胛骨）：R1–R5 / L1–L5。**由临床医生在干净参考图手标 → 读其稠密 IUV 的 (U,V) → 对称化**得到的直接 (part,U,V) 地址 `humman_label.LUNG_ADDR_V6A`(后背 SMPL 顶点太稀疏, 无法表达 V6A 连续位置, 故走直接地址)。
+> 后背点权威 = `LUNG_ADDR_V6A`(读出/eval/realign 都用它); `define_ausc_vertices['back']` 顶点仅供生成器初值投影(会被 `scripts/realign_lung_points.py` 覆盖)。
 > **点集是自由的设计参数**:所有监督标签都由 SMPL 顶点**渲染合成**(三数据集一致, 无人工标注), 想改点的数量/位置 → 在 `define_ausc_vertices` 换顶点 + 重跑生成器即可, 零标注成本。
 - 定义为 **SMPL 固定顶点**（按解剖比例从模板选，经临床医生审阅微调）。标定：+x=患者左，-x=患者右，躯干核心 |x|<0.16。
 - ⚠️ 体表近似（SMPL 无肋骨），区域级精度；精确落点靠 Stage3 音频闭环。
@@ -49,14 +71,14 @@
 ### 5. 转正（内联于 `ausc/datasets/humman._base_sample`）
 - 按 SMPL 脊柱方向(pelvis→neck)把图像/IUV/点旋转到躯干竖直，并裁到躯干 bbox。
 
-### 6. 数据增强（算子库 `ausc/augment.py` + 编排 `ausc/datasets/common.augment_once`）—— 针对第三人称固定相机 + 实验室 WidowX/Trossen 桌面侧装臂
+### 6. 数据增强（算子库 `ausc/augment.py` + 编排 `ausc/datasets/common.augment_once`）—— 针对第三人称固定相机 + 实验室 OpenArm 桌面侧装臂
 
 > 原则：增强必须匹配**部署分布**，盲目堆砌（如大角度旋转）反而有害。**训练时随机组合这 5 种**生成每张，不枚举。
 
 | 手段 | 模拟部署变化 | 要点 |
 |---|---|---|
 | ① 光照/对比/色调/轻噪声 | 临床灯光、肤色、相机差异 | 抗光照 |
-| ② **手臂+听诊器遮挡** | Trossen 臂+听诊器必然遮住躯干 | **最关键**；灰杆+听诊器圆头，标签保留 |
+| ② **手臂+听诊器遮挡** | OpenArm 臂+听诊器必然遮住躯干 | **最关键**；灰杆+听诊器圆头，标签保留 |
 | ③ 水平翻转 + 换 L/R 标签 | 人体近似双侧对称→数据翻倍 | `LR_SWAP` + IUV 对称 |
 | ④ **小角度旋转（严格 ±θ 对称）** | 病人轻微侧倾/相机轻微 roll | **仅 ±8/±15，左右成对**；固定机位不放大角度 |
 | ⑤ **取景 F1远/F2中/F3近**（定死，非随机） | 第三人称相机的取景尺度（部署核心） | 见下「取景分类」；以听诊区居中 |
@@ -92,7 +114,7 @@
  "side_conf":0.0-1.0, "points":{"name":{"xy":[x,y],"visible":true}}}
 ```
 - `iuv` PNG：R=part(0..24)，G=U×255，B=V×255。
-- 正样本：front(4 点)/back(8 点)。负样本：region=none，空点。
+- 正样本：front(5 点 APETM)/back(10 点 V6A)。负样本：region=none，空点。
 
 ---
 
@@ -110,7 +132,8 @@
 | `ausc/datasets/humman.py` | HuMMan → 稠密IUV + 前胸/后背点 + 负样本 |
 | `ausc/datasets/scoliosis.py` | 裸背 → 后背肺点 + 稠密IUV（用重拟合 `scol_refit.pkl`） |
 | `ausc/datasets/synthetic.py` | **pyrender 纯仿真**：平滑Phong + 连续程序化皮肤(多人种) + 坐/站 + F1/F2/F3取景 + 稠密IUV。⚠️ 需 GPU+EGL(`PYOPENGL_PLATFORM=egl`) |
-| `ausc/models/`, `ausc/training/` | ☐ 感知模型 / 训练循环（占位, 见各自 README） |
+| `ausc/models/iuv_model.py` | ★ 已实现:DINOv2+LoRA 骨干 + IUV 头 + **Landmark 热图头**(生产读点) |
+| `ausc/training/` | ★ 已实现:`train.py`(IUV/landmark 训练循环) + `dataset.py` + `eval*.py`(见 README) |
 
 **入口与工具 `scripts/`**
 | 脚本 | 作用 |

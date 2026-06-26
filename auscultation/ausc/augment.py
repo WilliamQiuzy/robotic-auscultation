@@ -32,14 +32,69 @@ def _xform_points(points, x0, y0, sx, sy, out_w, out_h):
     return out
 
 
-def hflip(sample, lr_swap=None, uv_sym=None):
-    """水平翻转。⚠️ 翻转交换患者左右:
-       - points: 用 lr_swap 把成对点改名(后背 R{i}↔L{i})。
-       - iuv: 这里只做几何镜像; part 左右对称交换(uv_symmetry_transforms.mat)留给生成端 uv_sym。"""
+# DensePose 24-part 水平镜像的 part 互换(1-indexed; 0=背景)。躯干 1,2 自身; 肢体左右互换。
+_INDEX_SYM = [0, 1, 2, 4, 3, 6, 5, 8, 7, 10, 9, 12, 11, 14, 13, 16, 15, 18, 17, 20, 19, 22, 21, 24, 23]
+_UV_SYM_CACHE = None
+
+
+def _get_uv_symmetry():
+    """懒加载 DensePose UV_symmetry_transforms.mat → (U_transforms[24], V_transforms[24], Index_Symmetry)。
+    每个 transform 是 (256,256) 查表, 按 [V*255, U*255] 索引, 给出镜像后的 U/V ∈ [0,1]。"""
+    global _UV_SYM_CACHE
+    if _UV_SYM_CACHE is not None:
+        return _UV_SYM_CACHE
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    cands = [os.path.join(here, "..", "data/densepose_coco/uv_data/UV_symmetry_transforms.mat"),
+             os.path.join(here, "data/densepose_coco/uv_data/UV_symmetry_transforms.mat")]
+    path = next((c for c in cands if os.path.exists(c)), None)
+    if path is None:
+        _UV_SYM_CACHE = (None, None, None)
+        return _UV_SYM_CACHE
+    import scipy.io as sio
+    d = sio.loadmat(path)
+    Ut = [d["U_transforms"][0, i] for i in range(24)]
+    Vt = [d["V_transforms"][0, i] for i in range(24)]
+    _UV_SYM_CACHE = (Ut, Vt, _INDEX_SYM)
+    return _UV_SYM_CACHE
+
+
+def apply_uv_symmetry(iuv):
+    """对(已几何镜像的) IUV 做 DensePose 对称: part 左右互换 + (U,V) 按对称表重映射。
+    iuv: HxWx3 uint8 (I, U*255, V*255)。这是水平翻转的正确做法——只翻几何会让 V(左右表面坐标)错位。"""
+    Ut, Vt, idx_sym = _get_uv_symmetry()
+    if Ut is None:
+        return iuv.copy()
+    I = iuv[:, :, 0].astype(np.int32)
+    U = np.clip(iuv[:, :, 1].astype(np.int32), 0, 255)
+    V = np.clip(iuv[:, :, 2].astype(np.int32), 0, 255)
+    newI = I.astype(np.uint8).copy()
+    newU = iuv[:, :, 1].copy()
+    newV = iuv[:, :, 2].copy()
+    for part in range(1, 25):
+        m = I == part
+        if not m.any():
+            continue
+        u_idx = U[m]
+        v_idx = V[m]
+        nu = Ut[part - 1][v_idx, u_idx]            # ∈[0,1]
+        nv = Vt[part - 1][v_idx, u_idx]
+        newU[m] = np.clip(nu * 255.0, 0, 255).astype(np.uint8)
+        newV[m] = np.clip(nv * 255.0, 0, 255).astype(np.uint8)
+        newI[m] = idx_sym[part]
+    return np.dstack([newI, newU, newV])
+
+
+def hflip(sample, lr_swap=None, uv_sym=True):
+    """水平翻转(镜像患者左右)。
+       - points: 用 lr_swap 把成对点改名(后背 R{i}↔L{i}, i=1..5)。
+       - iuv: 几何镜像 + DensePose UV 对称(part 互换 + U,V 对称表重映射)。
+         uv_sym=True(默认)才正确; 否则 V(左右表面坐标)会与翻转后的图像错位(历史 bug)。"""
     H, W = sample["image"].shape[:2]
     out = {"image": sample["image"][:, ::-1].copy()}
     if sample.get("iuv") is not None:
-        out["iuv"] = sample["iuv"][:, ::-1].copy()   # ⚠️仅几何; part左右需uv_sym再换
+        flipped = sample["iuv"][:, ::-1]
+        out["iuv"] = apply_uv_symmetry(flipped) if uv_sym else flipped.copy()
     pts = {}
     for nm, p in (sample.get("points") or {}).items():
         x, y = p["xy"] if isinstance(p, dict) else p
@@ -49,10 +104,10 @@ def hflip(sample, lr_swap=None, uv_sym=None):
     return out
 
 
-# 后背肺点的左右对(用于 hflip 改名)。R{i}↔L{i}, i=1..4。
+# 后背肺点的左右对(用于 hflip 改名)。R{i}↔L{i}, i=1..5(V6A 5 层)。
 # ⚠️ 仅后背(肺双侧近似对称)可翻转; 前胸心点(aortic/pulmonary/tricuspid/mitral)
 #    因心脏左右不对称, 翻转+改名会得到解剖错误标签 → 前胸禁止水平翻转(见 datasets/common.augment_once)。
-LR_SWAP = {f"{a}{i}": f"{b}{i}" for i in range(1, 5) for a, b in (("R", "L"), ("L", "R"))}
+LR_SWAP = {f"{a}{i}": f"{b}{i}" for i in range(1, 6) for a, b in (("R", "L"), ("L", "R"))}
 
 
 def clinical_lighting(image, rng=None):
@@ -139,7 +194,7 @@ def occlude_robot_arm(img, target_uv, rng=None):
     rng = rng or np.random
     img = img.copy(); H, W = img.shape[:2]
     tx, ty = int(target_uv[0]), int(target_uv[1])
-    # 桌面侧装机械臂从【右下方】够向听诊点(实验室 WidowX/Trossen 布局), 不从上方下来
+    # 桌面侧装机械臂从【右下方】够向听诊点(实验室 OpenArm 布局), 不从上方下来
     if rng.random() < 0.65:                                              # 右下角进
         sx = int(rng.uniform(0.62, 1.0) * W); sy = H - 1
     else:                                                                # 右侧偏下进

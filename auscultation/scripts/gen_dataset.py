@@ -29,6 +29,7 @@ def main():
     ap.add_argument("--out", required=True, help="输出根目录")
     ap.add_argument("--n_aug", type=int, default=None, help="每原图随机组合增强张数(默认按数据集)")
     ap.add_argument("--limit", type=int, default=None, help="[humman] 仅处理前 N 个序列(冒烟测试)")
+    ap.add_argument("--shard", default=None, help="[humman] 并行分片 'idx/n': 只处理 seqs[idx::n]")
     ap.add_argument("--n_subjects", type=int, default=200, help="[synthetic] 合成受试者数")
     ap.add_argument("--smpl_model", default=_p("data", "smpl", "SMPL_NEUTRAL.pkl"))
     ap.add_argument("--uv", default=_p("data", "densepose_coco", "uv_data", "UV_Processed.mat"))
@@ -44,8 +45,11 @@ def main():
 
     def run_humman(out):
         import humman
+        shard = None
+        if args.shard:
+            i, n = args.shard.split("/"); shard = (int(i), int(n))
         humman.generate(args.humman_root, args.smpl_model, args.uv, out,
-                        limit=args.limit, n_aug=args.n_aug or 6, seed=args.seed)
+                        limit=args.limit, n_aug=args.n_aug or 6, seed=args.seed, shard=shard)
 
     def run_scoliosis(out):
         import scoliosis

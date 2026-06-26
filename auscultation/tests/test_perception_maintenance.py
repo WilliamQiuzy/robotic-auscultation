@@ -2,6 +2,8 @@ import os
 import sys
 import types
 import unittest
+import tempfile
+import json
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -29,14 +31,27 @@ class PerceptionAugmentationTests(unittest.TestCase):
         self.assertEqual(synthetic.variant_seed_offset("standing", "front", "F1_upper"), 991)
         self.assertEqual(synthetic.variant_seed_offset("standing", "front", "F1_upper"), 991)
 
+    def test_scoliosis_generator_rejects_2d_only_labels(self):
+        import scoliosis
+
+        with self.assertRaisesRegex(ValueError, "older labels_hmr2.pkl"):
+            scoliosis._require_refit_schema("case.jpg", {"verts2d": [], "wh": (100, 100)})
+
 
 class TrainingRecordTests(unittest.TestCase):
+    def test_subject_key_strips_generated_clinical_suffixes(self):
+        import dataset
+
+        self.assertEqual(dataset.subject_key("scol_case1_canon_clin0"), "scol_case1")
+        self.assertEqual(dataset.subject_key("scol_case1_aug3_clin2"), "scol_case1")
+        self.assertEqual(dataset.subject_key("p000438_a000040_back_f72_canon_clin1"), "p000438")
+
     def test_audit_config_uses_single_freeze_field(self):
         import train
 
         args = types.SimpleNamespace(
             root=None,
-            roots="data/dataset/humman,data/dataset/synthetic",
+            roots="data/dataset/humman,data/dataset/syn2,data/dataset/scoliosis,data/dataset/scoliosis_clinical",
             unfreeze=1,
             enc_lr_mult=0.1,
             encoder="dinov2_vitb14",
@@ -65,6 +80,26 @@ class TrainingRecordTests(unittest.TestCase):
         )
 
         self.assertEqual(train.lr_record(opt), {"lr_encoder": 3e-5, "lr_head": 3e-4})
+
+    def test_fixed_val_train_rows_exclude_val_subjects(self):
+        import dataset
+
+        with tempfile.TemporaryDirectory() as td:
+            root = os.path.join(td, "ds")
+            os.makedirs(root)
+            rows = [
+                {"id": "scol_case1_canon", "is_valid": True, "iuv": "iuv/a.png", "side_conf": 1.0},
+                {"id": "scol_case1_aug0", "is_valid": True, "iuv": "iuv/b.png", "side_conf": 1.0},
+                {"id": "scol_case2_canon", "is_valid": True, "iuv": "iuv/c.png", "side_conf": 1.0},
+            ]
+            with open(os.path.join(root, "manifest.jsonl"), "w") as f:
+                for row in rows:
+                    f.write(json.dumps(row) + "\n")
+
+            train_rows = dataset.train_rows_with_fixed_val([root], [{"id": "scol_case1_canon"}])
+
+            self.assertEqual([r["id"] for r in train_rows], ["scol_case2_canon"])
+            self.assertEqual(train_rows[0]["_root"], root)
 
 
 if __name__ == "__main__":

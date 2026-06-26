@@ -18,6 +18,7 @@ from collections import Counter, defaultdict
 import cv2
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
@@ -42,15 +43,19 @@ def landmark_addresses(uv_mat, smpl_model):
     m = smplx.SMPL(model_path=smpl_model, gender="neutral", batch_size=1)
     ausc = define_ausc_vertices(m)
     addr = {}
-    for region in ("front", "back"):
-        for nm, vi in ausc[region].items():
-            dp = np.where(v2s == vi)[0]
-            if len(dp) == 0:
-                continue
-            parts = [p for d in dp for p in vert_parts.get(int(d), [])]
-            if not parts:
-                continue
-            addr[nm] = (Counter(parts).most_common(1)[0][0], float(U[dp].mean()), float(V[dp].mean()))
+    # 前胸(心脏): 由 SMPL 顶点索引推导 (part,U,V)
+    for nm, vi in ausc["front"].items():
+        dp = np.where(v2s == vi)[0]
+        if len(dp) == 0:
+            continue
+        parts = [p for d in dp for p in vert_parts.get(int(d), [])]
+        if not parts:
+            continue
+        addr[nm] = (Counter(parts).most_common(1)[0][0], float(U[dp].mean()), float(V[dp].mean()))
+    # 后背(肺): 用权威 V6A 直接地址常量(顶点太稀疏无法表达; 见 humman_label.LUNG_ADDR_V6A)
+    from humman_label import LUNG_ADDR_V6A
+    for nm, a in LUNG_ADDR_V6A.items():
+        addr[nm] = (int(a[0]), float(a[1]), float(a[2]))
     return addr, ausc
 
 
@@ -76,8 +81,29 @@ def readout_soft(part_prob_p, pred_uv, addr, gx, gy, tau=0.01):
     return float((A * gx).sum() / s), float((A * gy).sum() / s)
 
 
+def _forward_maps(model, img, res, tta_scales=None):
+    """前向得 part 概率(softmax 后) + UV, 全部在 res 分辨率。
+    tta_scales: 多尺度 TTA(如 (1.0,1.14,1.27)); 各尺度 softmax(part)+uv 上采样到 res 后平均(纯几何, 不动 part/UV 语义, 安全)。"""
+    scales = tta_scales or (1.0,)
+    prob_sum = None; uv_sum = None
+    use_cuda = img.is_cuda
+    for sc in scales:
+        s = max(1, round(res * sc / 14)) * 14            # DINOv2 patch=14 对齐
+        x = F.interpolate(img, size=(s, s), mode="bilinear", align_corners=False) if s != res else img
+        with torch.autocast("cuda", dtype=torch.float16, enabled=use_cuda):
+            pl, puv = model(x)
+        prob = torch.softmax(pl.float(), 1)
+        if s != res:
+            prob = F.interpolate(prob, size=(res, res), mode="bilinear", align_corners=False)
+            puv = F.interpolate(puv.float(), size=(res, res), mode="bilinear", align_corners=False)
+        prob_sum = prob if prob_sum is None else prob_sum + prob
+        uv_sum = puv.float() if uv_sum is None else uv_sum + puv.float()
+    n = len(scales)
+    return (prob_sum / n)[0].detach().cpu().numpy(), (uv_sum / n)[0].detach().cpu().numpy()
+
+
 @torch.no_grad()
-def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None, readout_mode="soft", tau=0.01):
+def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None, readout_mode="soft", tau=0.01, tta_scales=None):
     model.eval()
     ds = AuscIUVDataset(root, rows if max_n is None else rows[:max_n], res)
     inter = np.zeros(N_PARTS); union = np.zeros(N_PARTS)
@@ -89,11 +115,9 @@ def evaluate(model, root, rows, addr, res, device, max_n=None, dump=None, readou
     for k in range(len(ds)):
         s = ds[k]
         img = s["image"].unsqueeze(0).to(device)
-        with torch.autocast("cuda", dtype=torch.float16):
-            pl, puv = model(img)
-        pred_part = pl.argmax(1)[0].cpu().numpy().astype(np.int32)
-        pred_uv = puv[0].float().cpu().numpy()
-        part_prob = torch.softmax(pl.float(), 1)[0].cpu().numpy() if readout_mode == "soft" else None
+        part_prob_full, pred_uv = _forward_maps(model, img, res, tta_scales)   # (25,H,W),(2,H,W)
+        pred_part = part_prob_full.argmax(0).astype(np.int32)
+        part_prob = part_prob_full if readout_mode == "soft" else None
         gt_part = s["part"].numpy(); gt_uv = s["uv"].numpy()
         # 稠密: mIoU + acc(前景)
         fg = gt_part > 0
@@ -179,6 +203,7 @@ def main():
     ap.add_argument("--dump", default=None, help="定性叠加图输出目录")
     ap.add_argument("--readout", default="soft", choices=["soft", "argmin"], help="听诊点读出: soft-argmax(默认) / 硬argmin")
     ap.add_argument("--tau", type=float, default=0.01, help="soft-argmax UV 亲和温度")
+    ap.add_argument("--tta", default=None, help="多尺度TTA, 逗号分隔缩放因子(如 '1.0,1.14,1.27'); 留空=单尺度")
     args = ap.parse_args()
     device = "cuda"
 
@@ -208,8 +233,9 @@ def main():
         _, rows = split_manifest(args.root)
     if args.dump:
         os.makedirs(args.dump, exist_ok=True)
+    tta_scales = tuple(float(x) for x in args.tta.split(",")) if args.tta else None
     r = evaluate(model, args.root or "", rows, addr, args.res, device, max_n=args.max_n, dump=args.dump,
-                 readout_mode=args.readout, tau=args.tau)
+                 readout_mode=args.readout, tau=args.tau, tta_scales=tta_scales)
     print(f"\n===== [{args.tag}] n={r['n']} (readout={args.readout}) =====")
     print(f"  part mIoU      : {r['miou']:.3f}")
     print(f"  part pix-acc   : {r['pix_acc']:.3f}")

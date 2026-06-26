@@ -107,16 +107,63 @@ class IUVHead(nn.Module):
         return part_logits, uv
 
 
+# ── Landmark 头(直接监督听诊点, 绕开有偏 V 场读出)──────────────
+class LandmarkHead(nn.Module):
+    """轻量卷积解码器: patch 特征 → K 个听诊点热图(logits)。
+    与 IUVHead 平行、独立的一条头: 点位直接受热图监督, 推理 soft-argmax 出 (x,y),
+    不再依赖 (I,U,V) 地址在有偏 V 场上反查。各点一个通道 → 前胸/后背天然解耦(不互相稀释)。"""
+    def __init__(self, in_dim: int, n_landmarks: int, mid: int = 256):
+        super().__init__()
+        self.proj = nn.Sequential(
+            nn.Conv2d(in_dim, mid, 3, padding=1), nn.GroupNorm(32, mid), nn.GELU(),
+            nn.Conv2d(mid, mid, 3, padding=1), nn.GroupNorm(32, mid), nn.GELU(),
+        )
+        self.hm = nn.Conv2d(mid, n_landmarks, 1)
+
+    def forward(self, feat, out_hw):
+        x = self.proj(feat)
+        x = F.interpolate(x, size=out_hw, mode="bilinear", align_corners=False)
+        return self.hm(x)                                    # (B, K, h, w) logits
+
+
 # ── 整体模型 ────────────────────────────────────────────────────
 class DenseIUVModel(nn.Module):
-    def __init__(self, encoder: str = "dinov2_vitb14", frozen_encoder: bool = True, mid: int = 256):
+    def __init__(self, encoder: str = "dinov2_vitb14", frozen_encoder: bool = True,
+                 mid: int = 256, n_landmarks: int = 0):
         super().__init__()
         self.encoder, feat_dim, self.patch = build_encoder(encoder, frozen=frozen_encoder)
         self.head = IUVHead(feat_dim, mid=mid)
+        # 可选 landmark 头(n_landmarks>0 启用); 不破坏 forward 签名, 现有 IUV 推理照常。
+        self.landmark_head = LandmarkHead(feat_dim, n_landmarks, mid=mid) if n_landmarks > 0 else None
 
     def forward(self, img):
         feat = self.encoder(img)
         return self.head(feat, out_hw=img.shape[-2:])   # part_logits (B,25,H,W), uv (B,2,H,W)
+
+    def forward_with_landmarks(self, img, hm_hw):
+        """一次编码同时出 IUV + landmark 热图(训练用; 不改 forward 签名)。
+        返回 (part_logits, uv, hm_logits)。hm_hw = 热图分辨率(如 res//4)。"""
+        feat = self.encoder(img)
+        pl, uv = self.head(feat, out_hw=img.shape[-2:])
+        hm = self.landmark_head(feat, out_hw=hm_hw) if self.landmark_head is not None else None
+        return pl, uv, hm
+
+    @torch.no_grad()
+    def predict_landmark_heatmap(self, img, hm_hw):
+        """推理: 出 landmark 热图 logits (B,K,h,w)。供 soft-argmax 读点。"""
+        feat = self.encoder(img)
+        return self.landmark_head(feat, out_hw=hm_hw)
+
+
+def landmark_heatmap_loss(hm_logits, hm_tgt, mask, lambda_lm: float = 1.0):
+    """听诊点热图损失: sigmoid(logits) 与高斯目标的 masked MSE(仅在场+可见的通道上算)。
+    hm_logits/hm_tgt (B,K,h,w); mask (B,K) 0/1。"""
+    pred = torch.sigmoid(hm_logits)
+    per = F.mse_loss(pred, hm_tgt, reduction="none").mean(dim=(2, 3))   # (B,K)
+    m = mask.float()
+    denom = m.sum().clamp(min=1.0)
+    loss = (per * m).sum() / denom
+    return lambda_lm * loss, {"lm_mse": loss.item()}
 
 
 def iuv_loss(part_logits, uv, part_tgt, uv_tgt, lambda_uv: float = 1.0):

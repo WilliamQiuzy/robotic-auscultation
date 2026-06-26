@@ -1,0 +1,102 @@
+{
+  "anchors": {
+    "snr": [
+      15.8326,
+      13.297
+    ],
+    "periodicity": [
+      0.4,
+      0.0
+    ],
+    "band": [
+      0.6181,
+      0.4523
+    ],
+    "flatness": [
+      0.0327,
+      0.1459
+    ],
+    "silence": [
+      0.4,
+      0.8
+    ],
+    "clip": [
+      0.0,
+      0.05
+    ],
+    "kurtosis": [
+      7.7162,
+      4.7827
+    ],
+    "lowfreq": [
+      0.392,
+      0.4394
+    ],
+    "flattop": [
+      0.002,
+      0.05
+    ],
+    "dropout": [
+      0.0,
+      0.1
+    ]
+  },
+  "weights": {
+    "snr": 0.2119,
+    "periodicity": 0.0011,
+    "band": 0.1241,
+    "flatness": 0.2298,
+    "silence": 0.0,
+    "clip": 0.1296,
+    "kurtosis": 0.097,
+    "lowfreq": 0.0301,
+    "flattop": 0.1144,
+    "dropout": 0.062
+  },
+  "meta": {
+    "n_clean_sources": 150,
+    "n_good": 150,
+    "n_bad": 1350,
+    "q_mean_good": 0.765,
+    "q_mean_bad": 0.548,
+    "auc_Q_good_vs_bad": 0.79,
+    "subscore_auc": {
+      "snr": 0.685,
+      "periodicity": 0.501,
+      "band": 0.608,
+      "flatness": 0.7,
+      "silence": 0.5,
+      "clip": 0.613,
+      "kurtosis": 0.585,
+      "lowfreq": 0.526,
+      "flattop": 0.6,
+      "dropout": 0.554
+    },
+    "per_failure_mode": {
+      "noise": {
+        "auc": 0.981,
+        "q_mean_bad": 0.435
+      },
+      "motion": {
+        "auc": 0.992,
+        "q_mean_bad": 0.368
+      },
+      "clip": {
+        "auc": 0.845,
+        "q_mean_bad": 0.508
+      },
+      "poor_contact": {
+        "auc": 0.403,
+        "q_mean_bad": 0.812
+      },
+      "dropout": {
+        "auc": 0.546,
+        "q_mean_bad": 0.744
+      },
+      "heartbeat": {
+        "auc": 0.529,
+        "q_mean_bad": 0.752
+      }
+    }
+  }
+}

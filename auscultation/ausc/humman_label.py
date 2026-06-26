@@ -52,26 +52,86 @@ def define_ausc_vertices(model):
         d = (y[cand] - ty) ** 2 + (x[cand] - tx) ** 2
         return int(cand[np.argmin(d)])
 
+    def pick_back_pair(off, ty, nz_max):
+        """Pick symmetric posterior lung vertices for one level.
+
+        The lateral lower lung field has side-facing normals, so a strict
+        N_z < -0.2 posterior-only filter clamps points toward the spine.  Pick
+        the two sides jointly with a relaxed per-level normal threshold, then
+        penalize left/right height and mirror asymmetry.
+        """
+        core = (
+            (np.abs(x) < 0.18)
+            & (y > -0.25)
+            & (y < 0.19)
+            & (z < 0.02)
+            & (N[:, 2] < nz_max)
+        )
+        r_cand = np.where(core & (x < 0))[0]
+        l_cand = np.where(core & (x > 0))[0]
+        if len(r_cand) == 0 or len(l_cand) == 0:
+            raise RuntimeError("no posterior lung candidates for symmetric pair")
+        r_cand = r_cand[np.argsort((x[r_cand] + off) ** 2 + (y[r_cand] - ty) ** 2)[:220]]
+        l_cand = l_cand[np.argsort((x[l_cand] - off) ** 2 + (y[l_cand] - ty) ** 2)[:220]]
+        best = None
+        for ri in r_cand:
+            for li in l_cand:
+                score = (
+                    (x[ri] + off) ** 2
+                    + (x[li] - off) ** 2
+                    + 2.0 * ((y[ri] - ty) ** 2 + (y[li] - ty) ** 2)
+                    + 8.0 * (y[ri] - y[li]) ** 2
+                    + 5.0 * (x[ri] + x[li]) ** 2
+                )
+                if best is None or score < best[0]:
+                    best = (score, int(ri), int(li))
+        return best[1], best[2]
+
     # 【前胸心脏 5 区】Bates' 标准, 助记 APETM(含 Erb 第三听诊区)。x<0=患者右,x>0=患者左。
     # dict 顺序 = 听诊顺序(心底→心尖)。任务→点集路由见 ausc/tasks.py。
+    # 按标准 APETM 图(heart_auscul_points.png)沿真实肋间高度铺开: 锁骨 y≈0.19, 每肋间≈0.035,
+    # 2nd→5th ICS 纵跨~0.12; 原定义压在上中胸 8cm 内、心尖偏高 → 已拉开纵向、心尖下移更外侧。
     cardiac = {
-        "aortic":    pick(-0.045, 0.13, True),   # 主动脉瓣区: 第2肋间 患者右胸骨旁
-        "pulmonary": pick(+0.045, 0.13, True),   # 肺动脉瓣区: 第2肋间 患者左胸骨旁
-        "erb":       pick(+0.040, 0.090, True),  # Erb 第三听诊区: 第3肋间 左胸骨缘(S1+S2均清)
-        "tricuspid": pick(+0.035, 0.055, True),  # 三尖瓣区: 第4肋间 左下胸骨缘(医生校正:原-0.01太低)
-        "mitral":    pick(+0.09, 0.035, True),   # 二尖瓣区/心尖: 第5肋间 左锁骨中线(医生校正:原-0.06落剑突)
+        "aortic":    pick(-0.045, 0.135, True),  # 主动脉瓣区: 第2肋间 患者右胸骨旁
+        "pulmonary": pick(+0.045, 0.135, True),  # 肺动脉瓣区: 第2肋间 患者左胸骨旁
+        "erb":       pick(+0.040, 0.100, True),  # Erb 第三听诊区: 第3肋间 左胸骨缘(S1+S2均清)
+        "tricuspid": pick(+0.040, 0.055, True),  # 三尖瓣区: 第4肋间 左下胸骨缘
+        "mitral":    pick(+0.095, 0.015, True),  # 二尖瓣区/心尖: 第5肋间 左锁骨中线(↓更低更外, 对齐标准心尖)
     }
-    # 【后背肺 8 点】严格按 Lopes 标准(L1-L4 + R1-R4, 4层双侧)。上排稍靠脊柱避肩胛。
+    # 【后背肺点】权威读出地址 = 模块常量 LUNG_ADDR_V6A(直接 (part,U,V), 见下方)。
+    # 这里返回的 back 顶点仅供数据生成器(humman/scoliosis/frame_filter)初值投影,
+    # 会被 scripts/realign_lung_points(按 LUNG_ADDR_V6A 从稠密IUV读出)覆盖。
+    # 注: 后背 SMPL 顶点的 (U,V) 太稀疏, 无法表达 V6A 连续位置, 故读出走 LUNG_ADDR_V6A 而非顶点。
     lung = {}
-    # 4 层全在后肺野内(肩/锁骨~下肋缘 T10), 最低 -0.08 在腰椎(spine1=-0.11)之上, 不到腰/内裤
-    for i, (ty, off) in enumerate([(0.17, 0.07), (0.06, 0.07), (-0.01, 0.07), (-0.08, 0.07)]):
-        lung[f"R{i+1}"] = pick(-off, ty, False)   # R=患者右=x<0
-        lung[f"L{i+1}"] = pick(+off, ty, False)   # L=患者左=x>0
+    for i, (ty, off, nz_max) in enumerate([(0.145, 0.085, 0.05), (0.065, 0.050, 0.08),
+                                           (-0.005, 0.070, 0.10), (-0.075, 0.120, 0.12)]):
+        ri, li = pick_back_pair(off, ty, nz_max)
+        lung[f"R{i+1}"] = ri; lung[f"L{i+1}"] = li
     return {"front": cardiac, "back": lung}
 
 
 # DensePose 躯干块: part2=前胸, part1=后背 (与 render_iuv 的 I 通道一致)
 FRONT_TORSO_PART, BACK_TORSO_PART = 2, 1
+
+# 【后背肺点标准 V6A】= (part=1, U, V) 直接地址, 5 层双侧。
+# 来源(2026-06-11): **用户手标 reference 标定**(data/lab_sample_data/refernce.png 真实后背照)。
+#   对该图跑 IUV 模型, 在每个手标点读出 (I,U,V) → 直接地址(scripts: calib_v6a_from_ref.py)。
+#   取代 2026-06 教科书重校版(偏宽/外展; 在 reference 上离用户手标 16px≈3.1%)。
+#   忠实版: 直接用每个手标点读出的 (U,V)(reference 读出 vs 手标=0.9px)。
+# 数组按【图像侧】命名(_imgL=图左/_imgR=图右), 避免R/L混淆。
+# U=垂直(0顶1底), V=水平(脊柱≈各层中点). 单一权威, 改这里即改全管线读点 + 测评标准。
+# (旧教科书版备查: _V6A_U=(0.163,0.322,0.485,0.620,0.716) _V6A_DV=(0.179,0.106,0.138,0.266,0.330) 绕0.5)
+_V6A_U_imgL = (0.189, 0.346, 0.468, 0.582, 0.653)   # 图左侧 纵向 U
+_V6A_V_imgL = (0.280, 0.356, 0.406, 0.332, 0.211)   # 图左侧 横向 V (<0.5)
+_V6A_U_imgR = (0.199, 0.338, 0.464, 0.561, 0.652)   # 图右侧 纵向 U
+# 图右底点(idx4) V 由 0.730 上调至 0.82: lab域 V=0.73 落点偏内, 用户审 lab 后定 0.82 更外侧贴下肺野
+_V6A_V_imgR = (0.629, 0.634, 0.652, 0.732, 0.820)   # 图右侧 横向 V (>0.5)
+# 【用户约定 2026-06-11】图左=L, 图右=R(看图者视角)。注: 真后背视图里图左其实是患者右,
+#   但用户系统按看图者左右标注 → 以此为准(非解剖约定)。改了这里 R/L 即全管线一致。
+LUNG_ADDR_V6A = {}
+for _i in range(5):
+    LUNG_ADDR_V6A[f"L{_i+1}"] = (BACK_TORSO_PART, _V6A_U_imgL[_i], _V6A_V_imgL[_i])  # 图左 = L
+    LUNG_ADDR_V6A[f"R{_i+1}"] = (BACK_TORSO_PART, _V6A_U_imgR[_i], _V6A_V_imgR[_i])  # 图右 = R
 
 
 def infer_side(part_map):

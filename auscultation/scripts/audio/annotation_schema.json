@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Auscultation lung-audio placement annotation",
+  "description": "一次机械臂落点(~10s后背肺音)的标注。质量轨喂 Q 模型, 内容轨喂诊断模型, 二者正交。详见 docs/acoustic_annotation_and_training.md。",
+  "type": "object",
+  "required": ["id", "wav", "context", "respiratory", "quality"],
+  "properties": {
+    "id": {"type": "string", "description": "唯一 id(建议 <session>_<point>_<idx>)"},
+    "wav": {"type": "string", "description": "音频相对路径"},
+    "session": {"type": "string"},
+    "t_start_ms": {"type": "integer", "description": "在 session 时间轴的起点(与 RGB-D/力对齐)"},
+
+    "context": {
+      "type": "object",
+      "description": "机械臂本体上下文(与音频时间戳对齐, 用来条件化 Q + 区分 absent 成因)",
+      "required": ["task", "point"],
+      "properties": {
+        "task": {"const": "lung"},
+        "point": {"type": "string", "enum": ["R1","L1","R2","L2","R3","L3","R4","L4","R5","L5"]},
+        "force_target_n": {"type": "number"},
+        "force_measured_n": {"type": "number"},
+        "on_lung_point": {"type": "boolean", "description": "感知判断当时是否确在该肺点"},
+        "hall_disp_available": {"type": "boolean", "description": "是否有 Hall 位移呼吸相位信号"}
+      }
+    },
+
+    "respiratory": {
+      "type": "object",
+      "description": "呼吸结构(原子单元)。周期边界优先用 Hall 位移信号自动给, 标注者校。",
+      "required": ["clean_cycles", "air_entry"],
+      "properties": {
+        "clean_cycles": {"type": "integer", "minimum": 0, "description": "可用的干净呼吸周期数(含吸+呼)"},
+        "air_entry": {"type": "string", "enum": ["present", "weak", "absent"], "description": "听不听得到气流"},
+        "cycle_boundaries_s": {
+          "type": "array",
+          "description": "每个周期 [吸气起, 呼气末] 秒",
+          "items": {"type": "array", "items": {"type": "number"}, "minItems": 2, "maxItems": 2}
+        }
+      }
+    },
+
+    "quality": {
+      "type": "object",
+      "description": "★Q 模型的训练目标。和病理无关——只看清不清楚、能不能诊断。",
+      "required": ["overall", "usable_for_diagnosis"],
+      "properties": {
+        "overall": {"type": "integer", "enum": [0, 1, 2, 3],
+          "description": "0 不可用 / 1 勉强 / 2 好 / 3 优"},
+        "usable_for_diagnosis": {"type": "boolean", "description": "够不够诊断级(医生口径)"},
+        "failure_reasons": {
+          "type": "array",
+          "description": "为什么差(多选)→ 直接映射机械臂动作",
+          "items": {"type": "string", "enum": [
+            "motion_artifact", "ambient_noise", "poor_contact", "clipping",
+            "heart_dominant", "dropout", "other"]}
+        }
+      }
+    },
+
+    "content": {
+      "type": "object",
+      "description": "(可选)诊断轨——单独, 不进 Q。逐呼吸周期病理。",
+      "properties": {
+        "per_cycle": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["start_s", "end_s", "type"],
+            "properties": {
+              "start_s": {"type": "number"}, "end_s": {"type": "number"},
+              "type": {"type": "string", "enum": [
+                "normal", "crackle_fine", "crackle_coarse", "wheeze",
+                "rhonchi", "stridor", "absent"]}
+            }
+          }
+        }
+      }
+    },
+
+    "prelabel": {
+      "type": "object",
+      "description": "自动预填(scripts/audio/prelabel.py 用 Q_proxy 生成)。标注者据此确认/纠正, 不从零标。",
+      "properties": {
+        "q_proxy": {"type": "number"},
+        "subscores": {"type": "object"},
+        "suggested_overall": {"type": "integer"},
+        "suggested_failure_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+
+    "annotator": {"type": "string"},
+    "annotated_at": {"type": "string", "description": "ISO8601"},
+    "notes": {"type": "string"}
+  }
+}

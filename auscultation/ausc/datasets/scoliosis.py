@@ -43,6 +43,20 @@ def _cam_from(focal, W, H):
     return {"K": K, "R": np.eye(3, dtype=np.float32), "T": np.zeros(3, np.float32)}
 
 
+def _require_refit_schema(name, lab):
+    required = {"verts_cam", "verts2d", "wh", "focal"}
+    missing = sorted(required - set(lab))
+    if missing:
+        raise ValueError(
+            f"scoliosis labels for {name} are missing {missing}. "
+            "Dense IUV generation requires the YOLO/HMR2 refit labels "
+            "from scripts/gpu/refit_scoliosis.py, i.e. scol_refit.pkl "
+            "with verts_cam, verts2d, wh, and focal. The older "
+            "labels_hmr2.pkl only has 2D points and is not enough for "
+            "this generator."
+        )
+
+
 def generate(labels_pkl, img_root, smpl_model, uv, out, n_aug=12,
              target=(384, 384), seed=0):
     """86 张裸背 → 每张 1 规范 + n_aug 随机组合增强(后背 8 点 + 稠密 IUV)。"""
@@ -53,6 +67,7 @@ def generate(labels_pkl, img_root, smpl_model, uv, out, n_aug=12,
     miss = 0
     with ManifestWriter(out) as mw:
         for name, lab in labels.items():
+            _require_refit_schema(name, lab)
             path = _find_image(img_root, name)
             bgr = cv2.imread(path) if path else None
             if bgr is None:

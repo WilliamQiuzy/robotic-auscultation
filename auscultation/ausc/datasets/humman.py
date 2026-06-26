@@ -79,8 +79,13 @@ def _base_sample(model, faces, uvmap, ausc, params, fr, cam, region):
             "_extra": {"img_u": img_u, "iuv_u": iuv_u, "juv": juv, "M": M, "bbox": (bx0, by0, bx1, by1)}}
 
 
-def _pick_views(model, faces, core, params, cams, root, sid):
-    """返回 [(region, cam_key|'iphone', frame, video_path)], 最多前/后各一个。"""
+def _pick_views(model, faces, core, params, cams, root, sid, max_back=3):
+    """返回 [(region, cam_key|'iphone', frame, video_path)].
+
+    正面: iPhone 选最正帧(1个)。
+    背面(多视角): Kinect 所有朝后相机(classify_frame=='back', z>0.6)按朝后程度降序取 top max_back
+    → 正后 + 最多 2 个 ~±36° 斜后机位(10机位环绕, 相邻间隔约36°, 双肺野此角度均清晰可见),
+    给同一受试者多个真实后背视角(增强造不出的真实证据)。被遮挡的斜视图点由 realign 前景QC丢弃。"""
     out = []
     nfp = params["betas"].shape[0]
     # 正面: iPhone 选最正帧
@@ -95,19 +100,20 @@ def _pick_views(model, faces, core, params, cams, root, sid):
         mp4 = glob.glob(os.path.join(root, "iphone_color", sid, "**", "*.mp4"), recursive=True)
         if best[1] >= 0 and best[0] > 0.6 and mp4:
             out.append(("front", "iphone", best[1], mp4[0]))
-    # 背面: Kinect 后向相机选最正
+    # 背面: Kinect 多个朝后相机(top max_back, 多真实视角)
     vids = find_kinect_videos(root, sid)
     if vids:
         f0 = nfp // 2
         v, jj = _posed(model, params, f0)
-        best = (-1.0, None)
+        cands = []
         for ck in vids:
             if ck in cams:
                 lab, z = classify_frame(v, faces, np.asarray(cams[ck]["R"]), core, joints=jj)
-                if lab == "back" and z > best[0]:
-                    best = (z, ck)
-        if best[1]:
-            out.append(("back", best[1], f0, vids[best[1]]))
+                if lab == "back" and z > 0.6:
+                    cands.append((z, ck))
+        cands.sort(reverse=True)
+        for z, ck in cands[:max_back]:
+            out.append(("back", ck, f0, vids[ck]))
     return out
 
 
@@ -133,8 +139,9 @@ def _emit_negative(base, kind, rng):
 
 
 def generate(root, smpl_model, uv, out, limit=None, n_aug=6, neg_ratio=0.25,
-             target=(384, 384), seed=0):
-    """全量(或前 limit 个序列)生成 HuMMan 训练样本。"""
+             target=(384, 384), seed=0, shard=None):
+    """全量(或前 limit 个序列)生成 HuMMan 训练样本。
+    shard=(idx, n): 只处理 seqs[idx::n](并行分片; 各分片写独立 out, 事后合并 manifest+img+iuv)。"""
     import smplx
     model = smplx.SMPL(model_path=smpl_model, gender="neutral", batch_size=1)
     faces = model.faces
@@ -145,6 +152,8 @@ def generate(root, smpl_model, uv, out, limit=None, n_aug=6, neg_ratio=0.25,
     seqs = sorted(glob.glob(os.path.join(root, "smpl_params", "*")))
     if limit:
         seqs = seqs[:limit]
+    if shard is not None:
+        seqs = seqs[shard[0]::shard[1]]
     n_pos = 0
     with ManifestWriter(out) as mw:
         for sq in seqs:
@@ -163,7 +172,7 @@ def generate(root, smpl_model, uv, out, limit=None, n_aug=6, neg_ratio=0.25,
                 base = _base_sample(model, faces, uvmap, ausc, params, fr, cam, region)
                 if base is None:
                     continue
-                sid_id = f"{sid}_{region}_f{fr}"
+                sid_id = f"{sid}_{region}_{cam_key}_f{fr}"
                 mw.add(write_sample(out, sid_id + "_canon", base))           # 规范样本
                 for k in range(n_aug):                                       # 随机组合增强
                     aug = augment_once(base, rng, target=target)
