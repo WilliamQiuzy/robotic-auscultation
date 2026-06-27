@@ -8,6 +8,19 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 from ausc.perception.tracking.replay import make_synthetic_sequence, SyntheticDetector  # noqa: E402
 from ausc.perception.tracking.model_tracker import ModelBasedTracker, ModelConfig  # noqa: E402
+from ausc.perception.tracking.detector import normals_from_depth_m  # noqa: E402
+
+
+def test_normals_from_depth_frontal_plane_faces_camera():
+    """Data-engine geometry primitive: a fronto-parallel plane → normals ≈ (0,0,-1) (toward camera);
+    a plane tilted in +x → normal gains a -x component. (Was untested.)"""
+    D = np.full((64, 64), 1.0, np.float32)              # flat plane at 1 m
+    n = normals_from_depth_m(D)[2:-2, 2:-2]             # interior
+    assert np.allclose(n.mean(0).mean(0), [0, 0, -1], atol=1e-3)
+    xs = np.arange(64)[None, :].astype(np.float32)
+    Dt = (1.0 + 0.002 * xs).repeat(64, 0)              # depth increases with x → surface tilts away
+    nt = normals_from_depth_m(Dt)[2:-2, 2:-2]
+    assert nt[..., 0].mean() > 1e-3 and nt[..., 2].mean() < 0   # normal tips in +x, still camera-facing
 
 
 def _run(noise_px, cfg=None, n=120):
@@ -78,6 +91,86 @@ def test_surface_snap_preserves_accuracy_and_stability():
     assert _depth_jitter(P) * 1000 < 3.0                  # stays stable with the snap path active
     Poff = _run_depth(cfg=ModelConfig(init_frames=8, surface_snap=False), **kw)
     assert _depth_jitter(P) <= _depth_jitter(Poff) + 0.001  # snap never worsens depth stability
+
+
+class _ArmOccluder:
+    """Wraps a detector and DROPS (NaN) chosen points to simulate the robot arm occluding part of
+    the back from the detector. The test toggles ``self.drop`` per frame."""
+
+    def __init__(self, base):
+        self.base = base
+        self.drop = set()
+
+    def set_truth(self, g):
+        self.base.set_truth(g)
+
+    def detect(self, rgb, depth, intr):
+        import dataclasses
+        r = self.base.detect(rgb, depth, intr)
+        if r is None or not self.drop:
+            return r
+        xy = r.xy_det.astype(float).copy()
+        for k in self.drop:
+            xy[k] = np.nan                       # detector cannot see this point (arm in the way)
+        return dataclasses.replace(r, xy_det=xy)
+
+
+def test_clean_run_all_points_measured():
+    frames, intr = make_synthetic_sequence(n_frames=100)
+    det = SyntheticDetector(intr, noise_px=1.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8))
+    outs = []
+    for fr in frames:
+        det.set_truth(fr.gt_pixels)
+        outs.append(tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale))
+    late = [o for o in outs[-30:] if o.initialized]
+    assert late and np.median([o.n_measured for o in late]) >= 9   # ~all observed on clean data
+
+
+def test_arm_occlusion_flags_unmeasured_never_silent():
+    """SAFETY: occluded points must come back measured=False / COASTING (with higher position_std),
+    NEVER silently reported as a confident TRACKING placement — and must recover afterwards."""
+    frames, intr = make_synthetic_sequence(n_frames=120)
+    occ = _ArmOccluder(SyntheticDetector(intr, noise_px=1.0))
+    tr = ModelBasedTracker(occ, intr, ModelConfig(init_frames=8))
+    DROP = {4, 5}                                  # R3, L3 — an arm covering one back level
+    outs = []
+    for i, fr in enumerate(frames):
+        occ.set_truth(fr.gt_pixels)
+        occ.drop = DROP if 50 <= i < 85 else set()
+        outs.append(tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale))
+    # invariant across the whole run: measured <=> TRACKING; unmeasured => COASTING/LOST (never TRACKING)
+    for o in outs:
+        if not o.initialized:
+            continue
+        for p in o.points:
+            assert (p.status == "TRACKING") == p.measured
+            if not p.measured:
+                assert p.status in ("COASTING", "LOST")
+    mid = outs[70]
+    assert mid.initialized
+    for k in DROP:                                 # the occluded points are flagged + still positioned (extrapolated)
+        assert not mid.points[k].measured
+        assert np.isfinite(mid.points[k].xyz_camera).all()
+        assert mid.points[k].position_std > mid.points[(k + 2) % 10].position_std  # coasting std grew
+    assert mid.n_measured <= 8                     # the two occluded points dropped out
+    post = [outs[i] for i in range(105, 119) if outs[i].initialized]
+    assert post and np.median([o.n_measured for o in post]) >= 9   # full recovery, no identity loss
+
+
+def test_extrinsics_produce_world_points():
+    frames, intr = make_synthetic_sequence(n_frames=40)
+    ext = np.eye(4); ext[:3, 3] = [0.1, -0.2, 0.3]      # arbitrary camera→base
+    det = SyntheticDetector(intr, noise_px=1.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8), extrinsics=ext)
+    out = None
+    for fr in frames:
+        det.set_truth(fr.gt_pixels)
+        out = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+    assert out.initialized
+    p = out.points[0]
+    assert p.xyz_world is not None
+    assert np.allclose(p.xyz_world, ext[:3, :3] @ p.xyz_camera + ext[:3, 3])
 
 
 def test_coasts_when_detection_missing():

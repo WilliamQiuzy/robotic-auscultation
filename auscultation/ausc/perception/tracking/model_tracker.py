@@ -48,10 +48,15 @@ class ModelConfig:
     max_resid_m: float = 0.04      # clamp the residual (4 cm)
     huber_m: float = 0.02          # IRLS inlier scale (2 cm) for robust pose fit
     irls_iters: int = 3
-    coast_max: int = 20            # predict-only frames before LOST
+    coast_max: int = 20            # predict-only frames before a point goes LOST
     max_depth_m: float = 3.0
-    # ── depth surface-snap (Step 1: lift z via local back-plane, not single-pixel depth) ──
-    surface_snap: bool = True      # snap each ray onto the local back-surface plane
+    base_std_m: float = 0.003      # position uncertainty of a freshly-measured point [m]
+    coast_growth_m: float = 0.003  # uncertainty added per frame a point is extrapolated (not measured)
+    inlier_huber_mult: float = 1.5 # a fit point is "measured" if its residual < inlier_huber_mult·huber_m
+    # ── depth surface-snap (lift z via local back-plane, not single-pixel depth) ──
+    # Default OFF: on real clips it only improves depth noise 0.3→0.2 mm but adds a per-frame
+    # pointcloud+KD-tree build (~costly at 1080p). Enable for offline/quality runs.
+    surface_snap: bool = False     # snap each ray onto the local back-surface plane
     icp_stride: int = 2            # depth downsample for the body cloud / KD-tree
     body_band_m: float = 0.25      # depth band around the patient for cloud masking
     snap_radius_m: float = 0.03    # neighbourhood radius for the local-plane fit
@@ -64,6 +69,10 @@ class MTPoint:
     xyz_camera: np.ndarray
     pixel: np.ndarray
     status: str
+    measured: bool = False              # was this point actually OBSERVED this frame (detector inlier),
+    #                                    not silently extrapolated from the rest of the constellation?
+    position_std: float = 0.0           # position uncertainty [m] (grows while extrapolated/coasting)
+    xyz_world: Optional[np.ndarray] = None  # camera→base extrinsics applied (None if no extrinsics)
 
 
 @dataclass
@@ -74,6 +83,7 @@ class MTOutput:
     pose_fit_mm: float = 0.0
     n_tracking: int = 0
     n_snapped: int = 0             # of 10 points: how many got a surface-plane snap this frame
+    n_measured: int = 0           # of 10 points: how many were actually observed (not extrapolated)
 
 
 def _umeyama(src: np.ndarray, dst: np.ndarray, w: np.ndarray):
@@ -98,16 +108,19 @@ def _umeyama(src: np.ndarray, dst: np.ndarray, w: np.ndarray):
 class ModelBasedTracker:
     """Drop-in tracker with the same ``process(rgb, depth, t, depth_scale)`` contract."""
 
-    def __init__(self, detector, intrinsics: Intrinsics, config: Optional[ModelConfig] = None):
+    def __init__(self, detector, intrinsics: Intrinsics, config: Optional[ModelConfig] = None,
+                 extrinsics: Optional[np.ndarray] = None):
         self.detector = detector
         self.intr = intrinsics
         self.cfg = config or ModelConfig()
+        self.extrinsics = extrinsics                        # 4x4 camera→base (robot frame), optional
         self.canonical: Optional[np.ndarray] = None        # (10,3) body-frame template
         self.residual = np.zeros((len(LUNG_ORDER), 3))      # (10,3) body-frame slow deformation
         self.R = np.eye(3); self.s = 1.0; self.t = np.zeros(3)
         self._have_pose = False
         self._init_obs: List[np.ndarray] = []
         self._misses = 0
+        self._miss_pp = np.zeros(len(LUNG_ORDER), dtype=int)  # per-point frames-since-measured
         self._initialized = False
         self._cur_pts = None                                # body-band cloud (for surface-snap)
         self._cur_tree = None
@@ -209,8 +222,13 @@ class ModelBasedTracker:
             R, s, t = _umeyama(src, dst, w)
             r = np.linalg.norm(dst - (s * (R @ src.T).T + t), axis=1)
             w = 1.0 / np.maximum(r / self.cfg.huber_m, 1.0)     # Huber-ish
-        fit = float(np.median(np.linalg.norm(dst - (s * (R @ src.T).T + t), axis=1)))
-        return R, s, t, m, fit
+        resid = np.linalg.norm(dst - (s * (R @ src.T).T + t), axis=1)
+        fit = float(np.median(resid))
+        # a point is MEASURED iff it had a valid observation AND is a fit inlier (not an outlier
+        # the IRLS down-weighted). Points outside `m` were never observed → extrapolated → not measured.
+        measured = np.zeros(len(LUNG_ORDER), dtype=bool)
+        measured[np.flatnonzero(m)] = resid < self.cfg.inlier_huber_mult * self.cfg.huber_m
+        return R, s, t, measured, fit
 
     def _smooth_pose(self, R, s, t):
         a = self.cfg.pose_ema
@@ -252,31 +270,44 @@ class ModelBasedTracker:
         fitres = self._fit_pose(obs) if obs is not None else None
         if fitres is None:
             self._misses += 1
-            status = STATUS_COASTING if self._misses <= self.cfg.coast_max else STATUS_LOST
-            return self._emit(t, status=status)              # hold last smoothed pose
+            self._miss_pp += 1                               # no detection → every point extrapolated
+            return self._emit(t, fit_mm=0.0)                 # hold last smoothed pose, per-point status
         self._misses = 0
-        R, s, tt, mask, fit = fitres
+        R, s, tt, measured, fit = fitres
+        self._miss_pp = np.where(measured, 0, self._miss_pp + 1)
         self._smooth_pose(R, s, tt)
-        # slow per-point residual in body frame (absorbs non-rigid deformation, clamped)
-        pred_cam = self._pose_apply(self.canonical)
+        # slow per-point residual in body frame (absorbs non-rigid deformation, clamped). Only update
+        # from MEASURED points — never let an extrapolated point feed its own (circular) residual.
         resid_obs_body = self._pose_inv(obs) - self.canonical
-        ok = np.isfinite(resid_obs_body).all(1)
-        self.residual[ok] = (1 - self.cfg.resid_ema) * self.residual[ok] + self.cfg.resid_ema * resid_obs_body[ok]
+        upd = measured & np.isfinite(resid_obs_body).all(1)
+        self.residual[upd] = (1 - self.cfg.resid_ema) * self.residual[upd] + self.cfg.resid_ema * resid_obs_body[upd]
         n = np.linalg.norm(self.residual, axis=1, keepdims=True)
         self.residual = np.where(n > self.cfg.max_resid_m, self.residual / np.maximum(n, 1e-9) * self.cfg.max_resid_m, self.residual)
-        return self._emit(t, status=STATUS_TRACKING, fit_mm=fit * 1000.0)
+        return self._emit(t, fit_mm=fit * 1000.0)
 
-    def _emit(self, t, status: str = STATUS_INIT, fit_mm: float = 0.0, init_only: bool = False) -> MTOutput:
+    def _emit(self, t, fit_mm: float = 0.0, init_only: bool = False) -> MTOutput:
         if not self._initialized:
             pts = [MTPoint(nm, np.full(3, np.nan), np.full(2, np.nan), STATUS_INIT) for nm in LUNG_ORDER]
             return MTOutput(t, False, pts)
         cam = self._pose_apply(self.canonical + self.residual)
         pts = []
-        ntr = 0
+        ntr = nmeas = 0
         for k, nm in enumerate(LUNG_ORDER):
             c = cam[k]
             pix = self.intr.project(c[None])[0] if c[2] > 1e-3 else np.full(2, np.nan)
-            st = status if status != STATUS_INIT else STATUS_TRACKING
-            ntr += int(st == STATUS_TRACKING)
-            pts.append(MTPoint(nm, c, pix, st))
-        return MTOutput(t, True, pts, pose_fit_mm=fit_mm, n_tracking=ntr, n_snapped=self._n_snapped)
+            miss = int(self._miss_pp[k])
+            measured = miss == 0                                  # observed this very frame
+            if measured:
+                st = STATUS_TRACKING
+            elif miss <= self.cfg.coast_max:
+                st = STATUS_COASTING                             # extrapolated from the constellation
+            else:
+                st = STATUS_LOST                                 # too long unobserved → don't trust
+            std = self.cfg.base_std_m + miss * self.cfg.coast_growth_m
+            world = None
+            if self.extrinsics is not None and np.isfinite(c).all():
+                world = (self.extrinsics[:3, :3] @ c + self.extrinsics[:3, 3])
+            ntr += int(st == STATUS_TRACKING); nmeas += int(measured)
+            pts.append(MTPoint(nm, c, pix, st, measured=measured, position_std=std, xyz_world=world))
+        return MTOutput(t, True, pts, pose_fit_mm=fit_mm, n_tracking=ntr,
+                        n_snapped=self._n_snapped, n_measured=nmeas)

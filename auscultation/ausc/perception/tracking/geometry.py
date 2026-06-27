@@ -110,6 +110,8 @@ def sample_depth_m(depth: np.ndarray, uv: np.ndarray, depth_scale: float,
     uv = np.atleast_2d(np.asarray(uv))
     out = np.full(len(uv), np.nan, dtype=np.float64)
     for i, (u, v) in enumerate(uv):
+        if not (np.isfinite(u) and np.isfinite(v)):     # occluded / dropped pixel → leave NaN
+            continue
         ui, vi = int(round(u)), int(round(v))
         if not (0 <= ui < W and 0 <= vi < H):
             continue

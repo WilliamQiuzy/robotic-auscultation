@@ -1,87 +1,91 @@
-# `ausc.perception.tracking` — streaming auscultation-point tracker
+# `ausc.perception.tracking` — streaming auscultation-point 3D tracker
 
-Turns the **single-frame** perception model (RGB → 10 posterior-lung auscultation points) into a
-**continuous, long-duration (≤10 min) 3D tracker** that keeps each point locked to the same
-anatomy while the **patient and the camera move**. Accuracy first; real-time.
+Turns single-frame perception (RGB-D back → 10 posterior-lung auscultation points) into a
+**continuous, long-duration 3D tracker** that keeps each point locked to the same anatomy while the
+patient breathes/shifts and the camera moves — so a robot arm can place a stethoscope and a doctor
+teleoperates from a stable target.
 
-Full design + prior-art survey: [`docs/perception_streaming_tracker.md`](../../../docs/perception_streaming_tracker.md).
+Design + results: [`docs/perception_redesign.md`](../../../docs/perception_redesign.md) (esp. §9).
 
-## Why
-A 10-minute auscultation means the patient breathes / shifts and the camera vibrates. Re-running
-the detector per frame and back-projecting gives a jittery, identity-less point stream. This
-package fuses evidence over time into a **stable, drift-free, anatomically anchored** 3D estimate.
+## Production line (recommended)
+**`NormalsDetector` → `ModelBasedTracker`.**
 
-## How (Approach B — hybrid canonical tracker)
-Each auscultation point is fixed once in a **canonical patient frame** (anchored to anatomy). Per
-frame we estimate the rigid `T_cam←canon` and fuse four independent channels into a per-point EKF:
+- **`NormalsDetector`** (`detector.py`): the detector reads the **depth-derived surface-normal map**
+  (DINOv2 ViT-B + LoRA + 10-landmark head), so garment colour/texture is *absent from the input* —
+  garment-invariant by construction. Weights: `perc_lmh_v7_adapt` (synthetic HuMMan + 16 real frames).
+  Measured: held-out real PCK@5 = 98%; on an unseen garment the 3D widths match clinical labels
+  within ~1 cm (zero labels on that garment).
+- **`ModelBasedTracker`** (`model_tracker.py`): the 10 points are ONE near-rigid anatomical
+  constellation, not 10 independent detections. Each frame it fits a **single similarity pose**
+  (rotation + scale + translation) to all 10 detector points via weighted Umeyama + **IRLS** outlier
+  rejection, temporally low-passes the pose, and outputs `canonical_template ∘ pose + small
+  regularized residual`. The 10-noisy-obs → 7-DOF collapse + temporal filter cut per-frame lateral
+  jitter **2.8 → 1.0 mm** at only ~33 ms lag; 100% tracking on the real clip.
+  - **Per-point safety (critical for a robot):** every `MTPoint` carries `measured` (was it actually
+    observed this frame vs silently extrapolated from the rest of the constellation) and
+    `position_std` (grows while a point coasts). When the arm occludes part of the back, the hidden
+    points come back `measured=False` / `COASTING` with inflated `position_std` — **never** a
+    confident `TRACKING`. The consumer must refuse/defer placement on any non-`measured` point.
 
-| Ch | Source | Role |
-|----|--------|------|
-| **D** detector | `perc_lmh_v4` 2D pts → depth → 3D (throttled ~2 Hz) | drift-free re-grounding |
-| **F** flow | LK optical flow 2D → depth → 3D (per frame) | smooth, high-rate |
-| **G** geometry | **RGB-D feature odometry** + point-to-plane ICP → `T_cam←canon` (per frame) | camera/patient motion + tangential lock |
-| **S** semantic | IUV `(part,U,V)` address → 3D (with detect) | pose-invariant anchor |
+The original **`StreamingAuscultationTracker`** (`tracker.py`: canonical frame + 4-channel EKF —
+detector / LK-flow / point-to-plane-ICP+RGBD-odometry / IUV-semantic) remains for reference and for
+the IUV pose-invariant anchor channel. It was built when the RGB detector was the least-reliable
+component (track-primary policy); with the strong garment-invariant `NormalsDetector` the
+`ModelBasedTracker`'s detector-primary design is preferred.
 
-**Aligned RGB-D specifics** (Orbbec, per-pixel registered): every landmark/feature pixel has an
-*exact* 3D point, so (1) ego-motion uses **RGB-D feature odometry** (`ransac_rigid` on tracked
-skin features) to pin the tangential DOFs a smooth back hides from ICP; (2) the bed/background is
-removed by a depth body-mask; (3) EKF noise is scaled by axial depth noise (~z²); (4) the back's
-mean depth yields a **respiratory signal**; (5) detections must pass a depth surface-consistency
-gate to anchor. See design doc §7b.
-
-EKF lives in the canonical frame; output camera points = `T_cam←canon · ekf.position` then
-**snapped to the live surface** for the current breathing phase. Mahalanobis gating rejects bad
-detections / ICP steps. Memory is constant (voxel-capped surfels + one-frame LK state).
+## Depth handling (measured, not assumed)
+True high-frequency depth NOISE is **sub-mm** (detector 0.7 mm, model 0.2–0.3 mm) — an early "16 mm
+depth jitter" was a *measurement artifact* (a frame-to-frame metric that hadn't removed real body
+rotation). Consequently **`surface_snap` (ray ∩ local back-plane) is OFF by default**: it only
+improves depth 0.3→0.2 mm but triples per-frame cost (52 ms → 152 ms at 1080p). Enable it for
+offline/quality runs via `ModelConfig(surface_snap=True)`.
 
 ## Usage
 ```python
 from ausc.perception.tracking import (
-    StreamingAuscultationTracker, TrackerConfig, DenseIUVDetector,
+    NormalsDetector, ModelBasedTracker, ModelConfig,
     orbbec_intrinsics, default_intrinsics,
 )
 from ausc.perception.camera_stream import CameraStream
 
-detector = DenseIUVDetector("outputs/perc_lmh_v4/best.pt")   # production weights
+detector = NormalsDetector("outputs/perc_lmh_v7_adapt/best.pt")
 with CameraStream(backend="orbbec") as cam:
-    intr = orbbec_intrinsics(cam._pipe) or default_intrinsics(1280, 720)
-    tracker = StreamingAuscultationTracker(detector, intr, TrackerConfig())
+    intr = orbbec_intrinsics(cam._pipe) or default_intrinsics(1920, 1080)
+    tracker = ModelBasedTracker(detector, intr, ModelConfig(), extrinsics=T_cam_base)
     while True:
         f = cam.latest_frame()
         if f.status != "OK":
             continue
         out = tracker.process(f.frame, f.depth, t=f.t, depth_scale=f.depth_scale)
-        for p in out.points:        # 10 TrackedPoint: name, xyz_camera, pixel, status, conf
-            ...                     # feed xyz_camera (+world via extrinsics) to the arm controller
+        for p in out.points:                      # 10 MTPoint
+            if p.measured and p.position_std < 0.01:   # gate: only act on observed, low-uncertainty pts
+                send_to_arm(p.xyz_world)               # world frame requires extrinsics
 ```
 
 ## Files
 | File | Role |
 |------|------|
-| `geometry.py` | intrinsics, crop-affine (518↔full), unproject/project, normals, Kabsch, point-to-plane ICP |
+| `detector.py` | `NormalsDetector` (geometry/normals input) + `DenseIUVDetector` (RGB) + `iuv_locate` |
+| `model_tracker.py` | **`ModelBasedTracker`** — shared-pose constellation fit + per-point `measured`/`position_std` |
+| `tracker.py` | `StreamingAuscultationTracker` — 4-channel EKF (reference / IUV channel) |
+| `geometry.py` | intrinsics, invertible `back_square_crop`, unproject/project, normals, Kabsch, ICP, `_snap_rays` |
+| `canonical.py` | EKF-line canonical model: pose estimation, bounded surfels, breathing snap |
 | `ekf.py` | per-point constant-velocity EKF + Mahalanobis gating |
-| `detector.py` | `DenseIUVDetector` (wraps `perc_lmh_v4`) + `iuv_locate` (semantic anchor) |
-| `flow.py` | `LKFlow` short-term tracker (+ CoTracker3 upgrade hook) |
-| `rgbd_odometry.py` | `FeatureField` — RGB-D 3D-3D feature odometry (tangential lock) |
-| `canonical.py` | canonical model: `T_cam←canon` estimation, bounded surfel memory, breathing snap |
-| `tracker.py` | `StreamingAuscultationTracker` orchestrator + output dataclasses |
+| `flow.py` / `rgbd_odometry.py` | LK flow / RGB-D feature odometry (EKF line) |
 | `intrinsics.py` | Orbbec intrinsics / JSON IO / FOV approximation |
-| `replay.py` | synthetic-scene + recorded-`Session` harness (`python -m ...replay --synthetic`) |
-| `tests/test_tracking.py` | geometry / ICP / EKF / IUV / e2e-synthetic / memory / identity |
+| `replay.py` | synthetic-scene + recorded-`Session` harness (incl. `occlude=` for arm-occlusion tests) |
+| `tests/` | `test_tracking.py` (EKF line) + `test_model_tracker.py` (production line incl. occlusion safety) |
 
-## Validation (synthetic GT; sensors not yet on the box)
-`pytest ausc/perception/tracking/tests` — **16/16 pass** (geometry / ICP / EKF / IUV / RGB-D
-odometry / body-mask / axial-noise / respiratory / surface-gate / e2e / memory / identity).
-Synthetic sim with a background wall (camera motion + 6 mm breathing + 2 mm depth noise,
-detector throttled to 2 Hz):
+Reproducible training/data-engine/eval pipeline: [`scripts/perception/`](../../../scripts/perception/).
 
-- **median 1.3–1.6 mm**, p90 ≤ 2.8 mm — under the 2.5–4.5 mm robotic-ultrasound clinical bar.
-- **99 %** of point-frames in `TRACKING`; no identity swaps; memory bounded over long runs.
-- core ~31 ms/frame (~32 Hz) on a laptop CPU; the DINOv2 detector is the throttled cost.
-- torch detector seam smoke-tested on the RTX 5090 (loads production-format ckpt; confidence
-  gate refuses to anchor on a bad detection).
-- VO ablation: parity with ICP-only on the (easy) curved/flow-alive scene; worst-case edge on
-  flat+occluded. Consumers must gate on `status`/`confidence` — occluded points drop to
-  `COASTING`/`LOST` rather than reporting a confident wrong 3D point.
+## Validation
+`pytest ausc/perception/tracking/tests` — **25/25 pass** (geometry / ICP / EKF / IUV / RGB-D
+odometry / e2e-synthetic / memory / identity; plus model-tracker GT-accuracy, smoothness,
+surface-snap regression, **arm-occlusion safety**, extrinsics/world-frame, coasting).
 
-**Remaining for live use:** plug the Orbbec into the box → real `orbbec_intrinsics` + RGBD →
-calibrate camera↔arm extrinsics → tune `TrackerConfig` thresholds on real depth noise.
+Measured on real Orbbec clips: lateral jitter 1.0 mm @ ~33 ms lag, sub-mm depth noise, 100%
+tracking, ~19 Hz/frame at 1080p (`surface_snap=False`). Synthetic GT (EKF line): median 1.3 mm.
+
+**Remaining for live robot use (needs hardware/data):** camera↔arm **hand-eye calibration**
+(`solvePnP`/ArUco → `extrinsics`); multi-subject/garment benchmark with CIs; palpation validation of
+the `LUNG_ADDR_V6A` anatomical addresses. See `docs/perception_redesign.md` §9 roadmap.
