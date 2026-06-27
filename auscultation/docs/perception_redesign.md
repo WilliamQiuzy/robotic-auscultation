@@ -174,6 +174,18 @@ Frozen **clothed-Orbbec benchmark, ≥20–30 subjects**, subject-disjoint, orig
 
 ---
 
+## 6b. Progress log (executed)
+
+| Date | Step | Result |
+|---|---|---|
+| 2026-06-26 | **Phase 0** `back_square_crop` (depth-centered, pad-not-clamp, invertible) | Proven on real Orbbec: whole back in crop, 10/10 points → full-frame px + 3D. Concerns #1 (crop) + #2 (projection) resolved. Committed. |
+| 2026-06-26 | **Phase 0b** wired crop into live detector+tracker (`detect(rgb,depth,intr)`) | Tracker re-runs on Orbbec at depth-centered crop; 7–10/10 TRACKING. Committed/pushed. |
+| 2026-06-26 | **Phase 1 data check** | Prebuilt HuMMan has only **91 back** samples, SMPL-derived (uncertain) + off-domain → insufficient alone. Pivot to real Orbbec labels. |
+| 2026-06-26 | **Phase 2 labeling** | New 20s Orbbec clip with corrected framing (whole back + R5/L5 margin); **22 frames** anchor-labeled on the full native frame (anchor tool → 5×2 grid → drag). |
+| 2026-06-26 | **Phase 2a clothed fine-tune** (v4→v5): `back_square_crop` canvases + affine/flip/color/**graphic-overlay** aug + bare gold mix; head + LoRA, 60 ep | **Held-out clothed PCK@5 32%→98%, PCK@10 57%→100%, median 45→8 px.** Detection (concerns #3/#4) fixed **for this domain**. |
+
+**Honest caveat:** the held-out set is from the *same* 20s clip (one subject, one shirt, one lighting). v5 proves the **fine-tune pipeline works and this domain is solved**; it does **not** yet prove generalization to new people/garments. Next: collect + anchor-label more subjects/garments (Phase 2b) → re-fine-tune → subject-disjoint clothed benchmark.
+
 ## 7. Key File References
 
 | File | Role |
