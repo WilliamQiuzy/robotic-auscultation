@@ -83,6 +83,8 @@ class TrackerConfig:
     depth_aware_var: bool = True       # scale EKF measurement noise by axial depth noise
     resp_ema: float = 0.02             # EMA rate for the respiratory baseline (slow)
     surface_gate_mm: float = 40.0      # max plane-residual at init (a back is gently curved)
+    surface_snap_meas: bool = True     # snap detector/flow rays onto the local back surface
+    snap_radius_m: float = 0.03        # neighbourhood radius for the local-plane fit [m]
     # ── track-primary policy ──────────────────────────────────────────────────
     # The detector (perc_lmh_v4) is the *least* reliable component, so we lean on the
     # training-free geometric/photometric tracking and use the detector only defensively:
@@ -135,6 +137,8 @@ class StreamingAuscultationTracker:
         self._resp_off = 0.0
         self._init_count = 0                                   # confirmed-init streak
         self._init_prev3d: Optional[np.ndarray] = None
+        self._cur_pts: Optional[np.ndarray] = None             # latest body-band cloud (for snap)
+        self._cur_tree = None
 
     # -- helpers ----------------------------------------------------------
     def _set_depth_scale(self, depth_scale: Optional[float]) -> None:
@@ -176,6 +180,7 @@ class StreamingAuscultationTracker:
             return self._emit(t, detector_ran=False, fit=0.0, rmse=float("inf"))
 
         cur_pts, cur_nrm, cur_tree = self._build_cloud(depth)
+        self._cur_pts, self._cur_tree = cur_pts, cur_tree     # expose for ray surface-snap
 
         # run the (heavy, less-reliable) detector sparingly — track-primary policy:
         # every frame only until the anchor is confirmed; then only on loss or a slow audit.
@@ -266,10 +271,45 @@ class StreamingAuscultationTracker:
         return self._emit(t, detector_ran=det is not None, fit=pose.fitness, rmse=pose.rmse,
                           cur_pts=cur_pts, cur_nrm=cur_nrm, cur_tree=cur_tree)
 
+    def _snap_rays(self, uv: np.ndarray, depth: np.ndarray) -> np.ndarray:
+        """Lift pixels to 3D by intersecting each camera ray with the LOCAL back-surface plane,
+        not by reading the single-pixel depth. Robust to holes/edges and removes the along-ray
+        depth error that silently corrupts the EKF's lateral (x,y) estimate. Seeds the plane
+        neighbourhood from the per-pixel depth, falling back to the current EKF prediction so a
+        hole / off-back pixel still snaps to where the point is tracked on the back."""
+        naive = self._unproject_pixels(uv, depth)
+        if not self.cfg.surface_snap_meas or self._cur_tree is None or self._cur_pts is None:
+            return naive
+        out = naive.copy()
+        rays = self.intr.unproject(uv, np.ones(len(uv)))      # ray dirs (z=1)
+        for i in range(len(uv)):
+            seed = naive[i]
+            if not np.isfinite(seed).all():                   # hole → seed from the track
+                ek = self.ekfs[i]
+                if ek is not None and self.canonical.initialized:
+                    seed = transform_points(self._T, ek.position[None])[0]
+            if not np.isfinite(seed).all():
+                continue
+            idx = self._cur_tree.query_ball_point(seed, r=self.cfg.snap_radius_m)
+            if len(idx) < 8:
+                dd, ii = self._cur_tree.query(seed, k=16)
+                idx = np.atleast_1d(ii)[np.atleast_1d(dd) < 2 * self.cfg.snap_radius_m]
+            if len(idx) < 6:
+                continue
+            nbr = self._cur_pts[idx]; c = nbr.mean(0)
+            _, _, vt = np.linalg.svd(nbr - c)
+            n = vt[2]; ray = rays[i]; den = float(ray @ n)
+            if abs(den) < 1e-6:
+                continue
+            s = float((c @ n) / den)
+            if 0.1 < s < self.cfg.max_depth_m:
+                out[i] = ray * s
+        return out
+
     # -- detection → 3D ---------------------------------------------------
     def _detection_3d(self, det, depth) -> Tuple[np.ndarray, np.ndarray]:
         full = det.crop.det_to_full(det.xy_det)
-        det3d = self._unproject_pixels(full, depth)
+        det3d = self._snap_rays(full, depth)
         iuv3d = np.full((len(LUNG_ORDER), 3), np.nan)
         addrs = self._resolve_addrs()
         if det.part is not None and det.uv is not None and addrs is not None:

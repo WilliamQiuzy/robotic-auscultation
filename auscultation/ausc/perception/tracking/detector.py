@@ -145,3 +145,68 @@ class DenseIUVDetector:
         conf = self._flip_conf(im, xy) if self.compute_confidence else 0.8
         return DetectorResult(xy_det=xy[:len(LUNG_ORDER)], crop=crop, confidence=conf,
                               part=part, uv=uv, order=tuple(LUNG_ORDER))
+
+
+# K of the synthetic normal-map training (518² crop, f=560) — the geometry detector must build
+# its input normals with THIS K, not the camera's, to match how the model was trained.
+_NORM_K = (560.0, 560.0, 259.0, 259.0)
+
+
+def normals_from_depth_m(depth_m: np.ndarray, fx: float = 560.0, fy: float = 560.0,
+                         cx: float = 259.0, cy: float = 259.0) -> np.ndarray:
+    """Per-pixel unit surface normals (camera-facing) from a metric depth map, via neighbour
+    cross-products. Output channels are nx,ny,nz; holes (depth==0) → 0."""
+    h, w = depth_m.shape
+    ys, xs = np.mgrid[0:h, 0:w]
+    z = depth_m
+    x = (xs - cx) * z / fx
+    y = (ys - cy) * z / fy
+    P = np.dstack([x, y, z])
+    n = np.zeros_like(P)
+    dx = P[1:-1, 2:] - P[1:-1, :-2]
+    dy = P[2:, 1:-1] - P[:-2, 1:-1]
+    cr = np.cross(dx, dy)
+    cr /= np.clip(np.linalg.norm(cr, axis=-1, keepdims=True), 1e-9, None)
+    cr[cr[..., 2] > 0] *= -1
+    n[1:-1, 1:-1] = cr
+    n[depth_m == 0] = 0
+    return n
+
+
+class NormalsDetector(DenseIUVDetector):
+    """Geometry detector backed by ``perc_lmh_v7_adapt`` (surface-NORMAL input, garment-invariant).
+
+    Input is the depth-derived normal map (garment colour/texture is absent by construction), so it
+    drops the IUV/semantic channel (``part=uv=None``); the tracker then runs on D+F+G. Same DINOv2+
+    LoRA architecture as the RGB detector, so model loading is inherited unchanged.
+    """
+
+    def _normal_image(self, rgb_full: np.ndarray, depth, intr):
+        import cv2
+        from .geometry import back_square_crop, _pad_extract
+        _, crop = back_square_crop(rgb_full, depth, intr)
+        dc = cv2.resize(_pad_extract(depth, crop.x0, crop.y0, crop.side), (self.res, self.res),
+                        interpolation=cv2.INTER_NEAREST).astype(np.float32) / 1000.0
+        nrm = np.clip(normals_from_depth_m(dc, *_NORM_K) * 127 + 127, 0, 255).astype(np.uint8)
+        return nrm, crop
+
+    def _flip_conf(self, im: np.ndarray, xy0: np.ndarray) -> float:
+        flip = im[:, ::-1, :].copy()
+        flip[..., 0] = 254 - flip[..., 0]                 # mirror nx with the x-flip
+        xyf, _, _ = self._points_from_im(flip)
+        xyf = self._structure(xyf)
+        swap = {LUNG_INDEX[nm]: LUNG_INDEX[("L" + nm[1:] if nm[0] == "R" else "R" + nm[1:])]
+                for nm in LUNG_ORDER}
+        d = [np.hypot(xy0[k, 0] - (self.res - 1 - xyf[swap[k], 0]), xy0[k, 1] - xyf[swap[k], 1])
+             for k in range(len(LUNG_ORDER))]
+        return float(np.clip(1.0 - float(np.mean(d)) / self.res * 100.0 / self.review_scale, 0.02, 1.0))
+
+    def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
+        if rgb_full is None or depth is None or intr is None:
+            return None
+        nrm, crop = self._normal_image(rgb_full, depth, intr)
+        xy, _, _ = self._points_from_im(nrm)
+        xy = self._structure(xy)
+        conf = self._flip_conf(nrm, xy) if self.compute_confidence else 0.8
+        return DetectorResult(xy_det=xy[:len(LUNG_ORDER)], crop=crop, confidence=conf,
+                              part=None, uv=None, order=tuple(LUNG_ORDER))

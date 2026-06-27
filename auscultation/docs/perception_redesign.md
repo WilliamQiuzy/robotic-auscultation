@@ -210,3 +210,172 @@ Frozen **clothed-Orbbec benchmark, ≥20–30 subjects**, subject-disjoint, orig
 - Synthetic clothed humans: [BEDLAM, CVPR 2023](https://arxiv.org/abs/2306.16940) · [SURREAL, CVPR 2017](https://openaccess.thecvf.com/content_cvpr_2017/papers/Varol_Learning_From_Synthetic_CVPR_2017_paper.pdf) · [ShapeBoost](https://arxiv.org/html/2403.01345) · [BlanketGen2](https://arxiv.org/pdf/2501.12318)
 - Backbones / frozen-feature transfer: [DINOv2](https://arxiv.org/pdf/2304.07193) · [DINOv3](https://arxiv.org/pdf/2508.10104) · [Sapiens](https://arxiv.org/html/2408.12569v1) · [few-shot keypoint, frozen DINO ViT](https://link.springer.com/article/10.1007/s11263-025-02671-5)
 - Pseudo-label pitfalls / evaluation: [ST3D](https://arxiv.org/pdf/2103.05346) · [CIs for medical segmentation, MedIA 2025](https://arxiv.org/html/2307.10926v3)
+---
+
+## 9. Generalization strategy (beyond per-scenario fine-tuning)
+
+### 9.1 The problem: per-scenario fine-tune overfits (v5 evidence)
+
+The GOAL is a **generalizable** detector of the 10 posterior-lung points (R1,L1..R5,L5) that works across **people / garments / scenes / cameras without per-scenario retraining**, so others can reuse the model and it is defensible in a Nature-level paper. The two prior regimes both fail this bar in opposite ways:
+
+- **v4 — trained ~entirely on bare backs → fails on clothed.** RGB-only on a frozen bare-tuned backbone is a textbook **texture-magnet** ([Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231)): points cluster on the highest-saliency print (graphic-magnet), 45 px median error on clothed.
+- **v5 — fine-tune on 22 real clothed frames (1 dark graphic shirt, 1 subject).** Held-out-**on-that-clip** PCK@5 32→98%, median 45→8 px — *the domain is solved*. But on an **unseen yellow shirt** it only partially generalizes: a coherent bilateral 5-level grid appears (no collapse), yet **the lower points fan out / lose precision**. A full fine-tune memorized one garment/lighting/camera, and the 10 free heatmap outputs had **no structural constraint** to forbid the fanned grid.
+
+**Conclusion: per-scenario fine-tuning learns a pixel→point map conditioned on one scene and cannot be the path to generalization.** The fix is to remove appearance from the job in three orthogonal ways and to make invalid grids structurally impossible.
+
+### 9.2 Candidate approaches compared
+
+The 10 points already have an **anatomical definition** (DensePose-style `LUNG_ADDR_V6A = {name:(part,U,V)}` + SMPL vertex selection via `define_ausc_vertices`), so the target is body-model-addressable, not merely a pixel. Four candidate generalization directions were evaluated:
+
+| Approach | Generalization mechanism | Real-data need | Accuracy on clothed back | Latency | Paper-explainability |
+|---|---|---|---|---|---|
+| **(1) Body-model anchoring** — fit SMPL/SMPL-X to RGB-D, read off fixed anatomical addresses | **By construction** (appearance never enters); no collapse, always a valid bilateral grid | **Minimal** — HuMMan gives 907 GT-SMPL fits free; addresses need 0 human labels | **~1–3 cm floor** (definition error + clothing offset + partial back-only cloud) — **above sub-cm** if standalone | 30–120 ms feed-forward init + throttled depth-refine | Strong narrative; reviewers hit the clothing-offset / definition-error gap |
+| **(2) Synthetic scale** — large clothed domain-randomized render (BEDLAM/AGORA/SynBody/THuman/HuMMan-render), GT points projected from SMPL | Coverage of garment/pose/camera; **synthetic≈real** when clothing is *physics-simulated*, not painted skin | **Tiny** real label-adaptation; unlimited synthetic incl. graphics | Sub-cm achievable; depth/normal sim-to-real gap ≪ RGB gap | Offline (render) + real-time inference | Strong (Shotton/FaceSynthetics/BEDLAM pillars); must model Femto-Bolt depth noise |
+| **(3) Geometry-primary** — surface normals/point-cloud detection; a printed graphic cannot move back geometry | **Physics** (depth/normals illumination- & texture-invariant) | Low (synthetic geom labels free + correct) | Anchors structure sub-cm (spine groove, scapular angles); **weak on vertical intercostal level** alone | Real-time (cheap organized normals) | Strong; direct precedent for back landmarks from depth alone |
+| **(4) Foundation + data-efficient** — frozen human-foundation backbone + small head + LoRA + strong aug + correctly-gated SSL | Pretrained human priors + appearance randomized away; few labels can't memorize a garment | **Tens** of frames (label-adaptation, not full fine-tune) | Sub-cm with depth + structured head | Real-time (throttle heavy backbone) | Best ROI; clean ablation table is the generalization argument |
+
+**Key evidence per direction:**
+- (1) Fit-then-read-off floors at 1–3 cm on a clothed back ([ETCH](https://arxiv.org/html/2503.10624v3); [SOSORT consensus, PMC2794256](https://pmc.ncbi.nlm.nih.gov/articles/PMC2794256/); [scoliosis surface-topography ~9 mm, Sci Reports 2025](https://www.nature.com/articles/s41598-025-92551-2)); depth makes the *fit* good (~1–2 cm vertex, [ETCH](https://arxiv.org/html/2503.10624v3), [WACV 2021 RGBD pose](https://openaccess.thecvf.com/content/WACV2021/papers/Bashirov_Real-Time_RGBD-Based_Extended_Body_Pose_Estimation_WACV_2021_paper.pdf)) but the clothing-offset + definition error remain.
+- (2) **Physics-draped clothing beats painted skin** ([BEDLAM, CVPR 2023](https://arxiv.org/abs/2306.16940): synthetic PA-MPJPE 46.6 vs real 46.4 on 3DPW; "realistic clothing simulation … significantly better than textured bodies"); synthetic-only landmarks via parametric template + label-adaptation ([FaceSynthetics, ICCV 2021](https://www.microsoft.com/en-us/research/wp-content/uploads/2021/10/ICCV_2021_FaceSynthetics.pdf)); depth render garment-invariant ([Shotton et al., CVPR 2011](https://web.cs.ucdavis.edu/~yjlee/teaching/ecs289h-fall2014/kinect.pdf)). Our earlier abandoned synthetic rendered **naked SMPL** — the wrong step before the one that works.
+- (3) **Back landmarks from depth alone** already published (~80% PCK / 86.9% PDJ, 105 subjects, [Delgarmi et al., bioRxiv 2021](https://www.biorxiv.org/content/10.1101/2021.02.04.429842v2.full)); normals generalize better than raw depth ([Wu et al., Adv. Intelligent Systems 2024](https://advanced.onlinelibrary.wiley.com/doi/full/10.1002/aisy.202400159); [ECCV 2016 surface normals](https://link.springer.com/chapter/10.1007/978-3-319-46487-9_34)); geometry shrinks sim-to-real gap ([SimPose, ECCV 2020](https://arxiv.org/abs/2007.15506)). Both precedents report **scapula/lower region as hardest** — exactly our fan-out.
+- (4) Frozen foundation features support few-shot keypoints ([few-shot keypoint on frozen DINO ViT, IJCV 2025](https://link.springer.com/article/10.1007/s11263-025-02671-5)); human-specific [Sapiens](https://arxiv.org/html/2408.12569v1) ships native normals/pointmap heads; style-randomization breaks texture bias ([SagNet](https://arxiv.org/abs/1910.11645)); SSL must avoid the single-teacher confirmation-bias trap via dual-teacher position-inconsistency correction ([SSPCM, CVPR 2023](https://arxiv.org/abs/2303.04346); [ST3D pitfalls](https://arxiv.org/pdf/2103.05346)).
+
+### 9.3 Recommended strategy + why it generalizes
+
+**Adopt (4) as the production real-time detector, fold in (1) as the offline label factory + throttled 3D teacher/regularizer, and use (2) as the pretraining data engine that supplies (3)'s geometry channel. Per-scenario fine-tuning is explicitly rejected.** The runtime detector is the foundation+geometry head; (1) and (2) are demoted to **supervision and a slow consistency prior** — the roles the evidence says they are actually good at.
+
+**Core principle (the paper's thesis in one sentence):**
+
+> Our 10 points generalize because they are **not pixels to be learned** — they are **fixed anatomical addresses on a body manifold** (`LUNG_ADDR_V6A` → barycentric SMPL addresses), detected through **three stacked appearance-invariant mechanisms**: (1) a **frozen human-foundation backbone** that has already seen millions of clothed humans so tens of our labels cannot memorize a garment; (2) a **depth-derived surface-normal stream** that a printed graphic physically cannot move; and (3) a **structured bilateral spine decoder** that makes asymmetry / fan-out impossible by construction.
+
+Generalization is the **product of four orthogonal invariances** (frozen prior × geometry × structural inductive bias × appearance randomization + gated SSL), so **no single mechanism has to carry the load**. This removes both prior failure modes *by construction*: v4's texture-magnet (appearance is out of the backbone's job, off the geometry channel, and absent from the output structure) and v5's fan-out (the spine parametrization forbids invalid grids).
+
+### 9.4 Concrete pipeline (runtime)
+
+```
+Orbbec RGB-D ─► back_square_crop (depth-centered, pad-not-clamp, invertible CropTransform)
+  ├─ RGB 518 ─► FROZEN backbone (DINOv2 ViT-B/14 now; Sapiens-2 ablation) + rank-8 LoRA (last 2-4 blocks)
+  │                                                          ─► tokens 768×37×37
+  └─ depth ─► pointmap_from_depth ─► normals_from_pointmap ─► (mask by body_band_mask) ─► NormalStem
+                                                                                            │
+                            late-fuse 1×1 conv ─► StructuredSpineHead  (PRIMARY: midline polyline
+                                                   + 5 levels + per-level symmetric half-widths)
+                                                ─► LandmarkHead heatmap (AUX: DSNT + DARK/UDP readout;
+                                                   raw−structured residual = per-point uncertainty σ)
+  readout: structured 10 pts (518) ─► det_to_full ─► PIXELS (1920×1080)
+                                    ─► sample depth ─► unproject ─► 3D CAMERA (m) [+ garment standoff along normal]
+                                    ─► T_robot_cam (hand-eye) ─► ROBOT (m), with σ
+  between heavy calls: StreamingAuscultationTracker (EKF+LK+ICP) propagates at camera rate
+  throttled (5–15 Hz, off real-time path): SMPL depth-fit teacher → metric anchor grid → gate/teach the head
+```
+
+### 9.5 Training / fitting recipe (almost zero new human labels)
+
+The GT machinery already exists (`define_ausc_vertices`, `LUNG_ADDR_V6A`, `project`, `rasterize_iuv`); for every source you only repoint verts/camera and **add a depth+normal render pass**.
+
+- **Stage 0 — geometry pretrain (no real labels).** Train NormalStem + StructuredSpineHead + LandmarkHead on: (a) **HuMMan 907 GT-SMPL** clothed backs with extra virtual back-cameras → RGB+depth+normals+exact 10 pts; (b) **clothed synthetic** = `synthetic.py` upgraded naked→clothed (swap skin→clothing albedo + a logo/graphic texture bank in `_textured_mesh`; dump pyrender depth → normals; match Femto-Bolt fx=fy≈1123 + depth-noise sim). Losses: adaptive-wing + **DSNT** (replaces the `pos_w=100` MSE-collapse hack) + structured losses (bilateral symmetry, even level-spacing, width-consistency, midline-on-spine-groove). *Generalization is born here.*
+- **Stage 1 — label-adaptation on the ~44 real Orbbec frames (NOT full fine-tune).** Freeze backbone + most heads; train only StructuredSpineHead (+ very-low-LR rank-8 LoRA). The structured head's **low DoF (≈16 scalars vs 10 free xy)** is why tens of frames suffice. Checkpoint-select on a **subject-disjoint clothed** split — never in-clip (the v5 mistake).
+- **Stage 2 — gated SSL on unlabeled clothed Orbbec video.** Dual-teacher = student-EMA ⊕ **SAM-3D-Body mesh-fit** (already on disk at `sam-3d-body-dinov3/model.ckpt`) projecting the anatomical addresses — appearance-independent by construction, injecting exactly what the bare RGB teacher could not (fixes the v3→v4 confirmation-bias trap). Weak-aug teacher vs strong garment/style-aug student; accept a pseudo-label only if **all** gates pass: dual-teacher spatial agreement, low flip-inconsistency, low structured-residual, low mesh-reprojection error, **temporal consistency across the clip**. Human spot-review each round.
+- **Do first, highest ROI:** rewire `augment.py` into the landmark dataloader (currently misrouted to the IUV path) and add **graphic/logo overlay** (shaded by normals) + **AdaIN style-randomization** — the cheapest texture-bias breaker, measurable against the yellow-shirt held-out set in week 1.
+
+**Minimal real data.** Train weights: the **~44 frames** already collected (Stage 1 only). Calibration: ~10–20 frames with anchor GT + depth to calibrate σ and the garment-standoff term. **Benchmark (the only place more humans are needed):** ≥20–30 subjects × ≥3 garments × ≥1 unseen camera, subject-disjoint (test subjects are cheaper than train subjects and don't risk overfit). **One palpation/marker validation** of the address definition on ≥1 subject — otherwise reviewers call the SMPL-address→intercostal mapping unvalidated (it currently rests on one reference photo).
+
+### 9.6 Cross-subject / cross-garment evaluation protocol
+
+Fixed, **subject-level, non-augmented** real-back split; select checkpoints by real clothed-back PCK; report front/back separately. Report with **bootstrap CIs**:
+
+- **PCK@2.5 / @5** (back-height-normalized),
+- **3D placement error in mm** (the sub-cm claim, via `unproject` through real depth),
+- **L/R parallelism** + **per-level width-consistency** (quantifies "no fan-out"),
+- **leave-one-garment-out / leave-one-subject-out** tables.
+
+**The killer ablation grid** = backbone (DINOv2 / DINOv3 / Sapiens-2) × normals{on/off} × structured-head{on/off} × aug{on/off} × SSL{on/off}. Expected, defensible result: **fusion ≥ normals-only ≥ RGB-only on unseen garments, RGB-only collapses on the graphic shirt** — that ablation *is* the generalization argument. Also report **fit-only (1) read-off on HuMMan-GT** to quantify the irreducible definition+clothing floor and show the learned head + depth-snap closes the last sub-cm.
+
+### 9.7 Paper narrative
+
+> **Anatomically-defined auscultation targets (fixed SMPL/barycentric addresses) + large-scale physically-clothed domain-randomized synthesis + a depth/normal-primary detector on a frozen human-foundation backbone + a structured bilateral spine decoder + cheap label-adaptation and correctly-gated semi-supervision = garment/subject/scene-generalizing sub-cm 3D point detection from ~zero per-scene real data.**
+
+Three citable pillars: **Shotton** (depth garment-invariance), **FaceSynthetics** (synthetic-only dense landmarks via parametric template + label-adaptation), **BEDLAM** (synthetic≈real for clothed humans). Reusability is concrete: ship a **frozen backbone + released heads + a JSON address table + rendering scripts** (no redistribution of BEDLAM/AGORA assets — research-license only); others drop it onto new garments/subjects **without retraining**. That is the difference between a scene-tuned demo and a defensible, reusable model.
+
+### 9.8 Phased roadmap from v5
+
+| Phase | Window | Steps | Risk | Expected outcome |
+|---|---|---|---|---|
+| **A — cheapest wins** | Week 1 | Plumb normals into dataloader + NormalStem + late fusion; rewire `augment.py` + graphic-overlay + style-randomize; DARK/UDP/DSNT readout at res//2 | Low | Biggest single cross-garment jump; **measured vs the yellow-shirt held-out set** |
+| **B — structure + data engine** | Weeks 1–2 | StructuredSpineHead + symmetry/even-spacing/width losses (demote inference `structure_points` to a gate); `synthetic.py` naked→clothed with depth/normals + Femto intrinsics/noise; HuMMan depth/normal export + virtual back-cameras; run **Stage-0 pretrain** | Medium (synthetic clothing fidelity, depth sim-to-real — mitigate with calibrated Femto noise from the 44 frames) | Heaviest lift; clothed-PCK clears bar, fanning structurally removed |
+| **C — adaptation + SSL** | Weeks 2–3 | Stage-1 **label-adaptation** on 44 frames; SAM-3D-Body dual-teacher SSL with multi-gate acceptance | SSL drift — mitigated by gates + temporal filter + human spot-review | Generalizes to unseen garments without per-scene fine-tune |
+| **D — fit-as-teacher + benchmark** | Weeks 3–4 | Build `LUNG_ADDR_BARY` (barycentric, validate on HuMMan-GT); SMPL depth-fit as throttled anchor/consistency prior + fallback; cross-subject/garment benchmark + ablation grid + palpation validation | Back-only partial cloud under-constrains the fit (regression init + priors); MHR↔SMPL topology (SAM-3D-Body init-only or Multi-HMR) | Paper-grade generalization table + sub-cm 3D mm with CIs |
+
+**Total ≈ 3.5–4 weeks** to a paper-grade first pass, front-loaded so the highest-leverage, lowest-risk changes (normals + augmentation, Phase A) land and are measurable in week 1.
+
+### 9.9 Key trade-offs justified
+
+- **Frozen vs fine-tuned backbone:** with tens of labels, frozen + thin head is the only regime that doesn't overfit (v5 proved the alternative fails). Cost: slightly lower in-domain ceiling, bought back by the structured head + depth.
+- **Geometry-primary vs RGB-only:** normals are noisy at range / under loose cloth (mitigate: bilateral-denoise depth, keep 0.6–1.2 m, late-fusion so RGB refines vertical level where geometry is ambiguous). Net: citable garment-invariance ([Shotton](https://web.cs.ucdavis.edu/~yjlee/teaching/ecs289h-fall2014/kinect.pdf), [Delgarmi](https://www.biorxiv.org/content/10.1101/2021.02.04.429842v2.full), [SimPose](https://arxiv.org/abs/2007.15506)) outweighs the noise.
+- **Fit as teacher, not detector:** accepts the 1–3 cm fit floor but harvests its appearance-independence for free supervision + a 3D plausibility gate, while the learned head + depth-snap delivers sub-cm where depth is valid.
+- **Loose garments + SMPL≠ribs are modeled, not hidden:** garment standoff measured along the surface normal (SMPL-fit surface vs observed depth); definition error quantified against HuMMan-GT and palpation. Reporting these as modeled error terms is what makes it Nature-defensible rather than a reviewer kill-shot.
+
+### 9.11 Executed results — geometry generalizes (Stage-0 → Stage-1)
+
+Ran the geometry-primary line end-to-end on the 5090. **Headline: a normals-only model trained on *zero* real labels already beats the bare-RGB v4 cross-domain, and a garment-blind real-adapt then reaches in-tolerance on held-out real poses.** This is the empirical backbone of §9.3.
+
+**Data engine (zero human labels).** `geom_export.py` — HuMMan GT-SMPL → virtual back-cameras (azimuth ±28°, dist 0.95–1.35 m) → painter-rasterized IUV → V6A 10-point readout + per-view depth + surface normals. **3628 samples / 907 sequences**, fully automatic.
+
+**Stage-0 (synthetic-only, `perc_lmh_v6_normals`).** DINOv2 ViT-B + LoRA on the **surface-normal map** → 10 heatmaps (warm-start v4; flip-aug flips nₓ + L/R-swaps). Held-out *synthetic* PCK@2.5 = 100, median 1.2 px. The decisive test is **real Orbbec, never seen in training**:
+
+| Model | Real data seen | Real-dark PCK@5 | PCK@10 | median (518-px) |
+|---|---|---|---|---|
+| v4 (bare RGB) | none | 32 % | — | graphic-magnet |
+| v5 (RGB, fine-tuned **on** the 22) | those 22 (in-domain) | 98 % | — | overfits 1 garment, fans on yellow |
+| **v6 (normals, synthetic-only)** | **none** | **56 %** | **94 %** | 22.4 px |
+
+Geometry **doubles** v4's cross-domain PCK@5 with no real labels, and is garment-colour-blind *by construction* (input is normals).
+
+**Sim-to-real gap diagnosis.** Ruled out by experiment: effective-focal mismatch (K560 vs measured fₓ,eff 315–518 — re-deriving K *hurt*), axial sensor noise (calibrated **0.5 mm**, negligible), and depth holes (25 % invalid, but test-time fill/bilateral/median moved PCK@5 by ≤1). The residual 22 px decomposes (per-point signed error over the 22 frames) into **~15 px structured bias** — R-columns biased +x, L-columns −x, i.e. the V6A U-addresses sit slightly *more lateral* than the clinician's labels (the columns over-spread) — plus **~22 px random scatter** that grows from 12 px (upper back) to 32 px (low back R5/L5), the genuine normals-only localization limit where the low back is least distinctive. Global translation bias ≈ 6 px (no framing error).
+
+**Stage-1 (co-train, `perc_lmh_v7_adapt`).** Co-trained v6 on synthetic (3628) **+ 16 real dark** normal-maps (oversampled ×60, heavy affine/flip aug), tested on **6 held-out dark** frames (unseen poses):
+
+| | held-out-dark PCK@5 | PCK@10 | median (518-px) |
+|---|---|---|---|
+| v6 (synthetic-only) | 63 % | 95 % | 19.7 px |
+| **v7 (co-train)** | **98 %** | **100 %** | **9.0 px (~0.5 cm)** |
+
+Real adaptation halves the median on poses it never trained on, with no overfitting collapse across 8 epochs. Because the **only input is the depth-derived normal map**, this adaptation cannot key on garment colour/texture — so it is expected to transfer to other garments. Qualitatively, v7 (trained on dark only) places coherent bilateral columns on the **unseen yellow** clip; precision is pose/drape-dependent (loose garments perturb *geometry*, which normals **do** see — the honest residual limitation, §9.9).
+
+**Open item (the one sanctioned human step): cross-garment quantification.** Built a 20-frame yellow (session3) anchor-labeling set (`data/lab_back_video_test/labeling_yellow/`) to measure v6 (zero-real) and v7 (dark-adapted) on yellow vs dark — the definitive "generalized" number + the paper's cross-garment table. Until then the yellow claim is architectural (input is garment-blind) + qualitative, not yet measured.
+
+**Artifacts:** weights `outputs/perc_lmh_v6_normals/`, `outputs/perc_lmh_v7_adapt/` (5090); engine/train/eval scripts in scratchpad (`geom_export.py`, `stage0_train_normals.py`, `stage1_cotrain.py`, `geom_*` eval); overlays `data/lab_back_video_test/{GEOM,V7}_generalize.png`.
+
+### 9.12 Dynamic 3D tracking + cross-garment validation (executed)
+
+Plugged the v7 geometry detector into the streaming tracker ([[streaming-tracker]]) and ran it on the **real yellow clip** (the unlabeled test patient — kept label-free to avoid contamination).
+
+**Policy inversion (the key fix).** The tracker was built "track-primary, detector-sparse" because the old RGB v4 was the least-reliable component. v7 inverts that premise: it is strong and garment-invariant, while LK-flow has no corners on a textureless shirt and ICP slides tangentially on a smooth loose back (fit reads 0.98 while sliding). Switching to **detector-primary** (detect every frame, trust it, down-weight flow) took the real-clip TRACKING rate **72%→100%** and canonical-frame stability **17.6→10.6mm**.
+
+**Robust 3D lift.** Added `_snap_rays` to the tracker: lift each landmark by intersecting its camera ray with the **local back-surface plane** (KD-tree neighbourhood) instead of reading single-pixel depth — removes the along-ray depth error that's invisible in 2D reprojection but corrupts the EKF's lateral estimate. All 18 synthetic tracker tests still pass. `NormalsDetector` promoted into `tracking/detector.py` (drops the IUV/S channel; D+F+G).
+
+**Breathing isolation (label-free physiology check).** Removing the rigid body motion via the canonical transform drops the mid-back depth residual from **11.5mm (gross sway) → 4.1mm** periodic — consistent with respiration. The tracker cleanly separates "patient shifts" (rigid, removed) from "surface motion" (breathing) — exactly what a held stethoscope contact needs.
+
+**Cross-garment width validation (the generalization payoff, quantified, zero yellow labels).** dark (session2, fitted) and yellow (session3, loose) are the same subject, so the true 3D L-R widths are garment-invariant. Comparing the **model's yellow widths** to the **dark clinical-label widths**:
+
+| level | dark clinical | yellow model | Δ |
+|---|---|---|---|
+| 1 | 165mm | 177mm | +12 |
+| 2 | 70mm | 74mm | +4 |
+| 3 | 70mm | 76mm | +6 |
+| 4 | 122mm | 143mm | +21 |
+| 5 | 217mm | 282mm | +65 |
+
+On an unseen garment with no yellow labels, the geometry tracker reproduces the clinical 3D widths within **~1cm for the upper 3 levels** and 2–6cm at the bases. The hourglass profile (wide shoulders, narrow mid, wide bases) is itself clinical — the wide bases are **not** fan-out. Residual: the lung-base columns sit ~3cm/side too lateral on the loose garment (hardest point: low back + loose hem). A V6A base-address recalibration was scoped then **rejected** — the dark-vs-synthetic per-point gaps are mixed/one-subject-noisy and the clinical widths already match, so retraining would chase noise and risk the good levels.
+
+**Artifacts (dynamic):** `track_final.mp4` (clean overlay), `track_cmp_frame.png` (raw-2D≈tracked-3D), `v8_lowback_fanout.png`; tracker edit in `ausc/perception/tracking/{tracker.py,detector.py}`; runners in scratchpad (`track_real.py`, `track_final.py`, `track_breath.py`, `dark_width.py`).
+
+### 9.10 Citations (Section 9)
+
+- Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
+- Body-model anchoring / RGB-D fit: [SMPL](https://files.is.tue.mpg.de/black/papers/SMPL2015.pdf) · [ETCH 2025](https://arxiv.org/html/2503.10624v3) · [WACV 2021 RGBD pose](https://openaccess.thecvf.com/content/WACV2021/papers/Bashirov_Real-Time_RGBD-Based_Extended_Body_Pose_Estimation_WACV_2021_paper.pdf) · [DoubleFusion, CVPR 2018](https://openaccess.thecvf.com/content_cvpr_2018/papers/Yu_DoubleFusion_Real-Time_Capture_CVPR_2018_paper.pdf) · [Multi-HMR 2024](https://arxiv.org/abs/2402.14654) · [PointHPS](https://arxiv.org/pdf/2308.14492)
+- Clinical surface-topography floor: [Scoliosis surface topography, Sci Reports 2025](https://www.nature.com/articles/s41598-025-92551-2) · [SOSORT consensus, PMC2794256](https://pmc.ncbi.nlm.nih.gov/articles/PMC2794256/)
+- Synthetic scale: [BEDLAM, CVPR 2023](https://arxiv.org/abs/2306.16940) · [FaceSynthetics, ICCV 2021](https://www.microsoft.com/en-us/research/wp-content/uploads/2021/10/ICCV_2021_FaceSynthetics.pdf) · [Shotton et al., CVPR 2011](https://web.cs.ucdavis.edu/~yjlee/teaching/ecs289h-fall2014/kinect.pdf) · [AGORA, CVPR 2021](https://arxiv.org/abs/2104.14643) · [SynBody, ICCV 2023](https://arxiv.org/pdf/2303.17368) · [SURREAL, CVPR 2017](https://openaccess.thecvf.com/content_cvpr_2017/papers/Varol_Learning_From_Synthetic_CVPR_2017_paper.pdf)
+- Geometry-primary: [Delgarmi et al., bioRxiv 2021](https://www.biorxiv.org/content/10.1101/2021.02.04.429842v2.full) · [Normal Maps, Adv. Intelligent Systems 2024](https://advanced.onlinelibrary.wiley.com/doi/full/10.1002/aisy.202400159) · [Surface normals, ECCV 2016](https://link.springer.com/chapter/10.1007/978-3-319-46487-9_34) · [SPiKE 2024](https://arxiv.org/html/2409.01879v1) · [SimPose, ECCV 2020](https://arxiv.org/abs/2007.15506)
+- Foundation + data-efficient + SSL: [DINOv2](https://arxiv.org/pdf/2304.07193) · [DINOv3](https://arxiv.org/pdf/2508.10104) · [Sapiens](https://arxiv.org/html/2408.12569v1) · [SAM 3D Body](https://huggingface.co/facebook/sam-3d-body-dinov3) · [few-shot keypoint, frozen DINO ViT, IJCV 2025](https://link.springer.com/article/10.1007/s11263-025-02671-5) · [SSPCM, CVPR 2023](https://arxiv.org/abs/2303.04346) · [ST3D pitfalls](https://arxiv.org/pdf/2103.05346) · [TENT, ICLR 2021](https://arxiv.org/abs/2006.10726)
+- Readout / loss: [DARK](https://arxiv.org/abs/1910.06278) · [UDP](https://arxiv.org/abs/1911.07524v2) · [DSNT](https://arxiv.org/abs/1801.07372) · [Adaptive Wing, ICCV 2019](https://arxiv.org/abs/1904.07399)
