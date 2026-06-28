@@ -194,18 +194,28 @@ class ModelBasedTracker:
         return obs                                           # (10,3), NaN where no depth/snap
 
     # -- canonical build (generalized Procrustes over init frames) --------
-    def _build_canonical(self):
-        ref = self._init_obs[0]
-        acc = np.zeros_like(ref); cnt = np.zeros(len(ref))
-        for obs in self._init_obs:
+    def _align_avg(self, obs_list, ref):
+        """Procrustes-align each obs to ref and average; also return each frame's alignment residual."""
+        acc = np.zeros_like(ref); cnt = np.zeros(len(ref)); resid = []
+        for obs in obs_list:
             m = np.isfinite(ref).all(1) & np.isfinite(obs).all(1)
             if m.sum() < self.cfg.min_valid_pts:
-                continue
+                resid.append(np.inf); continue
             R, s, t = _umeyama(obs[m], ref[m], np.ones(m.sum()))
-            al = (s * (R @ obs.T).T + t)
-            ok = np.isfinite(al).all(1)
+            al = (s * (R @ obs.T).T + t); ok = np.isfinite(al).all(1)
             acc[ok] += al[ok]; cnt[ok] += 1
+            resid.append(float(np.median(np.linalg.norm(al[m] - ref[m], axis=1))))
         canon = np.where(cnt[:, None] > 0, acc / np.maximum(cnt[:, None], 1), ref)
+        return canon, np.array(resid)
+
+    def _build_canonical(self):
+        obs = self._init_obs
+        canon, _ = self._align_avg(obs, obs[0])                 # first pass: rough mean
+        canon, res = self._align_avg(obs, canon)               # align to mean → per-frame residual
+        # drop inconsistent init frames (e.g. captured mid-motion/turn) so they don't blur the template
+        keep = res < (np.median(res) + 2.0 * np.median(np.abs(res - np.median(res))) + 1e-6)
+        if keep.sum() >= max(3, len(obs) // 2):
+            canon, _ = self._align_avg([o for o, k in zip(obs, keep) if k], canon)
         self.canonical = canon
         self.R, self.s, self.t = np.eye(3), 1.0, np.zeros(3)
         self._have_pose = True
