@@ -492,6 +492,26 @@ Actively probed for real-clinic failure modes and fixed what broke (each measure
 - **Garment-colour depth quality:** dark clothing → **18% back-crop holes vs 10% for yellow** (IR
   absorption) — confirms the hole-fill matters most exactly where it's most common (dark clothing).
 
+### 9.18 Production-hardening wrap-up (artifacts)
+
+All autonomous gap-closure + production-hardening committed on `feat/auscultation-perception-tracker`,
+**44 hardware-free tests green + GitHub CI**. Net detector = **v9** (`perc_lmh_v9_occ`, occlusion-robust)
+with fp16 + hole-fill + OOD-plausibility gate; net tracker = `ModelBasedTracker` (shared-pose + per-point
+`measured`/`position_std`, hard-inlier robustness, robust canonical init); closed loop = `robot/`
+(safety state machine + staleness/control-deadline + over-force ESTOP + FK/IK + SimArm/RealArm).
+
+- Robustness coverage added: arm-occlusion safety, transient-outlier rejection, sensor frame-dropout,
+  fast-motion (3×, bounded), long-duration (no-drift), staleness HALT — all in CI.
+- Committed metric record: `scripts/perception/perception_metrics.json` (PCK / occlusion / hole / latency
+  + git-SHA & weight/data hashes + explicit n=1 caveat); reproducible eval `scripts/perception/eval_detection.py`.
+- Videos: `data/lab_back_video_test/production_eval/` — `hole_fix_before_after.mp4` (depth-hole fix),
+  `hardened_tracker_yellow.mp4` (production-hardened tracker with per-point safety colours).
+
+Industrial-grade is still gated on **user-only** items (hardware/patients/clinician): R4 hand-eye on
+hardware, ≥20–30-subject clothed dataset + palpation/clinician landmarks (T6/T3), independent metrology,
+real-arm force/E-stop bring-up. The harness (LOSO/LOGO + bootstrap CIs) auto-produces the §9.6 tables
+the moment that data lands.
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
