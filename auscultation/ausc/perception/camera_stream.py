@@ -178,26 +178,33 @@ class CameraStream:
         self.stop()
 
     # -- grab threads (keep latest frame only; never block readers) --------
-    def _run_orbbec(self) -> None:
+    def _orbbec_frame(self, fs) -> Optional[CameraFrame]:
+        """Convert ONE Orbbec frameset → CameraFrame, or None to skip (no frameset / no usable
+        color+depth). Pure given ``fs`` + ``self._ob``/``self._align`` → unit-testable with mocks,
+        no thread. (Extracted from the grab loop so the deployment ingest logic is covered.)"""
+        if fs is None:
+            return None
         ob = self._ob
+        if self._align is not None:
+            fs = self._align.process(fs) or fs
+        cf, df = fs.get_color_frame(), fs.get_depth_frame()
+        rgb = _ob_color_to_rgb(cf, ob) if cf is not None else None
+        depth = scale = None
+        if df is not None:
+            depth = np.frombuffer(df.get_data(), dtype=np.uint16).reshape(
+                df.get_height(), df.get_width())
+            scale = df.get_depth_scale() if hasattr(df, "get_depth_scale") else 1.0
+        if rgb is None and depth is None:
+            return None
+        self._count += 1
+        return CameraFrame(frame=rgb, t=time.monotonic(), index=self._count, status=STATUS_OK,
+                           depth=depth, depth_scale=scale if scale is not None else 1.0)
+
+    def _run_orbbec(self) -> None:
         while not self._stop.is_set():
-            fs = self._pipe.wait_for_frames(100)
-            if fs is None:
+            s = self._orbbec_frame(self._pipe.wait_for_frames(100))
+            if s is None:
                 continue
-            if self._align is not None:
-                fs = self._align.process(fs) or fs
-            cf, df = fs.get_color_frame(), fs.get_depth_frame()
-            rgb = _ob_color_to_rgb(cf, ob) if cf is not None else None
-            depth = scale = None
-            if df is not None:
-                depth = np.frombuffer(df.get_data(), dtype=np.uint16).reshape(
-                    df.get_height(), df.get_width())
-                scale = df.get_depth_scale() if hasattr(df, "get_depth_scale") else 1.0
-            if rgb is None and depth is None:
-                continue
-            self._count += 1
-            s = CameraFrame(frame=rgb, t=time.monotonic(), index=self._count, status=STATUS_OK,
-                            depth=depth, depth_scale=scale if scale is not None else 1.0)
             with self._lock:
                 self._latest = s
 

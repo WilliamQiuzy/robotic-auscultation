@@ -608,7 +608,17 @@ which surfaced 2 more real bugs: `voxel_downsample` leaked a NaN input row into 
 (`floor(nan).astype(int64)` = a garbage bucket) and `LKFlow.track` crashed on 0 input points
 (`cv2.calcOpticalFlowPyrLK` assertion) — both fixed.
 
-**210 hardware-free tests green** (61 → 181 → 210); all new files live in the CI-covered `tests/` dirs.
+The deployment **camera-ingest path** (`camera_stream.py`, previously untested) got SDK-mocked tests:
+the per-frameset ingest was extracted to a pure `_orbbec_frame()` (testability refactor) and covered
+with a fake Orbbec SDK — color decode for every format (RGB/BGR/MJPG/YUYV/UYVY/NV12 + unknown/malformed
+→ None, not crash), depth reshape + `depth_scale` extraction (incl. the no-`get_depth_scale` fallback),
+alignment, frame-skip logic, the `latest_frame` NO_DATA/OK/STALE freshness contract, and the threaded
+lifecycle via the built-in `fake` backend. No bug found there — the ingest was sound — but it is now
+regression-covered in CI.
+
+**230 hardware-free tests green** (61 → 181 → 210 → 230); all in CI. Validated end-to-end on REAL data:
+`run_closed_loop.py` with the real v9 weights over real Orbbec clips runs the full hardened chain clean
+(see below).
 
 ### 9.10 Citations (Section 9)
 
