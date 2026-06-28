@@ -2,7 +2,7 @@
 over-smoothing/lag? Measures lag vs detector, deviation from the zero-phase (non-causal ideal)
 smoother, and error split by motion level. Low jitter alone can be gamed by freezing."""
 import os,sys,json,numpy as np,cv2
-ROOT=os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"); os.chdir(ROOT)
+ROOT=os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")); os.chdir(ROOT)
 sys.path[:0]=["ausc/perception","ausc","ausc/models","ausc/training","scripts"]
 from tracking.detector import NormalsDetector, LUNG_ORDER, LUNG_INDEX
 from tracking.geometry import Intrinsics, sample_depth_m
@@ -10,7 +10,7 @@ from tracking.model_tracker import ModelBasedTracker, ModelConfig
 try:
     from scipy.signal import butter, filtfilt; HAVE_SCIPY=True
 except Exception: HAVE_SCIPY=False
-S=os.path.expanduser("~/ausc_test/orbbec_session3"); d=json.load(open(f"{S}/intrinsics.json"))
+S=os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_session3"); d=json.load(open(f"{S}/intrinsics.json"))
 intr=Intrinsics(d["fx"],d["fy"],d["cx"],d["cy"],d["width"],d["height"],1.0)
 det=NormalsDetector("outputs/perc_lmh_v7_adapt/best.pt")
 tr=ModelBasedTracker(det,intr,ModelConfig())
@@ -83,5 +83,5 @@ for fi in sorted(frames_keep):
     cv2.putText(ov,f"f{fi} ({fi/N*100:.0f}%)",(10,30),cv2.FONT_HERSHEY_SIMPLEX,0.9,(0,255,255),2)
     tiles.append(cv2.resize(ov,(320,180)))
 rows=[np.hstack(tiles[i:i+4]) for i in range(0,len(tiles),4)]
-cv2.imwrite(os.path.expanduser("~/ausc_test/model_temporal_strip.png"),np.vstack(rows))
+cv2.imwrite(os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/model_temporal_strip.png"),np.vstack(rows))
 print("WROTE model_temporal_strip.png")

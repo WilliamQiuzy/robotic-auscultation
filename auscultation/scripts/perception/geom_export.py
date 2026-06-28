@@ -2,7 +2,7 @@
 10 V6A points + (bare-shaded RGB). Produces the Stage-0 generalization dataset, zero labels.
 Run: python geom_export.py <n_seqs> <n_views>"""
 import os, sys, glob, json, numpy as np, cv2, trimesh, torch, smplx
-ROOT = os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")
+ROOT = os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"))
 sys.path.insert(0, ROOT); sys.path.insert(0, os.path.join(ROOT, "ausc"))
 from humman_label import define_ausc_vertices, LUNG_ADDR_V6A  # noqa
 from render_iuv import load_uv_mapping, project               # noqa
@@ -10,7 +10,7 @@ from render_iuv import load_uv_mapping, project               # noqa
 NSEQ = int(sys.argv[1]) if len(sys.argv) > 1 else 40
 NVIEW = int(sys.argv[2]) if len(sys.argv) > 2 else 4
 RES, F = 518, 560.0
-OUT = os.path.expanduser("~/ausc_test/stage0");
+OUT = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/stage0");
 for d in ("depth", "normal", "rgb", "iuv"):
     os.makedirs(f"{OUT}/{d}", exist_ok=True)
 model = smplx.SMPL(model_path=os.path.join(ROOT, "data/smpl"), gender="neutral", batch_size=1)

@@ -3,7 +3,7 @@ GARMENT DRAPE (global standoff + lower-back hem flare + fold noise) -> normals, 
 dark frames. Labels stay at the true body location (V6A), so the model learns to find the landmark
 UNDER loose-garment geometry. Goal: shrink the yellow low-back lateral over-spread. -> v8_drape."""
 import os, sys, json, random, numpy as np, cv2, torch
-ROOT = os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"); os.chdir(ROOT)
+ROOT = os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")); os.chdir(ROOT)
 sys.path[:0] = ["ausc/perception", "ausc", "ausc/models", "ausc/training", "scripts"]
 from torch.utils.data import Dataset, DataLoader
 from tracking.geometry import back_square_crop, _pad_extract, Intrinsics
@@ -12,7 +12,7 @@ from dataset import IMAGENET_MEAN, IMAGENET_STD
 from train_landmark_human import make_heatmaps, weighted_hm_loss, heatmap_xy, structure_points, ORDER, IDX
 
 RES, HM, DEV = 518, 129, "cuda"
-S0 = os.path.expanduser("~/ausc_test/stage0")
+S0 = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/stage0")
 OUT = "outputs/perc_lmh_v8_drape"; os.makedirs(OUT, exist_ok=True)
 rng = random.Random(0)
 np_rng = np.random.RandomState(0)
@@ -50,8 +50,8 @@ def drape_normal_img(stem):
 
 
 # ---- real dark frames (real drape already present) -> crop normals + crop pts ----
-lab = json.load(open(os.path.expanduser("~/ausc_test/clothed_labels_a.json")))
-S = os.path.expanduser("~/ausc_test/orbbec_session2"); dd = json.load(open(f"{S}/intrinsics.json"))
+lab = json.load(open(os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/clothed_labels_a.json")))
+S = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_session2"); dd = json.load(open(f"{S}/intrinsics.json"))
 intr = Intrinsics(dd["fx"], dd["fy"], dd["cx"], dd["cy"], dd["width"], dd["height"], 1.0)
 cap = cv2.VideoCapture(f"{S}/rgb.mp4"); real = []
 items = sorted([(s, r) for s, r in lab.items() if s != "_meta" and r.get("clip") == "orbbec_session2"],

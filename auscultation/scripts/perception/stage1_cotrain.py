@@ -2,7 +2,7 @@
 test on 6 held-out real dark frames. Proves real-adapt reduces sim2real bias+scatter WITHOUT new labels.
 v6 baseline on the same 6 held-out is printed for comparison."""
 import os,sys,json,random,numpy as np,cv2,torch
-ROOT=os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"); os.chdir(ROOT)
+ROOT=os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")); os.chdir(ROOT)
 sys.path[:0]=["ausc/perception","ausc","ausc/models","ausc/training","scripts"]
 from torch.utils.data import Dataset,DataLoader
 from tracking.geometry import back_square_crop,_pad_extract,Intrinsics
@@ -17,8 +17,8 @@ def normals(D,fx=560,fy=560,cx=259,cy=259):
     cr=np.cross(dx,dy); cr/=np.clip(np.linalg.norm(cr,axis=-1,keepdims=True),1e-9,None); cr[cr[...,2]>0]*=-1
     n[1:-1,1:-1]=cr; n[D==0]=0; return n
 # ---- real dark frames -> crop normal maps + crop-space pts
-lab=json.load(open(os.path.expanduser("~/ausc_test/clothed_labels_a.json")))
-S=os.path.expanduser("~/ausc_test/orbbec_session2"); d=json.load(open(f"{S}/intrinsics.json"))
+lab=json.load(open(os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/clothed_labels_a.json")))
+S=os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_session2"); d=json.load(open(f"{S}/intrinsics.json"))
 intr=Intrinsics(d["fx"],d["fy"],d["cx"],d["cy"],d["width"],d["height"],1.0)
 cap=cv2.VideoCapture(f"{S}/rgb.mp4"); real=[]
 items=[(s,r) for s,r in lab.items() if s!="_meta" and r.get("clip")=="orbbec_session2"]
@@ -37,7 +37,7 @@ cap.release()
 te_idx=set(range(0,len(real),4)); te_real=[real[i] for i in range(len(real)) if i in te_idx]; tr_real=[real[i] for i in range(len(real)) if i not in te_idx]
 print(f"[real] train={len(tr_real)} test={len(te_real)}")
 # ---- synthetic
-S0=os.path.expanduser("~/ausc_test/stage0"); recs=[json.loads(l) for l in open(f"{S0}/manifest.jsonl")]
+S0=os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/stage0"); recs=[json.loads(l) for l in open(f"{S0}/manifest.jsonl")]
 def load_norm(stem): return np.load(f"{S0}/normal/{stem}.npy")
 def aug(nm_img,pts):
     if rng.random()<0.85:

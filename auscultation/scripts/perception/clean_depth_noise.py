@@ -2,12 +2,12 @@
 <1Hz). Compares detector / model(snap OFF) / model(snap ON). Answers: is there a real depth-NOISE
 defect, and does surface-snap reduce it?"""
 import os,sys,json,numpy as np,cv2
-ROOT=os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"); os.chdir(ROOT)
+ROOT=os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")); os.chdir(ROOT)
 sys.path[:0]=["ausc/perception","ausc","ausc/models","ausc/training","scripts"]
 from tracking.detector import NormalsDetector
 from tracking.geometry import Intrinsics, sample_depth_m
 from tracking.model_tracker import ModelBasedTracker, ModelConfig
-S=os.path.expanduser("~/ausc_test/orbbec_session3"); d=json.load(open(f"{S}/intrinsics.json"))
+S=os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_session3"); d=json.load(open(f"{S}/intrinsics.json"))
 intr=Intrinsics(d["fx"],d["fy"],d["cx"],d["cy"],d["width"],d["height"],1.0)
 det=NormalsDetector("outputs/perc_lmh_v7_adapt/best.pt"); fps=30.0
 def hf_noise(Z):  # Z (T,10) depth mm -> per-point RMS of >2Hz component (noise), median over pts

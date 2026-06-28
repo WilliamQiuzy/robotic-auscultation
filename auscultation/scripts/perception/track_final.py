@@ -2,22 +2,22 @@
 per-frame canonical transform & 3D points saved, so breathing can be isolated by removing the
 rigid body motion (live point in canonical frame = T^-1 @ xyz_camera; its residual = non-rigid)."""
 import os, sys, json, numpy as np, cv2
-ROOT = os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"); os.chdir(ROOT)
+ROOT = os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")); os.chdir(ROOT)
 sys.path[:0] = ["ausc/perception", "ausc", "ausc/models", "ausc/training", "scripts"]
-sys.path.insert(0, os.path.expanduser("~/ausc_test"))
+sys.path.insert(0, os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+""))
 from track_real import NormalsDetector
 from tracking.geometry import Intrinsics, invert_T
 from tracking.detector import LUNG_ORDER, LUNG_INDEX
 from tracking.tracker import StreamingAuscultationTracker, TrackerConfig
 
-S = os.path.expanduser("~/ausc_test/orbbec_session3"); d = json.load(open(f"{S}/intrinsics.json"))
+S = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_session3"); d = json.load(open(f"{S}/intrinsics.json"))
 intr = Intrinsics(d["fx"], d["fy"], d["cx"], d["cy"], d["width"], d["height"], 1.0)
 det = NormalsDetector("outputs/perc_lmh_v7_adapt/best.pt")
 cfg = TrackerConfig(drift_audit_s=0.0, detection_agree_mm=1000.0, detect_conf_accept=0.0,
                     var_flow=4e-3, init_confirm_frames=2)
 tr = StreamingAuscultationTracker(det, intr, cfg)
 cap = cv2.VideoCapture(f"{S}/rgb.mp4"); N = int(cap.get(7)); fps = 30.0
-vw = cv2.VideoWriter(os.path.expanduser("~/ausc_test/track_final.mp4"),
+vw = cv2.VideoWriter(os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/track_final.mp4"),
                      cv2.VideoWriter_fourcc(*"mp4v"), fps, (960, 540))
 STC = {"TRACKING": (40, 220, 40), "COASTING": (40, 200, 235), "LOST": (120, 120, 120),
        "INIT": (200, 200, 200)}
@@ -51,6 +51,6 @@ for fi in range(N):
                 (12, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 255), 2)
     vw.write(cv2.resize(ov, (960, 540)))
 cap.release(); vw.release()
-np.savez(os.path.expanduser("~/ausc_test/track_canon.npz"),
+np.savez(os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/track_canon.npz"),
          Ts=np.array(Ts), camP=np.array(camP), ts=np.array(ts), order=np.array(LUNG_ORDER))
 print(f"WROTE track_final.mp4 ({len(ts)} frames) + track_canon.npz")

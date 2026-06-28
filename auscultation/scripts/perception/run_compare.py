@@ -2,14 +2,14 @@
 RIGHT = new ModelBasedTracker (shared-pose model). Side-by-side video + per-point jitter metric
 (frame-to-frame, gross-motion removed)."""
 import os, sys, json, numpy as np, cv2
-ROOT = os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"); os.chdir(ROOT)
+ROOT = os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")); os.chdir(ROOT)
 sys.path[:0] = ["ausc/perception", "ausc", "ausc/models", "ausc/training", "scripts"]
 from tracking.detector import NormalsDetector, LUNG_ORDER, LUNG_INDEX
 from tracking.geometry import Intrinsics
 from tracking.tracker import StreamingAuscultationTracker, TrackerConfig
 from tracking.model_tracker import ModelBasedTracker, ModelConfig
 
-S = os.path.expanduser("~/ausc_test/orbbec_session3"); d = json.load(open(f"{S}/intrinsics.json"))
+S = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_session3"); d = json.load(open(f"{S}/intrinsics.json"))
 intr = Intrinsics(d["fx"], d["fy"], d["cx"], d["cy"], d["width"], d["height"], 1.0)
 det = NormalsDetector("outputs/perc_lmh_v7_adapt/best.pt")        # shared detector instance
 
@@ -36,7 +36,7 @@ def draw(bgr, pts_pix, status_ok, title):
 
 
 cap = cv2.VideoCapture(f"{S}/rgb.mp4"); N = int(cap.get(7)); fps = 30.0
-vw = cv2.VideoWriter(os.path.expanduser("~/ausc_test/track_compare.mp4"),
+vw = cv2.VideoWriter(os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/track_compare.mp4"),
                      cv2.VideoWriter_fourcc(*"mp4v"), fps, (1280, 360))
 pix_old, pix_new = [], []
 for fi in range(N):

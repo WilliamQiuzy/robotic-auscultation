@@ -2,7 +2,7 @@
 on 3628 synthetic HuMMan samples. Normals are garment-invariant -> should generalize to any shirt.
 Saves perc_lmh_v6_normals."""
 import os, sys, json, random, numpy as np, cv2, torch
-ROOT = os.path.expanduser("~/Desktop/wam-vla-medical/auscultation")
+ROOT = os.environ.get("AUSC_REPO", os.path.expanduser("~/Desktop/wam-vla-medical/auscultation"))
 os.chdir(ROOT); sys.path[:0] = ["ausc", "ausc/models", "ausc/training", "scripts"]
 from torch.utils.data import Dataset, DataLoader
 from iuv_model import DenseIUVModel, apply_lora
@@ -10,12 +10,16 @@ from dataset import IMAGENET_MEAN, IMAGENET_STD
 from train_landmark_human import make_heatmaps, weighted_hm_loss, heatmap_xy, ORDER, IDX
 
 RES, HM, DEV = 518, 518 // 4, "cuda"
-S0 = os.path.expanduser("~/ausc_test/stage0")
+S0 = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/stage0")
 OUT = "outputs/perc_lmh_v6_normals"; os.makedirs(OUT, exist_ok=True)
 rng = random.Random(0)
 recs = [json.loads(l) for l in open(f"{S0}/manifest.jsonl")]
-te = recs[::12]; tr = [r for r in recs if r not in te]
-print(f"[data] train={len(tr)} heldout={len(te)}")
+# Subject-grouped split: hold out whole subjects (sid), so heldout PCK measures
+# cross-body-shape generalization, not view-interpolation on already-seen bodies.
+heldout_sids = set(sorted({r["sid"] for r in recs})[::12])
+te = [r for r in recs if r["sid"] in heldout_sids]
+tr = [r for r in recs if r["sid"] not in heldout_sids]
+print(f"[data] train={len(tr)} heldout={len(te)} (heldout subjects={len(heldout_sids)}, unseen body shapes)")
 
 
 def load_norm(stem):
