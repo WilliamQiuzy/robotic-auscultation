@@ -380,6 +380,39 @@ After the full-module review (verdict: viable-with-blockers), executed the auton
 
 **Robot-safety (R1/R5) + calibration (R4) landed earlier this pass:** per-point `measured`/`position_std`, occlusion regression test, production-line exports + `xyz_world`, `surface_snap` off by default (19Hz vs 7Hz), and the eye-to-hand / tip-touch hand-eye calibration software (`scripts/perception/handeye_calibrate.py`, sim-validated; physical capture pending a lab session).
 
+### 9.14 Industrial-grade assessment (scored, adversarially de-inflated)
+
+Scored against a contact-medical-device bar (7 dimensions, each adversarially checked for inflation).
+**Verdict: Research-prototype — mean 3.4/10.** Strong camera-frame perception, but **open-loop,
+single-subject-validated, and not yet a system**. NOT pre-clinical; far from industrial-grade.
+
+| dimension | score | one-line |
+|---|---|---|
+| tracking accuracy/stability | **5** | strongest: 1.0mm jitter @33ms, sub-mm depth, honest measured/COASTING flags, 25 tests — but n=1, camera-frame |
+| safety / failure-handling | 4 | per-point COASTING + occlusion tests good; fast-motion/multi-person/lighting/dropout untested |
+| reproducibility/traceability | 4 | reproducible scripts + tests; no CI, no per-run SHA/seed/lockfile |
+| detection accuracy | 3 | clever garment-blind + occlusion-robust (v9), but all real numbers = 1 subject vs self-generated labels |
+| real-time/compute | 3 | 19Hz@1080p is a doc assertion, no committed bench/p95; 53ms breaches a 20ms control deadline |
+| generalization/validation rigor | 2.5 | weakest-but-one: no multi-subject set, no CIs, no LOSO/LOGO tables |
+| closed-loop integration | **2** | gating: xyz_world=None, hand-eye sim-only, no arm-control node / E-stop / force loop |
+
+**Genuinely strong:** tracking accuracy/stability + tracking-level failure semantics.
+**Gating industrial-grade:** (1) closed-loop integration (no loop to close yet), (2) validation rigor
+(n=1, no CIs vs the project's own ≥20–30-subject R4/R5 bar), (3) real anatomical accuracy (labels are
+self-generated, never palpation/clinician-validated).
+
+**Single most important next step:** run hand-eye on real hardware + stand up a minimal arm-control
+node so `xyz_world` becomes real and the loop closes in robot frame — until then every perception
+metric is camera-frame. (The arm-control node + a sim safety state machine can be built autonomously
+now, ready for the moment the extrinsics land.)
+
+**Autonomous-doable gap-closure** (no hardware): latency benchmark harness (p50/p95/p99 + per-stage);
+codify real-clip jitter/fps as regression tests + CI; per-run git-SHA/data-hash/seed + lockfile;
+bootstrap-CI + LOSO/LOGO table scaffolding; arm-control node + sim safety state machine; synthetic
+failure-mode tests (motion blur, multi-person, lighting, frame dropout).
+**Needs user (hardware/patients/clinician):** hand-eye on hardware; ≥20–30-subject clothed test set
+with CIs; palpation/clinician-validated anatomical ground truth; closed-loop force regulation.
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
