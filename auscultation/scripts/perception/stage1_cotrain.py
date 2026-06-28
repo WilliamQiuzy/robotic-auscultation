@@ -39,6 +39,7 @@ print(f"[real] train={len(tr_real)} test={len(te_real)}")
 # ---- synthetic
 S0=os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/stage0"); recs=[json.loads(l) for l in open(f"{S0}/manifest.jsonl")]
 def load_norm(stem): return np.load(f"{S0}/normal/{stem}.npy")
+_OCC = os.environ.get("AUSC_OCCLUSION") == "1"   # T2: arm-occlusion domain randomization
 def aug(nm_img,pts):
     if rng.random()<0.85:
         s=rng.uniform(0.8,1.2); tx=rng.uniform(-.07,.07)*RES; ty=rng.uniform(-.07,.07)*RES; rot=rng.uniform(-8,8)
@@ -48,6 +49,9 @@ def aug(nm_img,pts):
     if rng.random()<0.5:
         nm_img=nm_img[:,::-1].copy(); nm_img[...,0]=254-nm_img[...,0]; pts[:,0]=RES-1-pts[:,0]
         pts=pts[[IDX["L"+k[1:]] if k[0]=="R" else IDX["R"+k[1:]] for k in ORDER]]
+    if _OCC and rng.random()<0.6:                # gray occluder rectangle (simulated arm)
+        rw=int(rng.uniform(0.15,0.45)*RES); rh=int(rng.uniform(0.15,0.45)*RES)
+        x0=rng.randint(0,RES-rw); y0=rng.randint(0,RES-rh); nm_img[y0:y0+rh,x0:x0+rw]=127
     nm_img=nm_img.astype(np.float32)+rng.gauss(0,4)
     return nm_img,pts
 class DS(Dataset):
@@ -91,5 +95,7 @@ for ep in range(EP):
     print(f"[ep{ep}] loss {run/len(loader):.5f} | held-out dark PCK@5={p5:.0f} PCK@10={p10:.0f} med={md:.1f}",flush=True)
 torch.save({"kind":"lora","lora_rank":ck["lora_rank"],"lora_alpha":ck["lora_alpha"],
             "lora_head":{k:v.detach().cpu() for k,v in m.state_dict().items() if ".A." in k or ".B." in k or k.startswith("head.") or k.startswith("landmark_head.")},
-            "order":ORDER,"note":"stage1 cotrain synthetic+16 real dark normals"},"outputs/perc_lmh_v7_adapt/best.pt") if os.makedirs("outputs/perc_lmh_v7_adapt",exist_ok=True) or True else None
-print("saved v7_adapt")
+            "order":ORDER,"note":"stage1 cotrain synthetic+16 real dark normals; occ=%s"%_OCC},
+           os.path.join(os.environ.get("AUSC_OUT","outputs/perc_lmh_v7_adapt"),"best.pt")
+           if os.makedirs(os.environ.get("AUSC_OUT","outputs/perc_lmh_v7_adapt"),exist_ok=True) or True else None)
+print("saved",os.environ.get("AUSC_OUT","outputs/perc_lmh_v7_adapt"))

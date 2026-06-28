@@ -370,6 +370,16 @@ On an unseen garment with no yellow labels, the geometry tracker reproduces the 
 
 **Artifacts (dynamic):** `track_final.mp4` (clean overlay), `track_cmp_frame.png` (raw-2D≈tracked-3D), `v8_lowback_fanout.png`; tracker edit in `ausc/perception/tracking/{tracker.py,detector.py}`; runners in scratchpad (`track_real.py`, `track_final.py`, `track_breath.py`, `dark_width.py`).
 
+### 9.13 Post-review hardening (T5/T2/T7 executed)
+
+After the full-module review (verdict: viable-with-blockers), executed the autonomous improvements:
+
+- **T5 — reproducibility.** All `scripts/perception/*.py` paths are now `AUSC_REPO`/`AUSC_DATA` env-overridable (box defaults preserved). Runs from a fresh clone without path edits.
+- **T2 — arm-occlusion robustness (measured win).** The arm occludes the back at placement time. Measured the gap: v7 PCK@5 drops **99→45** under a gray occluder band (occluded points 27, and even *visible* points fall 99→79 — the untrained band contaminates the whole heatmap). Added env-gated occlusion domain-randomization to the co-train (`AUSC_OCCLUSION=1`) → **v9** (`perc_lmh_v9_occ`): under occlusion **PCK@5 45→97, occluded points 27→95, visible 79→100**, clean 99 unchanged, held-out dark 98% unchanged. v9 is the recommended deployment detector; it complements the tracker's per-point `measured`/`COASTING` flags (R1).
+- **T7 — SMPL-fit auto-label teacher (attempted, does NOT work as a quick build).** Built a depth-fit SMPL teacher (`scripts/perception/teacher_smpl_fit.py`): fit SMPL to the Orbbec back cloud → rasterize IUV → V6A pseudo-labels. On the real clothed partial-back it **fails**: single-view front/back symmetry is unresolved even with a back-facing prior (`back_facing=False`), Chamfer 2–8cm, and V6A reads out ~448px off vs manual — worse than the expected 1–3cm clothed floor. Conclusion: a usable teacher needs robust pose+disambiguation or a learned predictor (SAM-3D-Body, not on the box), and its payoff is **gated on T6** (more unlabeled subjects, which don't exist yet). Deferred; for now hand-labeling ~16 frames/subject (the v7 recipe) is cheaper and proven.
+
+**Robot-safety (R1/R5) + calibration (R4) landed earlier this pass:** per-point `measured`/`position_std`, occlusion regression test, production-line exports + `xyz_world`, `surface_snap` off by default (19Hz vs 7Hz), and the eye-to-hand / tip-touch hand-eye calibration software (`scripts/perception/handeye_calibrate.py`, sim-validated; physical capture pending a lab session).
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
