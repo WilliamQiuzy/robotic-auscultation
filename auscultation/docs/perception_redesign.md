@@ -599,7 +599,16 @@ real bugs** (the rest of the asserts confirmed correct behavior and stay as regr
   self-caught over-correction: `pck_ci` must KEEP non-finite errors as MISSES — dropping them would
   inflate PCK and hide failures — so that one was left as-is, guarded by a test.)
 
-**181 hardware-free tests green** (61 → 181); the new files live in the CI-covered `tests/` dirs.
+A follow-on round added an **end-to-end integration fuzz** (real `NormalsDetector`-stub → real
+`ModelBasedTracker` → real `AuscultationController`/safety, driven over a synthetic sequence with
+injected occlusion bursts / depth-NaN bands / dropout) asserting the chain never crashes, never emits
+a non-finite `xyz_world`, and the arm only servos when the commanded point is genuinely valid — plus
+property tests for the legacy torch-free primitives (`voxel_downsample`, `LKFlow`, `FeatureField`),
+which surfaced 2 more real bugs: `voxel_downsample` leaked a NaN input row into the canonical surface
+(`floor(nan).astype(int64)` = a garbage bucket) and `LKFlow.track` crashed on 0 input points
+(`cv2.calcOpticalFlowPyrLK` assertion) — both fixed.
+
+**210 hardware-free tests green** (61 → 181 → 210); all new files live in the CI-covered `tests/` dirs.
 
 ### 9.10 Citations (Section 9)
 

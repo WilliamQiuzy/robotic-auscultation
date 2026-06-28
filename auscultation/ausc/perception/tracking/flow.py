@@ -52,6 +52,8 @@ class LKFlow:
         cv2 = self._cv2
         p0 = np.asarray(prev_pts, dtype=np.float32).reshape(-1, 1, 2)
         n = len(p0)
+        if n == 0:                                       # cv2.calcOpticalFlowPyrLK asserts on 0 points
+            return FlowResult(pts=np.zeros((0, 2)), valid=np.zeros(0, bool), fb_err=np.zeros(0))
         ok_in = np.isfinite(p0).all(axis=(1, 2))
         p0_safe = np.nan_to_num(p0)
         p1, st1, _ = cv2.calcOpticalFlowPyrLK(prev_gray, cur_gray, p0_safe, None, **self.params)

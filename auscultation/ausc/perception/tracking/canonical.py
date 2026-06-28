@@ -34,6 +34,11 @@ def voxel_downsample(pts: np.ndarray, nrm: np.ndarray, voxel: float
     """Average points (and normals) within each ``voxel``-sized cell."""
     if len(pts) == 0:
         return pts, nrm
+    good = np.isfinite(pts).all(axis=1)        # drop non-finite rows: floor(nan).astype(int64) is a
+    if not good.all():                          # garbage bucket that would leak a NaN surfel into the
+        pts, nrm = pts[good], nrm[good]         # canonical surface and poison every downstream query
+        if len(pts) == 0:
+            return pts, nrm
     keys = np.floor(pts / voxel).astype(np.int64)
     _, inv = np.unique(keys, axis=0, return_inverse=True)
     M = inv.max() + 1
