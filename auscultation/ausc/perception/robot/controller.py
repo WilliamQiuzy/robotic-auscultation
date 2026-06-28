@@ -36,6 +36,8 @@ class AuscultationController:
         self.arm = arm
         self.cfg = cfg or sf.SafetyConfig()
         self.state = sf.SafetyState()
+        self._last_t = None              # last perception timestamp seen
+        self._last_advance_wall = None   # wall time the perception frame last advanced
 
     def command(self, target_name: str) -> None:
         self.state = sf.command(self.state, target_name)
@@ -46,9 +48,25 @@ class AuscultationController:
     def reset(self) -> None:
         self.state = sf.reset(self.state)
 
-    def tick(self, tracker_points: List, force_n: float = 0.0) -> sf.SafetyState:
-        """One control cycle. ``tracker_points`` = MTPoint-like list from ModelBasedTracker.process()."""
-        t = _view(tracker_points, self.state.target_name) if self.state.target_name else None
+    def tick(self, tracker_points: List, perception_t: Optional[float] = None,
+             now: Optional[float] = None, force_n: float = 0.0) -> sf.SafetyState:
+        """One control cycle. ``tracker_points`` = MTPoint-like list from ModelBasedTracker.process().
+        ``perception_t`` = the tracker output timestamp; ``now`` = wall clock. If the perception frame
+        stops advancing (frozen pipeline) for > max_target_age_s of wall time, the target is treated as
+        STALE → HOLD (never act on frozen data). Both default to the wall clock (live, never stale)."""
+        import time
+        now = time.monotonic() if now is None else now
+        pt = now if perception_t is None else perception_t
+        if self._last_t is None or pt > self._last_t + 1e-9:
+            self._last_advance_wall = now          # a fresh perception frame arrived
+        self._last_t = pt
+        stale = self._last_advance_wall is None or (now - self._last_advance_wall) > self.cfg.max_target_age_s
+
+        tv = _view(tracker_points, self.state.target_name) if self.state.target_name else None
+        if stale and tv is not None:               # frozen pipeline → force HOLD via a degraded view
+            tv = sf.TargetView(tv.name, tv.xyz_world, measured=False,
+                               position_std_m=tv.position_std_m, status="COASTING")
+        t = tv
         dist = np.inf
         if t is not None and t.xyz_world is not None and np.all(np.isfinite(t.xyz_world)):
             dist = float(np.linalg.norm(self.arm.tcp_xyz() - t.xyz_world))

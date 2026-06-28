@@ -35,6 +35,8 @@ class SafetyConfig:
     require_world_frame: bool = True    # require camera→base extrinsics (no extrinsics ⇒ never move)
     max_force_n: float = 8.0            # (hardware) contact force ceiling ⇒ ESTOP if exceeded
     max_step_m: float = 0.02            # max commanded Cartesian step per tick (servo speed clamp)
+    max_target_age_s: float = 0.25      # HALT if perception hasn't produced a fresh frame within this
+    #                                     (frozen camera/pipeline must not be acted on as live data)
 
 
 @dataclass

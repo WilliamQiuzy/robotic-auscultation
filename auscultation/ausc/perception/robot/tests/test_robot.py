@@ -115,6 +115,22 @@ def test_estop_latches_and_ignores_commands():
     # (servo happened on the first tick in APPROACH; none after estop)
 
 
+def test_stale_perception_halts():
+    """A frozen perception pipeline (timestamp stops advancing) must HALT, even though it keeps
+    reporting the last 'measured' target — never act on stale data."""
+    arm = MockArm(); c = AuscultationController(arm, SafetyConfig(max_target_age_s=2.5)); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    for i in range(3):                                  # live: perception_t advances with wall clock
+        c.tick(tgt, perception_t=float(i), now=float(i))
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(tgt, perception_t=2.0, now=10.0)             # frozen perception, wall jumped 8s >> 2.5s
+    assert c.state.state == State.HOLD and arm.servo_calls == sc   # halted, no motion on stale data
+    for i in range(11, 14):                             # perception resumes
+        c.tick(tgt, perception_t=float(i), now=float(i))
+    assert c.state.state in (State.APPROACH, State.CONTACT)   # resumed motion
+
+
 def test_overforce_triggers_estop():
     arm = MockArm(); c = AuscultationController(arm); c.command("R3")
     tgt = [P("R3", np.array([0., 0., 0.10]))]
