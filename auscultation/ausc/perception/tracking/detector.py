@@ -179,6 +179,29 @@ def normals_from_depth_m(depth_m: np.ndarray, fx: float = 560.0, fy: float = 560
     return n
 
 
+def _fill_depth_holes(depth_m: np.ndarray) -> np.ndarray:
+    """Nearest-valid fill of depth holes (depth<=0) so normals stay continuous. Real Orbbec depth has
+    ~25%+ holes (worse with dark clothing / range / lighting); unfilled holes crater the detector
+    (PCK@5 100→11 at 40% holes), filling recovers it to ~100% up to 55% holes."""
+    m = depth_m <= 0
+    if not m.any() or m.all():
+        return depth_m
+    try:
+        from scipy import ndimage
+        idx = ndimage.distance_transform_edt(m, return_distances=False, return_indices=True)
+        return depth_m[tuple(idx)]
+    except Exception:  # noqa: BLE001 - fallback: morphological nearest fill
+        import cv2
+        valid = (~m).astype(np.uint8)
+        d = depth_m.copy()
+        for _ in range(8):
+            if not (d <= 0).any():
+                break
+            dil = cv2.dilate(d, np.ones((3, 3), np.float32))
+            d = np.where(d <= 0, dil, d)
+        return d
+
+
 class NormalsDetector(DenseIUVDetector):
     """Geometry detector backed by ``perc_lmh_v7_adapt`` (surface-NORMAL input, garment-invariant).
 
@@ -190,8 +213,9 @@ class NormalsDetector(DenseIUVDetector):
     (held-out PCK@5 100, median 9.0 px unchanged). Pass ``half=False`` to force fp32.
     """
 
-    def __init__(self, *args, half: bool = True, **kwargs):
+    def __init__(self, *args, half: bool = True, fill_holes: bool = True, **kwargs):
         super().__init__(*args, half=half, **kwargs)
+        self.fill_holes = fill_holes      # fill depth holes before normals (Orbbec ~25%+ holes)
 
     def _normal_image(self, rgb_full: np.ndarray, depth, intr):
         import cv2
@@ -199,6 +223,8 @@ class NormalsDetector(DenseIUVDetector):
         _, crop = back_square_crop(rgb_full, depth, intr)
         dc = cv2.resize(_pad_extract(depth, crop.x0, crop.y0, crop.side), (self.res, self.res),
                         interpolation=cv2.INTER_NEAREST).astype(np.float32) / 1000.0
+        if getattr(self, "fill_holes", False):
+            dc = _fill_depth_holes(dc)    # else holes → gray normal gaps → detector fails (PCK 100→11 at 40% holes)
         nrm = np.clip(normals_from_depth_m(dc, *_NORM_K) * 127 + 127, 0, 255).astype(np.uint8)
         return nrm, crop
 
