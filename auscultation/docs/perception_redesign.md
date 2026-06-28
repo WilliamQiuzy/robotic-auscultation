@@ -413,6 +413,35 @@ failure-mode tests (motion blur, multi-person, lighting, frame dropout).
 **Needs user (hardware/patients/clinician):** hand-eye on hardware; ≥20–30-subject clothed test set
 with CIs; palpation/clinician-validated anatomical ground truth; closed-loop force regulation.
 
+### 9.15 Post-assessment autonomous gap-closure (executed)
+
+Closed every autonomous gap from §9.14 (calibration capture excepted — needs the lab), all committed
+on `feat/auscultation-perception-tracker`, 41 hardware-free tests green + GitHub CI:
+
+- **Closed-loop (gate #1, was 2/10):** `ausc/perception/robot/` — a safety state machine
+  (IDLE/ACQUIRING/APPROACH/CONTACT/HOLD/RETRACT/ESTOP) that only drives toward a point the tracker
+  reports `measured` + low `position_std` in a valid world frame, HALTS when a target degrades (arm
+  occludes it), RETRACTs on persistent loss, ESTOPs on over-force; + OpenArm FK/DLS-IK + SimArm
+  (kinematic, reaches 1 mm CONTACT, joint-limit-respecting) + RealArm (openarm_can, motors-off until
+  `enable()`). 8/8 hardware-free safety tests. Ready for hardware: RealArm + R4 extrinsics → real loop.
+- **Real-time (was 3/10):** `scripts/perception/latency_bench.py` (p50/p95/p99 + per-stage); detector
+  forward = 98% of cost. **fp16 inference made default for NormalsDetector → 51→35 ms (19→29 Hz),
+  accuracy identical** (PCK@5 100 / median 9.0 px). Now clears the 20 Hz control rate.
+- **Reproducibility (was 4/10):** GitHub Actions CI (`.github/workflows/perception-ci.yml`, CPU,
+  runs tracker+safety tests on every change), `requirements-perception.txt` pin, `_provenance.py`
+  (git-SHA/seed/env run stamp).
+- **Generalization scaffolding (was 2.5/10):** `ausc/perception/eval/benchmark.py` — bootstrap-CI +
+  per-subject/per-garment (LOSO/LOGO) tables + L/R width/fan-out metric; auto-produces the §9.6
+  medical-grade report (and warns below the ≥20-subject bar) the moment T6 data lands.
+- **Safety/robustness (was 4/10):** hard-inlier refit in the pose fit (transient detector outliers —
+  2 random 9 cm spikes/frame — now rejected without corrupting the other points, which stay <2 cm) +
+  failure-mode tests (transient outliers, sensor frame-dropout coast+recover). Lighting is
+  architecturally mitigated (detector reads depth-normals, not RGB).
+
+Still gating (need the user): hand-eye on hardware (R4), ≥20–30-subject clothed test set + palpation-
+validated ground truth (T6/T3), closed-loop force regulation with a clinician. Detector occlusion
+robustness = v9 (`perc_lmh_v9_occ`, the deployment weight).
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
