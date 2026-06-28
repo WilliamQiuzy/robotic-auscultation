@@ -1,0 +1,31 @@
+{
+  "weight": "perc_lmh_v9_occ",
+  "nominal": {
+    "pck5": 99.5,
+    "med_px": 7.3
+  },
+  "occlusion_band": {
+    "pck5": 98.2,
+    "med_px": 9.0
+  },
+  "holes40_fill_off": {
+    "pck5": 7.1,
+    "med_px": 70.2
+  },
+  "holes40_fill_on": {
+    "pck5": 99.5,
+    "med_px": 7.2
+  },
+  "detector_latency_p50_ms_fp16_1080p": 47.0,
+  "provenance": {
+    "git_sha": "36fefd89e392112b60a5731bd986bf0f8cd9aa72",
+    "git_dirty": true,
+    "seed": null,
+    "python": "3.12.13",
+    "torch": "2.11.0+cu128",
+    "host": "robot-G914",
+    "ckpt_sha": "68037e6932fd7315",
+    "labels_sha": "5917d20aae86c2ee",
+    "note": "n=1 subject/2 garments \u2014 single-subject record, NOT population-validated"
+  }
+}
