@@ -616,9 +616,17 @@ alignment, frame-skip logic, the `latest_frame` NO_DATA/OK/STALE freshness contr
 lifecycle via the built-in `fake` backend. No bug found there — the ingest was sound — but it is now
 regression-covered in CI.
 
-**230 hardware-free tests green** (61 → 181 → 210 → 230); all in CI. Validated end-to-end on REAL data:
-`run_closed_loop.py` with the real v9 weights over real Orbbec clips runs the full hardened chain clean
-(see below).
+**230 hardware-free tests green** (61 → 181 → 210 → 230); all in CI.
+
+**Real-clip end-to-end regression** (the real v9 `NormalsDetector` → `ModelBasedTracker` →
+`AuscultationController` → `SimArm`, GPU): ran **both 602-frame Orbbec clips × 6 targets, full length**.
+Result **PASS** — **0 servo-on-degraded-target violations** (the arm never moved toward a degraded
+target) and **0 non-finite `xyz_world`/`position_std` emissions** across all 12 runs, confirming the
+NaN-robustness + safety fixes hold on real data, not just synthetic stubs. Detector ~19 fps fp16
+(consistent with the committed 47 ms). Behavioral signal worth noting: the hardest lowest points
+(R5/L5) correctly degrade → HOLD → IDLE/retract (measured-rate 0.43–0.70) instead of being serviced on
+bad estimates, while the easier upper/mid points (R1/R3/L1/L3) track at ~0.99–1.00 and stay in
+APPROACH — the safety machine halting exactly on the points that are genuinely harder to see.
 
 ### 9.10 Citations (Section 9)
 
