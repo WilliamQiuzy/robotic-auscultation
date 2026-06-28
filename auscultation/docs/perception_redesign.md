@@ -466,6 +466,23 @@ safety bring-up (force sensing + hardware E-stop + real IK); live-loop p99 under
 highest-value next step: run T6 collection AND pair it with clinician landmark labels on the same
 subjects** — it simultaneously fills the two lowest-scoring, most-evidence-starved dimensions.
 
+### 9.17 Production stress-testing → fixes (executed)
+
+Actively probed for real-clinic failure modes and fixed what broke (each measured-before-built):
+
+- **Depth holes — CATASTROPHIC, now FIXED.** A stress battery showed depth holes crater the detector:
+  PCK@5 **100→30 at the real ~25% hole rate, →6 at 40%, →4 at 55%** (the normal map becomes noise).
+  Real Orbbec already drops ~25%, worse with dark clothing/range/lighting — so the *current* deploy
+  was silently degraded. **Fix: nearest-valid depth-hole fill before normals** (`_fill_depth_holes`,
+  `fill_holes=True` default in NormalsDetector) → recovers **PCK@5 to 100% up to 55% holes**, verified
+  through the production `detect()` path. Before/after video: `data/lab_back_video_test/production_eval/`.
+- **Per-point uncertainty calibration — probed, no fix needed.** Flip-consistency disagreement does NOT
+  predict per-point error (corr 0.08); concluded the existing `measured`/COASTING flag + hard-inlier
+  rejection is the correct safety signal (it catches the *large* occlusion/anomaly errors; residual
+  few-px on good frames is sub-cm noise). Avoided a wasted "fix."
+- **Off-center patient — false alarm.** The initial 0% was a test artifact (image shifted but labels
+  not); the depth-centered `back_square_crop` re-centers fine. **Bystander @ same depth** left PCK@5 98.
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
