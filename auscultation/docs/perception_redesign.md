@@ -442,6 +442,30 @@ Still gating (need the user): hand-eye on hardware (R4), ≥20–30-subject clot
 validated ground truth (T6/T3), closed-loop force regulation with a clinician. Detector occlusion
 robustness = v9 (`perc_lmh_v9_occ`, the deployment weight).
 
+### 9.16 Re-assessment after gap-closure (3.4 → 3.9/10)
+
+Re-scored, adversarially de-inflated. **Mean 3.4 → 3.9 (+0.5)** — "advanced research prototype with a
+wired-but-unproven closed loop." The autonomous work moved the **engineering scaffolding**, not the
+**evidence**: every load-bearing accuracy/safety number is still n=1 subject, synthetic, or replay-only.
+
+| dim | before | after | note |
+|---|---|---|---|
+| real-time | 3.0 | 4.5 | fp16 29Hz + latency harness (replay-only, no live p99) |
+| closed-loop | 2.0 | 3.5 | full safety machine + IK + 591-frame sim demo; never on hardware, stand-in extrinsic |
+| safety | 4.0 | 4.5 | state machine + hard-inlier + occlusion v9 + dropout tests; force/E-stop/hardware unproven |
+| generalization | 2.5 | 3.5 | LOSO/LOGO + bootstrap-CI harness built+tested, but empty of real data (gated on T6) |
+| detection | 3.0 | 3.5 | v9 occlusion-robust; still n=1, synthetic cross-subject, no clinician GT |
+| tracking | 5.0 | 3.8 | **de-inflated**: 1.0mm headline not in a committed test (rests on one un-committed real clip) |
+| reproducibility | 4.0 | 4.1 | CI + provenance + reqs pin; no lockfile/weight-hash, CI hardware-free only |
+
+**Remaining gates — ALL now need the user** (a self-driving agent cannot clear them): T6 multi-subject
+clothed dataset (≥20–30, varied bodies/garments) — unblocks every empty CI/LOSO/LOGO cell; clinician/
+palpation anatomical ground truth (the only thing that can catch a self-consistent-but-wrong V6A);
+R4 hand-eye on hardware (real arm-base accuracy); independent metrology (mocap/fiducials); real-arm
+safety bring-up (force sensing + hardware E-stop + real IK); live-loop p99 under load. **Single
+highest-value next step: run T6 collection AND pair it with clinician landmark labels on the same
+subjects** — it simultaneously fills the two lowest-scoring, most-evidence-starved dimensions.
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)
