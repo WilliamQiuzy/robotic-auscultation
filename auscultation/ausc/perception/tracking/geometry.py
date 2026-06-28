@@ -153,6 +153,9 @@ def normals_from_pointmap(P: np.ndarray) -> np.ndarray:
     flip = cr[..., 2] > 0
     cr[flip] = -cr[flip]
     n[1:-1, 1:-1, :] = cr
+    # a pixel whose OWN point is non-finite (a depth hole) must not get a normal computed purely
+    # from its neighbours — NaN it out so a caller indexing normals by pixel never reads a bogus one.
+    n[~np.isfinite(P).all(axis=2)] = np.nan
     return n
 
 

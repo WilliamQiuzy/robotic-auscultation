@@ -44,7 +44,10 @@ class PointEKF:
 
     # -- prediction -------------------------------------------------------
     def predict(self, dt: float) -> None:
-        dt = float(max(dt, 1e-3))
+        dt = float(dt)
+        if not np.isfinite(dt):
+            dt = 1e-3                              # NaN/inf timestamp (dropped/dup frame) → minimal step
+        dt = min(max(dt, 1e-3), 1.0)              # clamp to a sane band so a huge dt can't blow up F@x/P
         F = np.eye(6)
         F[0, 3] = F[1, 4] = F[2, 5] = dt
         self.x = F @ self.x

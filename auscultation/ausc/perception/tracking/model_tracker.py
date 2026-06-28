@@ -232,8 +232,21 @@ class ModelBasedTracker:
             R, s, t = _umeyama(src, dst, w)
             r = np.linalg.norm(dst - (s * (R @ src.T).T + t), axis=1)
             w = 1.0 / np.maximum(r / self.cfg.huber_m, 1.0)     # Huber-ish
-        # hard-inlier refit: drop residual outliers entirely so they can't pull the pose (a few
-        # transient detector glitches must not corrupt the other points)
+        # Robust consensus refit (LTS concentration). A few GROSS ASYMMETRIC detector glitches can
+        # survive 3 IRLS iters and drag the centroid-sensitive Umeyama (scale collapse), so we
+        # repeatedly refit on the h smallest-residual points (always dropping the worst). This
+        # converges to the clean-inlier pose regardless of how bad the IRLS seed is.
+        npts = int(m.sum())
+        h = max(self.cfg.min_valid_pts, int(round(0.7 * npts)))
+        for _ in range(5):
+            resid = np.linalg.norm(dst - (s * (R @ src.T).T + t), axis=1)
+            keep = np.argsort(resid)[:h]
+            Rn, sn, tn = _umeyama(src[keep], dst[keep], np.ones(h))
+            done = np.allclose(Rn, R, atol=1e-9) and abs(sn - s) < 1e-9 and np.allclose(tn, t, atol=1e-12)
+            R, s, t = Rn, sn, tn
+            if done:
+                break
+        # final refit on ALL in-band inliers (precision: use every good point, not just h)
         inl = np.linalg.norm(dst - (s * (R @ src.T).T + t), axis=1) < self.cfg.inlier_huber_mult * self.cfg.huber_m
         if int(inl.sum()) >= self.cfg.min_valid_pts:
             R, s, t = _umeyama(src[inl], dst[inl], np.ones(int(inl.sum())))

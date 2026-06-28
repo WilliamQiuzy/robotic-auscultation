@@ -573,6 +573,34 @@ servo-failure now latches ESTOP (was silently swallowed → could strand the mac
 slew `dt` tied to the real ~30 Hz loop; leaky-counter docstring corrected (an exact 1:1 flicker
 deliberately does not time out — still safe, each good frame is measured). **61 hardware-free tests green.**
 
+### 9.20 Property / fuzz testing of under-covered modules (empirical bug hunt)
+
+Static review converged after §9.19, so this round switched to **empirical property/invariant/fuzz
+testing** of the modules with thin coverage (geometry, intrinsics, tracker pose-math, the torch-free
+detector helpers, eval/benchmark, the legacy EKF). 120 new tests authored; running them surfaced **8
+real bugs** (the rest of the asserts confirmed correct behavior and stay as regression guards):
+
+- **`_fit_pose` corrupted by asymmetric outliers (HIGH).** The single hard-inlier refit could not
+  reject 2/10 GROSS ASYMMETRIC detector glitches — they survived 3 IRLS iters and collapsed the
+  centroid-sensitive Umeyama scale, smearing the 8 good points up to 83 mm and marking them
+  `measured=False` (the exact failure the refit was meant to prevent; the old spike test passed only
+  because symmetric spikes cancel). Fixed with an **LTS-concentration refit** (repeatedly refit on the
+  h=70% smallest-residual points, then a final all-inlier refit for precision). Re-scan of 200 random
+  configs with 2/10 asymmetric outliers: **worst inlier error 0.00 mm, 0 corruptions** (was ~13%).
+- **Sensor-NaN robustness (deployment depth→normals path).** `_fill_depth_holes` treated NaN as valid
+  (`NaN <= 0` is False) → NaN leaked through the fill; `normals_from_depth_m` only zeroed `==0` not
+  NaN → non-finite normals reached the model input. Both now treat non-finite depth as a hole.
+- **`normals_from_pointmap`** assigned a valid normal to a depth-hole pixel (the cross-product never
+  reads the pixel's own point) → now NaN'd out where the point is non-finite.
+- **Legacy `PointEKF.predict` poisoned by a NaN/inf `dt`** (`max(nan,1e-3)` returns `nan`) — `update()`
+  sanitized its inputs but `predict()` did not. Now clamps `dt` to a sane finite band.
+- **`eval/benchmark`**: `median_ci` let a single NaN poison the median → now drops non-finite; a record
+  missing the grouping key crashed `breakdown` → now skipped (consistent with `report()`). (And a
+  self-caught over-correction: `pck_ci` must KEEP non-finite errors as MISSES — dropping them would
+  inflate PCK and hide failures — so that one was left as-is, guarded by a test.)
+
+**181 hardware-free tests green** (61 → 181); the new files live in the CI-covered `tests/` dirs.
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)

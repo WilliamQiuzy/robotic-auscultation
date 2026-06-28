@@ -165,7 +165,7 @@ def normals_from_depth_m(depth_m: np.ndarray, fx: float = 560.0, fy: float = 560
     cross-products. Output channels are nx,ny,nz; holes (depth==0) → 0."""
     h, w = depth_m.shape
     ys, xs = np.mgrid[0:h, 0:w]
-    z = depth_m
+    z = np.where(np.isfinite(depth_m), depth_m, 0.0)   # NaN/inf depth → 0 (a hole); never propagate
     x = (xs - cx) * z / fx
     y = (ys - cy) * z / fy
     P = np.dstack([x, y, z])
@@ -176,7 +176,7 @@ def normals_from_depth_m(depth_m: np.ndarray, fx: float = 560.0, fy: float = 560
     cr /= np.clip(np.linalg.norm(cr, axis=-1, keepdims=True), 1e-9, None)
     cr[cr[..., 2] > 0] *= -1
     n[1:-1, 1:-1] = cr
-    n[depth_m == 0] = 0
+    n[z == 0] = 0                                       # holes (incl. former non-finite) → zero normal
     return n
 
 
@@ -184,9 +184,11 @@ def _fill_depth_holes(depth_m: np.ndarray) -> np.ndarray:
     """Nearest-valid fill of depth holes (depth<=0) so normals stay continuous. Real Orbbec depth has
     ~25%+ holes (worse with dark clothing / range / lighting); unfilled holes crater the detector
     (PCK@5 100→11 at 40% holes), filling recovers it to ~100% up to 55% holes."""
-    m = depth_m <= 0
-    if not m.any() or m.all():
+    m = (depth_m <= 0) | ~np.isfinite(depth_m)   # NaN/inf are holes too (NaN <= 0 is False!)
+    if not m.any():
         return depth_m
+    if m.all():
+        return np.zeros_like(depth_m)            # nothing valid → finite zeros, never propagate NaN
     try:
         from scipy import ndimage
         idx = ndimage.distance_transform_edt(m, return_distances=False, return_indices=True)
