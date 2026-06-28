@@ -53,13 +53,23 @@ def read_latest_joints(csv_path: str, settle_rows: int = 8, vel_eps: float = 2e-
     the arm has been ~stationary over the last `settle_rows` samples (so a clean pose to capture)."""
     with open(os.path.expanduser(csv_path)) as f:
         lines = f.readlines()
-    rows = [l.strip().split(",") for l in lines[-settle_rows:] if l and l[0].isdigit() or (l[:1] in "-0123456789")]
-    rows = [r for r in rows if len(r) >= 8]
+    rows = []
+    for l in lines[-settle_rows:]:                         # keep numeric data rows, drop header/blank
+        parts = l.strip().split(",")
+        if len(parts) < 8:
+            continue
+        try:
+            float(parts[0])
+        except ValueError:
+            continue                                       # header / non-numeric → skip
+        rows.append(parts)
     if len(rows) < 2:
         return None, False
     arr = np.array([[float(x) for x in r[1:8]] for r in rows])
     q7 = arr[-1]
-    still = float(np.abs(arr[-1] - arr[0]).max()) < vel_eps
+    # peak-to-peak spread over the whole settle window (not just endpoints): catches an arm that
+    # swings out and returns near its start, which an endpoint diff would mistake for "still".
+    still = float((arr.max(0) - arr.min(0)).max()) < vel_eps
     return q7, still
 
 
@@ -243,7 +253,7 @@ def main():
         ready = (q7 is not None and still and Ttc is not None
                  and time.time() - last_capture > 2.0)
         if ready:
-            T_tcp_base.append(fk(q7)); T_target_cam.append(Ttc); last_capture = time.time()
+            T_tcp_base.append(fk.fk(q7)); T_target_cam.append(Ttc); last_capture = time.time()
             print(f"  captured pose {len(T_tcp_base)}/{args.n_poses} ({ncorn} corners)")
         if not args.headless:
             vis = cv2.cvtColor(f.frame, cv2.COLOR_RGB2BGR)

@@ -41,7 +41,7 @@ Orbbec Femto Bolt: 1920×1080 RGB + per-pixel-aligned depth; intrinsics `fx=fy�
 | **Blind center-square crop** | `min(h,w)` square at image center, resized to 518. | `infer_overlay.py:93-100`; `geometry.py:82-88` | Frame-to-frame **collapse**: vertical spread swung 0.04–0.56; head-heavy frames crammed all 10 points onto shoulders. | On 1920×1080 landscape, `side=1080` discards columns `[0,420)∪[1500,1920)` = **~44% of width, off-center**. `up_bias` is a **no-op** on landscape (`h−s=0`). |
 | **`iuv2pass` smart crop (deploy default)** | Pass-1 center-square → IUV `part==1` bbox → `max(w,h)·(1+margin)` square, **clamped** to frame, resized. | `deploy_landmark.py:53-73` | Clean clothed back (Oxford shirt): spread stabilized 0.47–0.56 but points imprecise; **L/R columns NOT parallel** (per-level widths fan 50→150 px). | Clamp-not-pad shifts body off-center + anisotropic squash; `max(w,h)` over-includes width; bbox driven by **OOD bare IUV mask**. Also **`:73` returns only the resized crop — non-invertible** (seed of the projection misconception). |
 | **Real Orbbec clothed test** | Dark T-shirt with large colorful graphic. | — | All crop strategies → similar spread (~0.35–0.48); points **cluster ON the graphic** (feature magnet); not anatomically accurate. | Textbook texture-bias OOD failure. No crop trick fixes it — it is a data/feature problem (R4). |
-| **`StreamingAuscultationTracker`** | EKF + LK flow + ICP; `TrackedPoint` carries `.pixel` (full-frame), `.xyz_camera`, `.xyz_world`. | `tracker.py:270-281,431-450`; `geometry.py:47-53,90-94` | Runs end-to-end on real Orbbec RGB-D; inits fast; holds **9–10/10 TRACKING**; follows patient; outputs full-frame px + 3D per point. | Tracking machinery is **solid and proves R2 is already met** — but it tracks whatever the weak detector emits. Its detector `_preprocess` uses the **dumb center-square** (`detector.py:109-115`), so it inherits the half-body crop bug. |
+| **`StreamingAuscultationTracker`** (LEGACY/reference — NOT the deployment path; `ModelBasedTracker` is) | EKF + LK flow + ICP; `TrackedPoint` carries `.pixel` (full-frame), `.xyz_camera`, `.xyz_world`. | `tracker.py` `_detection_3d`/`_emit`; `geometry.py` `Intrinsics`/`CropTransform` | Runs end-to-end on real Orbbec RGB-D; inits fast; holds **9–10/10 TRACKING**; follows patient; outputs full-frame px + 3D per point. | Tracking machinery is **solid and proves R2 is already met** — but it tracks whatever the weak detector emits. Its detector `_preprocess` uses the **dumb center-square** (`detector.py:109-115`), so it inherits the half-body crop bug. |
 
 **Net lessons:** (i) the crop deletes the body and is the visible failure; (ii) the detector is weak by construction (bare-only data, frozen features, no geometry, MSE-collapse loss, biased readout); (iii) `structure_points` hides the weakness; (iv) the **projection chain already works** — the perceived blocker is a misconception plus one isolated non-invertible offline crop.
 
@@ -84,10 +84,10 @@ The belief that the 518 square makes real-time back-projection impossible is **f
 det → full :  u_full = x0 + x_det · (side/res),   v_full = y0 + y_det · (side/res)   # geometry.py:90-94
 full → det :  x_det  = (u_full − x0) · (res/side), y_det  = (v_full − y0) · (res/side) # geometry.py:96-99
 full → 3D  :  Z = sample_depth_m(u,v); X = (u−cx)Z/fx; Y = (v−cy)Z/fy                 # Intrinsics.unproject :47-53
-cam → world:  p_w = T_cam→world · [X Y Z 1]ᵀ                                          # transform_points :210-212
+cam → world:  p_w = T_cam→world · [X Y Z 1]ᵀ                                          # transform_points (geometry.py)
 ```
 
-`det_to_full` is pure `x0 + x·scale`, so it is **correct even with a negative origin** (required by pad-not-clamp). The live tracker already runs this chain: `det.crop.det_to_full(det.xy_det)` → `_unproject_pixels` → 3D (`tracker.py:271-272`); `TrackedPoint.pixel` is projected from the EKF 3D state through the **true intrinsics** (`tracker.py:445`), so it never lives in crop space. The square does **not** delete the mapping; it deletes the **off-crop data** (a column in the discarded `[0,420)` simply does not exist to be mapped). So the projection concern reduces to the **crop-coverage** problem (§3.1) plus **one real, isolated bug**: `deploy_landmark.py:73` returns only `cv2.resize(rgb[by0:by1, bx0:bx1], …)` — discards `(bx0,by0,side)` and resizes a non-square box anisotropically → non-invertible. That one offline line, not the architecture, seeded the misconception. The remaining genuine gap for robot-frame output is **hand-eye extrinsics calibration** (a deliverable, not a code flaw).
+`det_to_full` is pure `x0 + x·scale`, so it is **correct even with a negative origin** (required by pad-not-clamp). The live tracker already runs this chain: `det.crop.det_to_full(det.xy_det)` → `_unproject_pixels` → 3D (`tracker.py` `_detection_3d`); `TrackedPoint.pixel` is projected from the EKF 3D state through the **true intrinsics** (`tracker.py` `_emit`, `intr.project`), so it never lives in crop space. The square does **not** delete the mapping; it deletes the **off-crop data** (a column in the discarded `[0,420)` simply does not exist to be mapped). So the projection concern reduces to the **crop-coverage** problem (§3.1) plus **one real, isolated bug**: `deploy_landmark.py:73` returns only `cv2.resize(rgb[by0:by1, bx0:bx1], …)` — discards `(bx0,by0,side)` and resizes a non-square box anisotropically → non-invertible. That one offline line, not the architecture, seeded the misconception. The remaining genuine gap for robot-frame output is **hand-eye extrinsics calibration** (a deliverable, not a code flaw).
 
 ---
 
@@ -193,7 +193,7 @@ Frozen **clothed-Orbbec benchmark, ≥20–30 subjects**, subject-disjoint, orig
 | `ausc/models/iuv_model.py` | `:18-44` encoder (floor-div bug), `:72-87` LoRA, `:111-126` LandmarkHead / dual-input point, `:143-155` `forward_with_landmarks` |
 | `scripts/train_landmark_human.py` | `:25-33` MSE+pos_w=100 loss, `:40-56` heatmaps, `:59-78` `HandLabelDS` (aug gap), `:86-107` biased readout, `:110-128` `structure_points` (width fanning), `:181-190` freeze recipe, `:147-159` eval |
 | `scripts/deploy_landmark.py` | `:53-73` `iuv_back_crop` (clamp/max(w,h)/OOD bbox), **`:73` non-invertible crop**, `:125` structure at inference |
-| `ausc/perception/tracking/geometry.py` | `:47-53` `Intrinsics.unproject/project`, `:70-99` `CropTransform` (the working back-projection), `:103-182` depth/pointmap/normals/`body_band_mask` (build `back_square_crop` here), `:210-212` `transform_points` |
+| `ausc/perception/tracking/geometry.py` | `:47-53` `Intrinsics.unproject/project`, `:70-99` `CropTransform` (the working back-projection), `:103-182` depth/pointmap/normals/`body_band_mask` (build `back_square_crop` here), `transform_points` |
 | `ausc/perception/tracking/detector.py` | `:109-115` `_preprocess` (live tracker uses dumb center-square) |
 | `ausc/perception/tracking/tracker.py` | `:270-281` `_detection_3d` (live chain, correct), `:431-450` `_emit` (`TrackedPoint.pixel/.xyz_camera/.xyz_world`) |
 | `ausc/humman_label.py` | `:55-128` `pick_back_pair` / `LUNG_ADDR_V6A` (heuristic vertex definition) |
@@ -425,8 +425,9 @@ on `feat/auscultation-perception-tracker`, 41 hardware-free tests green + GitHub
   (kinematic, reaches 1 mm CONTACT, joint-limit-respecting) + RealArm (openarm_can, motors-off until
   `enable()`). 8/8 hardware-free safety tests. Ready for hardware: RealArm + R4 extrinsics → real loop.
 - **Real-time (was 3/10):** `scripts/perception/latency_bench.py` (p50/p95/p99 + per-stage); detector
-  forward = 98% of cost. **fp16 inference made default for NormalsDetector → 51→35 ms (19→29 Hz),
-  accuracy identical** (PCK@5 100 / median 9.0 px). Now clears the 20 Hz control rate.
+  forward = 98% of cost. **fp16 inference made default for NormalsDetector → p50 47 ms (~21 Hz)
+  at 1080p, accuracy identical** (PCK@5 100 / median 9.0 px). Cites the committed
+  `perception_metrics.json` (canonical), and 21 Hz clears the 20 Hz control rate.
 - **Reproducibility (was 4/10):** GitHub Actions CI (`.github/workflows/perception-ci.yml`, CPU,
   runs tracker+safety tests on every change), `requirements-perception.txt` pin, `_provenance.py`
   (git-SHA/seed/env run stamp).
@@ -450,7 +451,7 @@ wired-but-unproven closed loop." The autonomous work moved the **engineering sca
 
 | dim | before | after | note |
 |---|---|---|---|
-| real-time | 3.0 | 4.5 | fp16 29Hz + latency harness (replay-only, no live p99) |
+| real-time | 3.0 | 4.5 | fp16 ~21Hz (perception_metrics.json) + latency harness (replay-only, no live p99) |
 | closed-loop | 2.0 | 3.5 | full safety machine + IK + 591-frame sim demo; never on hardware, stand-in extrinsic |
 | safety | 4.0 | 4.5 | state machine + hard-inlier + occlusion v9 + dropout tests; force/E-stop/hardware unproven |
 | generalization | 2.5 | 3.5 | LOSO/LOGO + bootstrap-CI harness built+tested, but empty of real data (gated on T6) |
@@ -495,7 +496,8 @@ Actively probed for real-clinic failure modes and fixed what broke (each measure
 ### 9.18 Production-hardening wrap-up (artifacts)
 
 All autonomous gap-closure + production-hardening committed on `feat/auscultation-perception-tracker`,
-**44 hardware-free tests green + GitHub CI**. Net detector = **v9** (`perc_lmh_v9_occ`, occlusion-robust)
+**44 hardware-free tests green** (→ **57 after the §9.19 audit**; CI now runs all of them — see §9.19).
+Net detector = **v9** (`perc_lmh_v9_occ`, occlusion-robust)
 with fp16 + hole-fill + OOD-plausibility gate; net tracker = `ModelBasedTracker` (shared-pose + per-point
 `measured`/`position_std`, hard-inlier robustness, robust canonical init); closed loop = `robot/`
 (safety state machine + staleness/control-deadline + over-force ESTOP + FK/IK + SimArm/RealArm).
@@ -511,6 +513,55 @@ Industrial-grade is still gated on **user-only** items (hardware/patients/clinic
 hardware, ≥20–30-subject clothed dataset + palpation/clinician landmarks (T6/T3), independent metrology,
 real-arm force/E-stop bring-up. The harness (LOSO/LOGO + bootstrap CIs) auto-produces the §9.6 tables
 the moment that data lands.
+
+### 9.19 Adversarial quality audit + fixes (defense-in-depth pass)
+
+A 9-dimension multi-agent audit (correctness / numerical / robot-safety / kinematics-IK / legacy-dead-code
+/ test-coverage / integration-contract / scripts-repro / docs-accuracy) re-read the whole module; **every
+finding was adversarially re-verified against the code** (33 confirmed real, 5 false positives rejected,
+1 hardware-gated). All autonomously-fixable items are fixed + regression-tested (**44 → 57 hardware-free
+tests, all green, all in CI**). Highlights:
+
+**Safety-critical**
+- **Staleness guard was inert in the deployment call form.** `controller.tick(points)` without
+  `perception_t` defaulted the timestamp to the wall clock, which advances every tick → the frozen-pipeline
+  HOLD guard never fired in production (only in the unit test that passed explicit timestamps). Fixed:
+  freshness now comes from `perception_t` **or** a content fingerprint of the tracker frame, so a hung
+  detector re-emitting identical points goes stale → HOLD. `run_closed_loop.py` now passes `perception_t=out.t`.
+- **RETRACT / CONTACT issued no arm command** (fell through the dispatch). Now: APPROACH servos toward the
+  target, **RETRACT actively backs the TCP away to a standoff then self-completes**, every other state
+  positively `hold()`s (exhaustive — no state leaves the arm uncommanded). `servo_toward` is wrapped:
+  an IK/driver exception → `hold()` + latched ESTOP (never crashes the loop).
+- **CONTACT scoped honestly.** It is deliberately NOT re-gated on perception (the placed probe occludes
+  its own landmark — `measured→False` is expected), so auto-retract there would abort every placement;
+  CONTACT relies on the over-force ESTOP + teleop. Docstrings corrected to match.
+- **Flicker-proof give-up.** The HOLD grace counter is now **leaky** (carried, not reset by a single good
+  frame), so an intermittently-recovering target still times out to RETRACT.
+- **Fail-closed boundaries:** NaN/inf detector confidence is now rejected (was `nan < min_conf == False`
+  → fail-open); `_view` reads point fields via `getattr` (a legacy point type missing `measured` fails
+  safe instead of crashing mid-tick); `ik_step` and `RealArm.servo_toward` refuse non-finite targets/joints.
+
+**Correctness**
+- **`NormalsDetector` ignored `intr.depth_scale`** (hardcoded `/1000`), mis-scaling both the normal-map
+  input and the metric OOD plausibility gate on any Orbbec profile with `depth_scale != 1`. Now uses the
+  camera scale, consistent with `sample_depth_m` / `pointmap_from_depth`.
+- **IK hardening:** joint-space slew bounded by the URDF per-joint velocity limits, adaptive damping near
+  singularities, and fail-loud joint limits (no silent ±π fallback). Frame contract documented: tracker
+  `xyz_world`, `tcp_xyz`, and IK targets are all the arm-base (`link0`) frame — verified consistent with
+  the hand-eye calibration's base link (the audit's "world-vs-link0" flag was a naming issue, **not** a
+  numeric bug; changing the FK frame would have *introduced* one).
+- **Hand-eye ChArUco mode crashed** on the first capture (`fk(q7)` on a non-callable `ArmFK` → `fk.fk(q7)`);
+  stillness check now uses full-window peak-to-peak spread (an endpoint diff missed swing-out-and-return).
+
+**Honest-metric / clarity:** committed `med_px` relabeled `med_px_518crop` (it is detector-crop, not
+full-frame, pixels); legacy EKF `tracker.py` docstring corrected (it is NOT the deployment path —
+`ModelBasedTracker` is); `run_compare.py` BEFORE baseline labeled as a de-safetied worst case (not a
+production-uplift claim); doc fp16 figure reconciled to the committed 47 ms / ~21 Hz.
+
+The one **hardware-gated** finding (cannot fix autonomously): the contact over-force ESTOP is real logic
+but **not wired to any force source on the real arm** — needs the RP2040/FT sensor (or joint-effort
+estimate) on hardware. Until then CONTACT-phase force safety is unbacked; this folds into the existing
+real-arm force/E-stop bring-up gate.
 
 ### 9.10 Citations (Section 9)
 

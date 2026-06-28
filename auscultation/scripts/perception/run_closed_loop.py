@@ -51,7 +51,7 @@ def main():
         out = tr.process(bgr[:, :, ::-1], depth, t=fi / fps, depth_scale=1.0)
         if out.initialized and not commanded:
             ctrl.command(args.target); commanded = True
-        st = ctrl.tick(out.points).state if commanded else None
+        st = ctrl.tick(out.points, perception_t=out.t).state if commanded else None
         if st is not None:
             seen[st] = seen.get(st, 0) + 1
         if st == State.CONTACT:

@@ -3,8 +3,14 @@
 The robot must NEVER drive toward a point the perception layer did not actually observe. The
 ModelBasedTracker already flags each point ``measured`` (observed this frame) / ``position_std``
 (uncertainty, grows while extrapolated) / ``status``. This state machine consumes those and only
-permits motion toward a target that is currently measured, low-uncertainty, in a valid world frame,
-with no fault — and HALTS the instant the target degrades (e.g. the arm/probe occludes it).
+permits APPROACH motion toward a target that is currently measured, low-uncertainty, in a valid
+base frame, with no fault — and HALTS the instant the target degrades during ACQUIRING/APPROACH/HOLD
+(e.g. the arm/probe occludes it), escalating to RETRACT if it stays degraded.
+
+CONTACT is deliberately exempt from the perception re-gate: once the stethoscope is placed it
+occludes its own landmark (measured→False is EXPECTED), so auto-retracting on that would abort every
+successful placement. At CONTACT the arm is positively held (no servo) and safety relies on the
+over-force ESTOP (hardware force source — see controller gate) plus doctor teleop.
 
 Pure logic, no robot/torch deps → fully unit-testable without hardware.
 """
@@ -37,6 +43,7 @@ class SafetyConfig:
     max_step_m: float = 0.02            # max commanded Cartesian step per tick (servo speed clamp)
     max_target_age_s: float = 0.25      # HALT if perception hasn't produced a fresh frame within this
     #                                     (frozen camera/pipeline must not be acted on as live data)
+    standoff_m: float = 0.08            # RETRACT backs the TCP this far from the last target, then stops
 
 
 @dataclass
@@ -85,7 +92,10 @@ def step(s: SafetyState, t: Optional[TargetView], cfg: SafetyConfig,
          dist_to_target_m: float = np.inf, force_n: float = 0.0) -> SafetyState:
     """Advance the state machine one tick given the latest target view + (hardware) sensors.
 
-    Returns the next state. The controller only issues motion in APPROACH / CONTACT / RETRACT.
+    Returns the next state. The controller issues servo motion only in APPROACH (toward the target)
+    and RETRACT (away from it); CONTACT / HOLD / IDLE / ACQUIRING / ESTOP are positively held.
+    The ``_degraded`` counter is leaky (carried, not reset, on a single recovered frame) so a
+    flickering target cannot indefinitely defer the RETRACT timeout.
     """
     if s.state == State.ESTOP:
         return s
@@ -102,20 +112,25 @@ def step(s: SafetyState, t: Optional[TargetView], cfg: SafetyConfig,
 
     if s.state == State.APPROACH:
         if not s.target_ok(t, cfg):                     # target degraded (e.g. arm occludes it)
-            return SafetyState(State.HOLD, s.target_name, _degraded=1)
+            return SafetyState(State.HOLD, s.target_name, _degraded=s._degraded + 1)
         if dist_to_target_m <= cfg.reach_tol_m:
             return SafetyState(State.CONTACT, s.target_name)
-        return s
+        return SafetyState(State.APPROACH, s.target_name, _degraded=max(0, s._degraded - 1))
 
     if s.state == State.HOLD:
-        if s.target_ok(t, cfg):                         # recovered → resume
-            return SafetyState(State.APPROACH, s.target_name)
+        if s.target_ok(t, cfg):                         # recovered → resume (leaky decay, NOT reset:
+            #                                             a flicker can't keep deferring the timeout)
+            return SafetyState(State.APPROACH, s.target_name, _degraded=max(0, s._degraded - 1))
         if s._degraded >= cfg.hold_grace_frames:        # gave up waiting → back off safely
             return SafetyState(State.RETRACT, s.target_name)
         return SafetyState(State.HOLD, s.target_name, _degraded=s._degraded + 1)
 
     if s.state == State.CONTACT:
-        return s                                        # caller decides when placement is done
+        # NOT re-gated on perception: the placed probe occludes its own landmark (measured→False is
+        # EXPECTED at contact), so auto-retracting on that would abort every placement. Arm is held
+        # (no servo); safety here = the over-force ESTOP checked above + doctor teleop. Caller signals
+        # placement_done() when finished.
+        return s
 
     if s.state == State.RETRACT:
         return s                                        # caller signals retract-complete → reset

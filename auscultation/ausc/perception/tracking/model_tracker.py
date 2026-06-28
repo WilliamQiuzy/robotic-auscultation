@@ -183,8 +183,8 @@ class ModelBasedTracker:
     # -- detection → 3D ---------------------------------------------------
     def _detect3d(self, rgb, depth):
         det = self.detector.detect(rgb, depth, self.intr)
-        if det is None or det.confidence < self.cfg.min_conf:
-            return None
+        if det is None or not np.isfinite(det.confidence) or det.confidence < self.cfg.min_conf:
+            return None                                  # NaN/inf confidence ⇒ fail closed (reject)
         full = det.crop.det_to_full(det.xy_det)
         if not self.cfg.surface_snap or self._cur_tree is None:
             self._n_snapped = 0

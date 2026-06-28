@@ -135,12 +135,13 @@ class DenseIUVDetector:
 
     def _flip_conf(self, im: np.ndarray, xy0: np.ndarray) -> float:
         xyf, _, _ = self._points_from_im(im[:, ::-1, :].copy())
+        xyf = self._structure(xyf)            # structure flipped pts too (symmetric with the forward pass)
         swap = {LUNG_INDEX[nm]: LUNG_INDEX[("L" + nm[1:] if nm[0] == "R" else "R" + nm[1:])]
                 for nm in LUNG_ORDER}
         d = [np.hypot(xy0[k, 0] - (self.res - 1 - xyf[swap[k], 0]), xy0[k, 1] - xyf[swap[k], 1])
              for k in range(len(LUNG_ORDER))]
-        flip = float(np.mean(d) / self.res * 100.0)
-        return float(np.clip(1.0 - flip / self.review_scale, 0.02, 1.0))
+        c = 1.0 - float(np.mean(d)) / self.res * 100.0 / self.review_scale
+        return float(np.clip(c, 0.02, 1.0)) if np.isfinite(c) else 0.0   # NaN flip pass ⇒ fail closed
 
     def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         if rgb_full is None:
@@ -209,8 +210,9 @@ class NormalsDetector(DenseIUVDetector):
     drops the IUV/semantic channel (``part=uv=None``); the tracker then runs on D+F+G. Same DINOv2+
     LoRA architecture as the RGB detector, so model loading is inherited unchanged.
 
-    Defaults to fp16 inference: measured 51→35 ms/frame (19→29 Hz) at 1080p with IDENTICAL accuracy
-    (held-out PCK@5 100, median 9.0 px unchanged). Pass ``half=False`` to force fp32.
+    Defaults to fp16 inference: measured p50 47 ms (~21 Hz) at 1080p (perception_metrics.json,
+    perc_lmh_v9_occ) with IDENTICAL accuracy (held-out PCK@5 100, median 9.0 px unchanged); clears
+    the 20 Hz control rate. Pass ``half=False`` to force fp32.
     """
 
     def __init__(self, *args, half: bool = True, fill_holes: bool = True,
@@ -234,8 +236,11 @@ class NormalsDetector(DenseIUVDetector):
         import cv2
         from .geometry import back_square_crop, _pad_extract
         _, crop = back_square_crop(rgb_full, depth, intr)
+        # raw depth → metres using the camera's depth_scale (NOT a hardcoded /1000): this matches
+        # sample_depth_m / pointmap_from_depth, so both the normal-map input AND the metric
+        # _back_plausible OOD gate are correct on any Orbbec profile (depth_scale != 1).
         dc = cv2.resize(_pad_extract(depth, crop.x0, crop.y0, crop.side), (self.res, self.res),
-                        interpolation=cv2.INTER_NEAREST).astype(np.float32) / 1000.0
+                        interpolation=cv2.INTER_NEAREST).astype(np.float32) * (intr.depth_scale / 1000.0)
         plausible = (not self.plausibility_gate) or self._back_plausible(dc)   # on RAW depth (pre-fill)
         if getattr(self, "fill_holes", False):
             dc = _fill_depth_holes(dc)    # else holes → gray normal gaps → detector fails (PCK 100→11 at 40% holes)
@@ -251,7 +256,8 @@ class NormalsDetector(DenseIUVDetector):
                 for nm in LUNG_ORDER}
         d = [np.hypot(xy0[k, 0] - (self.res - 1 - xyf[swap[k], 0]), xy0[k, 1] - xyf[swap[k], 1])
              for k in range(len(LUNG_ORDER))]
-        return float(np.clip(1.0 - float(np.mean(d)) / self.res * 100.0 / self.review_scale, 0.02, 1.0))
+        c = 1.0 - float(np.mean(d)) / self.res * 100.0 / self.review_scale
+        return float(np.clip(c, 0.02, 1.0)) if np.isfinite(c) else 0.0   # NaN flip pass ⇒ fail closed
 
     def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         if rgb_full is None or depth is None or intr is None:

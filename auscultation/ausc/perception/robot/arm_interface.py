@@ -63,6 +63,8 @@ class RealArm:
             raise RuntimeError("RealArm not enabled; call enable() (human present!) before motion")
         q = self.read_q()
         qn = self.kin.ik_step(q, target_xyz, max_step_m)
+        if not np.all(np.isfinite(qn)):                   # fail closed: never send NaN to the motors
+            self.hold(); raise RuntimeError("RealArm: refusing non-finite joint command")
         import openarm_can as oa
         self._arm.get_arm().posvel_control_all([oa.PosVelParam(float(a), 5.0) for a in qn])
         return self.kin.tcp_pos(qn)

@@ -13,6 +13,10 @@ S = os.path.expanduser(os.environ.get("AUSC_DATA","~/ausc_test")+"/orbbec_sessio
 intr = Intrinsics(d["fx"], d["fy"], d["cx"], d["cy"], d["width"], d["height"], 1.0)
 det = NormalsDetector("outputs/perc_lmh_v7_adapt/best.pt")        # shared detector instance
 
+# BEFORE baseline = legacy EKF tracker with its agreement/confidence/throttle gates DISABLED
+# (raw detector-primary, maximally jittery). This is a worst-case BEFORE, NOT the legacy tracker's
+# intended gated behaviour — the printed Nx is "jitter vs un-gated detector-primary", not a
+# production uplift claim. For an apples-to-apples baseline use the default TrackerConfig().
 old = StreamingAuscultationTracker(det, intr, TrackerConfig(
     drift_audit_s=0.0, detection_agree_mm=1000.0, detect_conf_accept=0.0, var_flow=4e-3, init_confirm_frames=2))
 new = ModelBasedTracker(det, intr, ModelConfig())

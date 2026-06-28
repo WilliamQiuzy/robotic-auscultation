@@ -2,19 +2,19 @@
   "weight": "perc_lmh_v9_occ",
   "nominal": {
     "pck5": 99.5,
-    "med_px": 7.3
+    "med_px_518crop":7.3
   },
   "occlusion_band": {
     "pck5": 98.2,
-    "med_px": 9.0
+    "med_px_518crop":9.0
   },
   "holes40_fill_off": {
     "pck5": 7.1,
-    "med_px": 70.2
+    "med_px_518crop":70.2
   },
   "holes40_fill_on": {
     "pck5": 99.5,
-    "med_px": 7.2
+    "med_px_518crop":7.2
   },
   "detector_latency_p50_ms_fp16_1080p": 47.0,
   "provenance": {
