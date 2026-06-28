@@ -482,6 +482,15 @@ Actively probed for real-clinic failure modes and fixed what broke (each measure
   few-px on good frames is sub-cm noise). Avoided a wasted "fix."
 - **Off-center patient — false alarm.** The initial 0% was a test artifact (image shifted but labels
   not); the depth-centered `back_square_crop` re-centers fine. **Bystander @ same depth** left PCK@5 98.
+- **OOD fail-safe — probed + HARDENED.** The detector already fails reasonably safe (real-back conf
+  0.94–0.98 vs OOD: noise 0.02, sphere 0.54, flat/empty-wall 0.84), but flat/empty at 0.84 is a thin
+  margin (the tracker's `min_conf=0.3` would have accepted an empty wall and built a canonical on it).
+  Added a **depth-plausibility gate** (`_back_plausible`, default on): a real back has body-distance
+  median (0.4–1.6 m) AND a real depth-extent (>80 mm; measured back ~620 mm vs flat/empty 0 mm). It is
+  **hole-robust** (range computed on valid points, so a back at 40% holes still passes — verified
+  conf 0.97). Result: flat/empty/noise → conf 0.00–0.02 (rejected); real backs (even high-hole) pass.
+- **Garment-colour depth quality:** dark clothing → **18% back-crop holes vs 10% for yellow** (IR
+  absorption) — confirms the hole-fill matters most exactly where it's most common (dark clothing).
 
 ### 9.10 Citations (Section 9)
 

@@ -213,9 +213,22 @@ class NormalsDetector(DenseIUVDetector):
     (held-out PCK@5 100, median 9.0 px unchanged). Pass ``half=False`` to force fp32.
     """
 
-    def __init__(self, *args, half: bool = True, fill_holes: bool = True, **kwargs):
+    def __init__(self, *args, half: bool = True, fill_holes: bool = True,
+                 plausibility_gate: bool = True, **kwargs):
         super().__init__(*args, half=half, **kwargs)
         self.fill_holes = fill_holes      # fill depth holes before normals (Orbbec ~25%+ holes)
+        self.plausibility_gate = plausibility_gate   # OOD fail-safe: conf=0 if the crop isn't a body-back
+
+    def _back_plausible(self, dc_m: np.ndarray) -> bool:
+        """Is the crop a plausible patient back (vs empty wall / flat surface / noise)? Hole-robust:
+        body has a body-distance median AND a real depth-extent; flat/empty have ~0 range, far wall a
+        far median. (Measured: back range ~620mm/median 1.15m; flat/empty 0mm; far wall 2.5m.)"""
+        v = dc_m[(dc_m > 0.2) & (dc_m < 3.0)]
+        if v.size < 0.12 * dc_m.size:
+            return False
+        med = float(np.median(v))
+        rng = float(np.percentile(v, 90) - np.percentile(v, 10)) * 1000.0
+        return (0.4 < med < 1.6) and (rng > 80.0)
 
     def _normal_image(self, rgb_full: np.ndarray, depth, intr):
         import cv2
@@ -223,10 +236,11 @@ class NormalsDetector(DenseIUVDetector):
         _, crop = back_square_crop(rgb_full, depth, intr)
         dc = cv2.resize(_pad_extract(depth, crop.x0, crop.y0, crop.side), (self.res, self.res),
                         interpolation=cv2.INTER_NEAREST).astype(np.float32) / 1000.0
+        plausible = (not self.plausibility_gate) or self._back_plausible(dc)   # on RAW depth (pre-fill)
         if getattr(self, "fill_holes", False):
             dc = _fill_depth_holes(dc)    # else holes → gray normal gaps → detector fails (PCK 100→11 at 40% holes)
         nrm = np.clip(normals_from_depth_m(dc, *_NORM_K) * 127 + 127, 0, 255).astype(np.uint8)
-        return nrm, crop
+        return nrm, crop, plausible
 
     def _flip_conf(self, im: np.ndarray, xy0: np.ndarray) -> float:
         flip = im[:, ::-1, :].copy()
@@ -242,9 +256,11 @@ class NormalsDetector(DenseIUVDetector):
     def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         if rgb_full is None or depth is None or intr is None:
             return None
-        nrm, crop = self._normal_image(rgb_full, depth, intr)
+        nrm, crop, plausible = self._normal_image(rgb_full, depth, intr)
         xy, _, _ = self._points_from_im(nrm)
         xy = self._structure(xy)
         conf = self._flip_conf(nrm, xy) if self.compute_confidence else 0.8
+        if not plausible:
+            conf = 0.0            # OOD fail-safe: not a body-plausible back → gate rejects (no action on garbage)
         return DetectorResult(xy_det=xy[:len(LUNG_ORDER)], crop=crop, confidence=conf,
                               part=None, uv=None, order=tuple(LUNG_ORDER))
