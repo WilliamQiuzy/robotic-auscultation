@@ -1,0 +1,20 @@
+# Auscultation perception module dependencies (pin for reproducibility / traceability).
+# Two runtime tiers:
+#   - hardware-free (CI + tracker + closed-loop safety tests): numpy, opencv, scipy
+#   - box/runtime (detector training/inference, FK/IK, calibration): + torch(cu12x), yourdfpy, smplx, pyorbbecsdk
+#
+# CI installs only the hardware-free tier. The box uses the torch venv (~/envs/ausc, torch cu128)
+# and conda env (pyorbbecsdk) — see scripts/perception/README.md and memory linbox-gpu.
+
+# --- hardware-free (CI) ---
+numpy>=1.24
+opencv-python-headless>=4.9
+scipy>=1.10
+pytest>=7.4
+
+# --- box / runtime (not installed in CI) ---
+# torch>=2.5            # CUDA 12.x build for the RTX 5090 (cu128); detector train/infer
+# yourdfpy>=0.0.56      # URDF forward kinematics (hand-eye + arm IK)
+# smplx>=0.1.28         # SMPL body model (synthetic data engine, teacher)
+# trimesh>=4.0          # mesh ops (rasterize/IUV, SMPL)
+# pyorbbecsdk           # Orbbec Femto Bolt RGB-D (camera_stream); install per Orbbec SDK
