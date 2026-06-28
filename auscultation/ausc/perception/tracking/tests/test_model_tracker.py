@@ -158,6 +158,64 @@ def test_arm_occlusion_flags_unmeasured_never_silent():
     assert post and np.median([o.n_measured for o in post]) >= 9   # full recovery, no identity loss
 
 
+class _SpikeDetector:
+    """Wraps a detector and adds a TRANSIENT random-direction pixel spike to chosen points each frame
+    — simulates per-frame detector glitches/outliers (IRLS must reject them every frame, and they must
+    not be absorbed by the slow per-point residual)."""
+
+    def __init__(self, base, spike_idx=(), spike_px=80.0, seed=0):
+        self.base = base; self.spike_idx = set(spike_idx); self.spike_px = spike_px
+        self.rng = np.random.RandomState(seed)
+
+    def set_truth(self, g):
+        self.base.set_truth(g)
+
+    def detect(self, rgb, depth, intr):
+        import dataclasses
+        r = self.base.detect(rgb, depth, intr)
+        if r is None or not self.spike_idx:
+            return r
+        xy = r.xy_det.astype(float).copy()
+        for k in self.spike_idx:
+            ang = self.rng.uniform(0, 2 * np.pi)             # random direction each frame
+            xy[k] = xy[k] + self.spike_px * np.array([np.cos(ang), np.sin(ang)])
+        return dataclasses.replace(r, xy_det=xy)
+
+
+def test_outlier_spikes_rejected_by_irls():
+    """Detector glitches on 2 points must NOT corrupt the others: IRLS rejects the outliers (they come
+    back measured=False) while the remaining points stay accurate vs ground truth."""
+    frames, intr = make_synthetic_sequence(n_frames=120)
+    det = _SpikeDetector(SyntheticDetector(intr, noise_px=1.0), spike_idx={2, 3}, spike_px=90.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8))
+    out = None
+    for fr in frames:
+        det.set_truth(fr.gt_pixels)
+        out = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+    assert out.initialized
+    assert not out.points[2].measured and not out.points[3].measured     # spiked → rejected
+    clean = [k for k in range(10) if k not in (2, 3)]
+    err = [np.linalg.norm(out.points[k].xyz_camera - frames[-1].gt_xyz_cam[k]) for k in clean]
+    assert np.median(err) < 0.02 and all(out.points[k].measured for k in clean)  # others unharmed
+
+
+def test_frame_dropout_coasts_and_recovers():
+    """Intermittent missing frames (sensor dropout) → tracker coasts, never crashes, recovers."""
+    frames, intr = make_synthetic_sequence(n_frames=120)
+    det = SyntheticDetector(intr, noise_px=1.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8))
+    saw_coast = False; last = None
+    for i, fr in enumerate(frames):
+        det.set_truth(fr.gt_pixels)
+        if 40 <= i < 50:                                       # 10-frame dropout
+            last = tr.process(None, None, t=fr.t)
+            if last.initialized and last.n_measured == 0:
+                saw_coast = True
+        else:
+            last = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+    assert saw_coast and last.initialized and last.n_measured >= 9   # coasted during gap, recovered after
+
+
 def test_extrinsics_produce_world_points():
     frames, intr = make_synthetic_sequence(n_frames=40)
     ext = np.eye(4); ext[:3, 3] = [0.1, -0.2, 0.3]      # arbitrary camera→base
@@ -171,6 +229,39 @@ def test_extrinsics_produce_world_points():
     p = out.points[0]
     assert p.xyz_world is not None
     assert np.allclose(p.xyz_world, ext[:3, :3] @ p.xyz_camera + ext[:3, 3])
+
+
+def test_fast_motion_stays_bounded():
+    """3x-faster patient/camera motion (subsampled sequence) must not blow up or lose track."""
+    frames, intr = make_synthetic_sequence(n_frames=240)
+    frames = frames[::3]                                # larger inter-frame motion
+    det = SyntheticDetector(intr, noise_px=1.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8))
+    errs = []
+    for fr in frames:
+        det.set_truth(fr.gt_pixels)
+        o = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+        if o.initialized:
+            for k, p in enumerate(o.points):
+                if np.isfinite(p.xyz_camera).all():
+                    errs.append(np.linalg.norm(p.xyz_camera - fr.gt_xyz_cam[k]))
+    assert np.median(errs) < 0.03                       # bounded under fast motion (some EMA lag ok)
+
+
+def test_long_duration_no_drift():
+    """Over a long run the error must not grow (canonical-anchored, no accumulation)."""
+    frames, intr = make_synthetic_sequence(n_frames=600)
+    det = SyntheticDetector(intr, noise_px=1.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8))
+    err_t = []
+    for fr in frames:
+        det.set_truth(fr.gt_pixels)
+        o = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+        e = [np.linalg.norm(o.points[k].xyz_camera - fr.gt_xyz_cam[k]) for k in range(10)
+             if o.initialized and np.isfinite(o.points[k].xyz_camera).all()]
+        err_t.append(np.median(e) if e else np.nan)
+    first = np.nanmedian(err_t[20:120]); last = np.nanmedian(err_t[-100:])
+    assert last < first * 1.5 + 0.002                   # no drift: late error ≈ early error
 
 
 def test_coasts_when_detection_missing():
