@@ -59,13 +59,14 @@ class ArmKinematics:
         return J
 
     def ik_step(self, q: np.ndarray, target_xyz: np.ndarray, max_step_m: float = 0.02,
-                lam: float = 0.01, dt: float = 0.05) -> np.ndarray:
+                lam: float = 0.01, dt: float = 1.0 / 30.0) -> np.ndarray:
         """One damped-least-squares step of the TCP toward target_xyz; returns new joints (clamped).
 
         Fails CLOSED on non-finite input/output (raises), grows damping near singularities so a weak
         Jacobian direction cannot whip a joint, and bounds the joint-space slew to the URDF per-joint
-        velocity limits (``dt`` = control period) so motion stays bounded even when the Cartesian step
-        is clamped. The slew bound scales ``dq`` uniformly, preserving the Cartesian direction."""
+        velocity limits. ``dt`` is a fixed conservative per-tick slew bound matching the ~30 Hz control
+        loop (not plumbed from the caller); keep it ≤ the real loop period so the cap can't exceed the
+        true per-tick budget. The slew bound scales ``dq`` uniformly, preserving the Cartesian direction."""
         q = np.asarray(q, float); tx = np.asarray(target_xyz, float)
         if q.shape != (7,) or tx.shape != (3,) or not np.all(np.isfinite(q)) or not np.all(np.isfinite(tx)):
             raise ValueError("ik_step: non-finite or wrong-shape joints/target")

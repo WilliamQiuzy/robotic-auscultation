@@ -563,6 +563,16 @@ but **not wired to any force source on the real arm** — needs the RP2040/FT se
 estimate) on hardware. Until then CONTACT-phase force safety is unbacked; this folds into the existing
 real-arm force/E-stop bring-up gate.
 
+**Second-pass self-review** (adversarial review of the fixes above, since that code was new): found 6
+real issues in the just-written code, all fixed. The notable one was a CRITICAL regression I had
+introduced — the new content-fingerprint staleness key embedded raw floats, and `NaN != NaN`, so a
+frozen frame carrying a NaN coordinate on *any* point (routine for LOST/INIT landmarks) compared unequal
+to itself every tick → staleness never fired → arm would servo on frozen data. Fixed by canonicalizing
+non-finite values in the fingerprint and rejecting a non-finite `perception_t`. Also fixed: RETRACT
+servo-failure now latches ESTOP (was silently swallowed → could strand the machine in RETRACT); `ik_step`
+slew `dt` tied to the real ~30 Hz loop; leaky-counter docstring corrected (an exact 1:1 flicker
+deliberately does not time out — still safe, each good frame is measured). **61 hardware-free tests green.**
+
 ### 9.10 Citations (Section 9)
 
 - Texture/shape bias: [Geirhos et al., ICLR 2019](https://arxiv.org/abs/1811.12231) · [SagNet style-agnostic](https://arxiv.org/abs/1910.11645)

@@ -286,3 +286,74 @@ def test_legacy_point_without_measured_fails_safe():
     for _ in range(6):
         c.tick([_LegacyPoint("R3", np.array([0., 0., 0.10]))])
     assert arm.servo_calls == 0 and c.state.state == State.ACQUIRING
+
+
+# ── second-pass (self-review) regression tests ────────────────────────────────────────────
+
+def test_frozen_pipeline_with_nan_sibling_still_halts():
+    """A NaN coord on an UNRELATED point must NOT defeat the content-fingerprint staleness guard
+    (nan != nan would make a frozen frame compare unequal to itself → servo on stale data forever)."""
+    arm = MockArm(); c = AuscultationController(arm, SafetyConfig(max_target_age_s=2.5)); c.command("R3")
+    def frame():
+        return [P("R3", np.array([0., 0., 0.10])),
+                P("L2", np.array([0., 0., np.nan]), measured=False, status="LOST")]  # routine LOST pt
+    c.tick(frame(), now=0.0); c.tick(frame(), now=0.1)
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(frame(), now=10.0)                           # 10 s of byte-identical frozen content
+    assert c.state.state == State.HOLD and arm.servo_calls == sc
+
+
+def test_nan_perception_t_halts():
+    """A non-finite perception timestamp must not act as an ever-changing key; freshness falls back
+    to the fingerprint so frozen content still HALTs."""
+    arm = MockArm(); c = AuscultationController(arm, SafetyConfig(max_target_age_s=2.5)); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    c.tick(tgt, perception_t=float("nan"), now=0.0); c.tick(tgt, perception_t=float("nan"), now=0.1)
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(tgt, perception_t=float("nan"), now=10.0)
+    assert c.state.state == State.HOLD and arm.servo_calls == sc
+
+
+class _RetractFailArm:
+    """Servos normally, but raises once ``fail`` is set — to simulate an IK/driver fault during RETRACT."""
+    def __init__(self): self.p = np.zeros(3); self.servo_calls = 0; self.hold_calls = 0; self.fail = False
+    def tcp_xyz(self): return self.p.copy()
+    def servo_toward(self, t, m):
+        self.servo_calls += 1
+        if self.fail:
+            raise RuntimeError("retract servo failure")
+        d = np.asarray(t, float) - self.p; n = np.linalg.norm(d)
+        self.p = self.p + (d if n <= m else d / n * m); return self.p.copy()
+    def hold(self): self.hold_calls += 1
+
+
+def test_retract_servo_failure_estops():
+    """A servo fault DURING retract must latch ESTOP (symmetric with APPROACH) — not silently strand
+    the machine in RETRACT forever."""
+    arm = _RetractFailArm(); c = AuscultationController(arm, SafetyConfig(hold_grace_frames=2)); c.command("R3")
+    near = np.array([0., 0., 0.12])
+    good = [P("R3", near)]; occ = [P("R3", near, measured=False, status="COASTING")]
+    c.tick(good); c.tick(good); c.tick(good)            # APPROACH within standoff of the target
+    arm.fail = True                                     # retreat servo will now fail
+    states = [c.tick(occ).state for _ in range(12)]
+    assert State.ESTOP in states
+
+
+def test_one_to_one_flicker_does_not_retract():
+    """Documented boundary: an exact 1:1 occlusion/recovery alternation deliberately does NOT time out
+    (each good frame is genuinely measured → servoing on it is safe). Guards the leaky-counter dynamics
+    against a change that would spuriously retract on benign brief flicker."""
+    from ausc.perception.robot.safety import SafetyState, TargetView, command, step  # noqa: E402
+    cfg = SafetyConfig(hold_grace_frames=4)
+    p = np.array([0., 0., 0.10])
+    good = TargetView("R3", p, measured=True, position_std_m=0.003, status="TRACKING")
+    occ = TargetView("R3", p, measured=False, position_std_m=0.003, status="COASTING")
+    s = command(SafetyState(), "R3")
+    s = step(s, good, cfg, dist_to_target_m=1.0); s = step(s, good, cfg, dist_to_target_m=1.0)
+    states = set()
+    for _ in range(200):
+        s = step(s, occ, cfg, dist_to_target_m=1.0); states.add(s.state)
+        s = step(s, good, cfg, dist_to_target_m=1.0); states.add(s.state)
+    assert State.RETRACT not in states and states <= {State.APPROACH, State.HOLD}

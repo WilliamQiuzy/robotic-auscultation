@@ -42,6 +42,15 @@ def _view(points, name: str) -> Optional[sf.TargetView]:
     return None
 
 
+def _canon(v) -> object:
+    """Canonicalize a float for the freshness key. CRITICAL: non-finite values map to a fixed
+    sentinel — raw NaN would make a byte-identical frozen frame compare UNEQUAL to itself
+    (nan != nan), silently defeating the staleness guard whenever any landmark carries a NaN coord
+    (routine for LOST/INIT points)."""
+    v = float(v)
+    return "nonfinite" if not np.isfinite(v) else round(v, 9)
+
+
 def _fingerprint(points) -> Tuple:
     """Content key of a tracker frame — used to detect a FROZEN pipeline when the caller does not
     thread ``perception_t``. A hung detector re-emits byte-identical points, so an unchanging key
@@ -49,10 +58,10 @@ def _fingerprint(points) -> Tuple:
     key = []
     for p in points:
         xw = getattr(p, "xyz_world", None)
-        xw_t = None if xw is None else tuple(np.asarray(xw, float).ravel().tolist())
+        xw_t = None if xw is None else tuple(_canon(v) for v in np.asarray(xw, float).ravel())
         key.append((getattr(p, "name", None), str(getattr(p, "status", "")),
                     bool(getattr(p, "measured", False)),
-                    round(float(getattr(p, "position_std", 0.0)), 9), xw_t))
+                    _canon(getattr(p, "position_std", 0.0)), xw_t))
     return tuple(key)
 
 
@@ -85,7 +94,11 @@ class AuscultationController:
         import time
         now = time.monotonic() if now is None else now
         # Prefer the perception timestamp; else use a content fingerprint as the freshness signal.
-        frame_key = float(perception_t) if perception_t is not None else _fingerprint(tracker_points)
+        # A non-finite perception_t (uninitialized/NaN) is NOT trusted — it would act as an
+        # ever-changing key (NaN != NaN) and defeat the staleness guard, so fall back to the
+        # (NaN-safe) fingerprint instead.
+        pt = None if perception_t is None else float(perception_t)
+        frame_key = pt if (pt is not None and np.isfinite(pt)) else _fingerprint(tracker_points)
         if self._last_key is None or frame_key != self._last_key:
             self._last_advance_wall = now          # a fresh (advanced/changed) perception frame
         self._last_key = frame_key
@@ -131,5 +144,6 @@ class AuscultationController:
         retreat = tcp + direction * self.cfg.standoff_m
         try:
             self.arm.servo_toward(retreat, self.cfg.max_step_m)
-        except Exception:  # noqa: BLE001
-            self.arm.hold()
+        except Exception as e:  # noqa: BLE001 — persistent retract fault → latch ESTOP (symmetric with
+            #                                    APPROACH); never sit in RETRACT forever with no signal
+            self.arm.hold(); self.state = sf.estop(self.state, f"retract servo failed: {e}")

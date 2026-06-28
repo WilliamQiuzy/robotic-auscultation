@@ -94,8 +94,10 @@ def step(s: SafetyState, t: Optional[TargetView], cfg: SafetyConfig,
 
     Returns the next state. The controller issues servo motion only in APPROACH (toward the target)
     and RETRACT (away from it); CONTACT / HOLD / IDLE / ACQUIRING / ESTOP are positively held.
-    The ``_degraded`` counter is leaky (carried, not reset, on a single recovered frame) so a
-    flickering target cannot indefinitely defer the RETRACT timeout.
+    The ``_degraded`` counter is leaky (carried, not reset, on a single recovered frame): it nets
+    upward and eventually RETRACTs only when degraded frames OUTNUMBER recovered frames. An exact
+    1:1 occlusion/recovery alternation is a deliberate non-timeout — each good frame is genuinely
+    measured/low-uncertainty, so servoing on it stays safe.
     """
     if s.state == State.ESTOP:
         return s
@@ -119,7 +121,8 @@ def step(s: SafetyState, t: Optional[TargetView], cfg: SafetyConfig,
 
     if s.state == State.HOLD:
         if s.target_ok(t, cfg):                         # recovered → resume (leaky decay, NOT reset:
-            #                                             a flicker can't keep deferring the timeout)
+            #                                             net-positive degradation still times out;
+            #                                             a sustained 1:1 flicker deliberately won't)
             return SafetyState(State.APPROACH, s.target_name, _degraded=max(0, s._degraded - 1))
         if s._degraded >= cfg.hold_grace_frames:        # gave up waiting → back off safely
             return SafetyState(State.RETRACT, s.target_name)
