@@ -637,3 +637,56 @@ APPROACH — the safety machine halting exactly on the points that are genuinely
 - Geometry-primary: [Delgarmi et al., bioRxiv 2021](https://www.biorxiv.org/content/10.1101/2021.02.04.429842v2.full) · [Normal Maps, Adv. Intelligent Systems 2024](https://advanced.onlinelibrary.wiley.com/doi/full/10.1002/aisy.202400159) · [Surface normals, ECCV 2016](https://link.springer.com/chapter/10.1007/978-3-319-46487-9_34) · [SPiKE 2024](https://arxiv.org/html/2409.01879v1) · [SimPose, ECCV 2020](https://arxiv.org/abs/2007.15506)
 - Foundation + data-efficient + SSL: [DINOv2](https://arxiv.org/pdf/2304.07193) · [DINOv3](https://arxiv.org/pdf/2508.10104) · [Sapiens](https://arxiv.org/html/2408.12569v1) · [SAM 3D Body](https://huggingface.co/facebook/sam-3d-body-dinov3) · [few-shot keypoint, frozen DINO ViT, IJCV 2025](https://link.springer.com/article/10.1007/s11263-025-02671-5) · [SSPCM, CVPR 2023](https://arxiv.org/abs/2303.04346) · [ST3D pitfalls](https://arxiv.org/pdf/2103.05346) · [TENT, ICLR 2021](https://arxiv.org/abs/2006.10726)
 - Readout / loss: [DARK](https://arxiv.org/abs/1910.06278) · [UDP](https://arxiv.org/abs/1911.07524v2) · [DSNT](https://arxiv.org/abs/1801.07372) · [Adaptive Wing, ICCV 2019](https://arxiv.org/abs/1904.07399)
+
+## 10. TAPIP3D ground-truth oracle (P0) — what the per-frame jitter actually is
+
+Date: 2026-06-29. Ran **TAPIP3D** (NeurIPS 2025, RGB-D long-term 3D point tracking) as an **offline
+ground-truth oracle** for our 10 lung landmarks. Compute: **RTX A6000, RunPod secure cloud, torch 2.4.1/cu124**
+(the local Blackwell RTX 5090 cannot run that toolchain — sm_120 needs torch≥2.7/cu128; resolved by an
+ephemeral cloud GPU, terminated after the run). TAPIP3D was **seeded with our detector's 10 landmark 3D
+positions at the highest-confidence anchor frame** (identity extrinsics — camera is fixed), so it returns the
+*smooth true 3D trajectory* of those exact physical points. Two 8-s clips @640×360: `orbbec_session2`
+(trained subject) and `orbbec_session3` ("yellow", held-out). Alignment sanity: GT-vs-seed at anchor = **0.1 mm**.
+
+### 10.1 Findings (per-point 3D, camera frame, mm)
+
+| metric | TAPIP3D truth | raw detector (P1) | EKF (P2) | LK-prop (P3) |
+|---|---|---|---|---|
+| yellow frame-to-frame median | 1.5 | 5.0 | 2.3 | 2.3 |
+| yellow frame-to-frame p95 | 11.0 | 16.1 | 10.8 | 11.6 |
+| yellow frame-to-frame max | 24.5 | 47.0 | 21.6 | **194** |
+| validated frame-to-frame median | 2.3 | 3.5 | 2.5 | 2.5 |
+
+Detector-vs-smooth-truth deviation, binned by distance from the seeded anchor (separates *instantaneous*
+error from *accumulated* drift):
+
+| \|frame−anchor\| | yellow median | validated median |
+|---|---|---|
+| 0–15 | **3.6** | **6.3** |
+| 15–60 | 11.6 | 18.9 |
+| 60–150 | 9.2 | 25.3 |
+| 150+ | — | 24.3 |
+
+### 10.2 What this proves
+
+1. **Per-frame jitter is mostly NOISE, not motion.** The back truly moves ~1.5 mm/frame (breathing) but the
+   raw detector moves 5.0 mm/frame on held-out yellow → ~70 % of the per-frame motion is detector noise.
+2. **The EKF (P2) is already near the smoothness floor.** Post-EKF frame-to-frame (2.3 mm) ≈ true motion
+   (1.5 mm); negligible headroom remains for *smoothing/propagation* to win. The EKF de-jitter is validated.
+3. **Instantaneous detector accuracy is ~4–6 mm** (near-anchor deviation). The larger 9–20 mm overall numbers
+   are *accumulated divergence with time from the anchor* (confounded between TAPIP drift and detector wander)
+   — **not a static bias**, and not the operative metric for a re-perceive-before-touch arm.
+4. **P3 (LK optical-flow propagation between low-rate detector anchors) is REFUTED.** On low-texture
+   skin/garment, LK drifts and the periodic re-anchor snaps back → spikes to 50–225 mm, *worse* than plain
+   EKF. Drop LK-P3; keep the EKF.
+5. **The real lever is detector accuracy on the lower points** (yellow per-point: R1/L1/R2/L2 ≈ 5–6 mm but
+   R4/R5/L4/L5 = 12–18 mm) → **generalization**, not the filter. Re-confirms §3/§9: the bottleneck is the
+   detector on held-out subjects; the fix is data/generalization, not more tracking machinery.
+
+### 10.3 Deliverables / reproduction
+
+- `data/lab_back_video_test/production_eval/gt_overlay_yellow.mp4` — 3-panel [raw | EKF | TAPIP3D truth];
+  `…/gt_overlay_validated.mp4`; `…/gt_oracle_summary.png`; `…/p3_orbbec_session3.mp4` (refuted-P3 evidence).
+- Recipe: build RGB-D npz (`video`/`depths`/`intrinsics`/identity `extrinsics` + `query_point=[anchor,X,Y,Z]`),
+  run `inference.py --resolution_factor 2`; **`pointops2` must be compiled for the GPU arch** (sm_86 here).
+  Cloud GPU is ephemeral (terminate after) and **off the critical path** now that the lever is known.
