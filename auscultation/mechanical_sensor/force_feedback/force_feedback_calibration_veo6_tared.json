@@ -1,0 +1,46 @@
+{
+  "variant": "veo6_coaxial_hall_axial_gap",
+  "measurement_type": "hall_voltage_to_force",
+  "notes": "VEO6 coaxial axial-gap Hall. The carriage magnet closes the gap to the fixed SS49E as contact force rises; Hall voltage rises monotonically with force. calibration_points below are the DESIGN NOMINAL (from veo6_design_metadata.json sensing model). Replace them with bench-calibrated points (push the assembled module against a digital scale) and set calibrated=true.",
+  "signal_pin": "GP28",
+  "supply_v": 3.3,
+  "adc_full_scale": 65535,
+  "calibrated": false,
+  "force_model": {
+    "preload_n": 1.5,
+    "spring_rate_n_per_mm": 1.0,
+    "hard_stop_travel_mm": 4.0,
+    "rest_face_gap_mm": 7.75
+  },
+  "calibration_points": [
+    {
+      "hall_v": 0.8236,
+      "force_n": 5.5,
+      "displacement_mm": 4.0
+    },
+    {
+      "hall_v": 1.111,
+      "force_n": 4.0,
+      "displacement_mm": 2.5
+    },
+    {
+      "hall_v": 1.5901,
+      "force_n": 1.5,
+      "displacement_mm": 0.0
+    }
+  ],
+  "target_force_n": 4.0,
+  "target_tolerance_n": 0.5,
+  "max_screened_force_n": 4.6,
+  "hard_limit_force_n": 5.5,
+  "target_update_rate_hz": 100,
+  "max_allowed_latency_ms": 50,
+  "stale_timeout_ms": 200,
+  "tare": {
+    "tared_utc": "2026-06-30T20:27:28Z",
+    "face": "inverted (press lowers Hall)",
+    "rest_raw": 31577,
+    "hardstop_raw": 16355,
+    "method": "rest + mechanical hard-stop (provisional, no external weight)"
+  }
+}
