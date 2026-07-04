@@ -1,0 +1,77 @@
+{"stage": "sweep", "feat": "handcrafted_full", "head": "logreg", "dim": 145, "auc": 0.877, "auc_std": 0.009, "ci95": [0.863, 0.893], "t": "16:36:21"}
+{"stage": "sweep", "feat": "handcrafted_full", "head": "gbm", "dim": 145, "auc": 0.975, "auc_std": 0.005, "ci95": [0.965, 0.985], "t": "16:36:22"}
+{"stage": "sweep", "feat": "handcrafted_band", "head": "logreg", "dim": 145, "auc": 0.894, "auc_std": 0.009, "ci95": [0.878, 0.909], "t": "16:38:38"}
+{"stage": "sweep", "feat": "handcrafted_band", "head": "gbm", "dim": 145, "auc": 0.976, "auc_std": 0.005, "ci95": [0.965, 0.985], "t": "16:38:39"}
+{"stage": "sweep", "feat": "wavlm", "head": "logreg", "dim": 768, "auc": 0.958, "auc_std": 0.006, "ci95": [0.946, 0.97], "t": "16:40:34"}
+{"stage": "sweep", "feat": "wavlm", "head": "gbm", "dim": 768, "auc": 0.987, "auc_std": 0.003, "ci95": [0.981, 0.992], "t": "16:40:42"}
+{"stage": "sweep", "feat": "wavlm+band_hc", "head": "logreg", "dim": 913, "auc": 0.956, "auc_std": 0.007, "ci95": [0.941, 0.97], "t": "16:42:35"}
+{"stage": "sweep", "feat": "wavlm+band_hc", "head": "gbm", "dim": 913, "auc": 0.986, "auc_std": 0.003, "ci95": [0.98, 0.991], "t": "16:42:44"}
+{"stage": "sweep_done", "best": {"stage": "sweep", "feat": "wavlm", "head": "gbm", "dim": 768, "auc": 0.987, "auc_std": 0.003, "ci95": [0.981, 0.992], "t": "16:40:42"}, "t": "16:42:44"}
+{"stage": "robust_cleanmodel", "test_cond": "clean", "auc": 0.879, "t": "16:46:46"}
+{"stage": "robust_cleanmodel", "test_cond": "hum", "auc": 0.791, "t": "16:48:05"}
+{"stage": "robust_cleanmodel", "test_cond": "noise", "auc": 0.497, "t": "16:49:16"}
+{"stage": "robust_humaug", "test_cond": "hum", "auc": 0.846, "t": "16:54:00"}
+{"stage": "robust_done", "t": "16:54:00"}
+{"stage": "ast_done", "dim": 768, "secs": 129, "t": "16:56:29"}
+{"stage": "ensemble", "feat": "wavlm", "dim": 768, "auc": 0.987, "ci95": [0.981, 0.992], "t": "16:56:37"}
+{"stage": "ensemble", "feat": "ast", "dim": 768, "auc": 0.993, "ci95": [0.989, 0.997], "t": "16:56:45"}
+{"stage": "ensemble", "feat": "wavlm+ast", "dim": 1536, "auc": 0.993, "ci95": [0.989, 0.996], "t": "16:57:02"}
+{"stage": "ensemble", "feat": "wavlm+ast+hc", "dim": 1681, "auc": 0.99, "ci95": [0.984, 0.995], "t": "16:57:22"}
+{"stage": "band_sweep", "band": [70, 1000], "n": 920, "auc": 0.965, "ci95": [0.951, 0.977], "t": "16:57:52"}
+{"stage": "band_sweep", "band": [90, 1100], "n": 920, "auc": 0.966, "ci95": [0.953, 0.977], "t": "16:58:22"}
+{"stage": "band_sweep", "band": [110, 1300], "n": 920, "auc": 0.97, "ci95": [0.959, 0.979], "t": "16:58:54"}
+{"stage": "band_sweep", "band": [90, 2000], "n": 920, "auc": 0.966, "ci95": [0.953, 0.976], "t": "16:59:27"}
+{"stage": "band_sweep", "band": [150, 1000], "n": 920, "auc": 0.965, "ci95": [0.952, 0.975], "t": "16:59:57"}
+{"stage": "band_sweep", "band": [60, 2500], "n": 920, "auc": 0.971, "ci95": [0.96, 0.982], "t": "17:00:34"}
+{"stage": "year_dist", "dist": {"?": 4932, "2023": 24, "2024": 2, "2022": 2}, "t": "17:00:34"}
+{"stage": "calibrate", "auc": 0.99, "brier": 0.016, "op_thr_prec_rec": [0.15, 0.62, 0.99], "t": "17:00:39"}
+{"stage": "feat_importance", "top12": [["zcr_s", 0.0653], ["bw_m", 0.005], ["mel_mean_1", 0.0028], ["bandratio_600-1200", 0.0025], ["mel_mean_5", 0.0023], ["bandratio_250-600", 0.0018], ["roll_m", 0.0018], ["mel_std_6", 0.0016], ["mel_mean_4", 0.0016], ["bandratio_0-100", 0.0015], ["mel_std_14", 0.0012], ["bandratio_100-250", 0.0012]], "t": "17:00:43"}
+{"stage": "hum_severity", "hum_level": 0.0, "mean_P_poor": 0.001, "flagged_poor@0.5": 0.0, "t": "17:00:58"}
+{"stage": "hum_severity", "hum_level": 0.02, "mean_P_poor": 0.071, "flagged_poor@0.5": 0.073, "t": "17:01:13"}
+{"stage": "hum_severity", "hum_level": 0.05, "mean_P_poor": 0.076, "flagged_poor@0.5": 0.03, "t": "17:01:29"}
+{"stage": "hum_severity", "hum_level": 0.1, "mean_P_poor": 0.171, "flagged_poor@0.5": 0.07, "t": "17:01:43"}
+{"stage": "hum_severity", "hum_level": 0.2, "mean_P_poor": 0.308, "flagged_poor@0.5": 0.193, "t": "17:01:57"}
+{"stage": "hum_severity", "hum_level": 0.4, "mean_P_poor": 0.505, "flagged_poor@0.5": 0.527, "t": "17:02:14"}
+{"stage": "hum_aware", "base_auc_kept": 0.966, "hum_clips_flagged_poor": 1.0, "t": "17:02:43"}
+{"stage": "wavlm_robust_feats", "n": 1800, "secs": 105, "t": "17:19:43"}
+{"stage": "wavlm_robust", "train": "clean_train", "test_cond": "clean", "auc": 0.978, "t": "17:19:55"}
+{"stage": "wavlm_robust", "train": "clean_train", "test_cond": "hum", "auc": 0.572, "t": "17:19:55"}
+{"stage": "wavlm_robust", "train": "clean_train", "test_cond": "noise", "auc": 0.669, "t": "17:19:55"}
+{"stage": "wavlm_robust", "train": "aug_train", "test_cond": "clean", "auc": 0.978, "t": "17:19:55"}
+{"stage": "wavlm_robust", "train": "aug_train", "test_cond": "hum", "auc": 0.962, "t": "17:19:55"}
+{"stage": "wavlm_robust", "train": "aug_train", "test_cond": "noise", "auc": 0.916, "t": "17:19:55"}
+{"stage": "patient_split", "n_clips": 4960, "n_patients": 382, "t": "17:22:23"}
+{"stage": "patient_grouped_auc", "feat": "handcrafted_band", "auc_patient": 0.857, "auc_random": 0.976, "leakage_gap": 0.119, "t": "17:22:26"}
+{"stage": "patient_grouped_auc", "feat": "wavlm", "auc_patient": 0.862, "auc_random": 0.987, "leakage_gap": 0.125, "t": "17:22:42"}
+{"stage": "patient_grouped_auc", "feat": "ast", "auc_patient": 0.941, "auc_random": 0.993, "leakage_gap": 0.052, "t": "17:22:56"}
+{"stage": "patient_grouped_auc", "feat": "wavlm+ast", "auc_patient": 0.935, "auc_random": 0.993, "leakage_gap": 0.057, "t": "17:23:30"}
+{"stage": "ast_robust_feats", "n": 1800, "secs": 154, "t": "17:29:17"}
+{"stage": "ast_robust", "train": "clean_train", "test_cond": "clean", "auc": 0.991, "t": "17:29:30"}
+{"stage": "ast_robust", "train": "clean_train", "test_cond": "hum", "auc": 0.904, "t": "17:29:30"}
+{"stage": "ast_robust", "train": "clean_train", "test_cond": "noise", "auc": 0.812, "t": "17:29:30"}
+{"stage": "ast_robust", "train": "aug_train", "test_cond": "clean", "auc": 0.988, "t": "17:29:30"}
+{"stage": "ast_robust", "train": "aug_train", "test_cond": "hum", "auc": 0.989, "t": "17:29:30"}
+{"stage": "ast_robust", "train": "aug_train", "test_cond": "noise", "auc": 0.964, "t": "17:29:30"}
+{"stage": "unseen_corruption_feats", "n": 1800, "conds": ["clean", "hum", "noise", "reverb*", "clip*", "bandlimit*"], "secs": 307, "t": "17:48:03"}
+{"stage": "unseen_robust", "train": "clean_train", "test_cond": "clean", "auc": 0.991, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "clean_train", "test_cond": "hum", "auc": 0.904, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "clean_train", "test_cond": "noise", "auc": 0.813, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "clean_train", "test_cond": "reverb*", "auc": 0.927, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "clean_train", "test_cond": "clip*", "auc": 0.944, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "clean_train", "test_cond": "bandlimit*", "auc": 0.925, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "aug_train", "test_cond": "clean", "auc": 0.989, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "aug_train", "test_cond": "hum", "auc": 0.989, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "aug_train", "test_cond": "noise", "auc": 0.964, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "aug_train", "test_cond": "reverb*", "auc": 0.926, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "aug_train", "test_cond": "clip*", "auc": 0.943, "t": "17:48:16"}
+{"stage": "unseen_robust", "train": "aug_train", "test_cond": "bandlimit*", "auc": 0.937, "t": "17:48:16"}
+{"stage": "official_tables", "train": [1949, 177], "inter": [355, 8], "intra": [379, 2], "t": "18:00:47"}
+{"stage": "official_feats", "secs": 74, "t": "18:02:01"}
+{"stage": "official_benchmark", "encoder": "AST", "inter_test_auc": 0.96, "intra_test_auc": 0.928, "t": "18:02:03"}
+{"stage": "fulldata_table", "n": 7158, "poor": 460, "patients": 385, "t": "18:18:10"}
+{"stage": "fulldata_feats", "secs": 187, "t": "18:21:18"}
+{"stage": "fulldata_patient_auc", "encoder": "AST", "n": 7158, "auc_patient": 0.93, "vs_4500subset": 0.941, "t": "18:21:28"}
+{"stage": "selective_pred", "keep_frac": 1.0, "n_kept": 7158, "auc_kept": 0.93, "t": "18:21:28"}
+{"stage": "selective_pred", "keep_frac": 0.9, "n_kept": 6443, "auc_kept": 0.861, "t": "18:21:28"}
+{"stage": "selective_pred", "keep_frac": 0.75, "n_kept": 5369, "auc_kept": 0.833, "t": "18:21:28"}
+{"stage": "selective_pred", "keep_frac": 0.5, "n_kept": 3580, "auc_kept": 0.779, "t": "18:21:28"}

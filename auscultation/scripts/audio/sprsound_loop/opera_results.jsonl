@@ -1,0 +1,5 @@
+{"stage": "table", "n": 4960, "poor": 460, "patients": 382, "t": "05:41:33"}
+{"stage": "opera_feat_done", "secs": 1936, "dim": 768, "t": "06:13:52"}
+{"stage": "compare", "encoder": "OPERA-CT", "dim": 768, "auc_patient": 0.794, "auc_random": 0.969, "t": "06:14:40"}
+{"stage": "ast_feat_done", "secs": 181, "t": "06:17:47"}
+{"stage": "compare", "encoder": "AST", "dim": 768, "auc_patient": 0.943, "auc_random": 0.993, "t": "06:18:31"}
