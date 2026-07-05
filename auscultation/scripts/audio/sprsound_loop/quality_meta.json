@@ -1,0 +1,11 @@
+{
+  "encoder": "MIT/ast-finetuned-audioset-10-10-0.4593",
+  "pool": "mean_last_hidden",
+  "sr": 16000,
+  "train": "SPRSound Poor-vs-usable + 60Hz-hum/noise augmentation",
+  "n_clips": 4460,
+  "n_poor": 460,
+  "op_threshold": 0.15,
+  "output": "P(poor); flag clip as low-quality if P(poor) >= op_threshold",
+  "honest_patient_grouped_auc": 0.94
+}

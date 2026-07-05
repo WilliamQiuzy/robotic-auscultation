@@ -1,0 +1,7 @@
+{"stage": "xdata_tables", "sprsound_poor": 460, "sprsound_good": 6698, "kauh": 300, "copd": 300, "t": "07:27:10"}
+{"stage": "domain_shift_Ppoor", "dataset": "SPRSound-clean", "n": 300, "mean_P_poor": 0.03, "t": "07:29:39"}
+{"stage": "domain_shift_Ppoor", "dataset": "KAUH-clean", "n": 300, "mean_P_poor": 0.094, "t": "07:29:57"}
+{"stage": "domain_shift_Ppoor", "dataset": "COPD-clean", "n": 300, "mean_P_poor": 0.052, "t": "07:30:14"}
+{"stage": "xdata_corruption_auc", "test_dataset": "SPRSound", "n_pairs": 300, "auc": 1.0, "t": "07:32:37"}
+{"stage": "xdata_corruption_auc", "test_dataset": "KAUH", "n_pairs": 300, "auc": 1.0, "t": "07:33:17"}
+{"stage": "xdata_corruption_auc", "test_dataset": "COPD", "n_pairs": 300, "auc": 1.0, "t": "07:33:59"}

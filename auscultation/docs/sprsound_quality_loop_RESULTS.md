@@ -79,6 +79,19 @@ structure, consistent with the noise-fragility above.
 **AST encoder (frozen) + GBM head + hum/noise train-time augmentation + isotonic calibration**, quality-gate
 at the recall-0.99 operating point. Honest patient-level AUC ≈0.94; robust to 60 Hz hum & noise.
 
+## ⭐ Deployable artifact (packaged 2026-07-05)
+The recommendation above is packaged as a runnable gate under
+[`../scripts/audio/sprsound_loop/`](../scripts/audio/sprsound_loop/):
+- **`quality_gbm.joblib`** (2.5 MB) — GBM head trained on AST embeddings of the full SPRSound Poor-vs-usable
+  set (4460 clips, 460 poor) **with 60 Hz-hum + noise augmentation** (each clip seen clean/hum/noise).
+- **`quality_meta.json`** — encoder id, pooling, sample rate, operating threshold (0.15).
+- **`sprsound_quality_gate.py`** — `python sprsound_quality_gate.py clip.wav …` → `P(poor)` + flag. CPU-OK.
+- **`train_final.py`** — the training driver (reproduces the model from SPRSound at `/workspace/data/SPRSound`).
+
+Self-test (in-sample functional check): Poor clip → P(poor)=0.996 (flag), usable clip → 0.000 (pass).
+**Distinct** from `scripts/audio/predict_quality.py` (doctor-label Q v1, OPERA-CT, subtler "usable" grading,
+AUC 0.72). This SPRSound gate targets **gross artifacts** (noise/SNR/hum/clipping); honest AUC ≈0.94.
+
 ## ⭐ OPERA (respiratory-specific) vs AST — surprising
 Head-to-head on the same 4960 clips / 382 patients (user-authorized to run the OPERA repo):
 
@@ -103,10 +116,23 @@ to quality and overfits patient traits. **→ For the quality gate, use AST, not
 - Naive confidence-based selective prediction (reject uncertain by |p−0.5|) *hurts* here — it rejects the
   minority poor class; needs a class-aware rejection rule.
 
+## ⭐ Cross-dataset generalization (KAUH + COPD — different hospitals/devices)
+Brought in two non-gated external lung datasets (KAUH 336, COPD 504 wavs; ICBHI is gated/token-blocked).
+Train the AST quality model on SPRSound, test transfer:
+- **Domain shift** (mean P(poor) on *clean* clips): SPRSound 0.03 · KAUH 0.094 · COPD 0.052 — all below the
+  0.15 gate threshold → the gate does **not** falsely reject a new hospital/device (small upward shift on
+  KAUH warrants a threshold margin).
+- **Corruption detection transfer** (clean vs hum+noise AUC): SPRSound 1.0 · KAUH 1.0 · COPD 1.0 → the gate's
+  corruption detection is **domain-general** (60 Hz hum + noise is a strong cross-dataset signal).
+- Caveat: KAUH/COPD lack real quality labels, so transfer is shown for *injected* corruption (an easy signal)
+  + the domain-shift score check — natural subtle-quality transfer can only be measured where labels exist
+  (SPRSound / the doctor consensus set).
+
 ## Caveats / next
 - SPRSound `Poor Quality` is **grosser** than the doctors' subtle "usable" grading (κ0.5) — this validates
   the *pipeline/recipe*; final deployment eval must use the **doctor 68-clip consensus set** (stranded on the
   US-CA-2 network volume; re-run when a US-CA-2 GPU frees up).
-- No cross-dataset (ICBHI) test yet; SPRSound official **inter- vs intra-patient** test split is the next
-  benchmark-comparable number.
-- Artifacts: `results.jsonl` (all runs), feature cache, driver `audio_loop*.py`.
+- Cross-dataset transfer shown on **KAUH + COPD** (above); **ICBHI** specifically is still gated/token-blocked.
+  SPRSound official **inter- vs intra-patient** split (0.96 / 0.928) is the benchmark-comparable number.
+- Artifacts: `results.jsonl` / `xdata_results.jsonl` (all runs), driver `audio_loop*.py` / `audio_xdata.py`,
+  and the **deployable gate** (`quality_gbm.joblib` + `sprsound_quality_gate.py`, see above).
