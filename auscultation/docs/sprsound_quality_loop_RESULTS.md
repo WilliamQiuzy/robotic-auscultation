@@ -91,6 +91,21 @@ The recommendation above is packaged as a runnable gate under
 Self-test (in-sample functional check): Poor clip → P(poor)=0.996 (flag), usable clip → 0.000 (pass).
 **Distinct** from `scripts/audio/predict_quality.py` (doctor-label Q v1, OPERA-CT, subtler "usable" grading,
 AUC 0.72). This SPRSound gate targets **gross artifacts** (noise/SNR/hum/clipping); honest AUC ≈0.94.
+The bundled `quality_gbm.joblib` is **numpy 1.x/2.x-portable** (trained under numpy2/sklearn1.9 on the pod,
+rng stripped + re-saved so it loads on the project's numpy1.26/sklearn1.6 stack; verified identical
+prediction across both).
+
+**Deployment-domain check (ran locally on the Mac, CPU, 2026-07-05)** — never sent our recordings off-box:
+- **HF_Lung_V1 clean lung samples** (real, non-SPRSound domain): 8/10 score P(poor)<0.11 (usable), only 2
+  noisy ICU clips near threshold (0.156 / 0.216) → the gate transfers to a new device/domain without
+  false-rejecting clean lung audio.
+- **Our own ThinkLabs session captures** (2026-06-24): the gate **discriminates** — session `145957`
+  P(poor)=0.338 (flag) vs session `145256` 0.008 (usable). Spectral diagnosis: the flagged one is NOT
+  hum-driven (2.8% hum) but **broadband-noise-driven** (6.5% energy >2.5 kHz, lung-band only 70.9%, loud);
+  the passed one is quiet + lung-concentrated (84.7%). Consistent with finding ⑥ (poor ≈ erratic/noisy
+  spectro-temporal structure), so the gate flags for the right reason.
+- The earlier `stethoscope_10s{,_dehum,_boost}.wav` hum-vs-dehum pair got **iCloud-evicted mid-session**
+  (Desktop under iCloud storage-optimization) and couldn't be re-materialized; that specific A/B is pending.
 
 ## ⭐ OPERA (respiratory-specific) vs AST — surprising
 Head-to-head on the same 4960 clips / 382 patients (user-authorized to run the OPERA repo):

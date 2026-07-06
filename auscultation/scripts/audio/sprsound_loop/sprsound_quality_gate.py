@@ -11,10 +11,28 @@ This is the OUTPUT of the SPRSound quality study (honest patient-grouped AUC ~0.
 (noise/SNR/hum/clipping). It is DISTINCT from scripts/audio/predict_quality.py, which is the
 doctor-label Q v1 (OPERA-CT + clinician "usable" grading, subtler task, AUC 0.72).
 
-Deps: torch, transformers, librosa, joblib, scikit-learn.  (CPU is fine for a handful of clips.)
+Deps: torch, transformers, librosa (+ soundfile), joblib, scikit-learn. CPU is fine for a few clips.
+The bundled quality_gbm.joblib is numpy 1.x/2.x-portable (rng stripped); a compat shim below also
+normalizes any numpy-2.x-pickled BitGenerator so the model loads on a numpy-1.x host.
 """
 import sys, os, json, joblib
 import numpy as np
+
+# numpy 1.x <-> 2.x pickle compat: a Generator pickled under numpy 2.x hands the BitGenerator
+# *class* to __bit_generator_ctor, but numpy 1.x expects its string name. Normalize before load
+# so the model (trained under numpy 2.x on the pod) loads on a numpy-1.x host too.
+try:
+    import numpy.random._pickle as _npp
+    _orig_ctor = getattr(_npp, "__bit_generator_ctor")
+
+    def _compat_ctor(bit_generator_name="MT19937"):
+        if not isinstance(bit_generator_name, str):
+            bit_generator_name = getattr(bit_generator_name, "__name__", bit_generator_name)
+        return _orig_ctor(bit_generator_name)
+
+    setattr(_npp, "__bit_generator_ctor", _compat_ctor)
+except Exception:
+    pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 meta = json.load(open(os.path.join(HERE, "quality_meta.json")))

@@ -79,6 +79,11 @@ Xc = ast(paths); Xh = ast(paths, add_hum); Xn = ast(paths, add_noise)
 from sklearn.ensemble import HistGradientBoostingClassifier
 X = np.vstack([Xc, Xh, Xn]); Y = np.concatenate([y, y, y])
 clf = HistGradientBoostingClassifier(max_iter=300, learning_rate=0.08).fit(X, Y)
+# Portability: drop the incidental numpy Generator (predict never uses it) so the saved model
+# loads across numpy 1.x/2.x hosts. Without this, a numpy-2.x-pickled Generator won't unpickle
+# on a numpy-1.x deployment box (BitGenerator state format changed between numpy 1 and 2).
+if hasattr(clf, "_feature_subsample_rng"):
+    clf._feature_subsample_rng = None
 joblib.dump(clf, f"{OUT}/quality_gbm.joblib")
 json.dump({"encoder": "MIT/ast-finetuned-audioset-10-10-0.4593", "pool": "mean_last_hidden", "sr": SR,
            "train": "SPRSound Poor-vs-usable + 60Hz-hum/noise augmentation", "n_clips": len(paths),
