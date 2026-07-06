@@ -2,9 +2,15 @@
 
     python sprsound_quality_gate.py clip.wav [clip2.wav ...]
 
-Loads the AST encoder (MIT/ast-finetuned-audioset) + the trained GBM head (quality_gbm.joblib,
-sits next to this script) and prints P(poor) per clip. A clip is flagged low-quality when
-P(poor) >= op_threshold (from quality_meta.json, default 0.15 = recall-0.99 operating point).
+Prints TWO independent signals per clip:
+  1. P(poor) — the learned quality gate (AST encoder + GBM head, quality_gbm.joblib next to this
+     script). Flagged LOW-QUALITY when P(poor) >= op_threshold (quality_meta.json, default 0.15).
+     This gate is trained to be ROBUST TO (invariant to) 60 Hz hum — it judges the underlying lung
+     content and will NOT flag a clip just for mains hum.
+  2. 60Hz-hum% — a cheap, model-free mains-hum detector (energy in 60/120/180 Hz). Flagged HUM when
+     >= 20% (clean lung recordings measure ≤11.5% here, any real hum ≥29%). Use it to catch a
+     ground-loop / mains problem so the setup can be fixed or the clip re-recorded. The two flags
+     answer different questions: "is the lung sound usable?" vs "is there a hardware hum to fix?"
 
 This is the OUTPUT of the SPRSound quality study (honest patient-grouped AUC ~0.94, robust to
 60 Hz hum + noise via train-time augmentation). It detects gross recording artifacts
@@ -38,6 +44,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 meta = json.load(open(os.path.join(HERE, "quality_meta.json")))
 clf = joblib.load(os.path.join(HERE, "quality_gbm.joblib"))
 SR = meta["sr"]; THR = meta["op_threshold"]
+HUM_FLAG_PCT = 20.0  # 60Hz-family energy %% above which we raise a (separate) mains-hum flag
 
 import librosa, torch
 from transformers import AutoFeatureExtractor, ASTModel
@@ -47,21 +54,41 @@ _dev = "cuda" if torch.cuda.is_available() else "cpu"
 _m = ASTModel.from_pretrained(meta["encoder"]).to(_dev).eval()
 
 
-def embed(path):
+def load_wave(path):
     y, _ = librosa.load(path, sr=SR, mono=True)
     y = y[: SR * 12]
     if len(y) < SR // 2:
         y = np.pad(y, (0, SR // 2 - len(y)))
-    y = (y / (np.max(np.abs(y)) + 1e-9)).astype(np.float32)
+    return (y / (np.max(np.abs(y)) + 1e-9)).astype(np.float32)
+
+
+def embed(y):
     inp = _fe([y], sampling_rate=SR, return_tensors="pt")
     with torch.no_grad():
         return _m(inp.input_values.to(_dev)).last_hidden_state.mean(1).cpu().numpy()
+
+
+def hum_energy_pct(y):
+    """Percent of spectral energy in the 60 Hz mains family (60/120/180 Hz ±3). A cheap, model-free
+    hardware-hum detector run in PARALLEL to the quality gate. The gate itself is trained to be
+    *invariant* to hum (it judges the underlying lung content), so it will NOT flag hum on its own;
+    this separate flag catches ground-loop / mains hum so the setup can be fixed or the clip re-recorded.
+    Calibration (this repo): clean lung recordings ≤11.5%, even mild injected hum ≥29% → 20% threshold."""
+    w = np.hanning(len(y))
+    X = np.abs(np.fft.rfft(y * w))
+    f = np.fft.rfftfreq(len(y), 1.0 / SR)
+    tot = float(np.sum(X ** 2)) + 1e-12
+    fam = sum(float(np.sum(X[(f >= h - 3) & (f <= h + 3)] ** 2)) for h in (60, 120, 180))
+    return 100.0 * fam / tot
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(__doc__); sys.exit(1)
     for p in sys.argv[1:]:
-        pp = float(clf.predict_proba(embed(p))[:, 1][0])
+        y = load_wave(p)
+        pp = float(clf.predict_proba(embed(y))[:, 1][0])
         verdict = "LOW-QUALITY (flag)" if pp >= THR else "usable"
-        print(f"{os.path.basename(p):40s}  P(poor)={pp:.3f}  ->  {verdict}")
+        hp = hum_energy_pct(y)
+        hum = "HUM (60Hz)!" if hp >= HUM_FLAG_PCT else "ok"
+        print(f"{os.path.basename(p):34s}  P(poor)={pp:.3f} -> {verdict:18s} | 60Hz={hp:4.1f}% -> {hum}")
