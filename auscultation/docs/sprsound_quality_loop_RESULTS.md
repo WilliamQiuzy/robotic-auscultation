@@ -104,8 +104,18 @@ prediction across both).
   hum-driven (2.8% hum) but **broadband-noise-driven** (6.5% energy >2.5 kHz, lung-band only 70.9%, loud);
   the passed one is quiet + lung-concentrated (84.7%). Consistent with finding ⑥ (poor ≈ erratic/noisy
   spectro-temporal structure), so the gate flags for the right reason.
-- The earlier `stethoscope_10s{,_dehum,_boost}.wav` hum-vs-dehum pair got **iCloud-evicted mid-session**
-  (Desktop under iCloud storage-optimization) and couldn't be re-materialized; that specific A/B is pending.
+- **⭐ 60 Hz hum A/B (controlled, on our clean `145256` capture)** — inject the study's hum then notch it out:
+  base 0.008 → hum l=0.05/0.10/0.20/0.40 → **0.005 / 0.018 / 0.034 / 0.014** → de-hummed 0.010. **All pass.**
+  Even at hum l=0.20 (verified **92.8 %** of spectral energy is 60 Hz-family — a catastrophically hummy clip)
+  the gate does **not** flag it. This is **correct and by design**: the shipped gate is the *hum+noise-
+  **augmented*** model (findings §3), trained to be **invariant** to hum — it sees through incidental hum to
+  judge the underlying lung content. It is therefore the *opposite* of the **hum-aware** variant (§4), which
+  *relabels* heavily-hummed clips as poor and flags them. **Deployment implication / open choice**: the
+  current gate answers "is the underlying lung sound usable? (ignore fixable hum)" → it will NOT reject our
+  real 60 Hz-ground-loop recordings. If instead we want to *catch* hardware hum to re-record / fix the setup,
+  use the §4 hum-aware head (or a cheap standalone 60 Hz-energy detector) alongside it. Both are one training
+  run apart; pick per goal. (The original evicted `stethoscope_10s{,_dehum}.wav` A/B is now superseded by
+  this controlled version.)
 
 ## ⭐ OPERA (respiratory-specific) vs AST — surprising
 Head-to-head on the same 4960 clips / 382 patients (user-authorized to run the OPERA repo):
