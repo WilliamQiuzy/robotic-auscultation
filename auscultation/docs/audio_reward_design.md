@@ -136,6 +136,23 @@ then trains a reward-weighted BC MLP on it — loss converges (~330×), confirmi
 weights apply, and the loop trains. This validates pipeline + structure + multimodality + trainability
 end-to-end with **no hardware**; MuJoCo physics (real contact/kinematics) is the Phase-1 upgrade.
 
+✅ **Phase-1 MuJoCo physics done (2026-07-07):** [`../mechanical_sensor/sim/openarm_mjcf.py`](../mechanical_sensor/sim/openarm_mjcf.py)
+builds a **self-contained MJCF of the OpenArm left arm from the URDF's concrete kinematics + inertials**
+(no external meshes — they aren't in-repo; primitives suffice for contact physics), plus a soft
+breathing 'back' surface. [`../scripts/gen_mujoco_session.py`](../scripts/gen_mujoco_session.py)
+IK-drives the stethoscope tip into the surface under a **force-targeting loop** (press until ~4 N,
+the design setpoint) and records a session with the **contact force EMERGENT from the MuJoCo solver**
+(not scripted) + physically-achieved follower joints + a real offscreen-rendered camera. Runs in a
+native **arm64 MuJoCo venv** (`~/envs/mjx`; MuJoCo refuses x86_64/Rosetta Python — the anaconda base
+is x86_64, so the sim uses brew python3.11).
+
+Quality eval (converted through the same pipeline): emergent contact **3.77 N, 100% in-band [3-5] N**
+during the hold, peak 5.0 N (< 8 N limit); **follower≠leader mean|q−a| = 0.027 rad (≈7× Phase-0's
+0.004)** — contact resistance genuinely pushes back on the arm; gate=True on 752/1000 frames with
+reward>0 concentrated in contact; reward-weighted BC converges (117×). The force controller (slow,
+by design) lets breathing show as force ripple that the contact-aware segmenter tiles. Next fidelity
+step (later): anatomical back mesh + domain-randomized vision for sim-to-real of the vision branch.
+
 ---
 
 ## 7. Phased plan
