@@ -295,9 +295,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("session_dir")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--real-q", action="store_true",
+                    help="score q_usable with the learned AST Q head (ausc/audio/q_head.py) "
+                         "instead of the cheap lung-band proxy")
     a = ap.parse_args()
     out = a.out or os.path.join(ROOT, "data", "lerobot", os.path.basename(a.session_dir.rstrip("/")))
-    info = convert(a.session_dir, out)
+    q_fn = None
+    if a.real_q:
+        sys.path.insert(0, os.path.join(ROOT, "ausc", "audio"))
+        from q_head import make_quality_fn
+        q_fn = make_quality_fn()
+    info = convert(a.session_dir, out, q_fn=q_fn)
     print(json.dumps(info, indent=2, ensure_ascii=False))
     print(f"-> {out}")
     if info["MISSING"]:

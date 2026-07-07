@@ -158,6 +158,11 @@ step (later): anatomical back mesh + domain-randomized vision for sim-to-real of
 ## 7. Phased plan
 
 1. Fix the encoder contract: AST 8 s/1 s-hop embedding as the shared base for Q + reward (mostly wiring).
+   ✅ **Q head done (2026-07-07):** [`../ausc/audio/q_head.py`](../ausc/audio/q_head.py) — AST + the
+   SPRSound GBM → `P(usable) = 1 − P(poor)`, lazy-loaded; `session_to_lerobot.py --real-q` uses it as
+   `q_fn`. Validated on the MuJoCo session: the good-contact clean-audio segment scores **Q 0.98 →
+   reward 0.98** (the cheap proxy underrated it at 0.15); noisy no-contact gaps score low. This is the
+   real learned reward, replacing the placeholder proxy.
 2. **Filtered-BC first:** segment layer + per-segment Q weight in the session→LeRobot converter.
    ✅ implemented: [`../scripts/session_to_lerobot.py`](../scripts/session_to_lerobot.py) — Hall
    respiratory-cycle splitting → `segments.jsonl` (reward_schema) + `frames.parquet` with per-frame
