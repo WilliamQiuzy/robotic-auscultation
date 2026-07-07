@@ -131,6 +131,11 @@ reward; the real audio Q model swaps in at deployment.
 
 1. Fix the encoder contract: AST 8 s/1 s-hop embedding as the shared base for Q + reward (mostly wiring).
 2. **Filtered-BC first:** segment layer + per-segment Q weight in the session→LeRobot converter.
+   ✅ implemented: [`../scripts/session_to_lerobot.py`](../scripts/session_to_lerobot.py) — Hall
+   respiratory-cycle splitting → `segments.jsonl` (reward_schema) + `frames.parquet` with per-frame
+   `segment_index` + `reward.weight`. Validated on a real session; it also **reports** the still-missing
+   `observation.state`/`action` in `info.json` (teleop unwired) and uses a **proxy Q** until the real
+   AST Q head is plugged via `q_fn` on the 5090.
 3. Lock the data schema (segment boundaries / Q / doctor label / dense quality track / raw modalities)
    **before** large-scale collection — avoids rework. (This doc + `reward_schema.py`.)
 4. Q-as-reward → offline weighted BC; then swap Q for the learned preference reward model (68-set start).
