@@ -67,22 +67,61 @@ def detect_respiratory_onsets(ft: list[float], fn: list[float]) -> list[float]:
     return onsets
 
 
-def _segment_spans(onsets: list[float], t0: float, t1: float) -> list[tuple[float, float, list[float]]]:
-    """Group onsets into <=TARGET_CYCLES-cycle spans; fall back to fixed-duration tiling if too few."""
+def _contact_intervals(ft: list[float], fn: list[float], t0: float, t1: float,
+                       min_s: float = 1.5) -> list[tuple[float, float]]:
+    """Contiguous in-band [F_MIN,F_MAX] force runs longer than `min_s` → good-contact windows."""
+    ivs: list[tuple[float, float]] = []
+    run_start: Optional[float] = None
+    last = t0
+    for t, v in zip(ft, fn):
+        if not (t0 <= t <= t1):
+            continue
+        if F_MIN <= v <= F_MAX:
+            if run_start is None:
+                run_start = t
+        elif run_start is not None:
+            if t - run_start >= min_s:
+                ivs.append((run_start, t))
+            run_start = None
+        last = t
+    if run_start is not None and last - run_start >= min_s:
+        ivs.append((run_start, last))
+    return ivs
+
+
+def _tile_interval(a: float, b: float, oin: list[float]) -> list[tuple[float, float, list[float]]]:
+    """Subdivide a contact interval [a,b] into <=TARGET_CYCLES-cycle spans, fully covering [a,b]."""
+    if len(oin) < 2:
+        return [(a, b, oin)]
+    spans = []
+    for i in range(0, len(oin), TARGET_CYCLES):
+        grp = oin[i:i + TARGET_CYCLES + 1]
+        spans.append((grp[0], grp[-1] if len(grp) > 1 else b, grp[:-1] if len(grp) > 1 else grp))
+    spans[0] = (a, spans[0][1], spans[0][2])
+    spans[-1] = (spans[-1][0], b, spans[-1][2])
+    return spans
+
+
+def _segment_spans(onsets: list[float], ft: list[float], fn: list[float],
+                   t0: float, t1: float) -> list[tuple[float, float, list[float]]]:
+    """Contact-aware tiling of [t0,t1]: good-contact windows subdivided by respiratory cycles,
+    non-contact gaps as their own (gate=False) segments — so no segment mixes contact states."""
     onsets = [o for o in onsets if t0 <= o <= t1]
-    if len(onsets) >= 3:
-        spans = []
-        for i in range(0, len(onsets) - 1, TARGET_CYCLES):
-            grp = onsets[i:i + TARGET_CYCLES + 1]
-            if len(grp) >= 2:
-                spans.append((grp[0], grp[-1], grp[:-1]))
-        if spans:  # clamp to fully cover [t0, t1] so every control frame lands in a segment
-            spans[0] = (t0, spans[0][1], spans[0][2])
-            spans[-1] = (spans[-1][0], t1, spans[-1][2])
-            return spans
-    n = max(1, int(math.ceil((t1 - t0) / FALLBACK_SEG_S)))
-    step = (t1 - t0) / n
-    return [(t0 + k * step, t0 + (k + 1) * step, []) for k in range(n)]
+    ivs = _contact_intervals(ft, fn, t0, t1)
+    if not ivs:                                             # no contact → fixed-duration fallback
+        n = max(1, int(math.ceil((t1 - t0) / FALLBACK_SEG_S)))
+        step = (t1 - t0) / n
+        return [(t0 + k * step, t0 + (k + 1) * step, []) for k in range(n)]
+    spans: list[tuple[float, float, list[float]]] = []
+    cursor = t0
+    for a, b in ivs:
+        if a - cursor > 0.5:
+            spans.append((cursor, a, []))                  # non-contact gap
+        spans.extend(_tile_interval(a, b, [o for o in onsets if a < o < b]))
+        cursor = b
+    if t1 - cursor > 0.5:
+        spans.append((cursor, t1, []))
+    return spans
 
 
 # -- cheap, model-free audio ingredients (no torch; real Q plugs in via q_fn) ----------------------
@@ -132,10 +171,29 @@ def _read_force(sdir: str) -> tuple[list[float], list[float]]:
     return ft, fn
 
 
+def _read_robot(sdir: str) -> Optional[tuple[list[float], np.ndarray, np.ndarray]]:
+    """Read robot.csv (t, q1..qN follower, a1..aN leader) → (times, states, actions) or None."""
+    fp = os.path.join(sdir, "robot.csv")
+    if not os.path.exists(fp):
+        return None
+    import csv
+    with open(fp) as f:
+        rows = list(csv.reader(f))
+    nj = (len(rows[0]) - 1) // 2
+    t, q, a = [], [], []
+    for r in rows[1:]:
+        try:
+            t.append(float(r[0]))
+            q.append([float(x) for x in r[1:1 + nj]]); a.append([float(x) for x in r[1 + nj:1 + 2 * nj]])
+        except (ValueError, IndexError):
+            continue
+    return t, np.asarray(q, float), np.asarray(a, float)
+
+
 def build_segments(s: Session, ft: list[float], fn: list[float], session_id: str,
                    q_fn: Optional[Callable[[np.ndarray, int], float]]) -> list[Segment]:
     onsets = detect_respiratory_onsets(ft, fn)
-    spans = _segment_spans(onsets, s.t0, s.t0 + s.duration)
+    spans = _segment_spans(onsets, ft, fn, s.t0, s.t0 + s.duration)
     segs: list[Segment] = []
     for i, (a, b, cyc) in enumerate(spans):
         audio = s.audio_window(b, seconds=b - a)
@@ -162,9 +220,12 @@ def _seg_index_at(segs: list[Segment], t: float) -> int:
     return len(segs) - 1
 
 
-def build_frames(s: Session, segs: list[Segment], control_hz: float, has_robot: bool) -> list[dict]:
+def build_frames(s: Session, segs: list[Segment], control_hz: float,
+                 robot: Optional[tuple[list[float], np.ndarray, np.ndarray]]) -> list[dict]:
+    from bisect import bisect_left
     dt = 1.0 / control_hz
     n = int(s.duration * control_hz)
+    rt = robot[0] if robot else None
     frames = []
     for k in range(n):
         t = s.t0 + k * dt
@@ -180,9 +241,10 @@ def build_frames(s: Session, segs: list[Segment], control_hz: float, has_robot: 
             "observation.cam_t": round(t - s.t0, 4),        # pointer into rgb.mp4 (video sidecar)
             "reward.weight": round(segs[si].weight, 4) if segs and segs[si].weight is not None else None,
         }
-        if has_robot:  # observation.state / action slot in when teleop is wired (design §8)
-            frame["observation.state"] = None
-            frame["action"] = None
+        if robot:                                           # follower state = obs, leader targets = action
+            j = min(bisect_left(rt, t), len(rt) - 1)
+            frame["observation.state"] = [round(float(x), 5) for x in robot[1][j]]
+            frame["action"] = [round(float(x), 5) for x in robot[2][j]]
         frames.append(frame)
     return frames
 
@@ -196,9 +258,9 @@ def convert(session_dir: str, out_dir: str,
     lo, hi = s.t0 - 0.5, s.t0 + s.duration + 0.5   # window force to the session (drop log over-run)
     win = [(t, v) for t, v in zip(ft, fn) if lo <= t <= hi]
     ft = [t for t, _ in win]; fn = [v for _, v in win]
-    has_robot = os.path.exists(os.path.join(session_dir, "robot.csv"))  # not produced yet
+    robot = _read_robot(session_dir)                        # (t, follower states, leader actions) or None
     segs = build_segments(s, ft, fn, session_id, q_fn)
-    frames = build_frames(s, segs, s.manifest.get("control_hz", 50.0), has_robot)
+    frames = build_frames(s, segs, s.manifest.get("control_hz", 50.0), robot)
     save_segments(os.path.join(out_dir, "segments.jsonl"), segs)
     frames_path = _write_frames(out_dir, frames)
     info = {
@@ -207,7 +269,7 @@ def convert(session_dir: str, out_dir: str,
         "n_segments": len(segs), "audio_sidecar": "audio.wav", "video_sidecar": "rgb.mp4",
         "q_source": "real_q_fn" if q_fn else "PROXY (lung-band*·no-heart); plug real AST Q on the 5090",
         "streams_present": sorted(s.manifest.get("streams", [])),
-        "MISSING": ([] if has_robot else ["observation.state (follower joints)", "action (leader targets)"])
+        "MISSING": ([] if robot else ["observation.state (follower joints)", "action (leader targets)"])
                    + ([] if "audio" in s.manifest.get("streams", []) else ["audio"]),
         "frames_file": os.path.basename(frames_path),
     }

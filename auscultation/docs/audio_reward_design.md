@@ -125,6 +125,17 @@ reward↔motion causality. It *can* validate the **reward plumbing**: define a s
 Then the full `reward → filtered-BC / offline-RL` machinery runs end-to-end against a known-correct
 reward; the real audio Q model swaps in at deployment.
 
+✅ **Phase-0 procedural dry-run done (2026-07-07):** [`../scripts/gen_synthetic_session.py`](../scripts/gen_synthetic_session.py)
+writes a record_session-format session with the three missing pieces filled in — 7-DOF OpenArm-left
+`robot.csv` (leader targets = action, follower = obs), a scripted contact-force profile (in-band 4 N
+during the hold, breathing-modulated), and **state-dependent audio** (a real lung clip degraded
+outside contact). Through `session_to_lerobot.py` it yields contact-aware segments (gate=True /
+reward>0 only in the good-contact window, gate=False gaps around it) and a `frames.parquet` with
+7-DOF state+action + per-frame `reward.weight`. [`../scripts/train_bc_smoke.py`](../scripts/train_bc_smoke.py)
+then trains a reward-weighted BC MLP on it — loss converges (~330×), confirming the data loads,
+weights apply, and the loop trains. This validates pipeline + structure + multimodality + trainability
+end-to-end with **no hardware**; MuJoCo physics (real contact/kinematics) is the Phase-1 upgrade.
+
 ---
 
 ## 7. Phased plan
