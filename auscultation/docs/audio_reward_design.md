@@ -177,6 +177,30 @@ step (later): anatomical back mesh + domain-randomized vision for sim-to-real of
 
 ---
 
+## 7b. Reproduce (the sim data pipeline)
+
+Two envs (MuJoCo needs native arm64 — anaconda base is x86_64/Rosetta): **anaconda base**
+(pandas/torch/AST, runs conversion+training) and **`~/envs/mjx`** (brew py3.11 arm64, runs MuJoCo).
+
+```bash
+# Phase-0 procedural session (pure numpy) → LeRobot → reward-weighted BC
+python scripts/gen_synthetic_session.py --out data/sessions/session_sim0001
+python scripts/session_to_lerobot.py data/sessions/session_sim0001 --out data/lerobot/sim0001 [--real-q]
+python scripts/train_bc_smoke.py data/lerobot/sim0001
+
+# Phase-1 MuJoCo physics session (emergent contact) — generation runs in the arm64 venv
+~/envs/mjx/bin/python mechanical_sensor/sim/openarm_mjcf.py            # (re)generate the MJCF
+~/envs/mjx/bin/python scripts/gen_mujoco_session.py --out data/sessions/session_mj0001
+python scripts/session_to_lerobot.py data/sessions/session_mj0001 --out data/lerobot/mj0001 --real-q
+
+# End-to-end acceptance test (locks the Phase-0/1 invariants; exit 0/1)
+python scripts/test_il_pipeline.py
+```
+
+Pieces: `gen_synthetic_session.py` / `gen_mujoco_session.py` (sessions) · `openarm_mjcf.py` (URDF→MJCF)
+· `session_to_lerobot.py` (segment/reward conversion) · `ausc/audio/reward_schema.py` (schema) ·
+`ausc/audio/q_head.py` (real Q) · `train_bc_smoke.py` (trainability) · `test_il_pipeline.py` (CI gate).
+
 ## 8. Locked decisions & open items
 
 **Locked (2026-07-07):**
