@@ -171,6 +171,7 @@ def generate(out_dir, seconds=20.0, control_hz=50.0, seed=0, randomize=True, f_t
     manifest = {
         "t0_monotonic": t0, "t0_wall": "MUJOCO", "duration_s": seconds, "control_hz": control_hz,
         "streams": ["audio", "cam", "force", "robot"], "synthetic": True, "engine": "mujoco",
+        "task": {"site": "posterior-lung", "instruction": "auscultate the posterior lung"},  # VLA language
         "audio": {"sr": SR, "t0_monotonic": t0, "device": "mujoco", "channel": 1},
         "force": {"port": "mujoco-contact", "calibration": "emergent", "n_rows_hint": f"{len(force_rows)}"},
         "camera": {"backend": "mujoco-render", "index": 0, "n_rgb_frames": len(frames),

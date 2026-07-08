@@ -51,10 +51,23 @@ def _write_wav(path: str, samples: np.ndarray, sr: int) -> None:
         w.writeframes(pcm.tobytes())
 
 
+# Posterior-lung auscultation sites → natural-language instruction (the VLA "task"/language). A
+# language-conditioned VLA trains on (image, instruction) → action; WAM reuses the same string as a
+# task label. Record ONE site per session so every demo carries its instruction.
+SITE_INSTRUCTIONS = {
+    "LUL": "auscultate the left upper lobe on the posterior chest",
+    "LLL": "auscultate the left lower lobe on the posterior chest",
+    "RUL": "auscultate the right upper lobe on the posterior chest",
+    "RLL": "auscultate the right lower lobe on the posterior chest",
+    "posterior-lung": "auscultate the posterior lung",
+}
+
+
 def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                    audio_device: str = "Scarlett Solo USB", audio_channel: int | None = 1,
                    hall_port: str | None = None, hall_cal: str | None = None,
-                   camera_backend: str = "avfoundation", camera_index: int = 0) -> str:
+                   camera_backend: str = "avfoundation", camera_index: int = 0,
+                   site: str = "posterior-lung", instruction: str | None = None) -> str:
     from contextlib import ExitStack
 
     import cv2
@@ -148,6 +161,8 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
             "t0_monotonic": t0, "t0_wall": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "duration_s": seconds, "control_hz": control_hz,
             "streams": sorted(streams),
+            "task": {"site": site,
+                     "instruction": instruction or SITE_INSTRUCTIONS.get(site, f"auscultate the {site}")},
             "audio": {"sr": 16000, "t0_monotonic": audio_t0, "device": audio_device,
                       "channel": audio_channel} if "audio" in streams else None,
             "force": {"port": hall_port, "calibration": os.path.basename(hall_cal),
@@ -176,7 +191,11 @@ if __name__ == "__main__":
     ap.add_argument("--hall-port", default=None)
     ap.add_argument("--camera-backend", default="avfoundation", choices=["avfoundation", "orbbec", "fake"])
     ap.add_argument("--camera-index", type=int, default=0)
+    ap.add_argument("--site", default="posterior-lung",
+                    help="auscultation site (VLA task/language): LUL/LLL/RUL/RLL/posterior-lung")
+    ap.add_argument("--instruction", default=None, help="override the natural-language instruction")
     a = ap.parse_args()
     record_session(a.out, a.seconds, control_hz=a.control_hz, audio_device=a.audio_device,
                    audio_channel=a.audio_channel, hall_port=a.hall_port,
-                   camera_backend=a.camera_backend, camera_index=a.camera_index)
+                   camera_backend=a.camera_backend, camera_index=a.camera_index,
+                   site=a.site, instruction=a.instruction)

@@ -241,6 +241,37 @@ Pieces: `gen_synthetic_session.py` / `gen_mujoco_session.py` (sessions) · `open
 · `session_to_lerobot.py` (segment/reward conversion) · `ausc/audio/reward_schema.py` (schema) ·
 `ausc/audio/q_head.py` (real Q) · `train_bc_smoke.py` (trainability) · `test_il_pipeline.py` (CI gate).
 
+## 7c. VLA-ready canonical LeRobot format (2026-07-08) — trains VLA *and* WAM
+
+We train **both** a VLA and a WAM, so the collected data is the **canonical LeRobot v2 dataset**
+(what ACT / π0 / OpenVLA-style tooling expects), produced via the real `LeRobotDataset` API — not a
+hand-rolled parquet. [`../scripts/session_to_lerobot_v2.py`](../scripts/session_to_lerobot_v2.py)
+(runs in linbox's `lerobot` conda env; LeRobot isn't on the Mac). The 4 modalities map as:
+
+| modality | LeRobot feature | dtype |
+|---|---|---|
+| ④ arm | `observation.state` (joint pos) + `action` (leader targets) | float32 (7-DOF) |
+| ③ video | `observation.images.<cam>` (encoded mp4, one row per camera frame) | video |
+| ① magnetic | `observation.contact_force_n` + `observation.contact_gate` | float32 |
+| ② audio | `observation.q_usable` (quality scalar); **raw wav = session sidecar** (LeRobot has no native audio) | float32 |
+| **language** | **`task`** per frame (the auscultation-site instruction) — the **"L" in VLA** | string→task_index |
+| WAM/RL | `next.reward` (segment gate·Q) + `next.done` | float32 / bool |
+
+Plus LeRobot auto-fields (`timestamp/frame_index/episode_index/index/task_index`) and **normalization
+`stats`**. **Dataset fps = camera fps** (one row per image, the VLA convention); the higher-rate force
+(100 Hz)/control (50 Hz) streams are sampled in and kept raw in the session. The **segment/reward
+layer** (`segments.jsonl`, recomputable reward) stays alongside for WAM/reward-model relabeling.
+
+**Verified VLA-consumable**: the produced dataset loads with `LeRobotDataset` — `tasks` carries the
+language, features include images+state+action+next.reward/done, stats present, `ds[0]` yields
+`observation.images.top (C,H,W)`, `observation.state (7,)`, `action (7,)`, `task` string.
+
+**Collection changes for VLA (done):** `record_session.py --site {LUL/LLL/RUL/RLL/posterior-lung}
+[--instruction ...]` writes `task` into `manifest.json` (one site per session → every demo carries its
+language); sim generators carry `task` too. **Recommended next collection upgrade:** add a **wrist
+camera** (VLAs benefit from wrist + third-person) → record `rgb_wrist.mp4` → `observation.images.wrist`
+(the format already supports N cameras). Keep the action space fixed (joint targets) across all data.
+
 ## 8. Locked decisions & open items
 
 **Locked (2026-07-07):**

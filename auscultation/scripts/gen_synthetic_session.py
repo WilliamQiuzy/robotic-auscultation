@@ -131,6 +131,7 @@ def generate(out_dir: str, seconds: float = 20.0, control_hz: float = 50.0, seed
     manifest = {
         "t0_monotonic": t0, "t0_wall": "SYNTHETIC", "duration_s": seconds, "control_hz": control_hz,
         "streams": ["audio", "cam", "force", "robot"], "synthetic": True,
+        "task": {"site": "posterior-lung", "instruction": "auscultate the posterior lung"},  # VLA language
         "audio": {"sr": SR, "t0_monotonic": t0, "device": "synthetic", "channel": 1},
         "force": {"port": "synthetic", "calibration": "synthetic", "n_rows_hint": f"{nf} @100Hz"},
         "camera": {"backend": "synthetic", "index": 0, "n_rgb_frames": n, "n_depth_frames": 0,
