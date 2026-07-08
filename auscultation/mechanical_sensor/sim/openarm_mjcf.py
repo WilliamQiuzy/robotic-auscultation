@@ -122,12 +122,14 @@ def build(out: str = OUT) -> str:
     d.qpos[:7] = Q_HOME
     mujoco.mj_forward(m, d)
     tip = d.site("tip").xpos.copy()
-    # place a soft 'back' box just beyond the tip along the tip's approach (world -y here), breathing on y
-    back_pos = tip + np.array([0.0, 0.03, 0.0])
+    # place a soft anatomical 'back' (ellipsoid ≈ torso) just beyond the tip; near-face ~2 cm out so the
+    # tip reaches it with a small press. Curvature (ry) is the torso depth; breathing slides it on y.
+    ry = 0.08
+    back_pos = tip + np.array([0.0, 0.02 + ry, 0.0])          # near-face (center_y - ry) ≈ tip_y + 2 cm
     back = (f'    <body name="back" pos="{back_pos[0]:.4f} {back_pos[1]:.4f} {back_pos[2]:.4f}">\n'
             f'      <joint name="breath" type="slide" axis="0 -1 0" range="-0.02 0.02" damping="2"/>\n'
-            f'      <geom name="back_surf" type="box" size="0.12 0.01 0.12" rgba="0.80 0.52 0.48 1" '
-            f'contype="1" conaffinity="1" solref="0.15 1" solimp="0.2 0.7 0.02"/>\n'  # soft tissue
+            f'      <geom name="back_surf" type="ellipsoid" size="0.16 {ry:.3f} 0.20" rgba="0.80 0.52 0.48 1" '
+            f'contype="1" conaffinity="1" solref="0.25 1" solimp="0.15 0.6 0.03"/>\n'  # soft tissue (curved)
             f'    </body>')
     breath = '    <position name="act_breath" joint="breath" kp="60" ctrlrange="-0.02 0.02"/>'
     xml = _SCENE.format(arm=arm_xml, back=back, acts=acts + "\n" + breath, breath="")

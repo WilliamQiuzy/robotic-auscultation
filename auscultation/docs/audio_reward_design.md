@@ -159,8 +159,16 @@ Quality eval (converted through the same pipeline): emergent contact **3.77 N, 1
 during the hold, peak 5.0 N (< 8 N limit); **follower≠leader mean|q−a| = 0.027 rad (≈7× Phase-0's
 0.004)** — contact resistance genuinely pushes back on the arm; gate=True on 752/1000 frames with
 reward>0 concentrated in contact; reward-weighted BC converges (117×). The force controller (slow,
-by design) lets breathing show as force ripple that the contact-aware segmenter tiles. Next fidelity
-step (later): anatomical back mesh + domain-randomized vision for sim-to-real of the vision branch.
+by design) lets breathing show as force ripple that the contact-aware segmenter tiles.
+
+✅ **Vision sim-to-real done (2026-07-08):** the back surface is now an **anatomical curved ellipsoid**
+(≈torso; force-targeting adapts — hold 3.9 N / 100% in-band, peak 5.99 N < 8 N limit), and
+`gen_mujoco_session.py --seed` applies **per-session domain randomization** (light position+color,
+skin tone, arm color, background, camera pose+fovy) — physics untouched. Renders vary across seeds
+(cross-seed per-pixel std 9.3/255) while contact stays identical, so a vision encoder trained across
+seeds is robust to the sim→real gap. Curved+DR sessions still convert (real-Q contact reward 1.0) and
+train. `--no-randomize` disables it. The gap to a real camera/clothed back remains large — this is the
+sim-side robustness lever, not a replacement for real vision data.
 
 ---
 

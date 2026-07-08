@@ -57,6 +57,31 @@ def _tip_force(m, d, disk_gid) -> float:
     return tot
 
 
+def domain_randomize(m, rng):
+    """Per-session appearance randomization (physics untouched) for vision sim-to-real: lighting,
+    skin tone, arm color, background, camera pose. A vision encoder trained across these is robust
+    to the sim→real gap (docs/audio_reward_design.md Phase-1 next step)."""
+    def gid(n):
+        return mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, n)
+    for i in range(m.nlight):                                   # lighting position + color
+        m.light_pos[i] = [rng.uniform(-0.5, 0.8), rng.uniform(-0.9, -0.1), rng.uniform(0.4, 0.9)]
+        m.light_diffuse[i] = rng.uniform(0.5, 1.0, 3)
+    bg = gid("back_surf")
+    if bg >= 0:                                                 # skin tone
+        m.geom_rgba[bg] = [rng.uniform(0.55, 0.95), rng.uniform(0.38, 0.68), rng.uniform(0.33, 0.58), 1]
+    fg = gid("floor")
+    if fg >= 0:                                                 # background
+        m.geom_rgba[fg] = [*rng.uniform(0.1, 0.55, 3), 1]
+    for i in range(m.ngeom):                                    # arm limb color jitter (grey-ish)
+        nm = mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_GEOM, i) or ""
+        if nm.startswith("openarm_left") or (m.geom_rgba[i][0] > 0.6 and i not in (bg, fg)):
+            g = rng.uniform(0.55, 0.85); m.geom_rgba[i] = [g, g + rng.uniform(-0.05, 0.05), g, 1]
+    cid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_CAMERA, "clinician")
+    if cid >= 0:                                                # camera viewpoint jitter
+        m.cam_pos[cid] = m.cam_pos[cid] + rng.uniform(-0.06, 0.06, 3)
+        m.cam_fovy[cid] = float(np.clip(m.cam_fovy[cid] + rng.uniform(-6, 6), 30, 75))
+
+
 def _write_wav(path, y):
     pcm = (np.clip(y, -1, 1) * 32767).astype("<i2")
     with wave.open(path, "wb") as w:
@@ -76,11 +101,13 @@ def _clean_clip(seconds):
     return (y / (np.max(np.abs(y)) + 1e-9) * 0.6).astype(np.float32)
 
 
-def generate(out_dir, seconds=20.0, control_hz=50.0, seed=0):
+def generate(out_dir, seconds=20.0, control_hz=50.0, seed=0, randomize=True):
     import imageio.v2 as imageio
     rng = np.random.RandomState(seed)
     os.makedirs(out_dir, exist_ok=True)
     m = mujoco.MjModel.from_xml_path(SCENE)
+    if randomize:
+        domain_randomize(m, rng)                               # vision sim-to-real (appearance only)
     d = mujoco.MjData(m); dk = mujoco.MjData(m)
     tip_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, "tip")
     disk_gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "stetho_disk")
@@ -164,6 +191,7 @@ if __name__ == "__main__":
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--control-hz", type=float, default=50.0)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--no-randomize", action="store_true", help="disable per-session domain randomization")
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "sessions", "session_mj0001"))
     a = ap.parse_args()
-    generate(a.out, seconds=a.seconds, control_hz=a.control_hz, seed=a.seed)
+    generate(a.out, seconds=a.seconds, control_hz=a.control_hz, seed=a.seed, randomize=not a.no_randomize)
