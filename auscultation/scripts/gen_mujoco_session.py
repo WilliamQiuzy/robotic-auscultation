@@ -101,7 +101,7 @@ def _clean_clip(seconds):
     return (y / (np.max(np.abs(y)) + 1e-9) * 0.6).astype(np.float32)
 
 
-def generate(out_dir, seconds=20.0, control_hz=50.0, seed=0, randomize=True):
+def generate(out_dir, seconds=20.0, control_hz=50.0, seed=0, randomize=True, f_target=F_TARGET):
     import imageio.v2 as imageio
     rng = np.random.RandomState(seed)
     os.makedirs(out_dir, exist_ok=True)
@@ -131,7 +131,7 @@ def generate(out_dir, seconds=20.0, control_hz=50.0, seed=0, randomize=True):
         t = k / phys_hz
         ramp = min(np.clip(t / approach, 0, 1), np.clip((seconds - t) / (seconds - retract), 0, 1))
         fN = _tip_force(m, d, disk_gid)                              # measured emergent contact force
-        press = float(np.clip(press + PRESS_GAIN * (F_TARGET * ramp - fN), 0.0, PRESS_MAX))  # force loop
+        press = float(np.clip(press + PRESS_GAIN * (f_target * ramp - fN), 0.0, PRESS_MAX))  # force loop
         target = p_home + np.array([0.0, press, 0.0])               # tip position that holds ~F_TARGET
         d.ctrl[breath_dof] = BREATH_A * (0.5 - 0.5 * np.cos(2 * np.pi * BREATH_HZ * t))  # inhale rises
         d.ctrl[:7] = _ik(m, dk, target, tip_id, d.qpos[:7].copy())
@@ -192,6 +192,9 @@ if __name__ == "__main__":
     ap.add_argument("--control-hz", type=float, default=50.0)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--no-randomize", action="store_true", help="disable per-session domain randomization")
+    ap.add_argument("--f-target", type=float, default=F_TARGET,
+                    help="contact-force setpoint (N); low (<3) → under-press → gate=False → low reward")
     ap.add_argument("--out", default=os.path.join(ROOT, "data", "sessions", "session_mj0001"))
     a = ap.parse_args()
-    generate(a.out, seconds=a.seconds, control_hz=a.control_hz, seed=a.seed, randomize=not a.no_randomize)
+    generate(a.out, seconds=a.seconds, control_hz=a.control_hz, seed=a.seed,
+             randomize=not a.no_randomize, f_target=a.f_target)

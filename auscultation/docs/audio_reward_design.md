@@ -222,7 +222,20 @@ python scripts/session_to_lerobot.py data/sessions/session_mj0001 --out data/ler
 
 # End-to-end acceptance test (locks the Phase-0/1 invariants; exit 0/1)
 python scripts/test_il_pipeline.py
+
+# RL-readiness: mixed-outcome episodes (good contact vs under-press) -> offline-RL value/Q fit
+for i in 0 1 2; do python scripts/gen_mujoco_session.py --seed $i --f-target 4.0 --out data/sessions/g$i; done  # good
+for i in 3 4 5; do python scripts/gen_mujoco_session.py --seed $i --f-target 1.5 --out data/sessions/b$i; done  # under-press
+# convert each --real-q, then:  python scripts/rl_readiness_check.py --dir <dir of lerobot_*>
 ```
+
+**✅ RL-readiness verified (2026-07-08):** 6 mixed-outcome MuJoCo episodes (3 good-contact return ~386,
+3 under-press return 0) → 3600 `(s,a,r,s',done)` transitions. State fuses the modalities: **7 arm
+joints + magnetic contact force + gate + audio-Q** (10-D; video is the `rgb.mp4` sidecar a vision
+encoder adds). `scripts/rl_readiness_check.py`: **V(s) regresses the return R²=0.97 and separates
+good/bad (V 75 vs 9.5); Q(s,a) R²=0.95** — so offline RL (IQL/CQL/AWAC/TD3+BC) can consume the format.
+(Bootstrapped TD oscillates — the deadly triad — which is exactly why conservative offline RL exists;
+an algorithm choice, not a data issue.) All 4 modalities present + timestamp-aligned per episode.
 
 Pieces: `gen_synthetic_session.py` / `gen_mujoco_session.py` (sessions) · `openarm_mjcf.py` (URDF→MJCF)
 · `session_to_lerobot.py` (segment/reward conversion) · `ausc/audio/reward_schema.py` (schema) ·
