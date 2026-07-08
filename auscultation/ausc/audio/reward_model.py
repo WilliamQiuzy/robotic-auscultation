@@ -57,6 +57,37 @@ class BTReward:
             return self.net(torch.tensor(np.asarray(emb, np.float32))).squeeze(1).cpu().numpy()
 
 
+def train_from_preferences(pref_path: str, clip_dir: str, epochs: int = 400):
+    """Train the BT reward model from a preferences.jsonl (reward_schema.Preference rows, e.g. from
+    preference_annotator.py) over a pool of clip wavs. 'tie' rows are dropped. Returns (model, stats)."""
+    import glob  # noqa: F401
+    import json
+    import soundfile as sf
+    from q_head import make_embed_fn
+
+    emb_fn = make_embed_fn()
+    prefs = [json.loads(ln) for ln in open(pref_path) if ln.strip()]
+    names = sorted({p["segment_a"] for p in prefs} | {p["segment_b"] for p in prefs})
+    idx = {n: i for i, n in enumerate(names)}
+    emb = []
+    for n in names:
+        y, sr = sf.read(os.path.join(clip_dir, n)); y = y.mean(1) if getattr(y, "ndim", 1) > 1 else y
+        emb.append(emb_fn(y, sr))
+    emb = np.stack(emb)
+    pairs, labels = [], []
+    for p in prefs:
+        if p["preferred"] == "tie":
+            continue
+        pairs.append((idx[p["segment_a"]], idx[p["segment_b"]]))
+        labels.append(1.0 if p["preferred"] == "a" else 0.0)
+    if not pairs:
+        return None, {"n_clips": len(names), "n_pairs": 0}
+    model = BTReward()
+    loss = model.fit(emb, np.array(pairs), np.array(labels), epochs=epochs)
+    return model, {"n_clips": len(names), "n_pairs": len(pairs), "loss": loss,
+                   "scores": {n: float(s) for n, s in zip(names, model.score(emb))}}
+
+
 def _spearman(a: np.ndarray, b: np.ndarray) -> float:
     ra = np.argsort(np.argsort(a)); rb = np.argsort(np.argsort(b))
     ra = ra - ra.mean(); rb = rb - rb.mean()

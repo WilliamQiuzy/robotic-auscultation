@@ -94,8 +94,18 @@ Head-Reward. [`../ausc/audio/reward_model.py`](../ausc/audio/reward_model.py) is
 `R_φ(embedding)→scalar` (`P(a≻b)=σ(R_a−R_b)`, BCE loss). Validated **on the H200** with synthetic
 preferences (prefer the cleaner clip): trained on some base clips, it ranks **unseen** clips by
 quality — spearman(score, quality) **0.976, pairwise acc 100%**. Ready to swap synthetic prefs for
-real doctor pairwise rankings (`Preference` rows in reward_schema.py). Still to build: the pairwise
-clinician annotation tool that produces those rows.
+real doctor pairwise rankings (`Preference` rows in reward_schema.py).
+
+✅ **Pairwise annotation tool + preference training done (2026-07-08):**
+[`../scripts/audio/preference_annotator.py`](../scripts/audio/preference_annotator.py) — a stdlib
+browser tool: a doctor hears two clips and picks the more usable one; choices append `Preference` rows
+to `preferences.jsonl`. **Active-learning pair selection** (`--smart`): score every clip with the Q
+head and prefer SIMILAR-Q pairs (the fine calls the model is unsure about) + a few wide-gap anchors —
+so scarce doctor time is spent informatively. **Data-agnostic** (open data / our recordings now, robot
+flight-data segments later): the audio reward is decoupled from flight data — quality is a property of
+the clip, not who held the stethoscope — so this trains the reward model *without* waiting on teleop.
+`reward_model.train_from_preferences(prefs, clip_dir)` closes the loop; validated end-to-end (server
+records rows; model trained from them ranks clips by quality, spearman 0.86).
 
 ---
 
