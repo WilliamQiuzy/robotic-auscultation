@@ -1,16 +1,15 @@
-"""The Q head — real learned audio-quality model as a plug-in `q_fn` for the IL pipeline.
+"""The shared audio encoder + the Q head — one AST encoder feeding multiple heads.
 
-This is the "Head-Q" of docs/audio_reward_design.md's one-encoder-three-heads design: AST embedding
-→ the SPRSound-trained GBM → P(poor), returned as **P(usable) = 1 − P(poor)** ∈ [0,1] (higher =
-better), which is exactly what `session_to_lerobot.py` wants for `q_fn(audio, sr) → q_usable` and
-what the segment reward `gate · Q` maximizes.
+docs/audio_reward_design.md's "one encoder, three heads": a single frozen AST encoder produces the
+embedding; `make_embed_fn` exposes it (for the reward model, Head-Reward), and `make_quality_fn`
+puts the SPRSound GBM on top → **P(usable) = 1 − P(poor)** ∈ [0,1] (Head-Q, what `session_to_lerobot`
+wants for `q_fn(audio, sr) → q_usable`).
 
-    from q_head import make_quality_fn
-    q = make_quality_fn()                 # lazy-loads AST + quality_gbm.joblib on first call
-    p_usable = q(audio_16k, 16000)
+    from q_head import make_embed_fn, make_quality_fn
+    emb = make_embed_fn()                  # emb(audio_16k, 16000) -> 768-d AST embedding
+    q   = make_quality_fn()                # q(audio_16k, 16000)   -> P(usable)
 
-Deps: torch, transformers, librosa/soundfile not needed (audio comes in as an array), joblib, sklearn.
-The model is the deployable SPRSound gate (honest patient-grouped AUC ≈0.94); see sprsound_loop/.
+Deps: torch, transformers, joblib, sklearn. Model = the deployable SPRSound gate (AUC ≈0.94).
 """
 from __future__ import annotations
 
@@ -20,12 +19,15 @@ from typing import Callable, Optional
 
 import numpy as np
 
+DEFAULT_ENCODER = "MIT/ast-finetuned-audioset-10-10-0.4593"
+SR = 16000
 _DEFAULT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
                             "scripts", "audio", "sprsound_loop")
+_ENC: dict = {}                                            # shared lazy encoder cache (one encoder)
 
 
 def _numpy_compat():
-    """numpy 1.x<->2.x BitGenerator pickle shim (model was trained under numpy2 on the pod)."""
+    """numpy 1.x<->2.x BitGenerator pickle shim (GBM was trained under numpy2 on the pod)."""
     try:
         import numpy.random._pickle as _npp
         orig = getattr(_npp, "__bit_generator_ctor")
@@ -37,56 +39,62 @@ def _numpy_compat():
         pass
 
 
-def make_quality_fn(model_dir: Optional[str] = None) -> Callable[[np.ndarray, int], float]:
-    """Return `q(audio, sr) -> P(usable) in [0,1]`. Lazily loads AST + the GBM on first call so
-    importing this module (e.g. in the converter) is cheap when --real-q is not used."""
-    model_dir = model_dir or _DEFAULT_DIR
-    state: dict = {}
-
-    def _load():
-        import joblib
+def _encoder(encoder_id: str = DEFAULT_ENCODER):
+    if "m" not in _ENC:
         import torch
         from transformers import AutoFeatureExtractor, ASTModel
-        _numpy_compat()
-        meta = json.load(open(os.path.join(model_dir, "quality_meta.json")))
-        state["meta"] = meta
-        state["clf"] = joblib.load(os.path.join(model_dir, "quality_gbm.joblib"))
-        state["fe"] = AutoFeatureExtractor.from_pretrained(meta["encoder"])
-        state["dev"] = "cuda" if torch.cuda.is_available() else "cpu"
-        state["m"] = ASTModel.from_pretrained(meta["encoder"]).to(state["dev"]).eval()
-        state["torch"] = torch
+        _ENC["fe"] = AutoFeatureExtractor.from_pretrained(encoder_id)
+        _ENC["dev"] = "cuda" if torch.cuda.is_available() else "cpu"
+        _ENC["m"] = ASTModel.from_pretrained(encoder_id).to(_ENC["dev"]).eval()
+        _ENC["torch"] = torch
+    return _ENC
+
+
+def embed(audio: np.ndarray, sr: int) -> np.ndarray:
+    """AST embedding (768-d) of one clip. Resamples to 16 kHz, 12 s cap, peak-normalized."""
+    enc = _encoder(); torch = enc["torch"]
+    y = np.asarray(audio, np.float32)
+    if sr != SR:
+        y = np.interp(np.linspace(0, len(y) - 1, int(len(y) * SR / sr)), np.arange(len(y)), y)
+    y = y[: SR * 12]
+    if len(y) < SR // 2:
+        y = np.pad(y, (0, SR // 2 - len(y)))
+    y = (y / (np.max(np.abs(y)) + 1e-9)).astype(np.float32)
+    inp = enc["fe"]([y], sampling_rate=SR, return_tensors="pt")
+    with torch.no_grad():
+        return enc["m"](inp.input_values.to(enc["dev"])).last_hidden_state.mean(1).cpu().numpy()[0]
+
+
+def make_embed_fn() -> Callable[[np.ndarray, int], np.ndarray]:
+    """Head-shared encoder: `emb(audio, sr) -> 768-d`. Used to train the reward model."""
+    return embed
+
+
+def make_quality_fn(model_dir: Optional[str] = None) -> Callable[[np.ndarray, int], float]:
+    """Head-Q: `q(audio, sr) -> P(usable) ∈ [0,1]` = 1 − P(poor) from the SPRSound GBM on the embedding."""
+    model_dir = model_dir or _DEFAULT_DIR
+    st: dict = {}
 
     def q(audio: np.ndarray, sr: int) -> float:
-        if "m" not in state:
-            _load()
-        meta, torch = state["meta"], state["torch"]
-        y = np.asarray(audio, np.float32)
-        target = meta["sr"]
-        if sr != target:                                   # linear resample to the model rate
-            y = np.interp(np.linspace(0, len(y) - 1, int(len(y) * target / sr)), np.arange(len(y)), y)
-        y = y[: target * 12]
-        if len(y) < target // 2:
-            y = np.pad(y, (0, target // 2 - len(y)))
-        y = (y / (np.max(np.abs(y)) + 1e-9)).astype(np.float32)
-        inp = state["fe"]([y], sampling_rate=target, return_tensors="pt")
-        with torch.no_grad():
-            emb = state["m"](inp.input_values.to(state["dev"])).last_hidden_state.mean(1).cpu().numpy()
-        p_poor = float(state["clf"].predict_proba(emb)[:, 1][0])
-        return float(np.clip(1.0 - p_poor, 0.0, 1.0))       # P(usable)
+        if "clf" not in st:
+            import joblib
+            _numpy_compat()
+            st["clf"] = joblib.load(os.path.join(model_dir, "quality_gbm.joblib"))
+        p_poor = float(st["clf"].predict_proba(embed(audio, sr)[None, :])[:, 1][0])
+        return float(np.clip(1.0 - p_poor, 0.0, 1.0))
 
     return q
 
 
-if __name__ == "__main__":  # smoke: score a clean lung sample vs a noised copy
+if __name__ == "__main__":  # smoke: embedding dim + Q clean vs noised
     import glob
     import soundfile as sf
-    q = make_quality_fn()
-    samples = sorted(glob.glob(os.path.join(os.path.dirname(_DEFAULT_DIR), "..", "..",
-                                             "data", "audio", "_samples", "hf_lung_v1", "*.wav")))
-    if samples:
-        y, sr = sf.read(samples[0]); y = y.mean(1) if y.ndim > 1 else y
-        clean = q(y, sr)
-        noisy = q(y + 0.3 * np.random.RandomState(0).randn(len(y)), sr)
-        print(f"P(usable) clean={clean:.3f}  noised={noisy:.3f}  (expect clean > noised)")
+    emb, q = make_embed_fn(), make_quality_fn()
+    s = sorted(glob.glob(os.path.join(_DEFAULT_DIR, "..", "..", "..", "data", "audio",
+                                      "_samples", "hf_lung_v1", "*.wav")))
+    if s:
+        y, sr = sf.read(s[0]); y = y.mean(1) if y.ndim > 1 else y
+        print(f"embed dim = {emb(y, sr).shape}  | P(usable) clean={q(y, sr):.3f} "
+              f"noised={q(y + 0.3 * np.random.RandomState(0).randn(len(y)), sr):.3f}")
     else:
-        print("no sample wav found; q_fn built OK")
+        print("no sample; encoder built OK")

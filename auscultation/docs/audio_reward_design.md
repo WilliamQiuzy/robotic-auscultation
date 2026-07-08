@@ -88,6 +88,15 @@ Reward's time unit matches the task: **a segment = 2–3 respiratory cycles (~10
   online RL. Multimodal (force/position) terms are **shaping/early-prediction only** — never let the
   policy bypass audio by optimizing a vision-force proxy.
 
+✅ **Reward model + shared encoder done (2026-07-08):** [`../ausc/audio/q_head.py`](../ausc/audio/q_head.py)
+now exposes the shared AST encoder (`make_embed_fn`, the design's one-encoder) feeding both Head-Q and
+Head-Reward. [`../ausc/audio/reward_model.py`](../ausc/audio/reward_model.py) is the Bradley-Terry
+`R_φ(embedding)→scalar` (`P(a≻b)=σ(R_a−R_b)`, BCE loss). Validated **on the H200** with synthetic
+preferences (prefer the cleaner clip): trained on some base clips, it ranks **unseen** clips by
+quality — spearman(score, quality) **0.976, pairwise acc 100%**. Ready to swap synthetic prefs for
+real doctor pairwise rankings (`Preference` rows in reward_schema.py). Still to build: the pairwise
+clinician annotation tool that produces those rows.
+
 ---
 
 ## 5. Data design — store *ingredients*, never freeze the reward
