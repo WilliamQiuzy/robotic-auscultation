@@ -128,10 +128,18 @@ class Collector:
         if f is not None and getattr(f, "frame", None) is not None:
             frame = np.ascontiguousarray(f.frame[:, :, ::-1])        # camera is RGB → BGR for cv2
         else:
-            frame = self._render_back(w, h)
+            frame = self._placeholder(f"waiting for {self.camera_backend} camera…")
         # TODO(linbox): ee_to_target from kinematics(tip) vs target xyz; force from ForceSensor;
-        # q from the streaming Q head; new_cycle from the Hall respiratory detector.
+        # q from the streaming Q head; new_cycle from the Hall respiratory detector. Until then the
+        # video + point overlay + manual confirm work; force/Q read 0 (honest — no sensor on this host).
         return frame, 1e9, 0.0, 0.0, False
+
+    @staticmethod
+    def _placeholder(text):                                          # honest "no camera yet" frame
+        import cv2
+        img = np.full((480, 640, 3), (28, 20, 14), np.uint8)
+        cv2.putText(img, text, (40, 240), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (150, 170, 200), 1)
+        return img
 
     def _loop(self):
         if not self.fake:
@@ -352,6 +360,8 @@ if __name__ == "__main__":
     a = ap.parse_args()
     col = Collector(load_targets(a.targets), fake=a.fake, camera_backend=a.camera_backend,
                     camera_index=a.camera_index, out_dir=a.out)
-    print(f"[collect] console at http://localhost:{a.port}  "
-          f"({'FAKE' if a.fake else f'{a.camera_backend}[{a.camera_index}]'})  keys: SPACE=confirm R=redo ←→=points S=rec")
+    src = "FAKE" if a.fake else f"{a.camera_backend}[{a.camera_index}]"
+    print(f"[collect] console at http://localhost:{a.port}  ({src})  keys: SPACE=confirm R=redo ←→=points S=rec")
+    print(f"[collect] remote browser: on your laptop run  ssh -L {a.port}:localhost:{a.port} <this-host>  "
+          f"then open http://localhost:{a.port}")
     ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(col, PAGE)).serve_forever()
