@@ -77,20 +77,42 @@ class TargetLog:
         self.f.close()
 
 
-def overlay(frame, targets: list[TargetPoint], active_idx: int):
-    """Draw all targets on the frame; highlight the active one (what the doctor should reach)."""
+def _dashed_circle(frame, center, r, color, n=16):
+    import cv2
+    import math
+    for k in range(0, n, 2):                                    # every other arc segment = dashes
+        a0, a1 = k * 360 / n, (k + 1) * 360 / n
+        cv2.ellipse(frame, center, (r, r), 0, a0, a1, color, 3)
+
+
+def overlay(frame, targets: list[TargetPoint], active_idx: int, occluded: bool = False,
+            status: str = "", completed=()):
+    """Draw the targets; highlight the active one. If `occluded` (the arm covers the point), the
+    active target is drawn DASHED at its held 3D→2D position so the doctor still sees where it is."""
     import cv2
     h, w = frame.shape[:2]
     for i, tp in enumerate(targets):
         px, py = int(tp.uv[0] * w), int(tp.uv[1] * h)
-        if i == active_idx:
-            cv2.circle(frame, (px, py), 22, (0, 220, 255), 3)
-            cv2.circle(frame, (px, py), 4, (0, 220, 255), -1)
-            cv2.putText(frame, f"GO HERE: {tp.name}", (px - 60, py - 30),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 220, 255), 2)
+        if i in completed:
+            cv2.circle(frame, (px, py), 9, (0, 200, 0), 2)
+            cv2.putText(frame, "OK", (px - 10, py - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 200, 0), 1)
+        elif i == active_idx:
+            col = (0, 220, 255)
+            if occluded:
+                _dashed_circle(frame, (px, py), 22, col)
+                cv2.putText(frame, f"{tp.name} (occluded — held)", (px - 70, py - 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, col, 2)
+            else:
+                cv2.circle(frame, (px, py), 22, col, 3)
+                cv2.putText(frame, f"GO HERE: {tp.name}", (px - 60, py - 30),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, col, 2)
+            cv2.circle(frame, (px, py), 4, col, -1)
         else:
             cv2.circle(frame, (px, py), 8, (120, 120, 120), 2)
             cv2.putText(frame, tp.name, (px - 12, py - 12), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (150, 150, 150), 1)
+    if status:                                                  # feedback bar (bottom)
+        cv2.rectangle(frame, (0, h - 26), (w, h), (30, 30, 30), -1)
+        cv2.putText(frame, status, (8, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (240, 240, 240), 1)
     return frame
 
 
