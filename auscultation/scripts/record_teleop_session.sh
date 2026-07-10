@@ -48,9 +48,11 @@ if ! kill -0 "$TPID" 2>/dev/null; then
     echo "[combined] teleop failed to start — see $SDIR/teleop.log"; tail -3 "$SDIR/teleop.log"; exit 1
 fi
 
-# 2) SENSORS for N seconds into the SAME session dir (same monotonic clock).
+# 2) SENSORS for N seconds into the SAME session dir (same monotonic clock). --show-targets overlays
+#    the current auscultation target on the live camera for the doctor + logs targets.jsonl
+#    (point-conditioned). TARGETS_FILE (perception landmarks / config) refines the target positions.
 "$PY" "$AUSC/ausc/record_session.py" --session-dir "$SDIR" --seconds "$secs" --site "$site" \
-    --camera-backend orbbec || true
+    --camera-backend orbbec --show-targets ${TARGETS_FILE:+--targets "$TARGETS_FILE"} || true
 
 # 3) stop teleop cleanly (INT -> disable_all; then hard-kill as backstop).
 kill -INT "$TPID" 2>/dev/null; for _ in 1 2 3 4 5; do kill -0 "$TPID" 2>/dev/null || break; sleep 1; done

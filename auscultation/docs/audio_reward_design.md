@@ -272,6 +272,31 @@ language); sim generators carry `task` too. **Recommended next collection upgrad
 camera** (VLAs benefit from wrist + third-person) → record `rgb_wrist.mp4` → `observation.images.wrist`
 (the format already supports N cameras). Keep the action space fixed (joint targets) across all data.
 
+## 7d. Point-conditioned collection (2026-07-10) — the doctor is shown WHERE, the model learns per-point
+
+Our collection is **point-conditioned**, not just language-conditioned: the screen shows the doctor the
+CURRENT auscultation target (a landmark on the back, highlighted on the live camera); the doctor moves
+the stethoscope there; we record WHICH target was active so the policy learns "given this point →
+this action" (and at deploy, perception supplies the point → the policy executes).
+
+- [`../ausc/perception/ausc_targets.py`](../ausc/perception/ausc_targets.py): `TargetPoint`
+  (id/name/uv/xyz), `load_targets` (default posterior grid LUL/LLL/RUL/RLL, or a perception-landmarks
+  JSONL / config), `overlay()` (draw + highlight the active target for the doctor), `TargetLog` →
+  `targets.jsonl` (active target over time, `time.monotonic()`-stamped → aligns with robot.csv + sensors).
+- `record_session.py --show-targets [--targets <file>]`: overlays the target on the live camera for
+  the doctor (recorded `rgb.mp4` stays CLEAN — overlay only on the shown copy; headless-safe) and logs
+  `targets.jsonl`. SPACE/n advance the target, so one recording can sweep multiple points.
+- `session_to_lerobot_v2.py`: reads `targets.jsonl` → adds **`observation.target_point_2d` (u,v) +
+  `observation.target_point_3d` (x,y,z)** per frame and sets **`task` = "auscultate the <point>"** →
+  the LeRobot dataset is point-conditioned (goal in the observation AND the language). Absent
+  `targets.jsonl` → falls back to the manifest task (unconditioned still works).
+
+Verified end-to-end on the Mac (mock teleop + `record_session --show-targets --camera-backend fake`):
+`targets.jsonl` logged per frame on the session clock; the converter attaches the active target's 2D
+point + a point-specific task (RUL→"auscultate the RUL", LLL→"auscultate the LLL"). The target's real
+uv/xyz come from the perception landmarks at collection time (or an operator click); the default grid
+is a placeholder.
+
 ## 8. Locked decisions & open items
 
 **Locked (2026-07-07):**

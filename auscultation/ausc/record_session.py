@@ -68,7 +68,8 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                    hall_port: str | None = None, hall_cal: str | None = None,
                    camera_backend: str = "avfoundation", camera_index: int = 0,
                    site: str = "posterior-lung", instruction: str | None = None,
-                   session_dir: str | None = None) -> str:
+                   session_dir: str | None = None,
+                   show_targets: bool = False, targets_path: str | None = None) -> str:
     from contextlib import ExitStack
 
     import cv2
@@ -106,6 +107,15 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
         print(f"[rec] {sorted(streams)} -> {sdir}  ({seconds}s @ {control_hz} Hz)")
         time.sleep(0.8)  # let buffers fill
 
+        # point-conditioned display: show the doctor the current auscultation target overlaid on the
+        # live camera (the recorded rgb.mp4 stays CLEAN — overlay only on the shown copy) and log the
+        # active target to targets.jsonl (same monotonic clock → converter attaches it per frame).
+        tlog = None; targets = None; active = 0
+        if show_targets:
+            from ausc_targets import TargetLog, load_targets, overlay
+            targets = load_targets(targets_path); tlog = TargetLog(sdir)
+            print(f"[targets] doctor view: {[t.name for t in targets]}  (SPACE/n=next  b=back)")
+
         writer = None
         depth_dir = os.path.join(sdir, "depth")
         rgb_times, depth_times, obs_rows = [], [], []
@@ -125,6 +135,19 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                                              cv2.VideoWriter_fourcc(*"mp4v"), control_hz, (w, h))
                 writer.write(cv2.cvtColor(f.frame, cv2.COLOR_RGB2BGR))
                 rgb_times.append((f.index, f.t))
+                if show_targets and targets:                      # log active target (data) + doctor display
+                    tlog.log(f.t, targets[active], f.frame.shape[1], f.frame.shape[0])
+                    try:                                          # display is best-effort (headless-safe)
+                        disp = cv2.cvtColor(f.frame, cv2.COLOR_RGB2BGR)
+                        overlay(disp, targets, active)
+                        cv2.imshow("auscultation target (doctor view)", disp)
+                        kk = cv2.waitKey(1) & 0xFF
+                        if kk in (ord(" "), ord("n")):
+                            active = (active + 1) % len(targets)
+                        elif kk == ord("b"):
+                            active = (active - 1) % len(targets)
+                    except Exception:  # noqa: BLE001
+                        pass
                 if f.depth is not None:
                     os.makedirs(depth_dir, exist_ok=True)
                     np.save(os.path.join(depth_dir, f"depth_{f.index:06d}.npy"), f.depth)
@@ -140,6 +163,12 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
             time.sleep(0.002)
 
         # finalize: audio dump + health + manifest
+        if tlog is not None:
+            tlog.close()
+            try:
+                cv2.destroyAllWindows()
+            except Exception:  # noqa: BLE001  (headless)
+                pass
         audio_t0 = None
         a_health = {"status": "NO_DATA"}
         if "audio" in streams:
@@ -199,8 +228,13 @@ if __name__ == "__main__":
     ap.add_argument("--instruction", default=None, help="override the natural-language instruction")
     ap.add_argument("--session-dir", default=None,
                     help="exact session dir (a combined launcher points sensors + teleop robot.csv here)")
+    ap.add_argument("--show-targets", action="store_true",
+                    help="point-conditioned: overlay the current auscultation target on the live camera "
+                         "for the doctor + log the active target to targets.jsonl")
+    ap.add_argument("--targets", default=None, help="targets config JSON / perception landmarks JSONL")
     a = ap.parse_args()
     record_session(a.out, a.seconds, control_hz=a.control_hz, audio_device=a.audio_device,
                    audio_channel=a.audio_channel, hall_port=a.hall_port,
                    camera_backend=a.camera_backend, camera_index=a.camera_index,
-                   site=a.site, instruction=a.instruction, session_dir=a.session_dir)
+                   site=a.site, instruction=a.instruction, session_dir=a.session_dir,
+                   show_targets=a.show_targets, targets_path=a.targets)
