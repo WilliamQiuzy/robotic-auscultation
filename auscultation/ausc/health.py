@@ -45,8 +45,9 @@ def force_status(force_values, frozen_n: float = FORCE_FROZEN_N) -> dict:
 
 
 def warn(label: str, st: dict) -> bool:
-    """Print a prominent warning if a device status is not OK; return True if faulted."""
-    if st["status"] != "OK":
-        print(f"  ⚠️  {label}: {st['status']} — {st['msg']}", flush=True)
+    """Print a prominent warning if a device status is not OK; return True if faulted. Tolerates a
+    status dict without 'msg' (e.g. an absent device) — don't crash the end of a recording."""
+    if st.get("status", "OK") != "OK":
+        print(f"  ⚠️  {label}: {st.get('status', '?')} — {st.get('msg', '(no detail)')}", flush=True)
         return True
     return False

@@ -67,7 +67,8 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                    audio_device: str = "Scarlett Solo USB", audio_channel: int | None = 1,
                    hall_port: str | None = None, hall_cal: str | None = None,
                    camera_backend: str = "avfoundation", camera_index: int = 0,
-                   site: str = "posterior-lung", instruction: str | None = None) -> str:
+                   site: str = "posterior-lung", instruction: str | None = None,
+                   session_dir: str | None = None) -> str:
     from contextlib import ExitStack
 
     import cv2
@@ -75,8 +76,10 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
     from camera_stream import CameraStream
     from force_sensor import ForceCalibration, ForceSensor
 
+    # session_dir lets a combined launcher point the sensor recorder AND the teleop (robot.csv) at the
+    # SAME dir so they land in one aligned session; else auto-create session_<stamp> under out_root.
     stamp = time.strftime("%Y%m%d_%H%M%S")
-    sdir = os.path.join(out_root, f"session_{stamp}")
+    sdir = session_dir or os.path.join(out_root, f"session_{stamp}")
     os.makedirs(sdir, exist_ok=True)
     hall_port = hall_port or (sorted(glob.glob("/dev/cu.usbmodem*") + glob.glob("/dev/ttyACM*")) or [None])[0]
     hall_cal = hall_cal or os.path.join(ROOT, "mechanical_sensor", "force_feedback",
@@ -194,8 +197,10 @@ if __name__ == "__main__":
     ap.add_argument("--site", default="posterior-lung",
                     help="auscultation site (VLA task/language): LUL/LLL/RUL/RLL/posterior-lung")
     ap.add_argument("--instruction", default=None, help="override the natural-language instruction")
+    ap.add_argument("--session-dir", default=None,
+                    help="exact session dir (a combined launcher points sensors + teleop robot.csv here)")
     a = ap.parse_args()
     record_session(a.out, a.seconds, control_hz=a.control_hz, audio_device=a.audio_device,
                    audio_channel=a.audio_channel, hall_port=a.hall_port,
                    camera_backend=a.camera_backend, camera_index=a.camera_index,
-                   site=a.site, instruction=a.instruction)
+                   site=a.site, instruction=a.instruction, session_dir=a.session_dir)
