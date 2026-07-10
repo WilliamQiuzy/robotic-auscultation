@@ -22,8 +22,9 @@ from typing import Optional
 class State(str, Enum):
     APPROACH = "APPROACH"       # EE not yet at the target
     CONTACT = "CONTACT"         # at the target but force not in the auscultation band
-    LISTENING = "LISTENING"     # good contact + good audio → accumulating respiratory cycles
-    DONE = "DONE"               # enough good cycles → this point is auscultated
+    LISTENING = "LISTENING"     # good contact → accumulating respiratory cycles
+    READY = "READY"             # enough cycles captured, waiting for the doctor to confirm (confirm mode)
+    DONE = "DONE"               # this point is auscultated → advance
 
 
 @dataclass
@@ -31,36 +32,51 @@ class FeedbackConfig:
     reach_m: float = 0.02       # EE within this of the target 3D ⇒ "reached"
     f_min: float = 3.0          # contact-force band (N) — from the force calibration
     f_max: float = 5.0
-    q_min: float = 0.6          # P(usable) threshold for "good audio"
-    need_cycles: int = 2        # good respiratory cycles required to call a point done (2-3)
+    need_cycles: int = 2        # respiratory cycles of good contact to call a point done (2-3)
+    q_min: float = 0.6          # ADVISORY only — flags a clip as likely-noisy; NEVER gates completion
+    require_confirm: bool = False  # if True, DONE waits for the doctor to confirm (foot pedal / key)
 
 
 @dataclass
 class PointFeedback:
-    """State machine for ONE point. Feed it the sensors each tick; it counts good cycles → DONE."""
+    """State machine for ONE point. Completion is driven by RELIABLE signals — reach + contact force +
+    sustained respiratory cycles (+ optional doctor confirm) — and NEVER by the Q model. Q is tracked
+    only as an ADVISORY (shown to the doctor, stored as a soft label); a weak Q can't block or corrupt
+    collection. This deliberately avoids a chicken-and-egg dependency on a strong Q model up front."""
     cfg: FeedbackConfig = field(default_factory=FeedbackConfig)
     good_cycles: int = 0
     state: State = State.APPROACH
+    q_sum: float = 0.0          # running Q over the LISTENING window → mean Q (advisory / soft label)
+    q_n: int = 0
+    confirmed: bool = False
 
     def reset(self) -> None:
-        self.good_cycles = 0
-        self.state = State.APPROACH
+        self.good_cycles = 0; self.state = State.APPROACH
+        self.q_sum = 0.0; self.q_n = 0; self.confirmed = False
+
+    def confirm(self) -> None:
+        """Doctor confirms the point is auscultated (used only in require_confirm mode)."""
+        self.confirmed = True
+
+    @property
+    def mean_q(self) -> float:
+        return self.q_sum / self.q_n if self.q_n else 0.0
 
     def update(self, ee_to_target_m: float, force_n: float, q_usable: float, new_cycle: bool) -> State:
         c = self.cfg
         reached = ee_to_target_m <= c.reach_m
         contact = c.f_min <= force_n <= c.f_max
-        good = reached and contact and q_usable >= c.q_min
         if not reached:
             self.state = State.APPROACH
         elif not contact:
             self.state = State.CONTACT
         else:
             self.state = State.LISTENING
-            if new_cycle and good:                                  # count a completed respiratory cycle
-                self.good_cycles += 1
+            self.q_sum += q_usable; self.q_n += 1                   # track Q (advisory), do NOT gate on it
+            if new_cycle:
+                self.good_cycles += 1                              # count on reliable contact, not on Q
             if self.good_cycles >= c.need_cycles:
-                self.state = State.DONE
+                self.state = State.DONE if (self.confirmed or not c.require_confirm) else State.READY
         return self.state
 
     def status(self, ee_to_target_m: float, force_n: float, q_usable: float) -> str:
@@ -70,9 +86,11 @@ class PointFeedback:
         if self.state is State.CONTACT:
             lo_hi = "press harder" if force_n < c.f_min else "ease off"
             return f"contact — {lo_hi}  (F={force_n:.1f} N, target {c.f_min:.0f}-{c.f_max:.0f} N)"
+        advisory = "" if q_usable >= c.q_min else "  ⚠ audio noisy (advisory)"
         if self.state is State.LISTENING:
-            q = "clean" if q_usable >= c.q_min else "noisy — hold still"
-            return f"listening… {self.good_cycles}/{c.need_cycles} cycles  ({q})"
+            return f"listening… {self.good_cycles}/{c.need_cycles} cycles{advisory}"
+        if self.state is State.READY:
+            return f"captured {self.good_cycles} cycles — confirm to advance{advisory}"
         return "✓ done — next point"
 
 
@@ -116,13 +134,13 @@ if __name__ == "__main__":  # self-test: one point should progress APPROACH→CO
            SimpleNamespace(name="LUL", xyz=(0.1, 0.0, 0.5))]
     sw = PointSweep(pts, FeedbackConfig(need_cycles=2))
     seq = []
-    # approach (far), touch (bad force), good contact over 2 cycles → done → advance to LUL
+    # approach (far), touch (bad force), good CONTACT over 2 cycles with Q=0.0 (weak/absent Q model)
     seq.append(sw.update((0.0, 0.0, 0.2), 0.0, 0.0, False)[1])         # APPROACH
     seq.append(sw.update((0.0, 0.0, 0.49), 1.5, 0.0, False)[1])        # CONTACT (force low)
-    seq.append(sw.update((0.0, 0.0, 0.49), 4.0, 0.9, True)[1])         # LISTENING cycle1
-    idx, st, status = sw.update((0.0, 0.0, 0.49), 4.0, 0.9, True)      # cycle2 → DONE → advance
+    seq.append(sw.update((0.0, 0.0, 0.49), 4.0, 0.0, True)[1])         # LISTENING cycle1 (Q=0!)
+    idx, st, status = sw.update((0.0, 0.0, 0.49), 4.0, 0.0, True)      # cycle2 → DONE → advance
     seq.append(st)
     print("states:", [s.value for s in seq], "| advanced to:", pts[idx].name, "| completed:", sw.completed)
     assert [s.value for s in seq] == ["APPROACH", "CONTACT", "LISTENING", "DONE"]
     assert idx == 1 and sw.completed == [0]
-    print("OK: APPROACH→CONTACT→LISTENING→DONE, auto-advanced RUL→LUL after 2 good cycles")
+    print("OK: completes on reach+contact+cycles even with Q=0 (Q is advisory, NOT a gate) → auto-advance")
