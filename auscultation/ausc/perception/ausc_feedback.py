@@ -32,9 +32,11 @@ class FeedbackConfig:
     reach_m: float = 0.02       # EE within this of the target 3D ⇒ "reached"
     f_min: float = 3.0          # contact-force band (N) — from the force calibration
     f_max: float = 5.0
-    need_cycles: int = 2        # respiratory cycles of good contact to call a point done (2-3)
+    need_cycles: int = 2        # respiratory cycles held before we HINT "ready" — advisory, not a gate
     q_min: float = 0.6          # ADVISORY only — flags a clip as likely-noisy; NEVER gates completion
-    require_confirm: bool = False  # if True, DONE waits for the doctor to confirm (foot pedal / key)
+    require_confirm: bool = True   # DEFAULT: the doctor's ear is the arbiter — they confirm (pedal/key)
+    #                                when they HEARD a good breath sound. Cycles/Q are only hints.
+    #                                Set False only for later fully-autonomous runs (cycles complete it).
 
 
 @dataclass
@@ -55,8 +57,16 @@ class PointFeedback:
         self.q_sum = 0.0; self.q_n = 0; self.confirmed = False
 
     def confirm(self) -> None:
-        """Doctor confirms the point is auscultated (used only in require_confirm mode)."""
+        """Doctor HEARD a good breath sound → this point is auscultated. Valid any time in contact,
+        even before need_cycles (fast good clip) or well after (shallow breathing)."""
         self.confirmed = True
+
+    def redo(self) -> None:
+        """Didn't get a usable sound (bad spot / noise / shallow breath) — keep collecting at this
+        point (hold longer / reposition). Resets the cycle+Q accumulators; does NOT advance. The
+        failed attempt is still recorded (a poor-quality / negative example, useful for Q + the policy)."""
+        self.good_cycles = 0; self.q_sum = 0.0; self.q_n = 0; self.confirmed = False
+        self.state = State.CONTACT
 
     @property
     def mean_q(self) -> float:
@@ -70,13 +80,18 @@ class PointFeedback:
             self.state = State.APPROACH
         elif not contact:
             self.state = State.CONTACT
-        else:
-            self.state = State.LISTENING
-            self.q_sum += q_usable; self.q_n += 1                   # track Q (advisory), do NOT gate on it
+        else:                                                       # in contact: doctor listens
+            self.q_sum += q_usable; self.q_n += 1                   # Q advisory only, never a gate
             if new_cycle:
-                self.good_cycles += 1                              # count on reliable contact, not on Q
-            if self.good_cycles >= c.need_cycles:
-                self.state = State.DONE if (self.confirmed or not c.require_confirm) else State.READY
+                self.good_cycles += 1                              # a soft "held long enough" hint
+            if self.confirmed:
+                self.state = State.DONE                            # doctor heard it → done (any time)
+            elif not c.require_confirm and self.good_cycles >= c.need_cycles:
+                self.state = State.DONE                            # autonomous mode only
+            elif self.good_cycles >= c.need_cycles:
+                self.state = State.READY                           # hint: held enough — confirm or redo
+            else:
+                self.state = State.LISTENING
         return self.state
 
     def status(self, ee_to_target_m: float, force_n: float, q_usable: float) -> str:
@@ -86,11 +101,11 @@ class PointFeedback:
         if self.state is State.CONTACT:
             lo_hi = "press harder" if force_n < c.f_min else "ease off"
             return f"contact — {lo_hi}  (F={force_n:.1f} N, target {c.f_min:.0f}-{c.f_max:.0f} N)"
-        advisory = "" if q_usable >= c.q_min else "  ⚠ audio noisy (advisory)"
+        advisory = "" if q_usable >= c.q_min else "  ⚠ audio noisy"
         if self.state is State.LISTENING:
-            return f"listening… {self.good_cycles}/{c.need_cycles} cycles{advisory}"
+            return f"listening… hold ~{self.good_cycles}/{c.need_cycles} cycles — confirm when you hear it{advisory}"
         if self.state is State.READY:
-            return f"captured {self.good_cycles} cycles — confirm to advance{advisory}"
+            return f"held {self.good_cycles} cycles — [confirm]=next  [redo]=keep trying{advisory}"
         return "✓ done — next point"
 
 
@@ -119,9 +134,17 @@ class PointSweep:
         if st is State.DONE:
             if self.idx not in self.completed:
                 self.completed.append(self.idx)
-            self.idx = (self.idx + 1) % len(self.points)           # auto-advance
+            self.idx = (self.idx + 1) % len(self.points)           # advance to the next point
             self.fb.reset()
         return self.idx, st, status
+
+    def confirm(self) -> None:
+        """Doctor confirms the current point (heard a good sound) → completes on the next update."""
+        self.fb.confirm()
+
+    def redo(self) -> None:
+        """Doctor didn't get a usable sound → keep collecting at this point (no advance)."""
+        self.fb.redo()
 
     @property
     def all_done(self) -> bool:
@@ -132,15 +155,16 @@ if __name__ == "__main__":  # self-test: one point should progress APPROACH→CO
     from types import SimpleNamespace
     pts = [SimpleNamespace(name="RUL", xyz=(0.0, 0.0, 0.5)),
            SimpleNamespace(name="LUL", xyz=(0.1, 0.0, 0.5))]
-    sw = PointSweep(pts, FeedbackConfig(need_cycles=2))
-    seq = []
-    # approach (far), touch (bad force), good CONTACT over 2 cycles with Q=0.0 (weak/absent Q model)
-    seq.append(sw.update((0.0, 0.0, 0.2), 0.0, 0.0, False)[1])         # APPROACH
-    seq.append(sw.update((0.0, 0.0, 0.49), 1.5, 0.0, False)[1])        # CONTACT (force low)
-    seq.append(sw.update((0.0, 0.0, 0.49), 4.0, 0.0, True)[1])         # LISTENING cycle1 (Q=0!)
-    idx, st, status = sw.update((0.0, 0.0, 0.49), 4.0, 0.0, True)      # cycle2 → DONE → advance
-    seq.append(st)
-    print("states:", [s.value for s in seq], "| advanced to:", pts[idx].name, "| completed:", sw.completed)
-    assert [s.value for s in seq] == ["APPROACH", "CONTACT", "LISTENING", "DONE"]
-    assert idx == 1 and sw.completed == [0]
-    print("OK: completes on reach+contact+cycles even with Q=0 (Q is advisory, NOT a gate) → auto-advance")
+    sw = PointSweep(pts, FeedbackConfig(need_cycles=2))                # require_confirm defaults True
+    ee = (0.0, 0.0, 0.49)
+    assert sw.update((0.0, 0.0, 0.2), 0.0, 0.0, False)[1] is State.APPROACH
+    assert sw.update(ee, 1.5, 0.0, False)[1] is State.CONTACT         # force low
+    assert sw.update(ee, 4.0, 0.9, True)[1] is State.LISTENING        # cycle 1
+    assert sw.update(ee, 4.0, 0.9, True)[1] is State.READY            # held enough → hint, NOT auto-done
+    sw.redo()                                                         # doctor: bad sound, keep trying
+    assert sw.update(ee, 4.0, 0.3, True)[1] is State.LISTENING        # cycles reset, still collecting
+    sw.confirm()                                                      # doctor heard a good one
+    idx, st, _ = sw.update(ee, 4.0, 0.9, False)                       # → DONE → advance (mid-cycle ok)
+    assert st is State.DONE and idx == 1 and sw.completed == [0]
+    print("OK: doctor-confirm is the arbiter — cycles/Q only HINT; READY waits; redo keeps trying at the "
+          "point; confirm (any time) → DONE → advance to", pts[idx].name)
