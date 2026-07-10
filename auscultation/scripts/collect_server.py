@@ -37,11 +37,12 @@ from ausc_feedback import FeedbackConfig, PointSweep, State         # noqa: E402
 class Collector:
     """Owns the camera + sweep + session; a background thread renders/overlays + advances the state."""
 
-    def __init__(self, targets, fake=True, camera_backend="orbbec", out_dir=None):
+    def __init__(self, targets, fake=True, camera_backend="orbbec", camera_index=0, out_dir=None):
         self.targets = targets
         self.sweep = PointSweep(targets, FeedbackConfig())
         self.fake = fake
         self.camera_backend = camera_backend
+        self.camera_index = camera_index
         self.out_dir = out_dir or os.path.join(ROOT, "data", "sessions")
         self.recording = False
         self.session_dir = None
@@ -59,18 +60,27 @@ class Collector:
     def control(self, action):
         with self._lock:
             if action == "confirm":
-                self.sweep.confirm()
+                self._advance(mark_done=True)       # doctor's ear = arbiter: confirm completes NOW,
+                #                                     any time, regardless of cycles/Q/sensors present
             elif action == "redo":
                 self.sweep.redo()
             elif action == "next":
-                self.sweep.idx = (self.sweep.idx + 1) % len(self.targets); self.sweep.fb.reset()
+                self._advance(mark_done=False)      # skip forward, don't mark this point done
             elif action == "prev":
                 self.sweep.idx = (self.sweep.idx - 1) % len(self.targets); self.sweep.fb.reset()
+                self._sim.update(tipx=600, tipy=40, f=0, q=0, settle=0)
             elif action == "start":
                 self._start()
             elif action == "stop":
                 self._stop()
         return {"ok": True}
+
+    def _advance(self, mark_done):
+        if mark_done and self.sweep.idx not in self.sweep.completed:
+            self.sweep.completed.append(self.sweep.idx)
+        self.sweep.idx = (self.sweep.idx + 1) % len(self.targets)
+        self.sweep.fb.reset()
+        self._sim.update(tipx=600, tipy=40, f=0, q=0, settle=0)   # fake: send arm back for the next point
 
     def _start(self):
         if self.recording:
@@ -127,19 +137,18 @@ class Collector:
         if not self.fake:
             try:
                 from camera_stream import CameraStream
-                self._cam = CameraStream(backend=self.camera_backend, rgb=True).start()
+                self._cam = CameraStream(backend=self.camera_backend, index=self.camera_index, rgb=True).start()
             except Exception as e:  # noqa: BLE001
                 print(f"[collect] camera open failed ({e}); falling back to fake"); self.fake = True
         while True:
             with self._lock:
                 frame, ee_m, force, q, new_cycle = self._sensors_and_frame()
-                st = self.sweep.fb.update(ee_m, force, q, new_cycle)
+                st = self.sweep.fb.update(ee_m, force, q, new_cycle)   # drives the HUD hints only
                 status = self.sweep.fb.status(ee_m, force, q)
                 self._occluded = ee_m * 500 < 30 and st is not State.DONE
-                if st is State.DONE:
-                    self.sweep.completed.append(self.sweep.idx) if self.sweep.idx not in self.sweep.completed else None
-                    self.sweep.idx = (self.sweep.idx + 1) % len(self.targets); self.sweep.fb.reset()
-                    self._sim.update(tipx=600, tipy=40, f=0, q=0, settle=0)
+                if st is State.DONE:                                   # only fires in autonomous mode
+                    self._advance(mark_done=True)                      # (require_confirm=False); confirm-
+                #                                                        mode completion goes via control()
                 if self.recording and self.tlog:
                     self.tlog.log(time.monotonic(), self.targets[self.sweep.idx], frame.shape[1], frame.shape[0])
                 overlay(frame, self.targets, self.sweep.idx, self._occluded, "", self.sweep.completed)
@@ -335,12 +344,14 @@ setInterval(poll,200);poll();
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--fake", action="store_true", help="synthetic camera + simulated sensors (no hardware)")
-    ap.add_argument("--camera-backend", default="orbbec")
+    ap.add_argument("--camera-backend", default="orbbec", help="orbbec (linbox) | avfoundation (webcam) | fake")
+    ap.add_argument("--camera-index", type=int, default=0, help="UVC device index (Mac built-in cam is often 1)")
     ap.add_argument("--targets", default=None)
     ap.add_argument("--out", default=None)
     ap.add_argument("--port", type=int, default=8800)
     a = ap.parse_args()
-    col = Collector(load_targets(a.targets), fake=a.fake, camera_backend=a.camera_backend, out_dir=a.out)
-    print(f"[collect] console at http://localhost:{a.port}  ({'FAKE' if a.fake else a.camera_backend})  "
-          f"keys: SPACE=confirm R=redo ←→=points S=rec")
+    col = Collector(load_targets(a.targets), fake=a.fake, camera_backend=a.camera_backend,
+                    camera_index=a.camera_index, out_dir=a.out)
+    print(f"[collect] console at http://localhost:{a.port}  "
+          f"({'FAKE' if a.fake else f'{a.camera_backend}[{a.camera_index}]'})  keys: SPACE=confirm R=redo ←→=points S=rec")
     ThreadingHTTPServer(("127.0.0.1", a.port), make_handler(col, PAGE)).serve_forever()
