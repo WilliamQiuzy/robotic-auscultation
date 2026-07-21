@@ -55,7 +55,10 @@ def detect_respiratory_onsets(ft: list[float], fn: list[float]) -> list[float]:
     x = f - np.mean(f)
     # zero-phase-ish band-pass ~0.1-0.5 Hz via difference of moving averages (breathing envelope)
     def movavg(sig: np.ndarray, win_s: float) -> np.ndarray:
-        w = max(1, int(round(win_s * fs)))
+        # np.convolve(..., mode="same") grows to the kernel length when the
+        # requested window is longer than a short target episode.  Cap it so
+        # target-split recordings keep arrays aligned.
+        w = min(len(sig), max(1, int(round(win_s * fs))))
         k = np.ones(w) / w
         return np.convolve(sig, k, mode="same")
     band = movavg(x, 1.0) - movavg(x, 6.0)         # keep ~0.15-1 Hz, drop DC drift and fast noise
@@ -69,12 +72,11 @@ def detect_respiratory_onsets(ft: list[float], fn: list[float]) -> list[float]:
 
 def _contact_intervals(ft: list[float], fn: list[float], t0: float, t1: float,
                        min_s: float = 1.5) -> list[tuple[float, float]]:
-    """Contiguous in-band [F_MIN,F_MAX] force runs longer than `min_s` → good-contact windows."""
+    """Half-open in-band runs ``[start, end)`` longer than ``min_s``."""
     ivs: list[tuple[float, float]] = []
     run_start: Optional[float] = None
-    last = t0
     for t, v in zip(ft, fn):
-        if not (t0 <= t <= t1):
+        if not (t0 <= t < t1):
             continue
         if F_MIN <= v <= F_MAX:
             if run_start is None:
@@ -83,9 +85,8 @@ def _contact_intervals(ft: list[float], fn: list[float], t0: float, t1: float,
             if t - run_start >= min_s:
                 ivs.append((run_start, t))
             run_start = None
-        last = t
-    if run_start is not None and last - run_start >= min_s:
-        ivs.append((run_start, last))
+    if run_start is not None and t1 - run_start >= min_s:
+        ivs.append((run_start, t1))
     return ivs
 
 
@@ -115,11 +116,11 @@ def _segment_spans(onsets: list[float], ft: list[float], fn: list[float],
     spans: list[tuple[float, float, list[float]]] = []
     cursor = t0
     for a, b in ivs:
-        if a - cursor > 0.5:
+        if a > cursor:
             spans.append((cursor, a, []))                  # non-contact gap
         spans.extend(_tile_interval(a, b, [o for o in onsets if a < o < b]))
         cursor = b
-    if t1 - cursor > 0.5:
+    if t1 > cursor:
         spans.append((cursor, t1, []))
     return spans
 
@@ -145,7 +146,9 @@ def _audio_ingredients(audio: Optional[np.ndarray], sr: int,
 
 
 def _contact(ft: list[float], fn: list[float], t0: float, t1: float) -> Contact:
-    vals = [v for t, v in zip(ft, fn) if t0 <= t <= t1]
+    # Segment intervals are half-open, so a contact sample at the next segment's
+    # start can never leak into the preceding non-contact gap.
+    vals = [v for t, v in zip(ft, fn) if t0 <= t < t1]
     if not vals:
         return Contact(force_mean_n=0.0, force_in_band_frac=0.0, force_stable=False, gate=False)
     a = np.asarray(vals, float)

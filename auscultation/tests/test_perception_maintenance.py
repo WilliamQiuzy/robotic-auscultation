@@ -4,12 +4,36 @@ import types
 import unittest
 import tempfile
 import json
+import importlib
 
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.join(ROOT, "ausc"))
 sys.path.insert(0, os.path.join(ROOT, "ausc", "datasets"))
 sys.path.insert(0, os.path.join(ROOT, "ausc", "training"))
+
+
+def _training_module(name):
+    """Import the intended training module even after another test cached a same-named module."""
+    names = ("train", "dataset", "eval", "iuv_model", "tasks")
+    saved = {module_name: sys.modules.get(module_name) for module_name in names}
+    saved_path = list(sys.path)
+    for module_name in names:
+        sys.modules.pop(module_name, None)
+    # Tracking/eval tests also use generic module names such as ``train`` and
+    # may prepend their own directories after this file was imported.  Make
+    # the intended training package the first lookup location for this import.
+    training_dir = os.path.join(ROOT, "ausc", "training")
+    sys.path[:] = [training_dir] + [path for path in saved_path if path != training_dir]
+    importlib.invalidate_caches()
+    try:
+        return importlib.import_module(name)
+    finally:
+        sys.path[:] = saved_path
+        for module_name in names:
+            sys.modules.pop(module_name, None)
+            if saved[module_name] is not None:
+                sys.modules[module_name] = saved[module_name]
 
 
 class PerceptionAugmentationTests(unittest.TestCase):
@@ -40,14 +64,14 @@ class PerceptionAugmentationTests(unittest.TestCase):
 
 class TrainingRecordTests(unittest.TestCase):
     def test_subject_key_strips_generated_clinical_suffixes(self):
-        import dataset
+        dataset = _training_module("dataset")
 
         self.assertEqual(dataset.subject_key("scol_case1_canon_clin0"), "scol_case1")
         self.assertEqual(dataset.subject_key("scol_case1_aug3_clin2"), "scol_case1")
         self.assertEqual(dataset.subject_key("p000438_a000040_back_f72_canon_clin1"), "p000438")
 
     def test_audit_config_uses_single_freeze_field(self):
-        import train
+        train = _training_module("train")
 
         args = types.SimpleNamespace(
             root=None,
@@ -70,7 +94,7 @@ class TrainingRecordTests(unittest.TestCase):
         self.assertEqual(cfg["trainable_encoder"], True)
 
     def test_lr_record_names_encoder_and_head_groups(self):
-        import train
+        train = _training_module("train")
 
         opt = types.SimpleNamespace(
             param_groups=[
@@ -82,7 +106,7 @@ class TrainingRecordTests(unittest.TestCase):
         self.assertEqual(train.lr_record(opt), {"lr_encoder": 3e-5, "lr_head": 3e-4})
 
     def test_fixed_val_train_rows_exclude_val_subjects(self):
-        import dataset
+        dataset = _training_module("dataset")
 
         with tempfile.TemporaryDirectory() as td:
             root = os.path.join(td, "ds")

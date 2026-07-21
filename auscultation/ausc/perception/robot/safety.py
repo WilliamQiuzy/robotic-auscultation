@@ -1,0 +1,162 @@
+"""Safety state machine for stethoscope placement — the gate between perception and arm motion.
+
+The robot must NEVER drive toward a point the perception layer did not actually observe. The
+ModelBasedTracker already flags each point ``measured`` (observed this frame) / ``position_std``
+(uncertainty, grows while extrapolated) / ``status``. This state machine consumes those and only
+permits motion toward a target that is currently measured, low-uncertainty, in a valid world frame,
+with no fault — and HALTS the instant the target degrades (e.g. the arm/probe occludes it).
+
+Pure logic, no robot/torch deps → fully unit-testable without hardware.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import Enum
+from typing import Optional
+
+import numpy as np
+
+
+class State(str, Enum):
+    IDLE = "IDLE"              # nothing commanded
+    ACQUIRING = "ACQUIRING"   # have a command; waiting for a valid, stable target
+    APPROACH = "APPROACH"     # servoing toward the target
+    CONTACT = "CONTACT"       # at the target (placing / regulating force)
+    HOLD = "HOLD"             # target degraded mid-motion → paused, not retreating yet
+    RETRACT = "RETRACT"       # backing off safely
+    ESTOP = "ESTOP"           # latched emergency stop; manual reset only
+
+
+@dataclass
+class SafetyConfig:
+    max_position_std_m: float = 0.010   # refuse/halt if target uncertainty exceeds this (10 mm)
+    reach_tol_m: float = 0.008          # within this of the target ⇒ CONTACT
+    hold_grace_frames: int = 15         # frames a target may stay degraded before we RETRACT
+    require_world_frame: bool = True    # require camera→base extrinsics (no extrinsics ⇒ never move)
+    max_screened_force_n: Optional[float] = None  # operational ceiling -> bounded RETRACT
+    hard_limit_force_n: Optional[float] = None    # mechanical ceiling -> latched ESTOP
+    max_step_m: float = 0.02            # max commanded Cartesian step per tick (servo speed clamp)
+    max_target_age_s: float = 0.25      # HALT if perception hasn't produced a fresh frame within this
+    max_force_age_s: float = 0.20       # ESTOP if the explicit force sample is older than this
+    max_retract_distance_m: float = 0.05  # bounded retreat travel before hold + IDLE
+    #                                     (frozen camera/pipeline must not be acted on as live data)
+
+    @classmethod
+    def from_force_calibration(cls, calibration, **overrides) -> "SafetyConfig":  # noqa: ANN001
+        """Build hardware safety limits from a bench-validated calibration object."""
+        if not bool(getattr(calibration, "calibrated", False)):
+            raise ValueError("force calibration must have calibrated=true before arm motion")
+        forbidden = {"max_screened_force_n", "hard_limit_force_n"}.intersection(overrides)
+        if forbidden:
+            raise ValueError("force thresholds are derived from calibration and cannot be overridden")
+        screened = float(getattr(calibration, "max_screened_force_n", float("nan")))
+        hard = float(getattr(calibration, "hard_limit_force_n", float("nan")))
+        if (not np.isfinite(screened) or screened <= 0 or not np.isfinite(hard)
+                or hard <= screened):
+            raise ValueError("force calibration needs 0 < max_screened_force_n < hard_limit_force_n")
+        cfg = cls(max_screened_force_n=screened, hard_limit_force_n=hard, **overrides)
+        if not np.isfinite(cfg.max_retract_distance_m) or cfg.max_retract_distance_m <= 0:
+            raise ValueError("max_retract_distance_m must be finite and positive")
+        return cfg
+
+
+@dataclass
+class TargetView:
+    """What the controller knows about the commanded target this tick (from the tracker)."""
+    name: str
+    xyz_world: Optional[np.ndarray]     # target in arm-base frame (None if no extrinsics)
+    measured: bool                      # observed this frame (not extrapolated)
+    position_std_m: float
+    status: str                         # TRACKING / COASTING / LOST / INIT
+
+
+@dataclass
+class SafetyState:
+    state: State = State.IDLE
+    target_name: Optional[str] = None
+    _degraded: int = 0
+    fault: Optional[str] = None
+
+    def target_ok(self, t: TargetView, cfg: SafetyConfig) -> bool:
+        if t is None or t.name != self.target_name:
+            return False
+        if cfg.require_world_frame and (t.xyz_world is None or not np.all(np.isfinite(t.xyz_world))):
+            return False
+        return (t.measured and t.status == "TRACKING"
+                and np.isfinite(t.position_std_m) and t.position_std_m <= cfg.max_position_std_m)
+
+
+def command(s: SafetyState, target_name: str) -> SafetyState:
+    """Operator/planner requests placement at a target. Ignored while ESTOP is latched."""
+    if s.state == State.ESTOP:
+        return s
+    return SafetyState(State.ACQUIRING, target_name)
+
+
+def estop(s: SafetyState, reason: str = "manual") -> SafetyState:
+    return SafetyState(State.ESTOP, s.target_name, fault=reason)
+
+
+def reset(s: SafetyState) -> SafetyState:
+    """Manual recovery from ESTOP/RETRACT back to IDLE."""
+    return SafetyState(State.IDLE)
+
+
+def step(s: SafetyState, t: Optional[TargetView], cfg: SafetyConfig,
+         dist_to_target_m: float = np.inf, force_n: float = 0.0) -> SafetyState:
+    """Advance the state machine one tick given the latest target view + (hardware) sensors.
+
+    Returns the next state. The controller only issues motion in APPROACH / CONTACT / RETRACT.
+    """
+    if s.state == State.ESTOP:
+        return s
+    if (cfg.max_screened_force_n is None or cfg.hard_limit_force_n is None
+            or not np.isfinite(cfg.max_screened_force_n)
+            or not np.isfinite(cfg.hard_limit_force_n)):
+        return estop(s, "force ceilings unavailable (validated calibration required)")
+    if force_n >= cfg.hard_limit_force_n:               # mechanical over-force ⇒ latch ESTOP
+        return estop(s, f"force {force_n:.1f}N >= {cfg.hard_limit_force_n}N hard limit")
+    if force_n >= cfg.max_screened_force_n:              # operational ceiling ⇒ back away, not ESTOP
+        if s.state == State.RETRACT:
+            return s                                     # keep backing off while force remains elevated
+        if s.state in (State.APPROACH, State.CONTACT, State.HOLD):
+            return SafetyState(State.RETRACT, s.target_name)
+        return estop(s, f"screened force {force_n:.1f}N before a safe approach direction existed")
+
+    if s.state == State.IDLE:
+        return s
+
+    if s.state == State.ACQUIRING:
+        if s.target_ok(t, cfg):
+            return SafetyState(State.APPROACH, s.target_name)
+        return s                                        # keep waiting for a valid target
+
+    if s.state == State.APPROACH:
+        if not s.target_ok(t, cfg):                     # target degraded (e.g. arm occludes it)
+            return SafetyState(State.HOLD, s.target_name, _degraded=1)
+        if dist_to_target_m <= cfg.reach_tol_m:
+            return SafetyState(State.CONTACT, s.target_name)
+        return s
+
+    if s.state == State.HOLD:
+        if s.target_ok(t, cfg):                         # recovered → resume
+            return SafetyState(State.APPROACH, s.target_name)
+        if s._degraded >= cfg.hold_grace_frames:        # gave up waiting → back off safely
+            return SafetyState(State.RETRACT, s.target_name)
+        return SafetyState(State.HOLD, s.target_name, _degraded=s._degraded + 1)
+
+    if s.state == State.CONTACT:
+        return s                                        # caller decides when placement is done
+
+    if s.state == State.RETRACT:
+        return s                                        # caller signals retract-complete → reset
+
+    return s
+
+
+def placement_done(s: SafetyState) -> SafetyState:
+    return SafetyState(State.RETRACT, s.target_name) if s.state == State.CONTACT else s
+
+
+def retract_done(s: SafetyState) -> SafetyState:
+    return SafetyState(State.IDLE) if s.state == State.RETRACT else s

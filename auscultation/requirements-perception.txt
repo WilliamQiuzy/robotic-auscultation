@@ -1,0 +1,21 @@
+# Auscultation perception module dependencies (pin for reproducibility / traceability).
+# Three runtime tiers:
+#   - Mac/CI, hardware-free tracker and safety tests: numpy, opencv, scipy
+#   - H200 training/evaluation: the exact CUDA stack is locked by requirements-h200.lock.txt
+#   - linbox calibration/realtime: hardware packages stay in its separately locked runtime env
+#
+# This file is a role inventory for CI. Production installs use the hash-locked host environment,
+# never an unversioned local venv. See scripts/perception/README.md and docs/gpu_access.md.
+
+# --- hardware-free (CI) ---
+numpy>=1.24
+opencv-python-headless>=4.9
+scipy>=1.10
+pytest>=7.4
+
+# --- host runtime (not installed by the CI tier) ---
+# torch==2.7.1          # H200 CUDA 12.8 build; exact wheel hash is in requirements-h200.lock.txt
+# yourdfpy>=0.0.56      # URDF forward kinematics (hand-eye + arm IK)
+# smplx>=0.1.28         # SMPL body model (synthetic data engine, teacher)
+# trimesh>=4.0          # mesh ops (rasterize/IUV, SMPL)
+# pyorbbecsdk           # linbox-only Orbbec Femto Bolt SDK; version/inventory recorded separately

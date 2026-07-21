@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import time
 from dataclasses import dataclass
@@ -30,33 +31,85 @@ class TargetPoint:
     name: str
     uv: tuple                                    # normalized (u, v) in [0,1] on the camera image
     xyz: Optional[tuple] = None                  # (x, y, z) camera/robot frame, if localized (depth/perception)
+    xyz_frame: Optional[str] = None               # camera | world | robot_base; required when xyz exists
 
 
 # Posterior-lung auscultation grid (placeholder normalized positions; perception/click overrides at
 # runtime). Camera sees the back → patient-left is image-right.
 DEFAULT_TARGETS = [
-    TargetPoint(0, "RUL", (0.58, 0.34)), TargetPoint(1, "LUL", (0.42, 0.34)),
-    TargetPoint(2, "RLL", (0.58, 0.62)), TargetPoint(3, "LLL", (0.42, 0.62)),
+    TargetPoint(0, "R1", (0.55, 0.25)), TargetPoint(1, "L1", (0.45, 0.25)),
+    TargetPoint(2, "R2", (0.56, 0.35)), TargetPoint(3, "L2", (0.44, 0.35)),
+    TargetPoint(4, "R3", (0.57, 0.46)), TargetPoint(5, "L3", (0.43, 0.46)),
+    TargetPoint(6, "R4", (0.60, 0.58)), TargetPoint(7, "L4", (0.40, 0.58)),
+    TargetPoint(8, "R5", (0.62, 0.68)), TargetPoint(9, "L5", (0.38, 0.68)),
 ]
+
+_XYZ_FRAMES = {"camera", "world", "robot_base"}
+
+
+def _finite_tuple(values, length: int, label: str) -> tuple:  # noqa: ANN001
+    try:
+        out = tuple(float(v) for v in values)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must contain {length} finite numbers") from exc
+    if len(out) != length or not all(math.isfinite(v) for v in out):
+        raise ValueError(f"{label} must contain {length} finite numbers")
+    return out
+
+
+def _target_from_record(d: dict, index: int) -> TargetPoint:
+    if "uv" in d:
+        uv = _finite_tuple(d["uv"], 2, "normalized uv")
+    elif "xy_pixel" in d:
+        if "image_width" not in d or "image_height" not in d:
+            raise ValueError("xy_pixel requires image_width and image_height")
+        xy = _finite_tuple(d["xy_pixel"], 2, "xy_pixel")
+        width, height = float(d["image_width"]), float(d["image_height"])
+        if not math.isfinite(width) or not math.isfinite(height) or width <= 0 or height <= 0:
+            raise ValueError("image_width and image_height must be finite and positive")
+        uv = (xy[0] / width, xy[1] / height)
+    else:
+        raise ValueError("target requires normalized uv or xy_pixel with image dimensions")
+    if not all(0.0 <= v <= 1.0 for v in uv):
+        raise ValueError(f"normalized uv must lie in [0,1], got {uv}")
+
+    xyz_keys = [k for k in ("xyz", "xyz_camera", "xyz_world") if d.get(k) is not None]
+    if len(xyz_keys) > 1:
+        raise ValueError(f"target has conflicting 3D coordinate fields: {xyz_keys}")
+    xyz = None
+    xyz_frame = None
+    if xyz_keys:
+        key = xyz_keys[0]
+        xyz = _finite_tuple(d[key], 3, key)
+        if key == "xyz_camera":
+            xyz_frame = "camera"
+        elif key == "xyz_world":
+            xyz_frame = "world"
+        else:
+            xyz_frame = d.get("xyz_frame")
+            if xyz_frame not in _XYZ_FRAMES:
+                raise ValueError(f"xyz_frame must be one of {sorted(_XYZ_FRAMES)} when xyz is used")
+    return TargetPoint(
+        int(d.get("id", index)), str(d.get("name", f"p{index}")), uv, xyz, xyz_frame,
+    )
 
 
 def load_targets(path: Optional[str]) -> list[TargetPoint]:
     """Load targets from a config JSON (`[{id,name,uv,[xyz]}]`) or a perception landmarks JSONL
     (`{name, xy_pixel|uv, xyz_camera|xyz}`, one landmark per line); else the default grid."""
-    if not path or not os.path.exists(path):
+    if not path:
         return list(DEFAULT_TARGETS)
+    if not os.path.exists(path):
+        raise FileNotFoundError(path)
     txt = open(path).read().strip()
     if txt.startswith("["):
-        return [TargetPoint(d.get("id", i), d["name"], tuple(d["uv"]), tuple(d["xyz"]) if d.get("xyz") else None)
-                for i, d in enumerate(json.loads(txt))]
+        return [_target_from_record(d, i) for i, d in enumerate(json.loads(txt))]
     out = []
     for i, line in enumerate(txt.splitlines()):
         if not line.strip():
             continue
         d = json.loads(line)
-        uv = tuple(d["uv"]) if "uv" in d else tuple(d["xy_pixel"])   # perception may give pixels
-        xyz = tuple(d.get("xyz") or d.get("xyz_camera") or d.get("xyz_world") or ()) or None
-        out.append(TargetPoint(d.get("id", i), d.get("name", f"p{i}"), uv, xyz))
+        out.append(_target_from_record(d, i))
     return out
 
 
@@ -66,11 +119,19 @@ class TargetLog:
     def __init__(self, session_dir: str):
         self.f = open(os.path.join(session_dir, "targets.jsonl"), "w")
 
-    def log(self, t: float, tp: TargetPoint, w: int, h: int) -> None:
+    def log(
+        self, t: float, tp: TargetPoint, w: int, h: int, *,
+        camera_frame_index: int | None = None,
+        camera_device_t_ms: float | None = None,
+    ) -> None:
         rec = {"t": round(t, 4), "id": tp.id, "name": tp.name,
+               "camera_frame_index": camera_frame_index,
+               "camera_host_arrival_t_s": round(t, 6),
+               "camera_device_t_ms": camera_device_t_ms,
                "u_px": round(tp.uv[0] * w, 1), "v_px": round(tp.uv[1] * h, 1),
                "uv": [round(tp.uv[0], 4), round(tp.uv[1], 4)],
-               "xyz": [round(v, 4) for v in tp.xyz] if tp.xyz else None}
+               "xyz": [round(v, 4) for v in tp.xyz] if tp.xyz else None,
+               "xyz_frame": tp.xyz_frame}
         self.f.write(json.dumps(rec) + "\n"); self.f.flush()
 
     def close(self) -> None:
@@ -136,7 +197,10 @@ def run(session_dir: str, targets: list[TargetPoint], camera_backend: str = "orb
                 time.sleep(0.01); continue
             img = overlay(f.frame[:, :, ::-1].copy(), targets, active)      # RGB->BGR for cv2
             cv2.imshow("auscultation target (doctor view)", img)
-            log.log(time.monotonic(), targets[active], f.frame.shape[1], f.frame.shape[0])
+            log.log(
+                f.t, targets[active], f.frame.shape[1], f.frame.shape[0],
+                camera_frame_index=f.index, camera_device_t_ms=f.device_t_ms,
+            )
             k = cv2.waitKey(1) & 0xFF
             if k in (ord(" "), ord("n")):
                 active = (active + 1) % len(targets)
