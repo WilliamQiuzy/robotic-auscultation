@@ -80,6 +80,55 @@ def test_insufficient_support_freezes_only_for_bounded_window() -> None:
     assert np.isnan(lost.position).all()
 
 
+def test_locked_std_scales_with_extrapolation_distance() -> None:
+    # An occluded point's honest uncertainty grows with how far it is
+    # extrapolated from the visible support (real-data LOO: corr 0.44). A corner
+    # target reconstructed from a far, one-sided support must report a larger std
+    # than the same target reconstructed from the full surrounding constellation,
+    # and both must exceed the legacy flat 5mm for a real extrapolation.
+    reference = _points()
+
+    near = OcclusionTargetTracker(reference, target_index=8)
+    near.update(reference, np.ones(10, dtype=bool))
+    near_visible = np.ones(10, dtype=bool)
+    near_visible[8] = False
+    est_near = near.update(reference, near_visible)
+
+    far = OcclusionTargetTracker(reference, target_index=8)
+    far.update(reference, np.ones(10, dtype=bool))
+    far_visible = np.zeros(10, dtype=bool)
+    far_visible[:6] = True  # only the top/mid rows; target 8 is the far bottom
+    est_far = far.update(reference, far_visible)
+
+    assert est_near.source == "patient_frame_locked"
+    assert est_far.source == "patient_frame_locked"
+    assert est_far.position_std_m > est_near.position_std_m
+    assert est_near.position_std_m > 0.005
+
+
+def test_freeze_coasts_from_adaptive_locked_std() -> None:
+    # A freeze must coast from the real extrapolation-scaled std it last held,
+    # not from the legacy constant, so the coast starts honestly wide.
+    reference = _points()
+    tracker = OcclusionTargetTracker(
+        reference,
+        target_index=8,
+        config=OcclusionConfig(min_visible=6, max_freeze_frames=5, coast_growth_m=0.004),
+    )
+    tracker.update(reference, np.ones(10, dtype=bool))
+    locked_visible = np.ones(10, dtype=bool)
+    locked_visible[8] = False
+    est_locked = tracker.update(reference, locked_visible)
+
+    freeze_visible = np.zeros(10, dtype=bool)
+    freeze_visible[:3] = True  # support < min_visible -> freeze
+    est_freeze = tracker.update(reference, freeze_visible)
+
+    assert est_locked.source == "patient_frame_locked"
+    assert est_freeze.source == "patient_frame_frozen"
+    assert np.isclose(est_freeze.position_std_m, est_locked.position_std_m + 0.004)
+
+
 def test_contact_handoff_uses_calibrated_robot_tip() -> None:
     reference = _points()
     tracker = OcclusionTargetTracker(reference, target_index=4)

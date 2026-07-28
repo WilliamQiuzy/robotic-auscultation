@@ -12,8 +12,20 @@ import numpy as np
 class OcclusionConfig:
     min_visible: int = 6
     max_freeze_frames: int = 20
-    vision_std_m: float = 0.003
-    locked_std_m: float = 0.005
+    # vision_std_m raised from 0.003: leave-one-out on real detector tracks
+    # measured a single-point p95 of ~4mm (0.003 was a 1-sigma, not a bound).
+    vision_std_m: float = 0.004
+    # An occluded point's uncertainty is NOT a constant.  Real-data LOO showed a
+    # flat 0.005 covered only 77% of held-out errors (real p95 ~11mm, driven by
+    # non-rigid back deformation the similarity fit cannot capture).  The visible
+    # fit residual was useless as a predictor (corr 0.05), but the target's
+    # extrapolation distance from the visible support was (corr 0.44).  So the
+    # locked std scales with that distance: floor + slope * extrapolation.  This
+    # covered ~96% of real held-out errors.  (Calibrated on 1 subject / 89 real
+    # frames @0.6-0.9m; widen with more subjects.  See scratchpad real_loo.py.)
+    locked_floor_m: float = 0.002
+    locked_slope: float = 0.05
+    locked_std_m: float = 0.005          # legacy floor / fallback only
     coast_growth_m: float = 0.003
     contact_std_m: float = 0.003
 
@@ -80,6 +92,9 @@ class OcclusionTargetTracker:
         self.translation = np.zeros(3)
         self.locked_camera_position = reference[self.target_index].copy()
         self._freeze_frames = 0
+        # Last extrapolation-scaled locked std, so a freeze coasts from the real
+        # uncertainty it had while still locked (not a flat legacy constant).
+        self._last_locked_std_m = self.config.locked_floor_m
 
     def _patient_position(self) -> np.ndarray:
         point = self.reference_points[self.target_index]
@@ -125,10 +140,23 @@ class OcclusionTargetTracker:
                 self.config.min_visible,
             )
             self._freeze_frames = 0
+            position = self._patient_position()
+            # Extrapolation distance: how far the occluded target is reconstructed
+            # from the visible support it was fit to. Real-data LOO shows this
+            # (not the fit residual) predicts the reprojection error, so scale the
+            # published uncertainty with it — a far-extrapolated point is honestly
+            # less certain and will (correctly) fail a tight safety envelope.
+            extrapolation_m = float(
+                np.linalg.norm(position - measured[finite_visible].mean(axis=0))
+            )
+            locked_std = (
+                self.config.locked_floor_m + self.config.locked_slope * extrapolation_m
+            )
+            self._last_locked_std_m = locked_std
             return TargetEstimate(
-                self._patient_position(),
+                position,
                 "patient_frame_locked",
-                self.config.locked_std_m,
+                locked_std,
                 support,
             )
 
@@ -137,7 +165,7 @@ class OcclusionTargetTracker:
             return TargetEstimate(
                 self._patient_position(),
                 "patient_frame_frozen",
-                self.config.locked_std_m + self._freeze_frames * self.config.coast_growth_m,
+                self._last_locked_std_m + self._freeze_frames * self.config.coast_growth_m,
                 support,
             )
         return TargetEstimate(np.full(3, np.nan), "lost", float("inf"), support)
