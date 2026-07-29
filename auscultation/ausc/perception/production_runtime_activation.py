@@ -335,7 +335,10 @@ def _read_json(
         value, label=label, expected_sha256=expected_sha256,
     )
     decoded = _decode_json(raw, label=label)
-    if canonical and _canonical_json_bytes(decoded) != raw:
+    # Activation/manifest canonical files are stored as canonical JSON + one
+    # trailing newline, matching the artifact/complete markers (`+ b"\n"`) and the
+    # deploy verifier (collection_service_unit._stable_canonical_object).
+    if canonical and _canonical_json_bytes(decoded) + b"\n" != raw:
         raise ProductionRuntimeActivationError(f"{label} is not canonical JSON")
     return decoded, raw
 

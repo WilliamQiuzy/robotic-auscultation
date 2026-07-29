@@ -662,7 +662,7 @@ def _activation_fixture(tmp_path: Path) -> dict:
     activation_dir = tmp_path / "activation"
     activation_dir.mkdir()
     activation = activation_dir / "activation.json"
-    raw = _canonical(manifest)
+    raw = _canonical(manifest) + b"\n"
     activation.write_bytes(raw)
     activation_sha256 = hashlib.sha256(raw).hexdigest()
     top_complete = {
