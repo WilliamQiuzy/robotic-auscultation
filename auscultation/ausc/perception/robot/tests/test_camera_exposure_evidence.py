@@ -87,7 +87,7 @@ def test_frame_exposure_interval_is_derived_on_clock_monotonic_before_fanout() -
 @pytest.mark.parametrize(
     ("changes", "message"),
     (
-        ({"measurement_method": "software_estimate"}, "hardware LED"),
+        ({"measurement_method": "software_estimate"}, "hardware timing"),
         ({"latency_definition": "unknown"}, "latency definition"),
         ({"latency_ms": 101.0}, "100 ms"),
         ({"latency_std_ms": 0.0}, "standard deviation"),

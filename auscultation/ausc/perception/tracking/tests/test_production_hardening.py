@@ -218,7 +218,7 @@ def test_lts_pose_fit_rejects_a_coherent_three_point_outlier_cluster():
     ])
     tracker.canonical = canonical
 
-    R, scale, translation, _measured, _fit = tracker._fit_pose(observations)
+    R, scale, translation, _measured, _fit, _geom = tracker._fit_pose(observations)
     predicted = scale * (R @ canonical.T).T + translation
     expected = expected_s * (expected_R @ canonical.T).T + expected_t
 

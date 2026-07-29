@@ -120,7 +120,7 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/audio/audio_stream.py": "91781c9564f41545ea3330dc38645fffe055961140bea412202cd933d290402a",
     "auscultation/ausc/models/iuv_model.py": "2bd72dc0a33e06e29c88e64480ad20b5586e361a8d7d6958e66fd08aea127cbf",
     "auscultation/ausc/perception/camera_stream.py": "9d62914b30ee6fd114763d31bf167afedc28ecc36b87943e3f55b004c4eaa34f",
-    "auscultation/ausc/perception/production_runtime_activation.py": "49b5db8cada9b31ab9b29f8c3827ad30919ebc336a3ee41332076284f0a108b6",
+    "auscultation/ausc/perception/production_runtime_activation.py": "3072a280196f29c7ce7f86fd45a07c3df6b3c67a4da0a9348f46a6554bac256b",
     "auscultation/ausc/perception/robot/camera_exposure_evidence.py": "ba07a9c3c90d7799ffc327adcd29b3228a842e73c12ceb94554e3de36fd27b34",
     "auscultation/ausc/perception/robot/frame_evidence_bundle.py": "53c3c7f1e7b9a2543f9836e2b16a3d420fc19075081c86d33091959b318c9dac",
     "auscultation/ausc/perception/robot/openarm_pair_activation.py": "52ac7798fd9cd800118d94bed4a4efd08b5fdd651d8d701095058e0aeeb5f1c9",

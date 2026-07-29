@@ -446,7 +446,7 @@ def _load_artifact(name: str, value: object) -> Tuple[Dict[str, Any], str]:
             "schema": ARTIFACT_COMPLETION_SCHEMA,
             "status": "COMPLETE",
         }
-        if complete != expected or _canonical_json_bytes(complete) != raw:
+        if complete != expected or _canonical_json_bytes(complete) + b"\n" != raw:
             raise ProductionRuntimeActivationError(
                 f"{name} COMPLETE marker does not bind the artifact"
             )
@@ -500,7 +500,7 @@ def _load_activation_manifest(
     complete = _decode_json(
         complete_raw, label="production activation COMPLETE marker",
     )
-    if _canonical_json_bytes(complete) != complete_raw or complete != {
+    if _canonical_json_bytes(complete) + b"\n" != complete_raw or complete != {
         "activation_sha256": hashlib.sha256(raw).hexdigest(),
         "schema": ACTIVATION_COMPLETION_SCHEMA,
         "status": "COMPLETE",

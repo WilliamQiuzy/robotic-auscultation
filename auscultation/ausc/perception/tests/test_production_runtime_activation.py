@@ -95,7 +95,7 @@ def _write_artifact(
         "schema": "wam_production_runtime_artifact_completion_v1",
         "status": "COMPLETE",
     }
-    marker_raw = _canonical(marker)
+    marker_raw = _canonical(marker) + b"\n"
     complete.write_bytes(marker_raw)
     return {
         "complete_path": str(complete),
@@ -670,7 +670,7 @@ def _activation_fixture(tmp_path: Path) -> dict:
         "schema": "wam_production_runtime_activation_completion_v1",
         "status": "COMPLETE",
     }
-    (activation_dir / "COMPLETE").write_bytes(_canonical(top_complete))
+    (activation_dir / "COMPLETE").write_bytes(_canonical(top_complete) + b"\n")
     return {
         "activation": activation,
         "activation_sha256": activation_sha256,
@@ -916,7 +916,7 @@ def test_v2_cannot_be_rewrapped_with_generic_complete_marker(tmp_path: Path) -> 
             "schema": "wam_production_runtime_artifact_completion_v1",
             "status": "COMPLETE",
         }
-        raw = _canonical(marker)
+        raw = _canonical(marker) + b"\n"
         complete.write_bytes(raw)
         complete.chmod(0o444)
         entry["complete_sha256"] = hashlib.sha256(raw).hexdigest()
@@ -972,3 +972,50 @@ def test_three_mm_runtime_bound_cannot_mislabel_provisional_five_mm_handeye(
         )
     finally:
         _make_provisional_release_writable(release)
+
+
+def test_activation_canonical_bytes_agree_across_deploy_and_runtime() -> None:
+    """Cross-layer regression guard (reviewer P0): a single activation.json /
+    COMPLETE file must satisfy BOTH verifiers at once.
+
+    The deploy preflight (collection_service_unit._stable_canonical_object) accepts
+    exactly ``artifact_contract.canonical_json_bytes(value)`` (canonical + one
+    trailing newline). The runtime loader accepts exactly
+    ``_canonical_json_bytes(value) + b"\n"``. Before the fix these disagreed on the
+    newline, so no bundle could pass both. This proves the byte forms are now
+    identical for representative activation/COMPLETE payloads.
+    """
+    import sys as _sys
+
+    _sys.path.insert(
+        0, str(Path(__file__).resolve().parents[3] / "scripts" / "deployment")
+    )
+    from artifact_contract import canonical_json_bytes  # noqa: E402
+    from ausc.perception.production_runtime_activation import (  # noqa: E402
+        _canonical_json_bytes,
+    )
+
+    samples = [
+        {
+            "schema": "wam_production_runtime_activation_v1",
+            "status": "COMPLETE",
+            "side": "left",
+            "leader_can_interface": "can1",
+            "follower_can_interface": "can3",
+            "artifacts": {"handeye": {"path": "a", "sha256": "0" * 64}},
+        },
+        {
+            "activation_sha256": "0" * 64,
+            "schema": "wam_production_runtime_activation_completion_v1",
+            "status": "COMPLETE",
+        },
+        {
+            "artifact_sha256": "f" * 64,
+            "schema": "wam_production_runtime_artifact_completion_v1",
+            "status": "COMPLETE",
+        },
+    ]
+    for value in samples:
+        deploy_bytes = canonical_json_bytes(value)
+        runtime_bytes = _canonical_json_bytes(value) + b"\n"
+        assert deploy_bytes == runtime_bytes, value
