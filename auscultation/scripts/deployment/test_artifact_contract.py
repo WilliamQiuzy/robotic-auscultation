@@ -1154,3 +1154,10 @@ def test_deployment_lock_is_exclusive(tmp_path: Path) -> None:
             with contract.deployment_lock(lock):
                 pass
     assert not lock.exists()
+
+
+def test_tracker_jsonl_is_bound_to_the_geometry_component():
+    # Global presence is not enough: tracker.jsonl must be owned by the geometry
+    # component so it cannot be re-bound to an unrelated receipt and slip past.
+    assert "tracker.jsonl" in contract._TRAINING_COMPONENT_REQUIRED_RAW["geometry"]
+    assert "tracker.jsonl" in contract._TRAINING_REQUIRED_RAW

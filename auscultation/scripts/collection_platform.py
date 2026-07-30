@@ -418,6 +418,12 @@ class CollectionPlatform:
         # eligibility unless a matching writer produced a matching result.
         self._capture_writer_verified = False
         self._finalized_training_eligible: bool | None = None
+        # Monotonic session generation.  Every Start bumps it; a background
+        # finalizer captures the generation of the session it was launched for
+        # and refuses to mutate live state unless the platform is still on that
+        # exact generation.  This is what prevents an old finalizer from
+        # committing its result onto a newer session.
+        self._generation = 0
         self.point_index = 0
         self.attempt = 1
         self.completed: list[int] = []
@@ -684,10 +690,26 @@ class CollectionPlatform:
                     "production capture requires a real production writer, "
                     "not a diagnostic writer"
                 )
+            # A production writer class must be registered up front; the runtime
+            # binds the live writer to that exact class.  Without one there is no
+            # non-forgeable identity, so production can never start.
+            if (
+                self._writer_types is None
+                or self.contract.writer_identity not in self._writer_types
+            ):
+                return (
+                    "production capture requires a registered production writer "
+                    "class"
+                )
             if self.production_blockers:
                 return "production preflight failed: " + "; ".join(
                     self.production_blockers
                 )
+        # A prior session's finalizer thread must fully exit before a new Start:
+        # otherwise two sessions could be live at once and the old finalizer
+        # could still be mid-flight when the new one begins.
+        if self._finalize_thread is not None and self._finalize_thread.is_alive():
+            return "a prior finalization is still running"
         # Startability is part of the authority, not a separate check: a Start
         # can only proceed from a startable state, so ``start_authorized`` is
         # never reported true while RECORDING/FINALIZING.  This is the same
@@ -736,6 +758,9 @@ class CollectionPlatform:
         session_id = make_session_id(
             now_ns=self._wall_time_ns(), uuid_value=self._uuid_factory(),
         )
+        # A fresh session generation; a finalizer for any earlier generation can
+        # no longer commit onto this one.
+        self._generation += 1
         session_dir = create_session_directory(self.session_root, session_id)
         # Bind the no-replace allocation immediately. If construction or start
         # fails, the outer control handler can still write lifecycle evidence to
@@ -771,8 +796,21 @@ class CollectionPlatform:
             # the class name.  Either way a mismatch is fail-closed: the session
             # never enters RECORDING, so a diagnostic writer can never be
             # recorded under a production contract.
-            if self._writer_types is not None:
-                expected_type = self._writer_types.get(self.contract.writer_identity)
+            is_production = self.mode is CaptureMode.PRODUCTION_CAPTURE
+            expected_type = (
+                self._writer_types.get(self.contract.writer_identity)
+                if self._writer_types is not None
+                else None
+            )
+            if is_production:
+                # Production is strict: a registry is mandatory (no forgeable
+                # name fallback) and the live writer must be the EXACT registered
+                # class -- not a subclass, so nothing can subclass its way in.
+                identity_ok = (
+                    expected_type is not None
+                    and type(self.capture) is expected_type
+                )
+            elif self._writer_types is not None:
                 identity_ok = (
                     expected_type is not None
                     and isinstance(self.capture, expected_type)
@@ -852,8 +890,17 @@ class CollectionPlatform:
         self.revision += 1
         self._emit("finalization_started")
         self._write_lifecycle()
+        # Bind the finalizer to this exact session's immutable context.  It must
+        # never read self.capture/self.session_dir/self.state again, so an Abort
+        # + new Start cannot redirect its result at a different session.
         thread = threading.Thread(
             target=self._finalize_capture,
+            kwargs={
+                "generation": self._generation,
+                "capture": self.capture,
+                "session_dir": self.session_dir,
+                "session_id": self.session_id,
+            },
             name=f"diagnostic-finalize-{self.session_id}",
             daemon=False,
         )
@@ -861,10 +908,14 @@ class CollectionPlatform:
         thread.start()
         return self._success(ack=self.action_ack, accepted=True)
 
-    def _finalize_capture(self) -> None:
-        capture = self.capture
+    def _finalize_capture(
+        self, *, generation: int, capture, session_dir, session_id,  # noqa: ANN001
+    ) -> None:
         if capture is None:
-            self._finalization_failed(RuntimeError("active capture disappeared"))
+            self._finalization_failed(
+                RuntimeError("active capture disappeared"),
+                generation=generation, capture=None,
+            )
             return
         try:
             result = capture.finalize()
@@ -874,22 +925,28 @@ class CollectionPlatform:
                 raise RuntimeError("diagnostic finalize result has no complete status")
             if result.get("training_eligible") is not False:
                 raise RuntimeError("diagnostic capture attempted to become training eligible")
-            # Record what the writer actually finalized so the snapshot reports
-            # the real eligibility, not the contract's declared intent.  The
-            # current finalize path is diagnostic-only, so this is always False.
-            self._finalized_training_eligible = bool(result.get("training_eligible"))
-            if self.session_dir is None:
+            if session_dir is None:
                 raise RuntimeError("diagnostic session path disappeared before validation")
             if self.completion_validator is not None:
-                self.completion_validator(result, self.session_dir)
+                self.completion_validator(result, session_dir)
         except Exception as exc:  # background failures must become durable, visible state
-            self._finalization_failed(exc)
+            self._finalization_failed(exc, generation=generation, capture=capture)
             return
 
         with self._lock:
-            if self.state is not CollectionState.FINALIZING:
+            # Generation guard: only commit if the platform is still on the exact
+            # session this thread finalized.  If an Abort + new Start moved the
+            # platform on, this result belongs to an abandoned session and must
+            # never mutate the live one.
+            if (
+                self.state is not CollectionState.FINALIZING
+                or self._generation != generation
+            ):
                 return
             self._finalization = dict(result)
+            # Realized eligibility is committed here, under the same guard, so it
+            # can never be attributed to a different session.
+            self._finalized_training_eligible = bool(result.get("training_eligible"))
             self._finalization_active = False
             self.state = CollectionState.COMPLETE
             self.action_ack = "Diagnostic recording saved and verified (not training eligible)"
@@ -899,8 +956,21 @@ class CollectionPlatform:
             self._write_lifecycle()
             self._close_journal()
 
-    def _finalization_failed(self, exc: Exception) -> None:
+    def _finalization_failed(
+        self, exc: Exception, *, generation: int, capture,  # noqa: ANN001
+    ) -> None:
+        # Always abort the exact capture that failed, regardless of generation.
+        if capture is not None:
+            try:
+                capture.abort(f"finalization failed: {type(exc).__name__}: {exc}")
+            except Exception:
+                pass
         with self._lock:
+            # Only surface the failure on the live session if the platform is
+            # still on this thread's generation; otherwise the failure belongs to
+            # an abandoned session and must not touch the current one.
+            if self._generation != generation:
+                return
             self.last_error = f"finalization failed: {type(exc).__name__}: {exc}"
             self.action_ack = "Diagnostic finalization failed"
             self._finalization_active = False
@@ -917,11 +987,6 @@ class CollectionPlatform:
                         "session_id": self.session_id,
                         "error": self.last_error,
                     })
-                except Exception:
-                    pass
-            if self.capture is not None:
-                try:
-                    self.capture.abort(self.last_error)
                 except Exception:
                     pass
             self._write_lifecycle()

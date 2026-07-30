@@ -5129,6 +5129,45 @@ class Collector:
             "runtime_health": runtime_health,
             "finalization_summary": finalization_summary,
         })
+        # Unified Start authority.  The page consumes ONLY snapshot.start_authorized,
+        # so it must fold the platform's decision together with the collector-owned
+        # hardware gates (camera/model readiness, live stethoscope audio, back
+        # confirmation) the platform cannot see.  These mirror the HTTP
+        # _control_locked start checks exactly, so the page and API never disagree.
+        platform_ok = snapshot.get("start_authorized") is True
+        audio_gate_ok = True
+        audio_reason = None
+        if self.require_audio or self.audio_device is not None:
+            if audio.get("status") != "OK":
+                audio_gate_ok = False
+                audio_reason = (
+                    "stethoscope audio stream is not live: %s" % audio.get("status")
+                )
+            elif self.require_audio and audio.get("signal_present") is not True:
+                audio_gate_ok = False
+                audio_reason = "no stethoscope signal is present"
+        back_gate_ok = not (
+            back_confirmation.get("required") is True
+            and back_confirmation.get("confirmed") is not True
+        )
+        unified_ok = (
+            platform_ok
+            and bool(diagnostic_ready)
+            and audio_gate_ok
+            and back_gate_ok
+        )
+        if unified_ok:
+            unified_reason = None
+        elif not platform_ok:
+            unified_reason = snapshot.get("start_rejection") or "start is not authorized"
+        elif not diagnostic_ready:
+            unified_reason = "diagnostic preflight is not ready"
+        elif not audio_gate_ok:
+            unified_reason = audio_reason
+        else:
+            unified_reason = "confirm the patient's back before starting"
+        snapshot["start_authorized"] = unified_ok
+        snapshot["start_rejection"] = unified_reason
         return snapshot
 
 
@@ -5403,7 +5442,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Stop',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
  $('live').className='live'+(recording?' on':'');$('recword').textContent=recording?'REC '+Number(s.elapsed).toFixed(1)+'s':finalizing?'Verifying':previewOnly?'Preview only':stateText[s.state]||s.state;
- const backReady=back.required!==true||back.confirmed===true;$('btnstart').disabled=busy||s.start_authorized!==true||!backReady;$('btnstart').title=s.start_authorized===true?'':(s.start_rejection||'');$('btnstart').textContent=previewOnly?'Recording disabled':(s.state==='COMPLETE'||s.state==='ABORTED'||s.state==='ERROR')?'● New capture':'● Start';$('btnend').disabled=busy||!recordingControls||!recording;
+ $('btnstart').disabled=busy||s.start_authorized!==true;$('btnstart').title=s.start_authorized===true?'':(s.start_rejection||'');$('btnstart').textContent=previewOnly?'Recording disabled':(s.state==='COMPLETE'||s.state==='ABORTED'||s.state==='ERROR')?'● New capture':'● Start';$('btnend').disabled=busy||!recordingControls||!recording;
  syncBackButton(back);
  const canConfirm=!busy&&recording&&s.target_valid&&s.points_visible===s.n&&recordingControls;const canRedo=!busy&&recordingControls&&recording;$('btnconfirm').disabled=!canConfirm;$('btnredo').disabled=!canRedo;$('btnprev').disabled=busy||!recordingControls||!recording;$('btnnext').disabled=busy||!recordingControls||!recording;
  pointList(s);blockerList(s.training_blockers||[]);if(s.action_ack&&s.action_ack!==lastActionAck){action(shortText(s.action_ack),s.error?'bad':'good')}if(s.error){action(shortText(s.error),'bad')}lastActionAck=s.action_ack||null}

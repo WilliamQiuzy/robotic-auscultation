@@ -1405,3 +1405,7 @@ def test_production_capture_kind_satisfies_the_immutable_writer_gate(
     check = report["checks"]["production_capture_kind"]
     assert check["status"] == "PASS"
     assert check["capture_kind"] == "production_teleop_v4"
+
+
+def test_tracker_jsonl_is_a_geometry_file():
+    assert "tracker.jsonl" in finalizer._GEOMETRY_FILES

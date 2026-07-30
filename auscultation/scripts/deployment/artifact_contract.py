@@ -227,7 +227,7 @@ _TRAINING_COMPONENT_REQUIRED_RAW = {
         "depth/depth_times.csv", "geometry_frame_authenticity.json",
         "geometry_frame_packets.jsonl", "geometry/patient_depth_authenticity.json",
         "geometry/patient_depth_evidence.jsonl", "obs.csv", "rgb.mp4",
-        "rgb_times.csv", "targets.jsonl",
+        "rgb_times.csv", "targets.jsonl", "tracker.jsonl",
     )),
     "quality": frozenset((
         "audio.wav", "audio_times.jsonl", "force.csv",

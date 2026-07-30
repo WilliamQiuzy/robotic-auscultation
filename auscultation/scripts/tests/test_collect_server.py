@@ -5625,3 +5625,22 @@ def test_stale_camera_aborts_recording_clears_points_and_reopens_pipeline(tmp_pa
         assert cameras[0].stopped is True
     finally:
         collector.shutdown()
+
+
+def test_served_start_authorized_folds_in_the_audio_gate(tmp_path):
+    # The page consumes only snapshot.start_authorized; a missing stethoscope
+    # signal must never leave it true (the reviewer's page/API mismatch).
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False, require_audio=True,
+    )
+    try:
+        collector._audio_snapshot = lambda: {
+            "status": "OK", "signal_present": False,
+        }
+        silent = collector.state_snapshot()
+        assert silent["start_authorized"] is False
+        assert silent["start_rejection"]
+    finally:
+        collector.shutdown()

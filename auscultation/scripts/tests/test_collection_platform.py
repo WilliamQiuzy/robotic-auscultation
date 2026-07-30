@@ -947,3 +947,94 @@ def test_start_authorized_is_false_while_recording(tmp_path):
     assert snapshot["state"] == "RECORDING"
     assert snapshot["start_authorized"] is False
     assert "cannot start from RECORDING" in snapshot["start_rejection"]
+
+
+def test_start_is_blocked_while_a_prior_finalizer_is_running(tmp_path):
+    # Reproduce the cross-session contamination window: an in-flight finalizer
+    # must fully exit before any new Start, so two sessions can never overlap
+    # and an old finalizer can never commit onto a newer session.
+    entered = threading.Event()
+    release = threading.Event()
+
+    class SlowCapture(_Capture):
+        def finalize(self) -> dict:
+            self.finalized += 1
+            entered.set()
+            if not release.wait(timeout=2.0):
+                raise RuntimeError("test finalizer gate timed out")
+            return {"status": "diagnostic_complete", "training_eligible": False}
+
+    captures: list[_Capture] = []
+
+    def factory(session_dir: Path) -> SlowCapture:
+        capture = SlowCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
+    )
+    assert platform.control("start")["ok"]
+    first_generation = platform._generation
+    assert platform.control("end")["state"] == "FINALIZING"
+    assert entered.wait(timeout=1.0)
+
+    # While the first finalizer is still running, Start is refused by the single
+    # authority — the snapshot says so and the control is rejected.
+    snapshot = platform.state_snapshot()
+    assert snapshot["start_authorized"] is False
+    assert "prior finalization is still running" in snapshot["start_rejection"]
+    assert platform.control("start")["ok"] is False
+    assert platform._generation == first_generation  # no new session was armed
+
+    release.set()
+    platform._finalize_thread.join(timeout=2.0)
+
+    # The first session — and only it — completes; a fresh Start is now allowed.
+    completed = platform.state_snapshot()
+    assert completed["state"] == "COMPLETE"
+    assert completed["start_authorized"] is True
+    assert platform.control("start")["ok"] is True
+    assert platform._generation == first_generation + 1
+
+
+def test_production_refuses_a_subclass_of_the_registered_writer(tmp_path):
+    # Exact-type binding: even a subclass of the registered production writer is
+    # refused, so nothing can subclass its way into a production recording.
+    class _SneakySubclass(_ProductionWriter):
+        pass
+
+    platform, captures = _make_platform(
+        tmp_path,
+        contract=_PRODUCTION_CONTRACT,
+        production_blockers=(),
+        capture_class=_SneakySubclass,
+        writer_types={_PRODUCTION_CONTRACT.writer_identity: _ProductionWriter},
+    )
+
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert platform.state is not CollectionState.RECORDING
+    assert captures[0].started == 0
+
+
+def test_production_without_a_registry_is_never_authorized(tmp_path):
+    # No registry -> no non-forgeable identity -> production can never start,
+    # and the single authority says so before any allocation.
+    platform, captures = _make_platform(
+        tmp_path,
+        contract=_PRODUCTION_CONTRACT,
+        production_blockers=(),
+        capture_class=_ProductionWriter,
+        writer_types={},  # explicitly empty: no registered production writer
+    )
+
+    reason = platform.start_authorization()
+    assert reason is not None
+    assert "registered production writer" in reason
+    assert platform.control("start")["ok"] is False
+    assert captures == []

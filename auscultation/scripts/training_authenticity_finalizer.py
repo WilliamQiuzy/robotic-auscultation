@@ -133,6 +133,7 @@ _GEOMETRY_FILES = frozenset(
         "rgb.mp4",
         "rgb_times.csv",
         "targets.jsonl",
+        "tracker.jsonl",
     }
 )
 
