@@ -487,7 +487,6 @@ def test_http_end_returns_finalizing_without_waiting_for_slow_verification(tmp_p
     release = threading.Event()
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -508,6 +507,7 @@ def test_http_end_returns_finalizing_without_waiting_for_slow_verification(tmp_p
         session_root=tmp_path,
         point_names=("R1", "L1"),
         capture_factory=lambda _path: Capture(),
+        writer_types={"DiagnosticPerceptionCapture": Capture},
     )
     assert platform.control("start")["ok"] is True
 
@@ -1465,7 +1465,6 @@ def test_required_left_robot_session_starts_before_camera_is_armed(tmp_path):
             return True
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             events.append("capture_start")
 
@@ -1517,6 +1516,7 @@ def test_required_left_robot_session_starts_before_camera_is_armed(tmp_path):
         start_thread=False,
     )
     collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector._cam = Camera()
     collector._last_camera_index = 40
     preview_episode_id = collector._occlusion_episode_id
@@ -2192,7 +2192,6 @@ def test_failed_start_aborts_audio_and_clears_back_confirmation(tmp_path):
             self.aborted = True
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -2214,6 +2213,7 @@ def test_failed_start_aborts_audio_and_clears_back_confirmation(tmp_path):
     collector._audio = audio
     collector._audio_snapshot = lambda: {"status": "OK"}
     collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     try:
         result = collector.control("start")
         assert result["ok"] is False
@@ -2265,7 +2265,6 @@ def test_force_prearms_before_camera_and_uses_exact_shared_boundaries(tmp_path):
             )
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             events.append("capture_start")
 
@@ -2344,6 +2343,7 @@ def test_force_prearms_before_camera_and_uses_exact_shared_boundaries(tmp_path):
     collector._force = Force()
     collector._cam = Camera()
     collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector.platform.completion_validator = None
     try:
         assert collector.control("start")["ok"] is True
@@ -2697,7 +2697,6 @@ def test_boundary_persistence_cannot_clear_gate_then_arm_recording(tmp_path):
     assert gate.confirmation_snapshot()["confirmed"] is True
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -2716,6 +2715,7 @@ def test_boundary_persistence_cannot_clear_gate_then_arm_recording(tmp_path):
     )
     collector._back_gate = gate
     collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     try:
         result = collector.control("start")
         assert result["ok"] is False
@@ -3960,9 +3960,12 @@ def test_page_allows_a_fresh_session_after_complete_or_abort():
     server = _load_collect_server()
     page = server.PAGE.decode("utf-8")
 
-    assert "['READY','COMPLETE','ABORTED','ERROR'].includes(s.state)" in page
+    # The Start button defers to the single platform authority (start_authorized)
+    # rather than recomputing the startable-state set; COMPLETE/ABORTED/ERROR
+    # (which are startable) surface a fresh-capture affordance.
+    assert "s.start_authorized!==true" in page
     assert "New capture" in page
-    assert "['READY','COMPLETE','ABORTED','ERROR'].includes(latest?.state)" in page
+    assert "latest?.state==='RECORDING'" in page
 
 
 def test_collector_shutdown_aborts_an_open_diagnostic_session(tmp_path):
@@ -4286,7 +4289,6 @@ def test_robot_sidecar_is_finalized_and_bound_before_platform_finalize(tmp_path)
             return summary
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         @staticmethod
         def set_robot_summary(value, *, contract):
             calls.append("capture_bind_robot")
@@ -4912,7 +4914,6 @@ def test_end_persists_capture_model_boundaries_before_finalization(tmp_path):
     contexts = []
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -4940,6 +4941,7 @@ def test_end_persists_capture_model_boundaries_before_finalization(tmp_path):
         fake=True, out_dir=tmp_path, start_thread=False,
     )
     collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     # This unit test isolates the End/model-boundary handoff.  The real
     # completion artifact validator is covered separately with sealed files.
     collector.platform.completion_validator = None
@@ -4975,7 +4977,6 @@ def test_live_fault_after_end_boundary_cannot_abort_active_finalizer(tmp_path):
     aborted = []
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -4998,6 +4999,7 @@ def test_live_fault_after_end_boundary_cannot_abort_active_finalizer(tmp_path):
         fake=True, out_dir=tmp_path, start_thread=False,
     )
     collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector.platform.completion_validator = None
     collector._ingress_worker.stop()
     collector._ingress_worker = _IngressStub()
@@ -5193,7 +5195,6 @@ def test_slow_capture_start_latches_camera_boundary_only_after_files_are_ready(t
     camera = Camera()
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         started = False
 
         def start(self):
@@ -5220,6 +5221,7 @@ def test_slow_capture_start_latches_camera_boundary_only_after_files_are_ready(t
 
     capture = Capture()
     collector.platform.capture_factory = lambda _path: capture
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector._cam = camera
     try:
         assert collector.control("start")["ok"] is True
@@ -5575,7 +5577,6 @@ def test_stale_camera_aborts_recording_clears_points_and_reopens_pipeline(tmp_pa
         return camera
 
     class Capture:
-        writer_identity = "DiagnosticPerceptionCapture"
         def __init__(self):
             self.aborted = []
 
@@ -5603,6 +5604,7 @@ def test_stale_camera_aborts_recording_clears_points_and_reopens_pipeline(tmp_pa
         camera_reopen_interval_s=0.2,
     )
     collector.platform.capture_factory = lambda _path: capture
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     try:
         assert _wait_until(lambda: collector._model_status == "RUNNING")
         assert collector.control("start")["ok"] is True

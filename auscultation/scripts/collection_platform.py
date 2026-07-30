@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Callable, Iterable, Protocol
+from typing import Callable, Iterable, Mapping, Protocol
 
 
 class CollectionState(str, Enum):
@@ -67,16 +67,15 @@ class WriterIdentityMismatch(RuntimeError):
 
 
 def _resolve_writer_identity(capture: "_Capture") -> str:
-    """Return a capture's self-declared writer identity, else its class name.
+    """Return the capture's authoritative writer identity: its concrete class
+    name.
 
-    Real writers may expose an explicit ``writer_identity`` attribute; when they
-    do not, the concrete class name is the authoritative identity.  Either way
-    the value is compared against the contract before a session may record.
+    A *self-reported* ``writer_identity`` string is deliberately NOT trusted --
+    any object could set one, so it is forgeable.  The class name is used
+    instead, and when a ``writer_types`` registry is supplied the check binds to
+    the exact class *object* (below), which cannot be forged by naming alone.
     """
 
-    declared = getattr(capture, "writer_identity", None)
-    if isinstance(declared, str) and declared:
-        return declared
     return type(capture).__name__
 
 
@@ -369,6 +368,7 @@ class CollectionPlatform:
         point_names: Iterable[str],
         capture_factory: Callable[[Path], _Capture],
         contract: CaptureContract | None = None,
+        writer_types: "Mapping[str, type] | None" = None,
         diagnostic_blockers: Iterable[str] = (),
         production_blockers: Iterable[str] = (),
         completion_validator: Callable[[dict, Path], None] | None = None,
@@ -383,6 +383,13 @@ class CollectionPlatform:
         self.capture_factory = capture_factory
         self.contract = contract or DIAGNOSTIC_PERCEPTION_CONTRACT
         self.mode = self.contract.mode
+        # Optional non-forgeable writer binding: identity string -> exact class
+        # object.  When supplied, a session may only record if the live writer
+        # *is* the registered class for the contract's identity (not merely a
+        # class that shares its name).  When absent, the check falls back to the
+        # class name, which is stronger than a self-reported attribute but not
+        # forgery-proof; production callers must supply the registry.
+        self._writer_types = dict(writer_types) if writer_types else None
         self.diagnostic_blockers = tuple(str(item) for item in diagnostic_blockers)
         self.production_blockers = tuple(str(item) for item in production_blockers)
         self.completion_validator = completion_validator
@@ -428,18 +435,18 @@ class CollectionPlatform:
 
     def state_snapshot(self) -> dict:
         with self._lock:
-            # ``training_eligible`` is never the contract's *declared* intent
-            # alone: it also requires that the live writer was verified against
-            # the contract at Start, and — once finalized — that the writer
-            # actually reported eligibility.  A mislabelled contract fronting a
-            # diagnostic writer can therefore never be reported as eligible.
+            # Training eligibility is *realized*, never *declared*.  It is true
+            # only when the session has reached COMPLETE AND the writer's own
+            # finalize result was independently validated as eligible.  Every
+            # other state — READY, RECORDING, FINALIZING, ERROR, ABORTED, a
+            # failed Start, or a failed finalize — reports False.  The contract's
+            # training_intent is only a *possibility*, never evidence of a
+            # finished, verified session, so a mislabelled contract or a crashed
+            # Start can never surface as eligibility.
             training_eligible = (
-                self.contract.training_eligible and self._capture_writer_verified
+                self.state is CollectionState.COMPLETE
+                and self._finalized_training_eligible is True
             )
-            if self._finalized_training_eligible is not None:
-                training_eligible = (
-                    training_eligible and self._finalized_training_eligible
-                )
             # Single Start authority: expose the exact verdict the control
             # plane will enforce so the HTTP layer and the page cannot compute a
             # divergent "can start" from raw fields.
@@ -681,21 +688,43 @@ class CollectionPlatform:
                 return "production preflight failed: " + "; ".join(
                     self.production_blockers
                 )
+        # Startability is part of the authority, not a separate check: a Start
+        # can only proceed from a startable state, so ``start_authorized`` is
+        # never reported true while RECORDING/FINALIZING.  This is the same
+        # startable set ``_start`` re-arms below (a finished/aborted session, or
+        # a clean terminal error, resets to READY for a fresh no-replace start).
+        if not self._is_startable_state():
+            return f"cannot start from {self.state.value}"
         return None
 
-    def _start(self) -> dict:
-        rejection = self.start_authorization()
-        if rejection is not None:
-            raise _Rejected("invalid_state", rejection)
+    def _is_startable_state(self) -> bool:
         retryable_error = (
             self.state is CollectionState.ERROR
             and not self._finalization_active
             and self._journal is None
         )
+        return (
+            self.state
+            in {
+                CollectionState.READY,
+                CollectionState.COMPLETE,
+                CollectionState.ABORTED,
+            }
+            or retryable_error
+        )
+
+    def _start(self) -> dict:
+        # start_authorization() is the single authority: it already rejects an
+        # unstartable state, so this is also the exact gate the snapshot's
+        # start_authorized/start_rejection reflect.
+        rejection = self.start_authorization()
+        if rejection is not None:
+            raise _Rejected("invalid_state", rejection)
         if self.state in {
             CollectionState.COMPLETE,
             CollectionState.ABORTED,
-        } or retryable_error:
+            CollectionState.ERROR,
+        }:
             # The prior immutable session remains on disk; only the in-memory
             # control plane is armed for a fresh, no-replace session.
             self.state = CollectionState.READY
@@ -737,14 +766,27 @@ class CollectionPlatform:
             self._journal = _DurableJournal(session_dir / "control_journal.jsonl")
             self.capture = self.capture_factory(session_dir)
             # Bind the *declared* contract writer to the *actual* writer before
-            # a single frame is recorded.  A mismatch is fail-closed: the
-            # session never enters RECORDING, so a diagnostic writer can never
-            # be recorded (or later reported) under a production contract.
-            actual_writer = _resolve_writer_identity(self.capture)
-            if actual_writer != self.contract.writer_identity:
+            # a single frame is recorded.  With a registry the binding is to the
+            # exact class object (non-forgeable); without one it falls back to
+            # the class name.  Either way a mismatch is fail-closed: the session
+            # never enters RECORDING, so a diagnostic writer can never be
+            # recorded under a production contract.
+            if self._writer_types is not None:
+                expected_type = self._writer_types.get(self.contract.writer_identity)
+                identity_ok = (
+                    expected_type is not None
+                    and isinstance(self.capture, expected_type)
+                )
+            else:
+                identity_ok = (
+                    _resolve_writer_identity(self.capture)
+                    == self.contract.writer_identity
+                )
+            if not identity_ok:
                 raise WriterIdentityMismatch(
                     "capture writer %r does not match contract writer %r"
-                    % (actual_writer, self.contract.writer_identity)
+                    % (_resolve_writer_identity(self.capture),
+                       self.contract.writer_identity)
                 )
             self._capture_writer_verified = True
             self.capture.start()

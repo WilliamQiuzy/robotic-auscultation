@@ -29,11 +29,8 @@ from collection_platform import (  # noqa: E402
 
 
 class _Capture:
-    def __init__(
-        self, session_dir: Path, writer_identity: str = "DiagnosticPerceptionCapture",
-    ) -> None:
+    def __init__(self, session_dir: Path) -> None:
         self.session_dir = Path(session_dir)
-        self.writer_identity = writer_identity
         self.started = 0
         self.finalized = 0
         self.aborted: list[str] = []
@@ -69,6 +66,7 @@ def _platform(tmp_path: Path, *, blockers=()) -> tuple[CollectionPlatform, list[
         session_root=tmp_path / "sessions",
         point_names=["R1", "R2", "R3"],
         capture_factory=factory,
+        writer_types={DIAGNOSTIC_PERCEPTION_CONTRACT.writer_identity: _Capture},
         diagnostic_blockers=blockers,
         production_blockers=("robot-base targets missing",),
         wall_time_ns=lambda: 1_721_234_567_000_000_123,
@@ -396,6 +394,7 @@ def test_a_completed_capture_can_start_a_new_unique_session_without_reusing_prog
         session_root=tmp_path / "sessions",
         point_names=["R1", "R2"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
         wall_time_ns=lambda: next(times),
         uuid_factory=lambda: next(uuids),
     )
@@ -446,6 +445,7 @@ def test_partial_capture_start_failure_is_aborted_and_never_reports_recording(tm
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
     )
 
     result = platform.control("start")
@@ -471,6 +471,7 @@ def test_capture_factory_failure_keeps_fail_closed_start_evidence_and_closes_jou
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
     )
 
     result = platform.control("start")
@@ -514,6 +515,7 @@ def test_terminal_start_error_can_retry_in_a_new_session_without_losing_evidence
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
         uuid_factory=lambda: next(uuids),
     )
     first = platform.control("start")
@@ -554,6 +556,7 @@ def test_end_returns_immediately_while_one_slow_finalizer_exposes_finalizing(tmp
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
     )
     assert platform.control("start")["ok"]
 
@@ -595,6 +598,7 @@ def test_background_finalization_failure_transitions_to_error_and_end_stays_idem
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
     )
     platform.control("start")
 
@@ -628,6 +632,7 @@ def test_finalize_mapping_cannot_report_complete_without_explicit_complete_statu
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
     )
     assert platform.control("start")["ok"] is True
     assert platform.control("end")["state"] == "FINALIZING"
@@ -664,6 +669,7 @@ def test_completion_validator_failure_is_a_hard_gate_before_complete(tmp_path):
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
         completion_validator=reject_tampered_seal,
     )
     assert platform.control("start")["ok"] is True
@@ -713,6 +719,7 @@ def test_abort_is_idempotent_after_capture_self_abort_and_preserves_first_error(
         session_root=tmp_path / "sessions",
         point_names=["R1"],
         capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
     )
     assert platform.control("start")["ok"] is True
     with pytest.raises(RuntimeError, match="capture is already aborted"):
@@ -744,24 +751,31 @@ _PRODUCTION_CONTRACT = CaptureContract(
 )
 
 
+class _ProductionWriter(_Capture):
+    """A distinct writer *class* a production contract may be bound to.
+
+    Being a different class from ``_Capture`` is the whole point: the registry
+    binds by class object, so a diagnostic ``_Capture`` can never satisfy a
+    production identity even if it declared the matching string.
+    """
+
+
 def _make_platform(
     tmp_path: Path,
     *,
     contract=None,
     diagnostic_blockers=(),
     production_blockers=(),
-    capture_writer_identity=None,
+    capture_class=_Capture,
+    writer_types=None,
 ) -> tuple[CollectionPlatform, list[_Capture]]:
     captures: list[_Capture] = []
     effective_contract = contract or DIAGNOSTIC_PERCEPTION_CONTRACT
-    writer_identity = (
-        capture_writer_identity
-        if capture_writer_identity is not None
-        else effective_contract.writer_identity
-    )
+    if writer_types is None:
+        writer_types = {effective_contract.writer_identity: capture_class}
 
     def factory(session_dir: Path) -> _Capture:
-        capture = _Capture(session_dir, writer_identity=writer_identity)
+        capture = capture_class(session_dir)
         captures.append(capture)
         return capture
 
@@ -770,6 +784,7 @@ def _make_platform(
         point_names=["R1", "R2", "R3"],
         capture_factory=factory,
         contract=contract,
+        writer_types=writer_types,
         diagnostic_blockers=diagnostic_blockers,
         production_blockers=production_blockers,
         wall_time_ns=lambda: 1_721_234_567_000_000_123,
@@ -875,10 +890,14 @@ def test_production_capture_start_is_blocked_until_production_preflight_is_clear
 
 
 def test_production_capture_with_clear_preflight_and_real_writer_records(tmp_path):
+    # The live writer IS the registered production writer class, so Start is
+    # authorized.  But recording is not eligibility: training_eligible stays
+    # False until a validated production finalize completes.
     platform, captures = _make_platform(
         tmp_path,
         contract=_PRODUCTION_CONTRACT,
         production_blockers=(),
+        capture_class=_ProductionWriter,
     )
 
     assert platform.start_authorization() is None
@@ -887,21 +906,24 @@ def test_production_capture_with_clear_preflight_and_real_writer_records(tmp_pat
     assert result["ok"] is True
     assert captures[0].started == 1
     snapshot = platform.state_snapshot()
-    assert snapshot["training_eligible"] is True
+    assert snapshot["state"] == "RECORDING"
+    assert snapshot["training_eligible"] is False  # realized-only, not declared
     assert snapshot["capture_kind"] == "production_teleop_v4"
     assert snapshot["operational_mode"] == "PRODUCTION_CAPTURE"
-    assert snapshot["start_authorized"] is True
 
 
 def test_production_contract_with_a_diagnostic_writer_is_refused(tmp_path):
-    # A production contract can *declare* a real writer, but the live factory
-    # here produces a diagnostic writer.  Start must fail-closed and the
-    # platform must never report the declared eligibility as real.
+    # The contract declares the production writer identity and the registry
+    # binds it to the real production writer *class*.  The live factory here
+    # produces a diagnostic writer instead: a different class object, so the
+    # class-bound check refuses it fail-closed.  A self-declared identity string
+    # could not help — the check never consults one.
     platform, captures = _make_platform(
         tmp_path,
         contract=_PRODUCTION_CONTRACT,
         production_blockers=(),
-        capture_writer_identity="DiagnosticPerceptionCapture",
+        capture_class=_Capture,
+        writer_types={_PRODUCTION_CONTRACT.writer_identity: _ProductionWriter},
     )
 
     result = platform.control("start")
@@ -911,3 +933,17 @@ def test_production_contract_with_a_diagnostic_writer_is_refused(tmp_path):
     assert captures[0].started == 0  # writer verified BEFORE the first frame
     snapshot = platform.state_snapshot()
     assert snapshot["training_eligible"] is False
+
+
+def test_start_authorized_is_false_while_recording(tmp_path):
+    # The reviewer's exact inconsistency: start_authorized must not stay true
+    # once a recording is in progress; it is the single, state-aware authority.
+    platform, _ = _make_platform(tmp_path, contract=DIAGNOSTIC_PERCEPTION_CONTRACT)
+
+    assert platform.state_snapshot()["start_authorized"] is True
+    assert platform.control("start")["ok"] is True
+
+    snapshot = platform.state_snapshot()
+    assert snapshot["state"] == "RECORDING"
+    assert snapshot["start_authorized"] is False
+    assert "cannot start from RECORDING" in snapshot["start_rejection"]

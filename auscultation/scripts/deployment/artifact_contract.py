@@ -206,7 +206,14 @@ _TRAINING_REQUIRED_RAW = frozenset((
     "robot_exact_control.csv",
     "robot_frame_index.jsonl",
     "targets.jsonl",
+    "tracker.jsonl",
 ))
+#: Immutable capture kinds this outer contract will verify a training snapshot
+#: for.  MUST stay in agreement with
+#: ``training_authenticity_finalizer.PRODUCTION_CAPTURE_KINDS`` and
+#: ``session_to_lerobot_v2.PRODUCTION_CAPTURE_KINDS``.  A missing, diagnostic, or
+#: forged ``production_*`` kind is refused.
+_TRAINING_PRODUCTION_CAPTURE_KINDS = frozenset({"production_teleop_v4"})
 _TRAINING_COMPONENT_REQUIRED_RAW = {
     "audio": frozenset((
         "audio.wav", "audio_capture.json", "audio_input_times.jsonl",
@@ -686,6 +693,14 @@ def _verify_training_session_snapshot(
         or manifest.get("rehearsal_overrides") != []
     ):
         raise VerificationError("training manifest is not fail-closed complete")
+    # Outer (third-layer) production-writer gate.  ``training_eligible`` cannot
+    # distinguish a diagnostic capture from a production one, so the immutable
+    # capture_kind must positively name an allowlisted production kind here as
+    # well, never merely be a ``production_*``-shaped or absent string.
+    if manifest.get("capture_kind") not in _TRAINING_PRODUCTION_CAPTURE_KINDS:
+        raise VerificationError(
+            "training manifest capture_kind is not an allowlisted production kind"
+        )
     session_id = manifest.get("session_id")
     if (
         not isinstance(session_id, str)
@@ -1189,6 +1204,12 @@ def verify_training_session_contract(
                 raise ConflictError(
                     "cached trusted training snapshot conflicts with current source"
                 )
+            # Heal a snapshot that a crash left published-but-writable between
+            # the atomic rename and the read-only chmod below.  Re-applying is
+            # idempotent for an already read-only snapshot, so every retry
+            # converges the tree to read-only rather than trusting the cache.
+            _make_training_snapshot_read_only(final)
+            _fsync_tree_directories(final)
         else:
             staging = snapshots / (
                 ".staging-%s-%s" % (snapshot_id, uuid.uuid4().hex)

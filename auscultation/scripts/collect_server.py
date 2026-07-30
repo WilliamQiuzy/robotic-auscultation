@@ -1244,6 +1244,12 @@ class Collector:
                 if self.commissioning_preview_only
                 else DIAGNOSTIC_PERCEPTION_CONTRACT
             ),
+            # Non-forgeable writer binding: the console's only real writer is the
+            # diagnostic perception capture, bound here by class object so no
+            # other writer can record under the diagnostic contract.
+            writer_types={
+                "DiagnosticPerceptionCapture": DiagnosticPerceptionCapture,
+            },
             diagnostic_blockers=self._diagnostic_blockers,
             production_blockers=tuple(production_blockers),
             completion_validator=self._validate_completion_result,
@@ -2223,6 +2229,19 @@ class Collector:
         start_back_gate = None
         start_back_token = None
         if normalized == "start":
+            # Defer the core Start decision (mode / preflight / writer / state)
+            # to the one platform authority before layering the collector's
+            # hardware-specific sensor and back-confirmation gates.  The HTTP
+            # layer never recomputes that decision; it only adds the gates the
+            # hardware-agnostic platform cannot own.
+            start_rejection = self.platform.start_authorization()
+            if start_rejection is not None:
+                return {
+                    "ok": False,
+                    "code": "start_not_authorized",
+                    "message": start_rejection,
+                    "state": self.platform.state.value,
+                }
             back_confirmation = self._back_confirmation_snapshot()
             if (
                 back_confirmation.get("required") is True
@@ -5384,7 +5403,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Stop',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
  $('live').className='live'+(recording?' on':'');$('recword').textContent=recording?'REC '+Number(s.elapsed).toFixed(1)+'s':finalizing?'Verifying':previewOnly?'Preview only':stateText[s.state]||s.state;
- const canStart=['READY','COMPLETE','ABORTED','ERROR'].includes(s.state),backReady=back.required!==true||back.confirmed===true;$('btnstart').disabled=busy||!recordingControls||!canStart||!s.diagnostic_ready||!backReady;$('btnstart').textContent=previewOnly?'Recording disabled':(s.state==='COMPLETE'||s.state==='ABORTED'||s.state==='ERROR')?'● New capture':'● Start';$('btnend').disabled=busy||!recordingControls||!recording;
+ const backReady=back.required!==true||back.confirmed===true;$('btnstart').disabled=busy||s.start_authorized!==true||!backReady;$('btnstart').title=s.start_authorized===true?'':(s.start_rejection||'');$('btnstart').textContent=previewOnly?'Recording disabled':(s.state==='COMPLETE'||s.state==='ABORTED'||s.state==='ERROR')?'● New capture':'● Start';$('btnend').disabled=busy||!recordingControls||!recording;
  syncBackButton(back);
  const canConfirm=!busy&&recording&&s.target_valid&&s.points_visible===s.n&&recordingControls;const canRedo=!busy&&recordingControls&&recording;$('btnconfirm').disabled=!canConfirm;$('btnredo').disabled=!canRedo;$('btnprev').disabled=busy||!recordingControls||!recording;$('btnnext').disabled=busy||!recordingControls||!recording;
  pointList(s);blockerList(s.training_blockers||[]);if(s.action_ack&&s.action_ack!==lastActionAck){action(shortText(s.action_ack),s.error?'bad':'good')}if(s.error){action(shortText(s.error),'bad')}lastActionAck=s.action_ack||null}
@@ -5400,7 +5419,7 @@ async function pumpAudio(){if(!listening)return;try{const query=new URLSearchPar
 async function toggleAudio(){if(listening){stopAudio();return}try{audioContext=audioContext||new AudioContext();await audioContext.resume();listening=true;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='■ Stop audio';$('btnaudio').className='listen on';pumpAudio()}catch(error){action('Browser audio unavailable: '+error.message,'bad');stopAudio()}}
 $('btnback').onclick=()=>ctl('confirm_back');$('btnstart').onclick=()=>ctl('start');$('btnend').onclick=()=>ctl('end');$('btnconfirm').onclick=()=>ctl('confirm');$('btnredo').onclick=()=>ctl('redo');$('btnprev').onclick=()=>ctl('prev');$('btnnext').onclick=()=>ctl('next');
 $('btnaudio').onclick=toggleAudio;
-addEventListener('keydown',event=>{if(event.repeat||event.metaKey||event.ctrlKey||event.altKey)return;const key=event.key;if((key==='b'||key==='B')&&!$('btnback').disabled)ctl('confirm_back');else if(key===' '){event.preventDefault();if(!$('btnconfirm').disabled)ctl('confirm')}else if((key==='r'||key==='R')&&!$('btnredo').disabled)ctl('redo');else if(key==='ArrowLeft'&&!$('btnprev').disabled)ctl('prev');else if(key==='ArrowRight'&&!$('btnnext').disabled)ctl('next');else if(key==='s'||key==='S'){if(latest?.state==='RECORDING')ctl('end');else if(['READY','COMPLETE','ABORTED','ERROR'].includes(latest?.state)&&!$('btnstart').disabled)ctl('start')}else if(key==='f'||key==='F')$('feed').requestFullscreen?.()});
+addEventListener('keydown',event=>{if(event.repeat||event.metaKey||event.ctrlKey||event.altKey)return;const key=event.key;if((key==='b'||key==='B')&&!$('btnback').disabled)ctl('confirm_back');else if(key===' '){event.preventDefault();if(!$('btnconfirm').disabled)ctl('confirm')}else if((key==='r'||key==='R')&&!$('btnredo').disabled)ctl('redo');else if(key==='ArrowLeft'&&!$('btnprev').disabled)ctl('prev');else if(key==='ArrowRight'&&!$('btnnext').disabled)ctl('next');else if(key==='s'||key==='S'){if(latest?.state==='RECORDING')ctl('end');else if(!$('btnstart').disabled)ctl('start')}else if(key==='f'||key==='F')$('feed').requestFullscreen?.()});
 addEventListener('visibilitychange',()=>{if(document.hidden){if(listening)stopAudio();return}schedulePoll(0);scheduleCamera(0)});
 addEventListener('pagehide',()=>{pageStopped=true;if(pollTimer)clearTimeout(pollTimer);if(cameraTimer)clearTimeout(cameraTimer);pollTimer=null;cameraTimer=null;stopAudio()});
 addEventListener('pageshow',()=>{if(!pageStopped)return;pageStopped=false;schedulePoll(0);scheduleCamera(0)});

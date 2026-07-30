@@ -48,6 +48,7 @@ def _seal_synthetic_outer_v2(
         "robot_frame_index.jsonl": b'{"frame":1}\n',
         "robot_capture_summary.json": b'{"schema":"v4"}\n',
         "targets.jsonl": b'{"point":1}\n',
+        "tracker.jsonl": b'{"frame":1}\n',
         "depth/depth_times.csv": b"frame_index,t\n1,1.0\n",
         "depth/depth_000001.npy": b"not-real-depth",
         "quality_inference_packets.jsonl": b'{"q":0.4}\n{"q":0.6}\n',
@@ -86,6 +87,7 @@ def _seal_synthetic_outer_v2(
         ],
         "geometry": [
             "rgb.mp4", "rgb_times.csv", "obs.csv", "targets.jsonl",
+            "tracker.jsonl",
             "depth/depth_times.csv", "depth/depth_000001.npy",
             "geometry_frame_packets.jsonl", "geometry_frame_authenticity.json",
             "geometry/patient_depth_evidence.jsonl",
@@ -153,6 +155,7 @@ def _seal_synthetic_outer_v2(
     (session / "TRAINING_AUTHENTICITY.json").write_bytes(authenticity_raw)
     manifest = {
         "artifact_hashes": inventory,
+        "capture_kind": "production_teleop_v4",
         "promotion_contract_version": "wam_promotion_v2",
         "rehearsal_overrides": [],
         "schema_version": "wam_session_v2",
@@ -229,7 +232,7 @@ def _manifest(nj=2):
 def _artifact_contract() -> tuple[dict, dict]:
     names = [
         "audio.wav", "rgb.mp4", "force.csv", "rgb_times.csv",
-        "obs.csv", "targets.jsonl", "depth/depth_times.csv",
+        "obs.csv", "targets.jsonl", "tracker.jsonl", "depth/depth_times.csv",
         "depth/depth_000000.npy", *conv.EXACT_ROBOT_FILES,
     ]
     return (
@@ -1144,6 +1147,7 @@ def test_manifest_validation_rejects_rehearsal_data(monkeypatch):
         "schema_version": "wam_session_v2",
         "promotion_contract_version": "wam_promotion_v2",
         "status": "complete", "training_eligible": True,
+        "capture_kind": "production_teleop_v4",
         "rehearsal_overrides": [], "streams": ["force", "audio", "cam", "robot"],
         "arm": _exact_arm_metadata(),
         "robot": _synthetic_v4_robot_summary_for_gate_isolation(),
@@ -1179,6 +1183,7 @@ def test_manifest_validation_requires_finalizer_artifact_evidence(monkeypatch):
         "schema_version": "wam_session_v2",
         "promotion_contract_version": "wam_promotion_v2", "status": "complete",
         "training_eligible": True, "rehearsal_overrides": [],
+        "capture_kind": "production_teleop_v4",
         "streams": ["force", "audio", "cam", "robot"],
         "arm": _exact_arm_metadata(),
         "robot": _synthetic_v4_robot_summary_for_gate_isolation(),

@@ -51,6 +51,7 @@ def _training_session(
         "robot_frame_index.jsonl": b"{\"frame\":1}\n",
         "robot_capture_summary.json": b"{\"schema\":\"v4\"}\n",
         "targets.jsonl": b"{\"point\":1}\n",
+        "tracker.jsonl": b"{\"frame\":1}\n",
         "depth/depth_times.csv": b"frame_index,t\n1,1.0\n",
         _DEPTH_FRAME: b"real-depth",
         "quality_inference_packets.jsonl": b"{\"q\":0.4}\n{\"q\":0.6}\n",
@@ -93,6 +94,7 @@ def _training_session(
         ],
         "geometry": [
             "rgb.mp4", "rgb_times.csv", "obs.csv", "targets.jsonl",
+            "tracker.jsonl",
             "depth/depth_times.csv", _DEPTH_FRAME,
             "geometry_frame_packets.jsonl", "geometry_frame_authenticity.json",
             "geometry/patient_depth_evidence.jsonl",
@@ -159,6 +161,7 @@ def _training_session(
     authenticity_sha = hashlib.sha256(authenticity_raw).hexdigest()
     manifest = {
         "artifact_hashes": inventory,
+        "capture_kind": "production_teleop_v4",
         "promotion_contract_version": "wam_promotion_v2",
         "rehearsal_overrides": [],
         "schema_version": "wam_session_v2",
@@ -523,7 +526,7 @@ def test_training_promotion_v2_verifies_the_complete_authenticity_chain(
     assert verified["verified_components"] == [
         "audio", "force", "geometry", "quality", "robot",
     ]
-    assert verified["verified_raw_files"] == 28
+    assert verified["verified_raw_files"] == 29
     assert len(verified["raw_payload_sha256"]) == 64
     assert Path(verified["verified_snapshot_path"]).parent == (
         tmp_path / "trusted-training-snapshots"
@@ -834,7 +837,7 @@ def test_training_promotion_v2_accepts_multiple_canonical_dynamic_raw_files(
 
     verified = _verify_training_session(session)
 
-    assert verified["verified_raw_files"] == 30
+    assert verified["verified_raw_files"] == 31
 
 
 @pytest.mark.parametrize(("relative", "source", "destination"), [
