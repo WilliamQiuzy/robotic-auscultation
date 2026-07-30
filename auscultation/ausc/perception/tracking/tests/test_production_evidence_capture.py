@@ -11,9 +11,18 @@ from ausc.perception.tracking.detector import DetectorResult, LUNG_ORDER
 from ausc.perception.tracking.geometry import CropTransform, Intrinsics
 from ausc.perception.tracking.model_tracker import ModelBasedTracker
 from ausc.perception.tracking.patient_frame_evidence import PatientFrameEvidence
+from ausc.perception.tracking.geometry_channel_packet import (
+    verify_geometry_packet_log_files,
+)
 from ausc.perception.tracking.production_evidence_capture import (
     ProductionEvidenceCaptureError,
     ProductionGeometryEvidenceCapture,
+    read_geometry_model_input_ledger,
+)
+from ausc.perception.tracking.production_geometry_recorder import (
+    GeometryChannelIdentity,
+    ProductionGeometryRecorderError,
+    ProductionGeometrySessionRecorder,
 )
 from ausc.perception.tracking.production_geometry_gate import (
     PRODUCTION_DECISION_SURFACE,
@@ -395,3 +404,170 @@ def test_ledger_rejects_a_tampered_field_set(tmp_path):
 def test_ledger_read_fails_closed_when_missing(tmp_path):
     with pytest.raises(ProductionEvidenceCaptureError, match="missing"):
         read_geometry_model_input_ledger(tmp_path)
+
+
+# --- ProductionGeometrySessionRecorder (write-side composition) ---------------
+
+_PERCEPTION_CHANNEL = GeometryChannelIdentity(
+    producer_id="v9-landmark-worker",
+    release_id="v9-landmark-worker-" + "e" * 20,
+    model_sha256="e" * 64,
+)
+_INDEPENDENT_CHANNEL = GeometryChannelIdentity(
+    producer_id="metric-patient-model",
+    release_id="metric-patient-model-" + "d" * 20,
+    model_sha256="d" * 64,
+)
+
+
+def _points(base: float) -> np.ndarray:
+    n = len(POINT_NAMES)
+    return np.array(
+        [[base + i, base + i + 0.1, 0.5 + i * 0.01] for i in range(n)],
+        dtype=np.float64,
+    )
+
+
+def _covariances() -> np.ndarray:
+    n = len(POINT_NAMES)
+    return np.stack([np.eye(3, dtype=np.float64) * 1.0e-4 for _ in range(n)])
+
+
+def _recorder(tmp_path: Path) -> ProductionGeometrySessionRecorder:
+    return ProductionGeometrySessionRecorder(
+        tmp_path,
+        intrinsics=_intrinsics(),
+        geometry_profile=_profile(),
+        point_names=POINT_NAMES,
+        perception_channel=_PERCEPTION_CHANNEL,
+        independent_channel=_INDEPENDENT_CHANNEL,
+    )
+
+
+def _record_frames(recorder: ProductionGeometrySessionRecorder, count: int) -> None:
+    for i in range(count):
+        evidence = _patient_evidence(
+            frame_index=10 + i,
+            camera_host_monotonic_ns=1_050_000_000 + i * 1_000_000,
+        )
+        recorder.record_frame(
+            evidence,
+            episode_id=EPISODE,
+            sequence=i + 1,
+            perception_points_m=_points(0.10 * i),
+            perception_covariances_m2=_covariances(),
+            independent_points_m=_points(0.10 * i + 0.001),
+            independent_covariances_m2=_covariances(),
+        )
+
+
+def test_recorder_writes_a_replayable_geometry_session(tmp_path):
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 3)
+    assert recorder.frame_count == 3
+    receipt = recorder.finalize()
+
+    # The packet log verifies and the ledger reads back in strict episode order.
+    entries, verified_receipt = verify_geometry_packet_log_files(tmp_path)
+    assert len(entries) == 3
+    assert verified_receipt == receipt
+    assert receipt.perception_release_id == _PERCEPTION_CHANNEL.release_id
+    assert receipt.perception_model_sha256 == _PERCEPTION_CHANNEL.model_sha256
+    assert receipt.independent_release_id == _INDEPENDENT_CHANNEL.release_id
+
+    ledger = read_geometry_model_input_ledger(tmp_path)
+    assert len(ledger) == 3
+    assert [record.sequence for record in ledger] == [1, 2, 3]
+    assert all(record.episode_id == EPISODE for record in ledger)
+
+    # Both required artifacts + the Step 2a ledger are on disk.
+    assert (tmp_path / "geometry_frame_packets.jsonl").is_file()
+    assert (tmp_path / "geometry_frame_authenticity.json").is_file()
+    assert (tmp_path / "geometry" / "model_input_ledger.jsonl").is_file()
+
+
+def test_recorder_ledger_and_packet_counts_stay_aligned(tmp_path):
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 4)
+    recorder.finalize()
+    entries, _ = verify_geometry_packet_log_files(tmp_path)
+    ledger = read_geometry_model_input_ledger(tmp_path)
+    assert len(entries) == len(ledger) == 4
+
+
+def test_recorder_rejects_noncontiguous_sequence(tmp_path):
+    recorder = _recorder(tmp_path)
+    evidence = _patient_evidence(frame_index=10)
+    with pytest.raises(ProductionGeometryRecorderError, match="contiguous"):
+        recorder.record_frame(
+            evidence, episode_id=EPISODE, sequence=2,  # must start at 1
+            perception_points_m=_points(0.0), perception_covariances_m2=_covariances(),
+            independent_points_m=_points(0.001), independent_covariances_m2=_covariances(),
+        )
+
+
+def test_recorder_rejects_episode_change_mid_session(tmp_path):
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 1)
+    evidence = _patient_evidence(frame_index=11, camera_host_monotonic_ns=1_051_000_000)
+    with pytest.raises(ProductionGeometryRecorderError, match="episode id changed"):
+        recorder.record_frame(
+            evidence, episode_id="episode-" + "2" * 32, sequence=2,
+            perception_points_m=_points(0.1), perception_covariances_m2=_covariances(),
+            independent_points_m=_points(0.101), independent_covariances_m2=_covariances(),
+        )
+
+
+def test_recorder_finalize_requires_at_least_two_frames(tmp_path):
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 1)
+    with pytest.raises(ProductionGeometryRecorderError, match="at least two frames"):
+        recorder.finalize()
+
+
+def test_recorder_refuses_frames_after_finalize(tmp_path):
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 2)
+    recorder.finalize()
+    evidence = _patient_evidence(frame_index=99, camera_host_monotonic_ns=1_060_000_000)
+    with pytest.raises(ProductionGeometryRecorderError, match="already finalized"):
+        recorder.record_frame(
+            evidence, episode_id=EPISODE, sequence=3,
+            perception_points_m=_points(0.3), perception_covariances_m2=_covariances(),
+            independent_points_m=_points(0.301), independent_covariances_m2=_covariances(),
+        )
+
+
+def test_recorded_session_is_replayable_by_the_runner(tmp_path):
+    # Closes the loop: what the write-side records is exactly what the Step 3c
+    # replay runner reconstructs (ledger inputs matched to the recorded packets).
+    from ausc.perception.replay_runner import reconstruct_geometry_items
+
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 3)
+    recorder.finalize()
+
+    items, identity = reconstruct_geometry_items(tmp_path)
+    assert len(items) == 3
+    assert identity == {
+        "release_id": _PERCEPTION_CHANNEL.release_id,
+        "model_sha256": _PERCEPTION_CHANNEL.model_sha256,
+    }
+    assert set(items[0].recorded_outputs) == {"points_m", "covariances_m2"}
+    # The verified RGB/depth model inputs reload from the persisted content-addressed npys.
+    assert items[0].model_input.rgb.shape[2] == 3
+    assert items[0].model_input.depth.ndim == 2
+
+
+def test_recorder_requires_independent_channels(tmp_path):
+    same = GeometryChannelIdentity(
+        producer_id="v9-landmark-worker",
+        release_id="v9-landmark-worker-" + "e" * 20,
+        model_sha256="e" * 64,
+    )
+    with pytest.raises(ProductionGeometryRecorderError, match="independent"):
+        ProductionGeometrySessionRecorder(
+            tmp_path, intrinsics=_intrinsics(), geometry_profile=_profile(),
+            point_names=POINT_NAMES,
+            perception_channel=same, independent_channel=same,
+        )
