@@ -1,0 +1,148 @@
+{
+  "connections": [
+    {
+      "alias": "nebius-h200",
+      "source_role": "mac",
+      "target_role": "h200"
+    },
+    {
+      "alias": "linbox",
+      "source_role": "mac",
+      "target_role": "linbox"
+    },
+    {
+      "alias": "h200",
+      "source_role": "linbox",
+      "target_role": "h200"
+    }
+  ],
+  "hosts": {
+    "h200": {
+      "canary": {
+        "current_link": "/home/ssh-ziyue/wam_ausc/.deploy-canary/current",
+        "incoming_root": "/home/ssh-ziyue/wam_ausc/.deploy-canary/incoming",
+        "releases_root": "/home/ssh-ziyue/wam_ausc/.deploy-canary/releases"
+      },
+      "contract_path": "/home/ssh-ziyue/.wam_artifact_contract.py",
+      "data": {
+        "converted_dataset": {
+          "incoming_root": "/home/ssh-ziyue/wam_ausc/data/lerobot/.staging",
+          "releases_root": "/home/ssh-ziyue/wam_ausc/data/lerobot/releases"
+        },
+        "perception": {
+          "perception_canary_evaluation": {
+            "artifact_kind": "perception_canary_evaluation",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_canary_evaluation/releases",
+            "remote_upload": false,
+            "source_role": "h200",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_canary_evaluation/.staging"
+          },
+          "perception_geometry_source": {
+            "artifact_kind": "perception_geometry_source",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_geometry_source/releases",
+            "remote_upload": true,
+            "source_role": "mac",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_geometry_source/.staging"
+          },
+          "perception_labels_holdout": {
+            "artifact_kind": "perception_labels_holdout",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_labels_holdout/releases",
+            "remote_upload": true,
+            "source_role": "mac",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_labels_holdout/.staging"
+          },
+          "perception_labels_train": {
+            "artifact_kind": "perception_labels_train",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_labels_train/releases",
+            "remote_upload": true,
+            "source_role": "mac",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_labels_train/.staging"
+          },
+          "perception_session2_train": {
+            "artifact_kind": "perception_session2_train",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_session2_train/releases",
+            "remote_upload": false,
+            "source_role": "h200",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_session2_train/.staging"
+          },
+          "perception_session3_holdout": {
+            "artifact_kind": "perception_session3_holdout",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_session3_holdout/releases",
+            "remote_upload": false,
+            "source_role": "h200",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_session3_holdout/.staging"
+          },
+          "perception_stage0": {
+            "artifact_kind": "perception_stage0",
+            "releases_root": "/home/ssh-ziyue/wam_ausc/data/perception_stage0/releases",
+            "remote_upload": false,
+            "source_role": "h200",
+            "staging_root": "/home/ssh-ziyue/wam_ausc/data/perception_stage0/.staging"
+          }
+        },
+        "perception_holdout_consumption_root": "/home/ssh-ziyue/wam_ausc/data/perception_holdout_consumption",
+        "raw_session": {
+          "incoming_root": "/home/ssh-ziyue/wam_ausc/data/raw_sessions/.staging",
+          "releases_root": "/home/ssh-ziyue/wam_ausc/data/raw_sessions/releases"
+        }
+      },
+      "helper_path": "/home/ssh-ziyue/.wam_remote_agent.py",
+      "home": "/home/ssh-ziyue",
+      "production": {
+        "current_link": "/home/ssh-ziyue/wam_ausc/current",
+        "incoming_root": "/home/ssh-ziyue/wam_ausc/.incoming",
+        "releases_root": "/home/ssh-ziyue/wam_ausc/.releases"
+      },
+      "python": "/usr/bin/python3",
+      "role": "h200"
+    },
+    "linbox": {
+      "canary": {
+        "current_link": "/home/robot/Desktop/stethoscope/.deploy-canary/current",
+        "incoming_root": "/home/robot/Desktop/stethoscope/.deploy-canary/incoming",
+        "releases_root": "/home/robot/Desktop/stethoscope/.deploy-canary/releases"
+      },
+      "contract_path": "/home/robot/.wam_artifact_contract.py",
+      "data_sources": {
+        "converted_dataset_root": "/home/robot/wam_data/lerobot/releases",
+        "raw_session_root": "/home/robot/wam_data/sessions"
+      },
+      "helper_path": "/home/robot/.wam_remote_agent.py",
+      "home": "/home/robot",
+      "perception_runtime": {
+        "current_link": "/home/robot/wam_data/perception_runtime/current",
+        "incoming_root": "/home/robot/wam_data/perception_runtime/.staging",
+        "releases_root": "/home/robot/wam_data/perception_runtime/releases"
+      },
+      "production": {
+        "current_link": "/home/robot/Desktop/stethoscope/.wam-current",
+        "incoming_root": "/home/robot/Desktop/stethoscope/.wam-incoming",
+        "releases_root": "/home/robot/Desktop/stethoscope/.wam-releases"
+      },
+      "python": "/home/robot/envs/ausc/bin/python",
+      "role": "linbox",
+      "simulation": {
+        "assets": {
+          "artifact_kind": "simulation_asset",
+          "current_link": "/home/robot/wam_data/simulation/assets/current",
+          "releases_root": "/home/robot/wam_data/simulation/assets/releases",
+          "staging_root": "/home/robot/wam_data/simulation/assets/.staging"
+        },
+        "code": {
+          "artifact_kind": "simulation_code",
+          "current_link": "/home/robot/wam_data/simulation/code/current",
+          "releases_root": "/home/robot/wam_data/simulation/code/releases",
+          "staging_root": "/home/robot/wam_data/simulation/code/.staging"
+        },
+        "results": {
+          "artifact_kind": "simulation_result",
+          "current_link": "/home/robot/wam_data/simulation/results/current",
+          "releases_root": "/home/robot/wam_data/simulation/results/releases",
+          "staging_root": "/home/robot/wam_data/simulation/results/.staging"
+        }
+      }
+    }
+  },
+  "schema": "wam_release_profile_v1",
+  "workspace_root": "/Users/williamqiu/Desktop/Harvard/WAM"
+}

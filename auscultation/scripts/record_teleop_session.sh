@@ -1,63 +1,104 @@
 #!/usr/bin/env bash
-# Combined multimodal teleop recording — the one launcher for real IL data collection.
+# Sensor-first, fail-closed launcher for real imitation-learning collection.
 #
-# Runs the SENSOR recorder (ausc/record_session.py: audio + Hall force + camera) AND the leader-
-# follower TELEOP (bin/unilateral_control, which logs robot.csv = follower obs + leader action) into
-# ONE session dir, timestamped on ONE clock. Both use CLOCK_MONOTONIC (C++ steady_clock == Python
-# time.monotonic() on Linux), so scripts/session_to_lerobot*.py aligns robot.csv with the sensor
-# streams. Run on linbox (has the arm + CAN + sensors).
+# Required commissioning inputs:
+#   SYNC_CAL=/path/wam_sync_v1.json
+#   CAMERA_LATENCY_CAL=/path/wam_camera_latency_v1.json
+#   CAMERA_ID=<stable camera serial/id used by the calibration>
+#   AUDIO_DEVICE/AUDIO_CHANNEL may override the PortAudio query/channel used by sync calibration
+#   TARGETS_FILE=/path/robot_base_targets.jsonl
+#   TELEOP_STOP_CMD_JSON='["/path/direct_disable", "arg1", "arg2"]'
+#     This command starts immediately on every unsafe force event. Collection has no automatic
+#     retract; commission disable latency and phantom force relief before patient-adjacent use.
 #
-#   STETHO_DIR=~/Desktop/stethoscope scripts/record_teleop_session.sh <left|right> <seconds> <site> [name]
-#   # dry-rehearse without the arm:  TELEOP_BIN=scripts/mock_teleop.py  (writes a fake robot.csv)
-#
-# Env: STETHO_DIR (teleop dir, default ~/Desktop/stethoscope), WAM_PY (python for record_session,
-#      default ~/envs/ausc/bin/python), WAM_SESSIONS (session root, default ~/wam_data/sessions),
-#      TELEOP_BIN (override the teleop binary — e.g. a mock for rehearsal).
-set -u
+# Usage: record_teleop_session.sh <left|right> <seconds> <site> [session-name]
+set -euo pipefail
 
 STETHO="${STETHO_DIR:-$HOME/Desktop/stethoscope}"
-AUSC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"          # auscultation/
-source "$STETHO/scripts/_common.sh"                             # BIN, URDF, URDF_FOLLOWER, can map, clear_faults
+AUSC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "$STETHO/scripts/_common.sh"
+
 PY="${WAM_PY:-$HOME/envs/ausc/bin/python}"
 TELEOP_BIN="${TELEOP_BIN:-$BIN/unilateral_control}"
-
 side="${1:?usage: record_teleop_session.sh <left|right> <seconds> <site> [name]}"
-secs="${2:?seconds}"; site="${3:?site: LUL|LLL|RUL|RLL|posterior-lung}"
-name="${4:-teleop_$(date +%Y%m%d_%H%M%S)}"
+secs="${2:?seconds}"
+site="${3:?site}"
+name="${4:-teleop_$(date -u +%Y%m%dT%H%M%S)_$(cat /proc/sys/kernel/random/uuid)}"
+[[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]] \
+    || { echo "session name must be a single safe path component" >&2; exit 2; }
+[[ "$name" != *..* ]] || { echo "session name may not contain '..'" >&2; exit 2; }
 SDIR="${WAM_SESSIONS:-$HOME/wam_data/sessions}/$name"
-mkdir -p "$SDIR"
+
+SYNC_CAL="${SYNC_CAL:?SYNC_CAL is required before arm-connected collection}"
+CAMERA_LATENCY_CAL="${CAMERA_LATENCY_CAL:?CAMERA_LATENCY_CAL is required}"
+CAMERA_ID="${CAMERA_ID:?stable CAMERA_ID used by the latency calibration is required}"
+TARGETS_FILE="${TARGETS_FILE:?TARGETS_FILE with explicit robot_base xyz is required}"
+TELEOP_STOP_CMD_JSON="${TELEOP_STOP_CMD_JSON:?direct motor-disable command JSON is required}"
+CODE_RELEASE_ID="${WAM_CODE_RELEASE_ID:?immutable WAM_CODE_RELEASE_ID is required}"
+RUNTIME_RELEASE_ID="${WAM_PERCEPTION_RUNTIME_RELEASE_ID:?immutable WAM_PERCEPTION_RUNTIME_RELEASE_ID is required}"
+RUNTIME_LOCK_SHA256="${WAM_PERCEPTION_RUNTIME_LOCK_SHA256:?WAM_PERCEPTION_RUNTIME_LOCK_SHA256 is required}"
+[[ "$CODE_RELEASE_ID" =~ ^code_release-[0-9a-f]{20}$ ]] \
+    || { echo "invalid WAM_CODE_RELEASE_ID: $CODE_RELEASE_ID" >&2; exit 2; }
+[[ "$RUNTIME_RELEASE_ID" =~ ^perception_runtime-[0-9a-f]{20}$ ]] \
+    || { echo "invalid WAM_PERCEPTION_RUNTIME_RELEASE_ID: $RUNTIME_RELEASE_ID" >&2; exit 2; }
+[[ "$RUNTIME_LOCK_SHA256" =~ ^[0-9a-f]{64}$ ]] \
+    || { echo "invalid WAM_PERCEPTION_RUNTIME_LOCK_SHA256" >&2; exit 2; }
+HALL_CAL="${WAM_HALL_CALIBRATION:-${HALL_CAL:-$HOME/wam_data/config/calibration/force_feedback_calibration_veo6_tared.json}}"
+
+for required_file in "$SYNC_CAL" "$CAMERA_LATENCY_CAL" "$TARGETS_FILE" "$HALL_CAL"; do
+    [[ -f "$required_file" ]] || { echo "missing required file: $required_file" >&2; exit 2; }
+done
+
 case "$side" in
     left)  leader=$left_leader;  follower=$left_follower;  arm=left_arm ;;
     right) leader=$right_leader; follower=$right_follower; arm=right_arm ;;
-    *) echo "side must be left|right"; exit 1 ;;
+    *) echo "side must be left|right" >&2; exit 2 ;;
 esac
 
-echo "[combined] $SDIR  (side=$side site=$site ${secs}s)  teleop=$(basename "$TELEOP_BIN")"
-clear_faults "$leader" "$follower" 2>/dev/null || true
+mkdir -p "$(dirname "$SDIR")"
+[[ ! -e "$SDIR" ]] || { echo "session directory already exists; refusing to overwrite: $SDIR" >&2; exit 2; }
+ready_file="$SDIR/SENSORS_READY.json"
+start_file="$SDIR/START_CAPTURE"
+stop_file="$SDIR/STOP_CAPTURE.json"
+capture_ended_file="$SDIR/CAPTURE_ENDED.json"
 
-# 1) TELEOP in background, logging robot.csv (absolute-monotonic obs+action) into the session dir.
+recorder_cmd=(
+    "$PY" "$AUSC/ausc/record_session.py"
+    --session-dir "$SDIR" --seconds "$secs" --site "$site"
+    --audio-device "${AUDIO_DEVICE:-Scarlett Solo USB: Audio}" --audio-channel "${AUDIO_CHANNEL:-1}"
+    --camera-backend "${CAMERA_BACKEND:-orbbec}" --camera-index "${CAMERA_INDEX:-0}"
+    --camera-id "$CAMERA_ID" --arm-side "$side"
+    --hall-cal "$HALL_CAL" --sync-cal "$SYNC_CAL"
+    --camera-latency-cal "$CAMERA_LATENCY_CAL"
+    --code-release-id "$CODE_RELEASE_ID"
+    --runtime-release-id "$RUNTIME_RELEASE_ID"
+    --runtime-lock-sha256 "$RUNTIME_LOCK_SHA256"
+    --ready-file "$ready_file" --start-file "$start_file"
+    --stop-file "$stop_file" --capture-ended-file "$capture_ended_file"
+    --show-targets --targets "$TARGETS_FILE"
+)
+[[ -z "${HALL_PORT:-}" ]] || recorder_cmd+=(--hall-port "$HALL_PORT")
+
 if [[ "$TELEOP_BIN" == *.py ]]; then
-    REC_CSV="$SDIR/robot.csv" "$PY" "$TELEOP_BIN" "$secs" > "$SDIR/teleop.log" 2>&1 &
+    teleop_cmd=("$PY" "$TELEOP_BIN" "$secs")
 else
-    REC_CSV="$SDIR/robot.csv" "$TELEOP_BIN" "$URDF" "$URDF_FOLLOWER" "$arm" "$leader" "$follower" \
-        > "$SDIR/teleop.log" 2>&1 &
-fi
-TPID=$!
-sleep 1.5                                                       # let teleop connect + start logging first
-if ! kill -0 "$TPID" 2>/dev/null; then
-    echo "[combined] teleop failed to start — see $SDIR/teleop.log"; tail -3 "$SDIR/teleop.log"; exit 1
+    teleop_cmd=("$TELEOP_BIN" "$URDF" "$URDF_FOLLOWER" "$arm" "$leader" "$follower")
 fi
 
-# 2) SENSORS for N seconds into the SAME session dir (same monotonic clock). --show-targets overlays
-#    the current auscultation target on the live camera for the doctor + logs targets.jsonl
-#    (point-conditioned). TARGETS_FILE (perception landmarks / config) refines the target positions.
-"$PY" "$AUSC/ausc/record_session.py" --session-dir "$SDIR" --seconds "$secs" --site "$site" \
-    --camera-backend orbbec --show-targets ${TARGETS_FILE:+--targets "$TARGETS_FILE"} || true
+json_array() {
+    "$PY" -c 'import json,sys; print(json.dumps(sys.argv[1:]))' "$@"
+}
 
-# 3) stop teleop cleanly (INT -> disable_all; then hard-kill as backstop).
-kill -INT "$TPID" 2>/dev/null; for _ in 1 2 3 4 5; do kill -0 "$TPID" 2>/dev/null || break; sleep 1; done
-kill -9 "$TPID" 2>/dev/null; wait "$TPID" 2>/dev/null || true
+recorder_json="$(json_array "${recorder_cmd[@]}")"
+teleop_json="$(json_array "${teleop_cmd[@]}")"
 
-echo "[combined] done -> $SDIR : $(ls "$SDIR" | tr '\n' ' ')"
-echo "[combined] convert (on linbox lerobot env):"
-echo "  ~/miniconda3/envs/lerobot/bin/python $AUSC/scripts/session_to_lerobot_v2.py $SDIR --repo-id ausc/$name --root <out>"
+echo "[combined] sensor-first readiness -> teleop -> shared start: $SDIR"
+"$PY" "$AUSC/scripts/collection_supervisor.py" \
+    --session-dir "$SDIR" \
+    --recorder-cmd-json "$recorder_json" \
+    --teleop-cmd-json "$teleop_json" \
+    --stop-cmd-json "$TELEOP_STOP_CMD_JSON"
+
+echo "[combined] complete and coverage-certified -> $SDIR"
+echo "[combined] convert in pinned lerobot==0.3.3 environment:"
+echo "  python $AUSC/scripts/session_to_lerobot_v2.py $SDIR --repo-id ausc/$name --root <out>"

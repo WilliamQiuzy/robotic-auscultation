@@ -1,0 +1,399 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -34,6 +34,7 @@
+ find_package(urdfdom REQUIRED)
+ find_package(urdfdom_headers REQUIRED)
+ find_package(yaml-cpp REQUIRED)
++find_package(Threads REQUIRED)
+ if(NOT TARGET yaml-cpp::yaml-cpp AND TARGET yaml-cpp)
+   add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+ endif()
+@@ -45,6 +46,7 @@
+   openarm_teleop_lib STATIC
+   src/controller/dynamics.cpp src/controller/control.cpp
+   src/openarm_port/openarm_init.cpp src/openarm_port/joint_mapper.cpp
++  src/wam_openarm_telemetry/openarm_telemetry_publisher.cpp
+   third_party/kdl_parser/kdl_parser.cpp)
+ 
+ target_include_directories(openarm_teleop_lib
+@@ -54,7 +56,7 @@
+ target_link_libraries(
+   openarm_teleop_lib
+   PUBLIC OpenArmCAN::openarm_can Eigen3::Eigen ${orocos_kdl_LIBRARIES}
+-         urdfdom::urdfdom_model yaml-cpp::yaml-cpp)
++         urdfdom::urdfdom_model yaml-cpp::yaml-cpp Threads::Threads)
+ 
+ # -----------------------------
+ # Executables
+--- a/control/openarm_unilateral_control.cpp
++++ b/control/openarm_unilateral_control.cpp
+@@ -21,12 +21,15 @@
+ #include <filesystem>
+ #include <fstream>
+ #include <iostream>
++#include <memory>
+ #include <openarm/can/socket/openarm.hpp>
+ #include <openarm/damiao_motor/dm_motor_constants.hpp>
+ #include <openarm_port/openarm_init.hpp>
++#include <wam_openarm_telemetry/openarm_telemetry_publisher.hpp>
+ #include <periodic_timer_thread.hpp>
+ #include <robot_state.hpp>
+ #include <thread>
++#include <utility>
+ #include <yamlloader.hpp>
+ 
+ std::atomic<bool> keep_running(true);
+@@ -102,12 +105,15 @@
+ public:
+     AdminThread(std::shared_ptr<RobotSystemState> leader_state,
+                 std::shared_ptr<RobotSystemState> follower_state, Control *control_l,
+-                Control *control_f, double hz = 500.0)
++                Control *control_f,
++                wam::openarm_bridge::FollowerReferenceEpoch *reference_epoch,
++                double hz = 500.0)
+         : PeriodicTimerThread(hz),
+           leader_state_(leader_state),
+           follower_state_(follower_state),
+           control_l_(control_l),
+-          control_f_(control_f) {}
++          control_f_(control_f),
++          reference_epoch_(reference_epoch) {}
+ 
+ protected:
+     void before_start() override { std::cout << "admin start thread " << std::endl; }
+@@ -119,6 +125,8 @@
+         auto now = std::chrono::steady_clock::now();
+ 
+         // get response
++        const std::int64_t follower_reference_source_ns =
++            wam::openarm_bridge::monotonic_now_ns();
+         auto leader_arm_resp = leader_state_->arm_state().get_all_responses();
+         auto follower_arm_resp = follower_state_->arm_state().get_all_responses();
+ 
+@@ -129,8 +137,14 @@
+         leader_state_->arm_state().set_all_references(follower_arm_resp);
+         leader_state_->hand_state().set_all_references(follower_hand_resp);
+ 
++        if (reference_epoch_ != nullptr) {
++            reference_epoch_->begin_update();
++        }
+         follower_state_->arm_state().set_all_references(leader_arm_resp);
+         follower_state_->hand_state().set_all_references(leader_hand_resp);
++        if (reference_epoch_ != nullptr) {
++            reference_epoch_->complete_update(follower_reference_source_ns);
++        }
+ 
+         // Optional demo recording: if env REC_CSV is set, log the FOLLOWER joint
+         // trajectory to CSV at ~100 Hz (admin runs at FREQUENCY, so every 10th tick).
+@@ -168,6 +182,7 @@
+     std::shared_ptr<RobotSystemState> follower_state_;
+     Control *control_l_;
+     Control *control_f_;
++    wam::openarm_bridge::FollowerReferenceEpoch *reference_epoch_;
+ };
+ 
+ int main(int argc, char **argv) {
+@@ -303,12 +318,72 @@
+         std::thread thread_f(&Control::AdjustPosition, control_follower);
+         thread_l.join();
+         thread_f.join();
++
++        // The control thread only pushes fixed-size records to a preallocated
++        // SPSC ring. A separate low-priority publisher thread serializes exact
++        // 1 kHz records into nominal 100 Hz Unix datagram envelopes.
++        wam::openarm_bridge::FollowerReferenceEpoch follower_reference_epoch;
++        std::unique_ptr<wam::openarm_bridge::OpenArmTelemetryPublisher>
++            telemetry_publisher;
++        try {
++            if (arm_side == "left_arm" && leader_can_interface == "can1" &&
++                follower_can_interface == "can3") {
++                const char *socket_path =
++                    std::getenv("WAM_OPENARM_TELEMETRY_SOCKET");
++                const char *urdf_sha =
++                    std::getenv("WAM_OPENARM_URDF_SHA256");
++                const char *mapper_sha =
++                    std::getenv("WAM_OPENARM_JOINT_MAPPER_SHA256");
++                const char *pair_sha =
++                    std::getenv("WAM_OPENARM_PAIR_CONTRACT_SHA256");
++                const char *binary_sha =
++                    std::getenv("WAM_OPENARM_CONTROLLER_BINARY_SHA256");
++                const char *source_manifest_sha = std::getenv(
++                    "WAM_OPENARM_CONTROLLER_SOURCE_MANIFEST_SHA256");
++                const char *follower_config_sha =
++                    std::getenv("WAM_OPENARM_FOLLOWER_CONFIG_SHA256");
++                const char *sdk_sha =
++                    std::getenv("WAM_OPENARM_SDK_SHA256");
++                if (socket_path != nullptr && urdf_sha != nullptr &&
++                    mapper_sha != nullptr && pair_sha != nullptr &&
++                    binary_sha != nullptr && source_manifest_sha != nullptr &&
++                    follower_config_sha != nullptr && sdk_sha != nullptr) {
++                    wam::openarm_bridge::PublisherConfig telemetry_config;
++                    telemetry_config.socket_path = socket_path;
++                    telemetry_config.controller_start_token =
++                        "mono-" + std::to_string(
++                                      wam::openarm_bridge::monotonic_now_ns());
++                    telemetry_config.urdf_sha256 = urdf_sha;
++                    telemetry_config.joint_mapper_sha256 = mapper_sha;
++                    telemetry_config.pair_contract_sha256 = pair_sha;
++                    telemetry_config.controller_binary_sha256 = binary_sha;
++                    telemetry_config.controller_source_manifest_sha256 =
++                        source_manifest_sha;
++                    telemetry_config.follower_config_sha256 =
++                        follower_config_sha;
++                    telemetry_config.openarm_sdk_sha256 = sdk_sha;
++                    telemetry_publisher = std::make_unique<
++                        wam::openarm_bridge::OpenArmTelemetryPublisher>(
++                        std::move(telemetry_config));
++                }
++            }
++        } catch (...) {
++            telemetry_publisher.reset();
++        }
++        if (telemetry_publisher != nullptr && !telemetry_publisher->enabled()) {
++            telemetry_publisher.reset();
++        }
++        follower_reference_epoch.begin_update();
++        follower_reference_epoch.complete_update(
++            wam::openarm_bridge::monotonic_now_ns());
++        control_follower->SetFollowerTelemetry(
++            telemetry_publisher.get(), &follower_reference_epoch);
+ 
+         // Start control process
+         LeaderArmThread leader_thread(leader_state, control_leader, FREQUENCY);
+         FollowerArmThread follower_thread(follower_state, control_follower, FREQUENCY);
+         AdminThread admin_thread(leader_state, follower_state, control_leader, control_follower,
+-                                 FREQUENCY);
++                                 &follower_reference_epoch, FREQUENCY);
+ 
+         leader_thread.start_thread();
+         follower_thread.start_thread();
+@@ -330,4 +402,4 @@
+     }
+ 
+     return 0;
+-}
+\ No newline at end of file
++}
+--- a/src/controller/control.hpp
++++ b/src/controller/control.hpp
+@@ -25,6 +25,7 @@
+ #include <openarm/can/socket/openarm.hpp>
+ #include <openarm/damiao_motor/dm_motor_constants.hpp>
+ #include <openarm_constants.hpp>
++#include <wam_openarm_telemetry/openarm_telemetry_publisher.hpp>
+ #include <robot_state.hpp>
+ #include <utility>
+ 
+@@ -58,6 +59,10 @@
+     static constexpr double VIB_THRESHOLD = 0.7;  // [rad/s]
+     std::deque<double> velocity_buffer_[NJOINTS];
+ 
++    wam::openarm_bridge::OpenArmTelemetryPublisher *follower_telemetry_ = nullptr;
++    wam::openarm_bridge::FollowerReferenceEpoch *follower_reference_epoch_ = nullptr;
++    std::uint64_t follower_control_tick_seq_ = 0;
++
+ public:
+     Control(openarm::can::socket::OpenArm *arm, Dynamics *dynamics_l, Dynamics *dynamics_f,
+             std::shared_ptr<RobotSystemState> robot_state, double Ts, int role,
+@@ -80,6 +85,10 @@
+                       const std::vector<double> &Fc, const std::vector<double> &k,
+                       const std::vector<double> &Fv, const std::vector<double> &Fo);
+ 
++    void SetFollowerTelemetry(
++        wam::openarm_bridge::OpenArmTelemetryPublisher *publisher,
++        wam::openarm_bridge::FollowerReferenceEpoch *reference_epoch) noexcept;
++
+     bool AdjustPosition(void);
+ 
+     // Compute torque based on bilateral
+--- a/src/controller/control.cpp
++++ b/src/controller/control.cpp
+@@ -90,6 +90,13 @@
+     Fo_ = Fo;
+ }
+ 
++void Control::SetFollowerTelemetry(
++    wam::openarm_bridge::OpenArmTelemetryPublisher *publisher,
++    wam::openarm_bridge::FollowerReferenceEpoch *reference_epoch) noexcept {
++    follower_telemetry_ = publisher;
++    follower_reference_epoch_ = reference_epoch;
++}
++
+ bool Control::bilateral_step() {
+     // get motor status
+     std::vector<MotorState> arm_motor_states;
+@@ -115,7 +122,6 @@
+     // set reponse
+     robot_state_->arm_state().set_all_responses(joint_arm_states);
+     robot_state_->hand_state().set_all_responses(joint_gripper_states);
+-
+     size_t arm_dof = robot_state_->arm_state().get_size();
+     size_t gripper_dof = robot_state_->hand_state().get_size();
+ 
+@@ -216,11 +222,13 @@
+ bool Control::unilateral_step() {
+     // get motor status
++    const auto arm_motors = openarm_->get_arm().get_motors();
+     std::vector<MotorState> arm_motor_states;
+-    for (const auto& motor : openarm_->get_arm().get_motors()) {
++    for (const auto& motor : arm_motors) {
+         arm_motor_states.push_back({motor.get_position(), motor.get_velocity(), 0.0});
+     }
+ 
++    const auto gripper_motors = openarm_->get_gripper().get_motors();
+     std::vector<MotorState> gripper_motor_states;
+-    for (const auto& motor : openarm_->get_gripper().get_motors()) {
++    for (const auto& motor : gripper_motors) {
+         gripper_motor_states.push_back({motor.get_position(), motor.get_velocity(), 0.0});
+     }
+@@ -234,6 +242,8 @@
+     // set reponse
+     robot_state_->arm_state().set_all_responses(joint_arm_states);
+     robot_state_->hand_state().set_all_responses(joint_gripper_states);
++    const std::int64_t observation_monotonic_ns =
++        wam::openarm_bridge::monotonic_now_ns();
+ 
+     size_t arm_dof = robot_state_->arm_state().get_size();
+     size_t gripper_dof = robot_state_->hand_state().get_size();
+@@ -318,10 +328,18 @@
+     }
+ 
+     else if (role_ == ROLE_FOLLOWER) {
++        const std::uint64_t control_tick_seq = follower_control_tick_seq_++;
++        wam::openarm_bridge::ReferenceRead reference_read;
++        if (follower_reference_epoch_ != nullptr) {
++            reference_read = follower_reference_epoch_->begin_read();
++        }
+         std::vector<JointState> joint_arm_states_ref =
+             robot_state_->arm_state().get_all_references();
+         std::vector<JointState> joint_hand_states_ref =
+             robot_state_->hand_state().get_all_references();
++        const bool reference_snapshot_valid =
++            follower_reference_epoch_ != nullptr &&
++            follower_reference_epoch_->read_still_valid(reference_read);
+ 
+         // Joint → Motor
+         std::vector<MotorState> arm_motor_refs =
+@@ -342,10 +360,113 @@
+             hand_cmds.emplace_back(openarm::damiao_motor::MITParam{
+                 Kp_[i + arm_dof], Kd_[i + arm_dof], hand_motor_refs[i].position,
+                 hand_motor_refs[i].velocity, 0.0});
++        }
++
++        wam::openarm_bridge::ControlTickRecord telemetry_record;
++        telemetry_record.control_tick_seq = control_tick_seq;
++        telemetry_record.observation_monotonic_ns = observation_monotonic_ns;
++        telemetry_record.reference_generation = reference_read.generation;
++        telemetry_record.reference_source_monotonic_ns =
++            reference_read.source_monotonic_ns;
++        telemetry_record.reference_snapshot_valid = reference_snapshot_valid;
++        telemetry_record.feedback_snapshot_monotonic_ns =
++            observation_monotonic_ns;
++        if (joint_arm_states.size() == wam::openarm_bridge::kOpenArmJointCount &&
++            arm_cmds.size() == wam::openarm_bridge::kOpenArmJointCount &&
++            arm_motors.size() == wam::openarm_bridge::kOpenArmJointCount) {
++            for (size_t i = 0; i < wam::openarm_bridge::kOpenArmJointCount; ++i) {
++                const auto feedback =
++                    arm_motors[i].get_feedback_liveness_snapshot();
++                telemetry_record.follower_q_rad[i] = joint_arm_states[i].position;
++                telemetry_record.follower_qd_rad_s[i] =
++                    joint_arm_states[i].velocity;
++                telemetry_record.follower_arm_mit[i] = {
++                    arm_cmds[i].kp,
++                    arm_cmds[i].kd,
++                    arm_cmds[i].q,
++                    arm_cmds[i].dq,
++                    arm_cmds[i].tau,
++                };
++                telemetry_record.follower_arm_state_rx_motor_ids[i] =
++                    feedback.motor_id;
++                telemetry_record.follower_arm_state_rx_counters[i] =
++                    feedback.counter;
++                telemetry_record.follower_arm_state_rx_generations[i] =
++                    feedback.generation;
++                telemetry_record.follower_arm_state_rx_monotonic_ns[i] =
++                    feedback.monotonic_ns;
++                telemetry_record.follower_arm_state_rx_last_gap_ns[i] =
++                    feedback.last_gap_ns;
++                telemetry_record
++                    .follower_arm_state_rx_gap_violation_counts[i] =
++                    feedback.gap_violation_count;
++            }
+         }
++        if (joint_gripper_states.size() == 1 && gripper_motor_states.size() == 1 &&
++            hand_cmds.size() == 1 && gripper_motors.size() == 1) {
++            const auto feedback =
++                gripper_motors[0].get_feedback_liveness_snapshot();
++            telemetry_record.follower_gripper_q_rad =
++                joint_gripper_states[0].position;
++            telemetry_record.follower_gripper_qd_rad_s =
++                joint_gripper_states[0].velocity;
++            telemetry_record.follower_gripper_motor_q_rad =
++                gripper_motor_states[0].position;
++            telemetry_record.follower_gripper_motor_qd_rad_s =
++                gripper_motor_states[0].velocity;
++            telemetry_record.follower_gripper_mit = {
++                hand_cmds[0].kp,
++                hand_cmds[0].kd,
++                hand_cmds[0].q,
++                hand_cmds[0].dq,
++                hand_cmds[0].tau,
++            };
++            telemetry_record.follower_gripper_state_rx_motor_id =
++                feedback.motor_id;
++            telemetry_record.follower_gripper_state_rx_counter =
++                feedback.counter;
++            telemetry_record.follower_gripper_state_rx_generation =
++                feedback.generation;
++            telemetry_record.follower_gripper_state_rx_monotonic_ns =
++                feedback.monotonic_ns;
++            telemetry_record.follower_gripper_state_rx_last_gap_ns =
++                feedback.last_gap_ns;
++            telemetry_record.follower_gripper_state_rx_gap_violation_count =
++                feedback.gap_violation_count;
++        } else {
++            telemetry_record.reference_snapshot_valid = false;
++        }
++        if (joint_arm_states.size() != wam::openarm_bridge::kOpenArmJointCount ||
++            arm_cmds.size() != wam::openarm_bridge::kOpenArmJointCount ||
++            arm_motors.size() != wam::openarm_bridge::kOpenArmJointCount) {
++            telemetry_record.reference_snapshot_valid = false;
++        }
+ 
++        telemetry_record.control_call_begin_monotonic_ns =
++            wam::openarm_bridge::monotonic_now_ns();
+-        openarm_->get_arm().mit_control_all(arm_cmds);
++        const auto arm_tx_status = openarm_->get_arm().mit_control_all(arm_cmds);
++        telemetry_record.arm_tx_expected_frame_count = arm_tx_status.expected_frame_count;
++        telemetry_record.arm_tx_full_frame_write_count = arm_tx_status.full_frame_write_count;
++        telemetry_record.arm_tx_failed_frame_write_count = arm_tx_status.failed_frame_write_count;
++        telemetry_record.arm_call_return_monotonic_ns =
++            wam::openarm_bridge::monotonic_now_ns();
++        telemetry_record.gripper_call_begin_monotonic_ns =
++            wam::openarm_bridge::monotonic_now_ns();
+-        openarm_->get_gripper().mit_control_all(hand_cmds);
++        const auto gripper_tx_status =
++            openarm_->get_gripper().mit_control_all(hand_cmds);
++        telemetry_record.gripper_tx_expected_frame_count = gripper_tx_status.expected_frame_count;
++        telemetry_record.gripper_tx_full_frame_write_count = gripper_tx_status.full_frame_write_count;
++        telemetry_record.gripper_tx_failed_frame_write_count = gripper_tx_status.failed_frame_write_count;
++        telemetry_record.socketcan_tx_enqueue_success =
++            arm_tx_status.all_expected_frames_tx_enqueued() &&
++            gripper_tx_status.all_expected_frames_tx_enqueued();
++        telemetry_record.gripper_call_return_monotonic_ns =
++            wam::openarm_bridge::monotonic_now_ns();
++        telemetry_record.control_call_end_monotonic_ns =
++            telemetry_record.gripper_call_return_monotonic_ns;
++        if (follower_telemetry_ != nullptr) {
++            follower_telemetry_->try_enqueue(telemetry_record);
++        }
+ 
+         openarm_->recv_all(200);
+ 
+@@ -511,4 +632,4 @@
+     }
+ 
+     return vibration_detected;
+-}
+\ No newline at end of file
++}

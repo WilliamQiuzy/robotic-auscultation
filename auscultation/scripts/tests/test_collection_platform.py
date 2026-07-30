@@ -1,0 +1,725 @@
+"""Hardware-free contracts for the collection web control plane."""
+
+from __future__ import annotations
+
+import json
+import sys
+import threading
+import time
+from itertools import count
+from pathlib import Path
+from uuid import UUID
+
+import pytest
+
+SCRIPTS = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(SCRIPTS))
+
+from collection_platform import (  # noqa: E402
+    CollectionPlatform,
+    CollectionState,
+    create_session_directory,
+    make_session_id,
+    reconcile_orphan_diagnostic_sessions,
+)
+
+
+class _Capture:
+    def __init__(self, session_dir: Path) -> None:
+        self.session_dir = Path(session_dir)
+        self.started = 0
+        self.finalized = 0
+        self.aborted: list[str] = []
+        self.events: list[dict] = []
+        self.frames: list[tuple[object, dict]] = []
+
+    def start(self) -> None:
+        self.started += 1
+
+    def record_event(self, payload: dict) -> None:
+        self.events.append(dict(payload))
+
+    def write_frame(self, frame, tracker_output: dict) -> None:  # noqa: ANN001
+        self.frames.append((frame, dict(tracker_output)))
+
+    def finalize(self) -> dict:
+        self.finalized += 1
+        return {"status": "diagnostic_complete", "training_eligible": False}
+
+    def abort(self, reason: str) -> None:
+        self.aborted.append(reason)
+
+
+def _platform(tmp_path: Path, *, blockers=()) -> tuple[CollectionPlatform, list[_Capture]]:
+    captures: list[_Capture] = []
+
+    def factory(session_dir: Path) -> _Capture:
+        capture = _Capture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1", "R2", "R3"],
+        capture_factory=factory,
+        diagnostic_blockers=blockers,
+        production_blockers=("robot-base targets missing",),
+        wall_time_ns=lambda: 1_721_234_567_000_000_123,
+        uuid_factory=lambda: UUID("12345678-1234-5678-1234-567812345678"),
+    )
+    return platform, captures
+
+
+def test_session_directory_is_contained_and_never_reuses_an_existing_path(tmp_path):
+    root = tmp_path / "sessions"
+    with pytest.raises(ValueError, match="session id"):
+        create_session_directory(root, "../escape")
+
+    session = create_session_directory(root, "diagnostic_perception_safe")
+    marker = session / "preserve.me"
+    marker.write_text("original\n")
+
+    with pytest.raises(FileExistsError):
+        create_session_directory(root, session.name)
+
+    assert marker.read_text() == "original\n"
+    assert not (tmp_path / "escape").exists()
+
+
+def test_session_ids_remain_unique_inside_the_same_utc_nanosecond():
+    now_ns = 1_721_234_567_000_000_123
+    first = make_session_id(
+        now_ns=now_ns, uuid_value=UUID("00000000-0000-0000-0000-000000000001")
+    )
+    second = make_session_id(
+        now_ns=now_ns, uuid_value=UUID("00000000-0000-0000-0000-000000000002")
+    )
+
+    assert first != second
+    assert first.startswith("diagnostic_perception_20240717T")
+    assert first.endswith("_000000000001")
+
+
+def test_restart_reconciles_only_unsealed_diagnostic_recording_sessions(tmp_path):
+    root = tmp_path / "sessions"
+    orphan = create_session_directory(
+        root, "diagnostic_perception_20260713T120000000000000Z_000000000001",
+    )
+    (orphan / "manifest.json").write_text(json.dumps({
+        "status": "recording",
+        "training_eligible": False,
+        "production_finalization_permitted": False,
+    }))
+    (orphan / "lifecycle.json").write_text(json.dumps({
+        "state": "FINALIZING", "training_eligible": False,
+    }))
+    untouched = create_session_directory(
+        root, "diagnostic_perception_20260713T120001000000000Z_000000000002",
+    )
+    (untouched / "manifest.json").write_text(json.dumps({
+        "status": "diagnostic_complete", "training_eligible": False,
+    }))
+    (untouched / "DIAGNOSTIC_FINALIZATION.json").write_text("{}")
+
+    reconciled = reconcile_orphan_diagnostic_sessions(
+        root, wall_time_ns=lambda: 1_721_234_567_000_000_123,
+    )
+
+    assert reconciled == [str(orphan)]
+    recovery = json.loads((orphan / "RECOVERY.json").read_text())
+    assert recovery["status"] == "diagnostic_aborted_on_restart"
+    assert recovery["training_eligible"] is False
+    assert json.loads((orphan / "manifest.json").read_text())["status"] == "diagnostic_aborted"
+    assert json.loads((orphan / "lifecycle.json").read_text())["state"] == "ABORTED"
+    assert not (orphan / "DIAGNOSTIC_FINALIZATION.json").exists()
+    assert not (untouched / "RECOVERY.json").exists()
+
+
+def test_restart_reconciliation_recovers_sealed_video_without_deleting_partials(tmp_path):
+    root = tmp_path / "sessions"
+    orphan = create_session_directory(
+        root, "diagnostic_perception_20260713T120000000000000Z_000000000003",
+    )
+    (orphan / "manifest.json").write_text(json.dumps({
+        "status": "recording",
+        "training_eligible": False,
+        "production_finalization_permitted": False,
+    }))
+    (orphan / "lifecycle.json").write_text(json.dumps({
+        "state": "RECORDING", "training_eligible": False,
+    }))
+    segment_dir = orphan / "rgb_segments"
+    segment_dir.mkdir()
+    sealed = segment_dir / "segment_000000.mp4"
+    partial = segment_dir / "segment_000001.inprogress.mp4"
+    sealed.write_bytes(b"sealed")
+    partial.write_bytes(b"partial")
+
+    def recover(session: Path) -> dict:
+        assert session == orphan
+        (session / "rgb.recovered.mp4").write_bytes(b"recovered")
+        return {
+            "status": "recovered_video",
+            "recovered_frame_count": 12,
+            "source_segments": ["rgb_segments/segment_000000.mp4"],
+            "output": "rgb.recovered.mp4",
+        }
+
+    reconciled = reconcile_orphan_diagnostic_sessions(
+        root,
+        wall_time_ns=lambda: 1_721_234_567_000_000_123,
+        video_recoverer=recover,
+    )
+
+    assert reconciled == [str(orphan)]
+    recovery = json.loads((orphan / "RECOVERY.json").read_text())
+    assert recovery["media_recovery"]["status"] == "recovered_video"
+    assert recovery["training_eligible"] is False
+    assert (orphan / "rgb.recovered.mp4").read_bytes() == b"recovered"
+    assert sealed.read_bytes() == b"sealed"
+    assert partial.read_bytes() == b"partial"
+    assert not (orphan / "DIAGNOSTIC_FINALIZATION.json").exists()
+
+
+def test_preflight_failure_is_explicit_and_start_is_rejected(tmp_path):
+    platform, captures = _platform(tmp_path, blockers=("camera stale",))
+
+    assert platform.state is CollectionState.PREFLIGHT_FAILED
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert result["code"] == "invalid_state"
+    assert "camera stale" in result["message"]
+    assert captures == []
+
+
+def test_runtime_preflight_can_arm_only_after_camera_and_model_are_ready(tmp_path):
+    platform, _ = _platform(tmp_path, blockers=("camera/model starting",))
+    assert platform.state_snapshot()["state"] == "PREFLIGHT_FAILED"
+
+    platform.set_diagnostic_blockers([])
+    assert platform.state_snapshot()["state"] == "READY"
+    assert platform.state_snapshot()["diagnostic_blockers"] == []
+
+    platform.set_diagnostic_blockers(["camera stale"])
+    assert platform.state_snapshot()["state"] == "PREFLIGHT_FAILED"
+
+
+def test_start_enters_recording_and_resets_point_progress(tmp_path):
+    platform, captures = _platform(tmp_path)
+    platform.completed[:] = [0, 1]
+    platform.point_index = 2
+    platform.attempt = 8
+
+    result = platform.control("start")
+
+    assert result["ok"] is True
+    assert platform.state is CollectionState.RECORDING
+    assert platform.completed == []
+    assert platform.point_index == 0
+    assert platform.attempt == 1
+    assert captures[0].started == 1
+    assert Path(result["session_dir"]).parent == (tmp_path / "sessions").resolve()
+
+
+def test_redo_preserves_failed_attempt_stays_on_point_and_returns_ack(tmp_path):
+    platform, captures = _platform(tmp_path)
+    assert platform.control("start")["ok"]
+    platform.ingest_frame(
+        object(), {
+            "back_present": True,
+            "initialized": True,
+            "target_valid": True,
+            "frame_index": 41,
+            "points": [{"name": "R1", "status": "TRACKING"}],
+        },
+    )
+
+    result = platform.control("redo")
+
+    assert result["ok"] is True
+    assert result["ack"] == "Redo saved R1 attempt 1; attempt 2 is active"
+    assert platform.point_index == 0
+    assert platform.attempt == 2
+    assert [event["event"] for event in captures[0].events[-2:]] == [
+        "attempt_closed", "attempt_started",
+    ]
+    assert captures[0].events[-2]["outcome"] == "redo"
+    journal = [
+        json.loads(line)
+        for line in (platform.session_dir / "control_journal.jsonl").read_text().splitlines()
+    ]
+    assert any(
+        row["event"] == "attempt_closed"
+        and row["attempt"] == 1
+        and row["outcome"] == "redo"
+        for row in journal
+    )
+
+
+def test_confirm_requires_tracking_but_redo_only_requires_recording(tmp_path):
+    platform, _ = _platform(tmp_path)
+
+    idle = platform.control("confirm")
+    assert idle["ok"] is False
+    assert idle["code"] == "not_recording"
+    idle_redo = platform.control("redo")
+    assert idle_redo["ok"] is False
+    assert idle_redo["code"] == "not_recording"
+
+    assert platform.control("start")["ok"]
+    no_back = platform.control("redo")
+    assert no_back["ok"] is True
+    assert no_back["ack"] == "Redo saved R1 attempt 1; attempt 2 is active"
+    assert platform.attempt == 2
+
+
+def test_redo_reopens_a_previously_confirmed_point_until_it_is_confirmed_again(tmp_path):
+    platform, _ = _platform(tmp_path)
+    assert platform.control("start")["ok"]
+    platform.completed[:] = [0, 2]
+    platform.point_index = 0
+    platform.attempt = 4
+
+    result = platform.control("redo")
+
+    assert result["ok"] is True
+    assert platform.completed == [2]
+    assert platform.point_index == 0
+    assert platform.attempt == 5
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["completed"] == [2]
+
+
+def test_active_point_must_be_present_not_merely_some_other_landmark(tmp_path):
+    platform, _ = _platform(tmp_path)
+    assert platform.control("start")["ok"]
+    platform.ingest_frame(object(), {
+        "back_present": True,
+        "initialized": True,
+        "points": [{"name": "R2", "status": "TRACKING"}],
+    })
+    result = platform.control("confirm")
+    assert result["ok"] is False
+    assert result["code"] == "back_not_tracked"
+
+
+def test_explicit_target_valid_true_cannot_override_missing_active_landmark(tmp_path):
+    platform, _ = _platform(tmp_path)
+    assert platform.control("start")["ok"]
+    platform.ingest_frame(object(), {
+        "back_present": True,
+        "initialized": True,
+        "target_valid": True,
+        "points": [],
+    })
+
+    assert platform.target_valid is False
+    assert platform.control("confirm")["code"] == "back_not_tracked"
+
+
+def test_unknown_action_is_not_reported_as_success(tmp_path):
+    platform, _ = _platform(tmp_path)
+
+    result = platform.control("delete_everything")
+
+    assert result == {
+        "ok": False,
+        "code": "invalid_action",
+        "message": "unknown control action: delete_everything",
+        "state": "READY",
+    }
+
+
+def test_end_is_durable_and_idempotent_after_completion(tmp_path):
+    platform, captures = _platform(tmp_path)
+    platform.control("start")
+
+    first = platform.control("end")
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    second = platform.control("end")
+
+    assert first["ok"] is True and first["state"] == "FINALIZING"
+    assert first["accepted"] is True
+    assert terminal["state"] == "COMPLETE"
+    assert second["ok"] is True and second["idempotent"] is True
+    assert captures[0].finalized == 1
+    closed = [event for event in captures[0].events if event["event"] == "attempt_closed"]
+    assert closed[-1]["outcome"] == "ended_unconfirmed"
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["state"] == "COMPLETE"
+    assert lifecycle["training_eligible"] is False
+    assert lifecycle["capture_mode"] == "diagnostic_perception"
+    assert lifecycle["finalization_active"] is False
+
+
+def test_ingest_uses_the_external_camera_frame_and_never_opens_a_camera(tmp_path):
+    platform, captures = _platform(tmp_path)
+    platform.control("start")
+    frame = object()
+    tracker = {
+        "back_present": True,
+        "initialized": True,
+        "target_valid": True,
+        "frame_index": 9,
+        "points": [{"name": "R1", "status": "TRACKING"}],
+    }
+
+    platform.ingest_frame(frame, tracker)
+
+    assert captures[0].frames == [(frame, tracker)]
+    assert platform.back_present is True
+    assert platform.target_valid is True
+
+
+def test_a_completed_capture_can_start_a_new_unique_session_without_reusing_progress(tmp_path):
+    captures: list[_Capture] = []
+    times = count(1_721_234_567_000_000_123)
+    uuids = iter((
+        UUID("00000000-0000-0000-0000-000000000001"),
+        UUID("00000000-0000-0000-0000-000000000002"),
+    ))
+
+    def factory(session_dir: Path) -> _Capture:
+        capture = _Capture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1", "R2"],
+        capture_factory=factory,
+        wall_time_ns=lambda: next(times),
+        uuid_factory=lambda: next(uuids),
+    )
+    first_start = platform.control("start")
+    platform.completed.append(0)
+    platform.control("end")
+    assert platform.wait_for_terminal(timeout=2.0)["state"] == "COMPLETE"
+
+    second_start = platform.control("start")
+
+    assert second_start["ok"] is True
+    assert second_start["session_dir"] != first_start["session_dir"]
+    assert Path(first_start["session_dir"]).is_dir()
+    assert Path(second_start["session_dir"]).is_dir()
+    assert platform.completed == []
+    assert len(captures) == 2
+
+
+def test_completed_capture_cannot_restart_after_live_preflight_becomes_blocked(tmp_path):
+    platform, captures = _platform(tmp_path)
+    assert platform.control("start")["ok"]
+    assert platform.control("end")["ok"]
+    assert platform.wait_for_terminal(timeout=2.0)["state"] == "COMPLETE"
+
+    platform.set_diagnostic_blockers(["perception model output is not current"])
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert result["code"] == "invalid_state"
+    assert "not current" in result["message"]
+    assert len(captures) == 1
+
+
+def test_partial_capture_start_failure_is_aborted_and_never_reports_recording(tmp_path):
+    captures: list[_Capture] = []
+
+    class FailingCapture(_Capture):
+        def start(self) -> None:
+            super().start()
+            raise RuntimeError("encoder unavailable")
+
+    def factory(session_dir: Path) -> FailingCapture:
+        capture = FailingCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+    )
+
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert result["state"] == "ERROR"
+    assert result["code"] == "action_failed"
+    assert captures[0].aborted and "encoder unavailable" in captures[0].aborted[0]
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["state"] == "ERROR"
+    assert lifecycle["training_eligible"] is False
+    failure = json.loads((platform.session_dir / "START_FAILURE.json").read_text())
+    assert failure["training_eligible"] is False
+    assert "encoder unavailable" in failure["error"]
+    assert platform._journal is None
+
+
+def test_capture_factory_failure_keeps_fail_closed_start_evidence_and_closes_journal(tmp_path):
+    def factory(_session_dir: Path):
+        raise RuntimeError("capture factory exploded")
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+    )
+
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert result["state"] == "ERROR"
+    assert platform.session_dir is not None
+    failure = json.loads((platform.session_dir / "START_FAILURE.json").read_text())
+    assert failure["status"] == "diagnostic_start_failed"
+    assert failure["training_eligible"] is False
+    assert "capture factory exploded" in failure["error"]
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["state"] == "ERROR"
+    assert lifecycle["training_eligible"] is False
+    journal = [
+        json.loads(line)
+        for line in (platform.session_dir / "control_journal.jsonl").read_text().splitlines()
+    ]
+    assert any(row["event"] == "start_failed" for row in journal)
+    assert platform._journal is None
+
+
+def test_terminal_start_error_can_retry_in_a_new_session_without_losing_evidence(tmp_path):
+    calls = 0
+    captures = []
+    uuids = iter((
+        UUID("00000000-0000-0000-0000-000000000101"),
+        UUID("00000000-0000-0000-0000-000000000102"),
+    ))
+
+    def factory(session_dir: Path):
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("transient encoder failure")
+        capture = _Capture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        uuid_factory=lambda: next(uuids),
+    )
+    first = platform.control("start")
+    first_dir = platform.session_dir
+    assert first["state"] == "ERROR"
+    assert (first_dir / "START_FAILURE.json").is_file()
+    assert platform._journal is None
+
+    second = platform.control("start")
+
+    assert second["ok"] is True
+    assert platform.state is CollectionState.RECORDING
+    assert platform.session_dir != first_dir
+    assert (first_dir / "START_FAILURE.json").is_file()
+    assert len(captures) == 1 and captures[0].started == 1
+    platform.abort("test cleanup")
+
+
+def test_end_returns_immediately_while_one_slow_finalizer_exposes_finalizing(tmp_path):
+    entered = threading.Event()
+    release = threading.Event()
+    captures: list[_Capture] = []
+
+    class SlowCapture(_Capture):
+        def finalize(self) -> dict:
+            self.finalized += 1
+            entered.set()
+            if not release.wait(timeout=2.0):
+                raise RuntimeError("test finalizer gate timed out")
+            return {"status": "diagnostic_complete", "training_eligible": False}
+
+    def factory(session_dir: Path) -> SlowCapture:
+        capture = SlowCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+    )
+    assert platform.control("start")["ok"]
+
+    before = time.monotonic()
+    first = platform.control("end")
+    elapsed = time.monotonic() - before
+
+    assert elapsed < 0.1
+    assert first["state"] == "FINALIZING" and first["accepted"] is True
+    assert entered.wait(timeout=0.5)
+    assert platform._finalize_thread.daemon is False
+    assert platform.state_snapshot()["state"] == "FINALIZING"
+    repeated = platform.control("stop")
+    assert repeated["ok"] is True
+    assert repeated["state"] == "FINALIZING"
+    assert repeated["idempotent"] is True
+    assert captures[0].finalized == 1
+
+    release.set()
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    assert terminal["state"] == "COMPLETE"
+    assert captures[0].finalized == 1
+
+
+def test_background_finalization_failure_transitions_to_error_and_end_stays_idempotent(tmp_path):
+    captures: list[_Capture] = []
+
+    class FailingFinalizer(_Capture):
+        def finalize(self) -> dict:
+            self.finalized += 1
+            raise RuntimeError("decode verification failed")
+
+    def factory(session_dir: Path) -> FailingFinalizer:
+        capture = FailingFinalizer(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+    )
+    platform.control("start")
+
+    accepted = platform.control("end")
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    repeated = platform.control("end")
+
+    assert accepted["state"] == "FINALIZING"
+    assert terminal["state"] == "ERROR"
+    assert "decode verification failed" in terminal["error"]
+    assert repeated["ok"] is True
+    assert repeated["state"] == "ERROR"
+    assert repeated["idempotent"] is True
+    assert captures[0].finalized == 1
+
+
+def test_finalize_mapping_cannot_report_complete_without_explicit_complete_status(tmp_path):
+    captures: list[_Capture] = []
+
+    class ForgedCapture(_Capture):
+        def finalize(self) -> dict:
+            self.finalized += 1
+            return {"training_eligible": False}
+
+    def factory(session_dir: Path) -> ForgedCapture:
+        capture = ForgedCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+    )
+    assert platform.control("start")["ok"] is True
+    assert platform.control("end")["state"] == "FINALIZING"
+
+    terminal = platform.wait_for_terminal(timeout=2.0)
+
+    assert terminal["state"] == "ERROR"
+    assert "no complete status" in terminal["error"]
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["state"] == "ERROR"
+    assert lifecycle["finalization"] is None
+    journal = [
+        json.loads(line)
+        for line in (platform.session_dir / "control_journal.jsonl").read_text().splitlines()
+    ]
+    assert not any(row["event"] == "capture_completed" for row in journal)
+    assert captures[0].aborted
+
+
+def test_completion_validator_failure_is_a_hard_gate_before_complete(tmp_path):
+    captures: list[_Capture] = []
+    validations = []
+
+    def factory(session_dir: Path) -> _Capture:
+        capture = _Capture(session_dir)
+        captures.append(capture)
+        return capture
+
+    def reject_tampered_seal(result: dict, session_dir: Path) -> None:
+        validations.append((dict(result), Path(session_dir)))
+        raise RuntimeError("diagnostic seal hash mismatch")
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        completion_validator=reject_tampered_seal,
+    )
+    assert platform.control("start")["ok"] is True
+    assert platform.control("end")["state"] == "FINALIZING"
+
+    terminal = platform.wait_for_terminal(timeout=2.0)
+
+    assert terminal["state"] == "ERROR"
+    assert "diagnostic seal hash mismatch" in terminal["error"]
+    assert validations == [({
+        "status": "diagnostic_complete",
+        "training_eligible": False,
+    }, platform.session_dir)]
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["state"] == "ERROR"
+    assert lifecycle["finalization"] is None
+    assert captures[0].aborted
+
+
+def test_abort_is_idempotent_after_capture_self_abort_and_preserves_first_error(tmp_path):
+    captures = []
+
+    class SelfAbortingCapture(_Capture):
+        def __init__(self, session_dir: Path) -> None:
+            super().__init__(session_dir)
+            self.self_aborted = False
+
+        def record_event(self, payload: dict) -> None:
+            if self.self_aborted:
+                raise AssertionError("must not mirror events after capture self-abort")
+            super().record_event(payload)
+
+        def write_frame(self, frame, tracker_output: dict) -> None:  # noqa: ANN001
+            self.self_aborted = True
+            raise OSError("injected depth fsync failure")
+
+        def abort(self, reason: str) -> None:
+            self.aborted.append(reason)
+            raise RuntimeError("capture is already aborted")
+
+    def factory(session_dir: Path) -> SelfAbortingCapture:
+        capture = SelfAbortingCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+    )
+    assert platform.control("start")["ok"] is True
+    with pytest.raises(RuntimeError, match="capture is already aborted"):
+        platform.ingest_frame(object(), {"frame_index": 1})
+    first_error = platform.last_error
+
+    first = platform.abort("operator sent a second reason")
+    second = platform.abort("operator sent a third reason")
+
+    assert first["ok"] is True and first["state"] == "ABORTED"
+    assert first_error in first["ack"]
+    assert second["ok"] is True and second["idempotent"] is True
+    assert platform.last_error == first_error
+    lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
+    assert lifecycle["state"] == "ABORTED"
+    assert lifecycle["error"] == first_error
+    assert platform._journal is None

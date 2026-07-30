@@ -20,6 +20,26 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # auscultati
 sys.path[:0] = [os.path.join(ROOT, "scripts"), os.path.join(ROOT, "ausc"), os.path.join(ROOT, "ausc", "audio")]
 
 
+def test_segmentation_preserves_short_noncontact_gap_without_boundary_leakage():
+    import session_to_lerobot as conv
+
+    # Two valid contact runs separated by only 400 ms.  The sample at 2.4 s is
+    # the first contact sample of the second run and must not enter the gap.
+    ft = [0.0, 0.5, 1.0, 1.5, 1.9, 2.0, 2.2, 2.4, 2.9, 3.4, 3.9, 4.4]
+    fn = [4.0, 4.0, 4.0, 4.0, 4.0, 0.0, 0.0, 4.0, 4.0, 4.0, 4.0, 4.0]
+
+    spans = conv._segment_spans([], ft, fn, 0.0, 4.4)
+
+    assert [(a, b) for a, b, _ in spans] == [
+        (0.0, 2.0), (2.0, 2.4), (2.4, 4.4),
+    ]
+    assert spans[1][2] == []
+    gap_contact = conv._contact(ft, fn, 2.0, 2.4)
+    assert gap_contact.force_mean_n == 0.0
+    assert gap_contact.force_in_band_frac == 0.0
+    assert gap_contact.gate is False
+
+
 def test_il_pipeline_e2e():
     import numpy as np
     import pandas as pd
@@ -59,9 +79,6 @@ def test_il_pipeline_e2e():
         # 5) trainable: reward-weighted BC converges
         m = bc.smoke(out, epochs=150)
         assert m["drop_x"] > 10, f"BC did not converge (only {m['drop_x']:.0f}x)"
-
-    return True
-
 
 if __name__ == "__main__":
     try:

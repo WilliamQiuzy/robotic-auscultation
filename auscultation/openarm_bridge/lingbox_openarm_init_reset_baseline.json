@@ -1,0 +1,21 @@
+{
+  "schema": "wam_openarm_init_reset_patch_baseline_v1",
+  "source_path": "src/openarm_port/openarm_init.cpp",
+  "source_git_blob_prefix": "7212894",
+  "source_git_blob_sha1": "7212894294871ebda98511c97267ceff40fbb957",
+  "source_sha256": "d9457e6f4220d45a041f276068631d55e2927cdb9f3f32ddf483703e9837a754",
+  "output_git_blob_prefix": "a6bd0b2",
+  "output_git_blob_sha1": "a6bd0b2280bb90af9d0605f7c76cf7ba221eeec9",
+  "output_sha256": "432118769d5ca7b862b2cc629d81f5d9e882b1a8adb27fd9762c67572b8444ad",
+  "required_sequence": [
+    "CallbackMode::IGNORE",
+    "refresh_all()",
+    "recv_all()",
+    "enable_all()",
+    "CallbackMode::PARAM",
+    "RID::MST_ID",
+    "recv_all()",
+    "CallbackMode::STATE",
+    "recv_all()"
+  ]
+}

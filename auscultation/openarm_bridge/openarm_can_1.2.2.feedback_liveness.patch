@@ -1,0 +1,114 @@
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -65,7 +65,9 @@
+            include/openarm/damiao_motor/dm_motor_constants.hpp
+            include/openarm/damiao_motor/dm_motor_control.hpp
+            include/openarm/damiao_motor/dm_motor_device.hpp
+-           include/openarm/damiao_motor/dm_motor_device_collection.hpp)
++           include/openarm/damiao_motor/dm_motor_device_collection.hpp
++           include/openarm/damiao_motor/openarm_can_feedback_liveness.hpp
++           include/openarm/damiao_motor/openarm_can_tx_enqueue_status.hpp)
+   install(
+     TARGETS openarm_can
+     EXPORT openarm_can_export
+--- a/include/openarm/damiao_motor/dm_motor.hpp
++++ b/include/openarm/damiao_motor/dm_motor.hpp
+@@ -19,6 +19,7 @@
+ #include <map>
+ 
+ #include "dm_motor_constants.hpp"
++#include "openarm_can_feedback_liveness.hpp"
+ 
+ namespace openarm::damiao_motor {
+ class Motor {
+@@ -41,6 +42,10 @@ public:
+     uint32_t get_send_can_id() const { return send_can_id_; }
+     uint32_t get_recv_can_id() const { return recv_can_id_; }
+     MotorType get_motor_type() const { return motor_type_; }
++    wam::openarm_bridge::FeedbackLivenessSnapshot
++    get_feedback_liveness_snapshot() const noexcept {
++        return feedback_liveness_.snapshot();
++    }
+ 
+     // Enable status getters
+     bool is_enabled() const { return enabled_; }
+@@ -58,11 +63,17 @@ protected:
+     void set_state_trotor(int trotor);
+     void set_enabled(bool enabled);
+     void set_temp_param(int RID, int val);
++    void observe_successfully_decoded_matching_state(
++        uint32_t decoded_motor_id, std::int64_t monotonic_ns) noexcept {
++        (void)feedback_liveness_.observe_successfully_decoded_matching_state(
++            decoded_motor_id, monotonic_ns);
++    }
+ 
+     // Motor identifiers
+     uint32_t send_can_id_;
+     uint32_t recv_can_id_;
+     MotorType motor_type_;
++    wam::openarm_bridge::FeedbackLivenessTracker feedback_liveness_;
+ 
+     // Enable status
+     bool enabled_;
+--- a/src/openarm/damiao_motor/dm_motor.cpp
++++ b/src/openarm/damiao_motor/dm_motor.cpp
+@@ -23,6 +23,7 @@ Motor::Motor(MotorType motor_type, uint32_t send_can_id, uint32_t recv_can_id)
+     : send_can_id_(send_can_id),
+       recv_can_id_(recv_can_id),
+       motor_type_(motor_type),
++      feedback_liveness_(recv_can_id),
+       enabled_(false),
+       state_q_(0.0),
+       state_dq_(0.0),
+--- a/src/openarm/damiao_motor/dm_motor_device.cpp
++++ b/src/openarm/damiao_motor/dm_motor_device.cpp
+@@ -14,12 +14,23 @@
+ 
+ #include <cmath>
+ #include <iostream>
++#include <time.h>
+ #include <openarm/damiao_motor/dm_motor.hpp>
+ #include <openarm/damiao_motor/dm_motor_constants.hpp>
+ #include <openarm/damiao_motor/dm_motor_control.hpp>
+ #include <openarm/damiao_motor/dm_motor_device.hpp>
+ 
+ namespace openarm::damiao_motor {
++namespace {
++std::int64_t state_rx_monotonic_now_ns() noexcept {
++    ::timespec now{};
++    if (::clock_gettime(CLOCK_MONOTONIC, &now) != 0) {
++        return 0;
++    }
++    return static_cast<std::int64_t>(now.tv_sec) * 1'000'000'000LL +
++           static_cast<std::int64_t>(now.tv_nsec);
++}
++}  // namespace
+ 
+ DMCANDevice::DMCANDevice(Motor& motor, canid_t recv_can_mask, bool use_fd)
+     : canbus::CANDevice(motor.get_send_can_id(), motor.get_recv_can_id(), recv_can_mask, use_fd),
+@@ -50,6 +61,9 @@ void DMCANDevice::callback(const can_frame& frame) {
+                 if (frame.can_id == motor_.get_recv_can_id() && result.valid) {
+                     motor_.update_state(result.position, result.velocity, result.torque,
+                                         result.t_mos, result.t_rotor);
++                    motor_.observe_successfully_decoded_matching_state(
++                        static_cast<std::uint32_t>(frame.can_id),
++                        state_rx_monotonic_now_ns());
+                 }
+             }
+             break;
+@@ -76,12 +90,15 @@ void DMCANDevice::callback(const canfd_frame& frame) {
+     if (frame.can_id != motor_.get_recv_can_id()) {
+         std::cerr << "WARNING: CANFD FRAME ID DOES NOT MATCH MOTOR ID" << std::endl;
+         return;
+     }
+ 
+     std::vector<uint8_t> data = get_data_from_frame(frame);
+     if (callback_mode_ == STATE) {
+         StateResult result = CanPacketDecoder::parse_motor_state_data(motor_, data);
+         if (result.valid) {
+             motor_.update_state(result.position, result.velocity, result.torque, result.t_mos,
+                                 result.t_rotor);
++            motor_.observe_successfully_decoded_matching_state(
++                static_cast<std::uint32_t>(frame.can_id),
++                state_rx_monotonic_now_ns());
+         }

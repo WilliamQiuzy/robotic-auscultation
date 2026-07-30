@@ -3,10 +3,11 @@
 Assembles (s, a, r, s', done) transitions from a set of converted LeRobot episodes and does two real
 offline-RL fits: (1) a value function V(s) regressed to Monte-Carlo returns, (2) a Q(s,a) fit by TD.
 If both learn and the value tracks the reward structure, the format has everything offline RL (IQL/
-CQL/AWAC/TD3+BC) needs. State fuses the modalities: arm joints + magnetic contact force + audio Q
-(video is a sidecar a vision encoder would add). docs/audio_reward_design.md.
+CQL/AWAC/TD3+BC) needs. State contains causal arm joints + current contact force; audio-derived
+quality remains an outcome/reward sidecar rather than leaking into observations. A vision encoder
+can add the canonical video stream. See docs/audio_reward_design.md.
 
-    python scripts/rl_readiness_check.py --dir /tmp/rl_ds        # dir of lerobot_ep*/frames.parquet
+    python scripts/rl_readiness_check.py --dir /tmp/rl_ds        # canonical LeRobot dataset root
 """
 from __future__ import annotations
 
@@ -20,37 +21,84 @@ import pandas as pd
 GAMMA = 0.99
 
 
-def _episode(d: str):
-    df = pd.read_parquet(os.path.join(d, "frames.parquet"))
-    joints = np.array(df["observation.state"].tolist(), np.float32)                 # ARM (7)
-    fga = df[["observation.contact_force_n", "observation.contact_gate",
-              "observation.q_usable"]].fillna(0).to_numpy(np.float32)               # FORCE + AUDIO-Q (3)
-    s = np.concatenate([joints, fga], 1)                                            # 10-d multimodal state
-    a = np.array(df["action"].tolist(), np.float32)                                 # ARM action (7)
-    r = df["reward.weight"].fillna(0).to_numpy(np.float32)                          # segment gate*Q
-    return s, a, r
+def _vectors(series, dtype=np.float32):  # noqa: ANN001
+    return np.stack([np.asarray(value, dtype=dtype).reshape(-1) for value in series])
+
+
+def _scalars(series, dtype=np.float32):  # noqa: ANN001
+    return np.asarray([
+        np.asarray(value).reshape(-1)[0] for value in series
+    ], dtype=dtype)
+
+
+def transitions_from_dataframe(df: pd.DataFrame):
+    """Build causal transitions, resetting returns/next-state at every done boundary."""
+    forbidden = {"observation.contact_gate", "observation.q_usable"}.intersection(df.columns)
+    if forbidden:
+        raise ValueError(f"future-derived outcome fields cannot be observations: {sorted(forbidden)}")
+    required = {
+        "observation.state", "observation.contact_force_n",
+        "observation.contact_force_valid", "observation.contact_force_age_s",
+        "action", "next.reward", "next.done",
+    }
+    missing = sorted(required.difference(df.columns))
+    if missing:
+        raise ValueError(f"canonical v2 frames missing columns: {missing}")
+    groups = (df.groupby("episode_index", sort=False) if "episode_index" in df.columns
+              else [(0, df)])
+    chunks = []
+    for _, episode in groups:
+        joints = _vectors(episode["observation.state"])
+        force = _scalars(episode["observation.contact_force_n"])[:, None]
+        valid = _scalars(episode["observation.contact_force_valid"], bool)
+        age = _scalars(episode["observation.contact_force_age_s"])
+        if not valid.all() or np.any(age < 0) or np.any(age > 0.050 + 1e-9):
+            raise ValueError("canonical force alignment is invalid or older than 50 ms")
+        state = np.concatenate([joints, force], axis=1)
+        action = _vectors(episode["action"])
+        reward = _scalars(episode["next.reward"])
+        done = _scalars(episode["next.done"], bool)
+        if not done[-1]:
+            raise ValueError("each canonical episode must end with next.done=true")
+        returns = np.zeros(len(state), np.float32)
+        acc = 0.0
+        for i in range(len(state) - 1, -1, -1):
+            acc = float(reward[i]) + GAMMA * acc * (0.0 if done[i] else 1.0)
+            returns[i] = acc
+        next_state = np.stack([
+            state[i] if done[i] or i + 1 == len(state) else state[i + 1]
+            for i in range(len(state))
+        ])
+        chunks.append((state, action, reward, next_state, done.astype(np.float32),
+                       returns, reward > 0.0))
+    return tuple(np.concatenate([chunk[i] for chunk in chunks], axis=0) for i in range(7))
+
+
+def _frame_paths(directory: str) -> list[str]:
+    direct = os.path.join(directory, "frames.parquet")
+    if os.path.isfile(direct):
+        return [direct]
+    return sorted(glob.glob(os.path.join(directory, "data", "chunk-*", "episode_*.parquet")))
 
 
 def build(dirs: list[str]):
-    S, A, R, Sn, Dn, G, gate = [], [], [], [], [], [], []
-    for d in dirs:
-        s, a, r = _episode(d)
-        gcol = pd.read_parquet(os.path.join(d, "frames.parquet"))["observation.contact_gate"].to_numpy()
-        n = len(s); g = np.zeros(n, np.float32); acc = 0.0
-        for t in range(n - 1, -1, -1):
-            acc = r[t] + GAMMA * acc; g[t] = acc                                    # Monte-Carlo return
-        for t in range(n):
-            S.append(s[t]); A.append(a[t]); R.append(r[t]); G.append(g[t])
-            Sn.append(s[t + 1] if t + 1 < n else s[t]); Dn.append(float(t + 1 == n)); gate.append(gcol[t])
-    f = lambda x: np.asarray(x, np.float32)
-    return f(S), f(A), f(R), f(Sn), f(Dn), f(G), np.asarray(gate, bool)
+    chunks = []
+    for directory in dirs:
+        paths = _frame_paths(directory)
+        if not paths:
+            raise FileNotFoundError(f"no LeRobot parquet frames under {directory}")
+        for path in paths:
+            chunks.append(transitions_from_dataframe(pd.read_parquet(path)))
+    if not chunks:
+        raise ValueError("no canonical episodes found")
+    return tuple(np.concatenate([chunk[i] for chunk in chunks], axis=0) for i in range(7))
 
 
-def main(dirs):
+def main(dirs) -> bool:  # noqa: ANN001
     import torch
     import torch.nn as nn
     S, A, R, Sn, Dn, G, gate = build(dirs)
-    print(f"episodes={len(dirs)}  transitions={len(S)}  state_dim={S.shape[1]} (7 arm + force + gate + audioQ)"
+    print(f"datasets={len(dirs)}  transitions={len(S)}  state_dim={S.shape[1]} (arm + current force)"
           f"  action_dim={A.shape[1]}  video=sidecar rgb.mp4")
     mu, sd = S.mean(0), S.std(0) + 1e-6
     Sn_ = (S - mu) / sd; Snn = (Sn - mu) / sd
@@ -88,11 +136,22 @@ def main(dirs):
     print(f"\nRL-READY: {'YES' if ok else 'NO'} — (s,a,r,s',done) well-formed; V(s) learns the reward "
           f"(R2={r2:.2f}, separates good/bad {vg:.0f} vs {vb:.0f}); Q(s,a) learns the action-value "
           f"(R2={qr2:.2f}). Offline RL (IQL/CQL/AWAC/TD3+BC) can consume this format.")
+    return bool(ok)
+
+
+def cli(argv=None) -> int:  # noqa: ANN001
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dir", default="/tmp/rl_ds")
+    a = ap.parse_args(argv)
+    if _frame_paths(a.dir):
+        dirs = [a.dir]
+    else:
+        dirs = sorted(
+            candidate for candidate in glob.glob(os.path.join(a.dir, "lerobot_ep*"))
+            if _frame_paths(candidate)
+        )
+    return 0 if main(dirs) else 1
 
 
 if __name__ == "__main__":
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dir", default="/tmp/rl_ds")
-    a = ap.parse_args()
-    dirs = sorted(glob.glob(os.path.join(a.dir, "lerobot_ep*")))
-    main(dirs)
+    raise SystemExit(cli())

@@ -41,3 +41,11 @@ data/dataset/*/            # 各数据集子目录(图+iuv, GB级; pod上重建)
 sam-3d-body-dinov3/        # 第三方大模型仓
 server_backups/            # 服务器备份(GB级)
 docs/runs/                 # 训练run日志/权重(大)
+
+# logs + build/large binaries (keep source-only; avoid packfile blobs)
+Log/
+MUJOCO_LOG.TXT
+*.pt
+*.pth
+*.npy
+*.mp4

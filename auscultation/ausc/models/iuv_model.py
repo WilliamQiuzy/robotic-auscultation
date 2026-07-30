@@ -7,6 +7,9 @@
 
 监督: part 用交叉熵(含背景), UV 用 masked Smooth-L1(仅前景)。这与 DensePose chart 头一致。
 """
+import os
+from pathlib import Path
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -14,12 +17,57 @@ import torch.nn.functional as F
 N_PARTS = 25  # 0=背景 + 24 DensePose 身体块
 
 
+def _load_dinov2_backbone(name: str):
+    offline = os.environ.get("AUSC_OFFLINE_RUNTIME")
+    if offline is None:
+        return torch.hub.load("facebookresearch/dinov2", name)
+    if offline != "1":
+        raise RuntimeError("AUSC_OFFLINE_RUNTIME must be exactly '1' when set")
+    if name != "dinov2_vitb14":
+        raise RuntimeError("offline runtime is pinned to dinov2_vitb14")
+    repository = os.environ.get("AUSC_DINOV2_REPO")
+    if not repository:
+        raise RuntimeError("AUSC_DINOV2_REPO is required in offline runtime mode")
+    checkpoint = os.environ.get("AUSC_DINOV2_CHECKPOINT")
+    if not checkpoint:
+        raise RuntimeError("AUSC_DINOV2_CHECKPOINT is required in offline runtime mode")
+    torch_home = os.environ.get("TORCH_HOME")
+    if not torch_home:
+        raise RuntimeError("TORCH_HOME is required in offline runtime mode")
+
+    torch_home_path = Path(torch_home)
+    repository_path = Path(repository)
+    checkpoint_path = Path(checkpoint)
+    expected_repository = torch_home_path / "hub" / "facebookresearch_dinov2_main"
+    expected_checkpoint = torch_home_path / "hub" / "checkpoints" / "dinov2_vitb14_pretrain.pth"
+    if (
+        not torch_home_path.is_absolute()
+        or repository_path != expected_repository
+        or checkpoint_path != expected_checkpoint
+    ):
+        raise RuntimeError("DINO assets must use the release-local torch cache layout")
+    required_files = (
+        repository_path / "hubconf.py",
+        repository_path / "dinov2" / "__init__.py",
+        checkpoint_path,
+    )
+    if (
+        torch_home_path.is_symlink()
+        or not torch_home_path.is_dir()
+        or repository_path.is_symlink()
+        or not repository_path.is_dir()
+        or any(path.is_symlink() or not path.is_file() for path in required_files)
+    ):
+        raise RuntimeError("release-local DINO repository/checkpoint is incomplete or unsafe")
+    return torch.hub.load(str(repository_path), name, pretrained=True, source="local")
+
+
 # ── 编码器(可插拔)──────────────────────────────────────────────
 class DinoV2Encoder(nn.Module):
     """DINOv2 ViT 主干(torch.hub 加载), 输出 patch 特征图 (B,C,h,w)。patch=14。"""
     def __init__(self, name: str = "dinov2_vitb14", frozen: bool = True):
         super().__init__()
-        self.backbone = torch.hub.load("facebookresearch/dinov2", name)
+        self.backbone = _load_dinov2_backbone(name)
         self.embed_dim = self.backbone.embed_dim
         self.patch = 14
         self.frozen = frozen

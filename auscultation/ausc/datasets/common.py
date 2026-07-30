@@ -8,7 +8,7 @@
      "region":"front"|"back"}
 再由 `augment_once` 施加【随机组合】的增强, 由 `write_sample` 落盘 + 出 manifest 行。
 
-增强编排(匹配第三人称固定相机 + 实验室 WidowX/Trossen 桌面侧装臂的部署分布):
+增强编排(匹配第三人称固定相机 + 实验室 OpenArm 桌面侧装臂的部署分布):
   几何  perspective_warp 透视抖动 或 _rotate 对称小角度 ±8°(二选一)
         hflip+LR_SWAP 水平翻转换 L/R —— 仅后背(肺双侧对称), 前胸心点不对称禁翻
         crop_to_framing 取景 F1远/F2中/F3近(正方形真像素裁剪, 不补边)

@@ -1,0 +1,45 @@
+--- a/src/openarm_port/openarm_init.cpp
++++ b/src/openarm_port/openarm_init.cpp
+@@ -15,6 +15,7 @@
+ #include "openarm_init.hpp"
+ 
+ #include "../openarm_constants.hpp"
++#include <openarm/damiao_motor/dm_motor_constants.hpp>
+ 
+ namespace openarm_init {
+ 
+@@ -54,8 +55,12 @@ void OpenArmInitializer::initialize_(openarm::can::socket::OpenArm *openarm,
+     // Initialize gripper motor
+     openarm->init_gripper_motor(config.gripper_motor_type, config.gripper_send_can_id,
+                                 config.gripper_recv_can_id);
+ 
+-    // Set callback mode for all motors
+-    openarm->set_callback_mode_all(openarm::damiao_motor::CallbackMode::STATE);
++    // Full motor reset (mirrors comm_test) so init self-recovers motors left stuck in a
++    // non-reporting state by a previous process/crash. Without the IGNORE->refresh and
++    // PARAM->query preludes, a stuck motor stays silent (get_position()==0) even after STATE.
++    openarm->set_callback_mode_all(openarm::damiao_motor::CallbackMode::IGNORE);
++    openarm->refresh_all();
++    openarm->recv_all();
+ 
+     if (enable_debug) {
+@@ -65,8 +70,19 @@ void OpenArmInitializer::initialize_(openarm::can::socket::OpenArm *openarm,
+     // Enable all motors with appropriate delays
+     openarm->enable_all();
+     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+     openarm->recv_all();
+     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+ 
++    // Query param (resets the reporting path) then return to STATE so get_position() works.
++    openarm->set_callback_mode_all(openarm::damiao_motor::CallbackMode::PARAM);
++    openarm->query_param_all(static_cast<int>(openarm::damiao_motor::RID::MST_ID));
++    std::this_thread::sleep_for(std::chrono::milliseconds(100));
++    openarm->recv_all();
++    std::this_thread::sleep_for(std::chrono::milliseconds(100));
++
++    openarm->set_callback_mode_all(openarm::damiao_motor::CallbackMode::STATE);
++    std::this_thread::sleep_for(std::chrono::milliseconds(50));
++    openarm->recv_all();
++
+     // Print motor counts for verification
+     if (enable_debug) {

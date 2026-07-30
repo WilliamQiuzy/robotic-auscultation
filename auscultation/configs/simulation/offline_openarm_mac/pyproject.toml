@@ -1,0 +1,17 @@
+[project]
+name = "offline-openarm-mac"
+version = "0.1.0"
+requires-python = "==3.11.*"
+dependencies = [
+    "numpy==2.4.2",
+    "mujoco==3.10.0",
+    "usd-core==24.8",
+    "trimesh==4.12.2",
+    "pycollada==0.9.3",
+    "rtree==1.4.1",
+    "scipy==1.17.1",
+    "opencv-python-headless==5.0.0.93",
+    "imageio==2.37.3",
+    "imageio-ffmpeg==0.6.0",
+    "pytest==9.1.1",
+]

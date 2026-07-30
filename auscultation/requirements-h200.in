@@ -1,0 +1,31 @@
+# WAM-core H200 training/runtime inputs only.
+# Target: CPython 3.12, Linux x86_64, CUDA 12.8.  openpi is intentionally
+# excluded: its upstream source and environment are a separate release boundary.
+--index-url https://pypi.org/simple
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+# LeRobot dataset reader contract and CUDA/PyTorch stack.
+lerobot==0.3.3
+torch==2.7.1
+torchvision==0.22.1
+torchaudio==2.7.1
+
+# Converted-dataset loading and reward-weighted BC smoke path.
+numpy==2.2.6
+pandas==2.2.3
+pyarrow==20.0.0
+
+# Audio quality, AST embedding, and preference-reward paths.
+scipy==1.15.3
+soundfile==0.13.1
+librosa==0.11.0
+transformers==4.51.3
+scikit-learn==1.6.1
+joblib==1.5.0
+
+# Perception training/evaluation and synthetic/SMPL data paths.
+opencv-python-headless==4.10.0.84
+pillow==11.2.1
+matplotlib==3.10.3
+smplx==0.1.28
+trimesh==4.6.8

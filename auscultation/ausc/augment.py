@@ -194,7 +194,7 @@ def occlude_robot_arm(img, target_uv, rng=None):
     rng = rng or np.random
     img = img.copy(); H, W = img.shape[:2]
     tx, ty = int(target_uv[0]), int(target_uv[1])
-    # 桌面侧装机械臂从【右下方】够向听诊点(实验室 WidowX/Trossen 布局), 不从上方下来
+    # 桌面侧装机械臂从【右下方】够向听诊点(实验室 OpenArm 布局), 不从上方下来
     if rng.random() < 0.65:                                              # 右下角进
         sx = int(rng.uniform(0.62, 1.0) * W); sy = H - 1
     else:                                                                # 右侧偏下进
