@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import importlib.util
+import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -571,3 +573,170 @@ def test_recorder_requires_independent_channels(tmp_path):
             point_names=POINT_NAMES,
             perception_channel=same, independent_channel=same,
         )
+
+
+# --- ProductionEvidenceSink (geometry + quality composition) ------------------
+
+_FORCE_FEEDBACK = Path(__file__).resolve().parents[4] / "mechanical_sensor" / "force_feedback"
+sys.path.insert(0, str(_FORCE_FEEDBACK))
+import force_capture  # noqa: E402
+import force_sensor  # noqa: E402
+
+from ausc.perception.production_evidence_sink import ProductionEvidenceSink  # noqa: E402
+from ausc.realtime_q import verify_quality_packet_log  # noqa: E402
+
+_Q_MODEL_SHA = "a" * 64
+_Q_MODEL_RELEASE = "clinical-q-capture-test-" + _Q_MODEL_SHA[:20]
+_Q_CAL_SHA = "c" * 64
+_Q_POLICY = {
+    "schema_version": "wam_quality_policy_v1",
+    "policy_id": "clinical-q-capture-test-v1",
+    "force_band_n": [3.0, 5.0],
+    "window_s": 0.25,
+    "ema": 0.5,
+    "max_audio_age_s": 0.2,
+    "max_inference_age_s": 0.5,
+    "max_force_age_s": 0.2,
+    "min_packets_for_receipt": 2,
+    "output_contract": {
+        "model_role": "clinical_usability_q",
+        "output_semantics": "class_probability",
+        "positive_class": "usable",
+        "calibration": {
+            "method": "embedded_in_model",
+            "release_id": "clinical-q-calibration-test-" + _Q_CAL_SHA[:20],
+            "sha256": _Q_CAL_SHA,
+        },
+        "transform_to_p_usable": "identity",
+        "output_range": [0.0, 1.0],
+    },
+}
+
+
+class _PoseStub:
+    def __init__(self):
+        self.rotation_camera_from_patient = np.eye(3, dtype=np.float64)
+        self.translation_camera_from_patient_m = np.zeros(3, dtype=np.float64)
+        self.covariance_se3 = np.diag(
+            [3e-4, 3e-4, 3e-4, 1e-4, 1e-4, 1e-4]
+        ).astype(np.float64)
+
+    def camera_from_patient(self, point):
+        return self.rotation_camera_from_patient @ np.asarray(
+            point, dtype=np.float64
+        ) + self.translation_camera_from_patient_m
+
+
+def _write_quality_force_csv(tmp_path: Path) -> None:
+    recorder = force_capture.ForceCaptureRecorder(
+        tmp_path, t0=7.2,
+        calibration_identity={"sha256": "e" * 64, "calibrated": True,
+                              "source_name": "hall-calibration.json"},
+        device_identity={"port": "/dev/serial/by-id/usb-RP2040-quality-test",
+                         "baud": 115200, "usb_vid": "2e8a", "usb_pid": "0005",
+                         "serial_number": "quality-test"},
+        max_device_gap_ms=400.0, max_host_gap_ms=400.0,
+    )
+    recorder.start()
+    for index, inference_t in enumerate((7.25, 7.55, 7.85)):
+        recorder.submit(force_sensor.ForceSample(
+            t=inference_t - 0.05, raw=31_000 + index, hall_v=1.56 + index * 0.001,
+            displacement_mm=1.20 + index * 0.01, force_n=4.0, status="OK",
+            device_t_ms=100.0 + index * 300.0,
+        ))
+    recorder.finish(t_end=7.8)
+
+
+def _q_window(sequence, value, inference_t):
+    samples = np.linspace(value, value + 0.01, 4_000, dtype=np.float32)
+    window_index = sequence - 30
+    return SimpleNamespace(
+        samples=samples, sr=16_000, t_start=inference_t - 0.25, t_end=inference_t,
+        status="OK",
+        raw_source={
+            "source_channel": 1,
+            "source_sample_start": window_index * 12_000,
+            "source_sample_end": (window_index + 1) * 12_000,
+            "source_sample_rate": 48_000,
+            "resampler_identity": {"algorithm": "polyphase_fir_v1",
+                                   "input_sample_rate": 48_000,
+                                   "output_sample_rate": 16_000},
+        },
+    )
+
+
+def _q_force(sequence, inference_t):
+    return SimpleNamespace(
+        t=inference_t - 0.05, raw=31_000 + (sequence - 30),
+        hall_v=1.56 + (sequence - 30) * 0.001,
+        displacement_mm=1.20 + (sequence - 30) * 0.01, force_n=4.0, status="OK",
+        device_t_ms=100.0 + (sequence - 30) * 300.0,
+    )
+
+
+def _sink(tmp_path):
+    return ProductionEvidenceSink(
+        tmp_path,
+        intrinsics=_intrinsics(),
+        geometry_profile=_profile(),
+        point_names=POINT_NAMES,
+        perception_channel=_PERCEPTION_CHANNEL,
+        independent_channel=_INDEPENDENT_CHANNEL,
+        quality_scorer=lambda samples, _sr: float(np.mean(samples)),
+        quality_model_release_id=_Q_MODEL_RELEASE,
+        quality_model_sha256=_Q_MODEL_SHA,
+        quality_policy=_Q_POLICY,
+    )
+
+
+def test_sink_records_both_channels_into_one_promotable_session(tmp_path):
+    sink = _sink(tmp_path)
+    n = len(POINT_NAMES)
+    pose = _PoseStub()
+    template = _points(0.05)
+
+    # Geometry: 3 frames, sink owns the sequence + applies both adapters.
+    for i in range(3):
+        evidence = _patient_evidence(
+            frame_index=10 + i,
+            camera_host_monotonic_ns=1_050_000_000 + i * 1_000_000,
+        )
+        sink.record_geometry_frame(
+            evidence,
+            episode_id=EPISODE,
+            perception_points_xyz_camera_m=_points(0.10 * i),
+            perception_position_std_m=np.full(n, 0.01),
+            patient_pose_packet=pose,
+            template_points_patient_m=template,
+        )
+    # Quality: 3 windows.
+    for sequence, value, inference_t in ((30, 0.1, 7.25), (31, 0.2, 7.55), (32, 0.3, 7.85)):
+        sink.record_quality_window(
+            audio_window=_q_window(sequence, value, inference_t),
+            force_sample=_q_force(sequence, inference_t),
+            inference_sequence=sequence,
+            inference_monotonic_s=inference_t,
+            observed_monotonic_s=inference_t + 0.01,
+        )
+    _write_quality_force_csv(tmp_path)
+
+    assert sink.geometry_frame_count == 3
+    assert sink.quality_window_count == 3
+    geo_receipt = sink.finalize_geometry()
+    sink.finalize_quality(now_monotonic_s=7.9)
+
+    # Both channels land in one session and both verify + replay.
+    from ausc.perception.replay_runner import (
+        reconstruct_geometry_items,
+        reconstruct_quality_items,
+    )
+
+    geo_entries, verified = verify_geometry_packet_log_files(tmp_path)
+    assert len(geo_entries) == 3 and verified == geo_receipt
+    assert verify_quality_packet_log(tmp_path)["packet_count"] == 3
+
+    geo_items, geo_identity = reconstruct_geometry_items(tmp_path)
+    q_items, q_identity = reconstruct_quality_items(tmp_path)
+    assert len(geo_items) == 3 and len(q_items) == 3
+    assert geo_identity["release_id"] == _PERCEPTION_CHANNEL.release_id
+    assert q_identity["release_id"] == _Q_MODEL_RELEASE
