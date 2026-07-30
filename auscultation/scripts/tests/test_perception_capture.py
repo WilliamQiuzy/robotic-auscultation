@@ -365,6 +365,9 @@ def _write_valid_quality_artifacts(tmp_path: Path) -> tuple[dict, dict, dict]:
         (32, 0.3, 7.85),
     ):
         samples = np.linspace(value, value + 0.01, 4_000, dtype=np.float32)
+        # 4_000 window samples @ 16 kHz = 0.25 s = 12_000 source samples @ 48 kHz.
+        # Production Q now binds every window to its exact source PCM16 range.
+        window_index = sequence - 30
         quality.update(
             audio_window=SimpleNamespace(
                 samples=samples,
@@ -372,6 +375,17 @@ def _write_valid_quality_artifacts(tmp_path: Path) -> tuple[dict, dict, dict]:
                 t_start=inference_t - 0.25,
                 t_end=inference_t,
                 status="OK",
+                raw_source={
+                    "source_channel": 1,
+                    "source_sample_start": window_index * 12_000,
+                    "source_sample_end": (window_index + 1) * 12_000,
+                    "source_sample_rate": 48_000,
+                    "resampler_identity": {
+                        "algorithm": "polyphase_fir_v1",
+                        "input_sample_rate": 48_000,
+                        "output_sample_rate": 16_000,
+                    },
+                },
             ),
             force_sample=SimpleNamespace(
                 t=inference_t - 0.05,

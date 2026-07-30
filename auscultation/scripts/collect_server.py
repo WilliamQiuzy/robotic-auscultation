@@ -1116,6 +1116,13 @@ class Collector:
         self._stop = threading.Event()
         self._thread = None
         self._loop_error = None
+        # Health epoch: the loop bumps this each time the strict runtime liveness
+        # transitions from healthy to degraded.  Start captures it before arming
+        # and re-compares it at the final arm, so a worker that dies at any point
+        # during session creation / capture.start() / sensor init forces a full
+        # rollback instead of arming an empty recording.
+        self._health_generation = 0
+        self._last_runtime_strict_ok = True
         self._cam = None
         self._audio = None
         self._audio_hardware = None
@@ -2176,6 +2183,22 @@ class Collector:
             "force": force,
         }
 
+    def _observe_runtime_health(self, *, runtime=None):
+        """Advance the health epoch on a healthy->degraded edge; return strict_ok.
+
+        Called every loop iteration.  Edge-triggering means a worker that dies
+        and is then restarted still bumps the generation, so a Start in progress
+        during that flap is forced to roll back even though liveness has since
+        recovered by the final check.
+        """
+
+        runtime = self._runtime_health_snapshot() if runtime is None else runtime
+        strict = runtime.get("strict_ok") is True
+        if not strict and self._last_runtime_strict_ok:
+            self._health_generation += 1
+        self._last_runtime_strict_ok = strict
+        return strict
+
     def _device_start_rejection(self, *, runtime=None):
         """Collector-owned device *liveness* precondition for Start.
 
@@ -2362,6 +2385,10 @@ class Collector:
                         "message": arm_rejection,
                         "state": self.platform.state.value,
                     }
+                # Snapshot the health epoch here, at the last known-healthy point,
+                # so the final arm can prove nothing degraded while the session,
+                # capture, and sensors were being brought up.
+                health_gen_before = self._health_generation
                 if not self._ingress_worker.begin_interval():
                     self._clear_back_confirmation("START_FAILED")
                     return {
@@ -2420,6 +2447,21 @@ class Collector:
                         self._robot_error = reason
                         return self._fail_start_after_platform(
                             reason, code="robot_start_not_authorized",
+                        )
+                    # Final liveness arbitration, immediately before latching the
+                    # camera delivery boundary (the true arm).  If a worker died
+                    # at any point during session creation, capture.start(), or
+                    # Hall/robot init — even a flap that has since recovered — the
+                    # health epoch has advanced or liveness is currently degraded,
+                    # so roll the entire Start back rather than arm an empty or
+                    # gap-corrupted recording.
+                    if (
+                        self._device_start_rejection() is not None
+                        or self._health_generation != health_gen_before
+                    ):
+                        return self._fail_start_after_platform(
+                            "runtime health degraded during Start arm",
+                            code="runtime_degraded_during_start",
                         )
                     boundary_camera_index = int(self._last_camera_index)
                     boundary_frame_t = None
@@ -3723,6 +3765,9 @@ class Collector:
         else:
             self._attempt_camera_open()
         while not self._stop.is_set():
+            # Advance the health epoch on any liveness degradation so an
+            # in-flight Start can detect a worker that died mid-arm.
+            self._observe_runtime_health()
             if self.require_force:
                 self._force_snapshot()
             self._consume_preview_result()

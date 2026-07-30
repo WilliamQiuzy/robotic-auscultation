@@ -20,6 +20,23 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Protocol
 
 
+def _is_diagnostic_capture_cancelled(exc: BaseException) -> bool:
+    """True iff ``exc`` is a cooperative diagnostic-capture cancellation.
+
+    The platform is generic over the ``_Capture`` protocol, so it does not import
+    the concrete writer at module load.  ``DiagnosticCaptureCancelled`` is looked
+    up lazily (matching the other lazy ``perception_capture`` import in this file)
+    and falls back to a defensive name match if the symbol cannot be imported, so
+    a cancellation is never misclassified as a hard finalization error.
+    """
+
+    try:
+        from perception_capture import DiagnosticCaptureCancelled
+    except Exception:
+        return type(exc).__name__ == "DiagnosticCaptureCancelled"
+    return isinstance(exc, DiagnosticCaptureCancelled)
+
+
 class CollectionState(str, Enum):
     IDLE = "IDLE"
     PREFLIGHT_FAILED = "PREFLIGHT_FAILED"
@@ -624,8 +641,21 @@ class CollectionPlatform:
                         self._write_lifecycle()
                     raise
 
+    def _commit_aborted_locked(self, reason: str) -> None:
+        """Drive the ABORTED terminal under the held lock (single writer)."""
+
+        self.state = CollectionState.ABORTED
+        self._finalization_active = False
+        self.action_ack = f"Diagnostic capture aborted: {reason}"
+        self.last_error = reason
+        self.revision += 1
+        self._emit("capture_aborted", reason=reason, mirror_capture=False)
+        self._write_lifecycle()
+        self._close_journal()
+
     def abort(self, reason: str) -> dict:
         thread_to_join = None
+        pending_reason = None
         with self._lock:
             if self.state is CollectionState.ABORTED:
                 return self._success(
@@ -640,57 +670,85 @@ class CollectionPlatform:
                 if self.state is CollectionState.ERROR and self.last_error
                 else str(reason)
             )
-            # Capture may already have fail-closed itself inside write_frame.
-            # Never mirror an abort event into a non-recording writer.
             self._emit(
                 "abort_requested", reason=primary_reason, mirror_capture=False,
             )
-            was_finalizing = self.state is CollectionState.FINALIZING
-            if self.capture is not None:
-                if was_finalizing:
-                    # The finalizer thread owns the capture right now; requesting
-                    # cooperative cancellation (thread-safe) instead of calling
-                    # abort() concurrently avoids a data race on the capture's
-                    # state and stops it publishing a diagnostic_complete seal for
-                    # a session being aborted.  The finalizer thread performs the
-                    # actual terminal transition to aborted at its next checkpoint.
+            if self.state is CollectionState.FINALIZING:
+                # The finalizer owns the capture and may already be committing a
+                # diagnostic_complete seal.  Request cooperative cancellation but
+                # DO NOT write ABORTED yet: the terminal state is arbitrated only
+                # after the finalizer thread has finished, so Complete and Abort
+                # can never both win.
+                if self.capture is not None:
                     request_cancel = getattr(self.capture, "request_cancel", None)
                     if callable(request_cancel):
                         try:
                             request_cancel()
                         except Exception:
                             pass
-                else:
+                thread_to_join = self._finalize_thread
+                pending_reason = primary_reason
+            else:
+                # RECORDING/ERROR: no finalizer is running, so abort the capture
+                # and drive the ABORTED terminal directly.
+                if self.capture is not None:
                     try:
                         self.capture.abort(primary_reason)
                     except Exception:
-                        # Lifecycle ABORTED evidence is authoritative; retain the
-                        # first capture error rather than losing it to a second abort.
                         pass
-            self.state = CollectionState.ABORTED
-            # Aborting a FINALIZING session ends its finalization: clear the
-            # active flag here so it can never linger true, and capture the
-            # background thread to drain once the lock is released.
-            self._finalization_active = False
-            thread_to_join = self._finalize_thread
-            self.action_ack = f"Diagnostic capture aborted: {primary_reason}"
-            self.last_error = primary_reason
-            self.revision += 1
-            self._emit("capture_aborted", reason=primary_reason, mirror_capture=False)
-            self._write_lifecycle()
-            self._close_journal()
-            result = self._success(ack=self.action_ack)
-        # Drain the finalizer OUTSIDE the lock (it acquires the lock to commit,
-        # so joining under it would deadlock).  Bounded + best-effort: the
-        # generation/state guards already stop it mutating this aborted session;
-        # this just keeps a non-daemon thread from lingering and unblocks a
-        # later Start once it exits.
+                self._commit_aborted_locked(primary_reason)
+                return self._success(ack=self.action_ack)
+        # FINALIZING: join the finalizer OUTSIDE the lock (it takes the lock to
+        # commit, so joining under it would deadlock), then arbitrate.
         if (
             thread_to_join is not None
             and thread_to_join is not threading.current_thread()
         ):
             thread_to_join.join(timeout=self._finalize_join_timeout_s)
-        return result
+        with self._lock:
+            if self.state is CollectionState.COMPLETE:
+                # Complete won the terminal race: the finalizer committed the seal
+                # AND the platform terminal.  Abort is too late.
+                return self._complete_won_abort()
+            if self.state is CollectionState.ABORTED:
+                # Cancel won: the finalizer already drove ABORTED cleanly.
+                return self._success(ack=self.action_ack, idempotent=True)
+            capture = self.capture
+        # Still FINALIZING/ERROR after the join — the finalizer did not reach a
+        # platform terminal within the window (typically stuck in a slow
+        # completion_validator that runs AFTER the capture already sealed).  The
+        # capture's durable seal, not the platform flag, is authoritative: probe
+        # it via the capture's terminal CAS.  abort() raises iff the capture
+        # already committed diagnostic_complete, in which case Complete won and we
+        # must never write ABORTED over the seal.
+        capture_sealed_complete = False
+        if capture is not None:
+            try:
+                capture.abort(pending_reason)
+            except RuntimeError:
+                capture_sealed_complete = True
+            except Exception:
+                pass
+        with self._lock:
+            if self.state is CollectionState.COMPLETE:
+                return self._complete_won_abort()
+            if capture_sealed_complete:
+                # The capture is sealed complete but the finalizer has not yet
+                # committed the platform terminal.  Never contradict the seal with
+                # ABORTED; leave the finalizer to commit COMPLETE when it unblocks.
+                return self._complete_won_abort()
+            if self.state is not CollectionState.ABORTED:
+                self._commit_aborted_locked(pending_reason)
+            return self._success(ack=self.action_ack)
+
+    def _complete_won_abort(self) -> dict:
+        """Uniform response when a diagnostic_complete seal beat an Abort."""
+
+        return self._success(
+            ack="Diagnostic recording already completed; abort ignored",
+            idempotent=True,
+            accepted=False,
+        )
 
     def start_authorization(self) -> str | None:
         """Single Start authority for every mode.
@@ -964,7 +1022,13 @@ class CollectionPlatform:
             if self.completion_validator is not None:
                 self.completion_validator(result, session_dir)
         except Exception as exc:  # background failures must become durable, visible state
-            self._finalization_failed(exc, generation=generation, capture=capture)
+            # A cooperative Abort races the final commit: if the capture bailed on
+            # its cancel checkpoint (no seal written), this is a cancellation — the
+            # terminal is ABORTED, not ERROR.  Any other failure is a real error.
+            if _is_diagnostic_capture_cancelled(exc):
+                self._finalization_cancelled(generation=generation, reason=str(exc))
+            else:
+                self._finalization_failed(exc, generation=generation, capture=capture)
             return
 
         with self._lock:
@@ -1028,6 +1092,30 @@ class CollectionPlatform:
                     pass
             self._write_lifecycle()
             self._close_journal()
+
+    def _finalization_cancelled(self, *, generation: int, reason: str) -> None:
+        """A cooperative Abort cancelled the finalizer before it sealed.
+
+        The capture bailed on its cancel checkpoint (it wrote its own
+        diagnostic_aborted evidence, no diagnostic_complete seal), so this drives
+        the platform's ABORTED terminal — never ERROR, never COMPLETE.  The
+        Abort caller that requested cancellation joins this thread and observes
+        the ABORTED state; both converge on the same single terminal write.
+        """
+
+        with self._lock:
+            if self._generation != generation:
+                return
+            if self.state is not CollectionState.FINALIZING:
+                # Already terminal (e.g. the Abort caller drove ABORTED itself):
+                # only drain our own active flag.
+                self._finalization_active = False
+                return
+            self._commit_aborted_locked(
+                f"finalization cancelled by abort: {reason}"
+                if reason
+                else "finalization cancelled by abort"
+            )
 
     def _require_tracked_attempt(self) -> None:
         if self.state is not CollectionState.RECORDING:

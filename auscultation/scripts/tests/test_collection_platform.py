@@ -26,6 +26,7 @@ from collection_platform import (  # noqa: E402
     make_session_id,
     reconcile_orphan_diagnostic_sessions,
 )
+from perception_capture import DiagnosticCaptureCancelled  # noqa: E402
 
 
 class _Capture:
@@ -1140,3 +1141,187 @@ def test_abort_cancels_the_finalizer_and_prevents_a_double_commit(tmp_path):
     assert sealed == []
     assert platform.state is CollectionState.ABORTED
     assert platform.state_snapshot()["finalization_active"] is False
+
+
+class _SealingCapture(_Capture):
+    """Fake capture that mirrors the real terminal CAS.
+
+    ``finalize`` seals under a terminal lock after the last cancel checkpoint;
+    ``abort`` raises once that seal is committed.  This lets the platform race
+    tests exercise the exact mutual-exclusion the production writer provides
+    without any camera/encoder.
+    """
+
+    def __init__(self, session_dir: Path, *, seal_reached: threading.Event) -> None:
+        super().__init__(session_dir)
+        self._terminal_lock = threading.RLock()
+        self._cancel = threading.Event()
+        self._term_state = "recording"
+        self._seal_reached = seal_reached
+
+    def request_cancel(self) -> None:
+        self._cancel.set()
+
+    def finalize(self) -> dict:
+        self.finalized += 1
+        with self._terminal_lock:
+            if self._cancel.is_set():
+                self._term_state = "aborted"
+                raise DiagnosticCaptureCancelled("cancelled before seal")
+            self._term_state = "complete"
+        self._seal_reached.set()
+        return {"status": "diagnostic_complete", "training_eligible": False}
+
+    def abort(self, reason: str) -> None:
+        with self._terminal_lock:
+            if self._term_state == "complete":
+                raise RuntimeError("cannot abort a completed diagnostic capture")
+            if self._term_state == "aborted":
+                return
+            self._term_state = "aborted"
+            self.aborted.append(reason)
+
+
+def _sealing_platform(tmp_path, *, completion_validator, finalize_join_timeout_s):
+    seal_reached = threading.Event()
+    captures: list[_SealingCapture] = []
+
+    def factory(session_dir: Path) -> _SealingCapture:
+        capture = _SealingCapture(session_dir, seal_reached=seal_reached)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
+        completion_validator=completion_validator,
+        finalize_join_timeout_s=finalize_join_timeout_s,
+    )
+    return platform, captures, seal_reached
+
+
+def test_abort_loses_to_a_seal_committed_during_the_join(tmp_path):
+    # Complete-wins: the capture seals diagnostic_complete before Abort's cancel
+    # can bite, the finalizer commits COMPLETE while Abort is joining it, and
+    # Abort must report "already completed" and NEVER write ABORTED over the seal.
+    validator_gate = threading.Event()
+
+    def completion_validator(result, session_dir):  # noqa: ANN001
+        assert validator_gate.wait(timeout=2.0)
+
+    platform, captures, seal_reached = _sealing_platform(
+        tmp_path, completion_validator=completion_validator, finalize_join_timeout_s=2.0,
+    )
+    assert platform.control("start")["ok"]
+    assert platform.control("end")["state"] == "FINALIZING"
+    # The capture sealed; the finalizer is now parked in completion_validator with
+    # the platform still FINALIZING.
+    assert seal_reached.wait(timeout=1.0)
+
+    abort_box: dict = {}
+
+    def do_abort() -> None:
+        abort_box["result"] = platform.abort("late abort")
+
+    aborter = threading.Thread(target=do_abort)
+    aborter.start()
+    time.sleep(0.05)  # let Abort request-cancel (too late) and reach the join
+    validator_gate.set()  # unpark the finalizer -> it commits COMPLETE -> join returns
+    aborter.join(timeout=2.0)
+
+    platform.wait_for_terminal(timeout=2.0)
+    assert platform.state is CollectionState.COMPLETE
+    result = abort_box["result"]
+    assert result["ok"] is True
+    assert result.get("accepted") is False
+    assert "already completed" in result["ack"].lower()
+    # Complete won cleanly: the capture was never aborted.
+    assert captures[0].aborted == []
+
+
+def test_abort_join_timeout_still_defers_to_a_sealed_capture(tmp_path):
+    # Even when Abort's bounded join times out while the finalizer is stuck in a
+    # slow completion_validator, the capture's durable seal is authoritative:
+    # Abort probes the capture's terminal CAS, sees it sealed, and refuses to
+    # write ABORTED.  The finalizer later commits COMPLETE.
+    validator_gate = threading.Event()
+
+    def completion_validator(result, session_dir):  # noqa: ANN001
+        assert validator_gate.wait(timeout=3.0)
+
+    platform, captures, seal_reached = _sealing_platform(
+        tmp_path, completion_validator=completion_validator, finalize_join_timeout_s=0.2,
+    )
+    assert platform.control("start")["ok"]
+    assert platform.control("end")["state"] == "FINALIZING"
+    assert seal_reached.wait(timeout=1.0)
+
+    result = platform.abort("timeout abort")  # join times out; probes the sealed capture
+    assert result["ok"] is True
+    assert result.get("accepted") is False
+    assert "already completed" in result["ack"].lower()
+    # Never wrote ABORTED over the seal; the probe hit the complete-refusal branch
+    # before recording an abort.
+    assert platform.state is not CollectionState.ABORTED
+    assert captures[0].aborted == []
+
+    validator_gate.set()
+    assert platform.wait_for_terminal(timeout=2.0)["state"] == "COMPLETE"
+    assert platform.state is CollectionState.COMPLETE
+
+
+def test_clean_cancellation_drives_aborted_without_a_finalization_error(tmp_path):
+    # Cancel-wins: the capture bails on its cancel checkpoint (raising the real
+    # DiagnosticCaptureCancelled), so the platform drives the ABORTED terminal via
+    # the cancellation path -- not the ERROR fallback -- and no seal is written.
+    entered = threading.Event()
+    sealed: list[bool] = []
+
+    class CleanCancelCapture(_Capture):
+        def __init__(self, session_dir: Path) -> None:
+            super().__init__(session_dir)
+            self._cancel = threading.Event()
+
+        def request_cancel(self) -> None:
+            self._cancel.set()
+
+        def finalize(self) -> dict:
+            self.finalized += 1
+            entered.set()
+            for _ in range(400):
+                if self._cancel.is_set():
+                    raise DiagnosticCaptureCancelled("finalization cancelled by abort")
+                time.sleep(0.005)
+            sealed.append(True)
+            return {"status": "diagnostic_complete", "training_eligible": False}
+
+    captures: list[CleanCancelCapture] = []
+
+    def factory(session_dir: Path) -> CleanCancelCapture:
+        capture = CleanCancelCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
+        finalize_join_timeout_s=2.0,
+    )
+    assert platform.control("start")["ok"]
+    assert platform.control("end")["state"] == "FINALIZING"
+    assert entered.wait(timeout=1.0)
+
+    result = platform.abort("operator abort")
+    assert result["ok"] is True
+
+    assert platform.wait_for_terminal(timeout=2.0)["state"] == "ABORTED"
+    assert platform.state is CollectionState.ABORTED
+    assert sealed == []
+    assert platform.state_snapshot()["finalization_active"] is False
+    # Proves the clean cancellation path, not the ERROR->ABORTED fallback.
+    assert "cancelled by abort" in (platform.last_error or "")
+    assert "finalization failed" not in (platform.last_error or "")

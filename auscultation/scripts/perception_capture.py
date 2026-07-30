@@ -934,6 +934,9 @@ class DiagnosticPerceptionCapture:
         # next checkpoint instead of racing on to publish a ``diagnostic_complete``
         # seal — the two must never both exist for one session.
         self._cancel_requested = threading.Event()
+        # Serializes the single terminal transition (Complete vs Abort/Cancel).
+        # Re-entrant because finalize()'s failure handler calls _abort_internal.
+        self._terminal_lock = threading.RLock()
         self._manifest: dict = {}
         self._writer = None
         self._video_size: tuple[int, int] | None = None
@@ -2677,68 +2680,74 @@ class DiagnosticPerceptionCapture:
         if (self.session_dir / "FINALIZATION.json").exists():
             raise RuntimeError("production FINALIZATION.json is forbidden in diagnostic capture")
 
-        # Last cancellation checkpoint before the irreversible diagnostic_complete
-        # commit: if Abort raced in during finalization, bail to aborted here so a
-        # single session can never carry both an ABORTED and a complete seal.
-        self._raise_if_cancelled()
-        timeline = self._timeline_summary()
-        frame_index_range = {
-            "first_frame_index": self._first_frame_index,
-            "last_frame_index": self._last_frame_index,
-        }
-        self._manifest.update(
-            status="diagnostic_complete",
-            training_eligible=False,
-            production_finalization_permitted=False,
-            ended_host_t=self._clock(),
-            ended_utc_ns=self._wall_time_ns(),
-            n_rgb_frames=self._n_rgb,
-            n_depth_frames=self._n_depth,
-            decoded_rgb_frames=decoded,
-            timeline=timeline,
-            video_timebase=video_timebase,
-            video_stitch=stitch_summary,
-            segment_validation=segment_validation,
-            depth_integrity=depth_integrity,
-            storage=self.storage_health(),
-            capture_boundary=self._finalization_context,
-            frame_index_range=frame_index_range,
-            artifacts=first,
-            audio=audio_summary,
-            audio_authenticity=audio_authenticity,
-            robot=robot_summary,
-            force=force_summary,
-            force_authenticity=force_authenticity,
-            quality=quality_summary,
-            quality_authenticity=quality_authenticity,
-            abort_reason=None,
-        )
-        self._write_manifest()
-        manifest_raw = (self.session_dir / "manifest.json").read_bytes()
-        seal = {
-            "schema_version": DIAGNOSTIC_FINALIZATION_SCHEMA_VERSION,
-            "capture_mode": CAPTURE_MODE,
-            "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
-            "artifacts": first,
-            "sealed_utc_ns": self._wall_time_ns(),
-            "capture_boundary": self._finalization_context,
-            "frame_index_range": frame_index_range,
-            "video_timebase": video_timebase,
-            "video_stitch": stitch_summary,
-            "segment_validation": segment_validation,
-            "depth_integrity": depth_integrity,
-            "storage": self.storage_health(),
-            "provenance": self.provenance,
-            "audio": audio_summary,
-            "audio_authenticity": audio_authenticity,
-            "robot": robot_summary,
-            "force": force_summary,
-            "force_authenticity": force_authenticity,
-            "quality": quality_summary,
-            "quality_authenticity": quality_authenticity,
-        }
-        _atomic_json(self.session_dir / "DIAGNOSTIC_FINALIZATION.json", seal)
-        self._state = "complete"
+        # Terminal CAS: hold the terminal lock across the final cancel
+        # check and the irreversible manifest+seal+complete transition, so
+        # Cancel and Complete are mutually exclusive.  Once complete is
+        # committed here, a concurrent Abort (which takes the same lock)
+        # must observe it and refuse rather than write ABORTED.
+        with self._terminal_lock:
+            # Last cancellation checkpoint before the irreversible diagnostic_complete
+            # commit: if Abort raced in during finalization, bail to aborted here so a
+            # single session can never carry both an ABORTED and a complete seal.
+            self._raise_if_cancelled()
+            timeline = self._timeline_summary()
+            frame_index_range = {
+                "first_frame_index": self._first_frame_index,
+                "last_frame_index": self._last_frame_index,
+            }
+            self._manifest.update(
+                status="diagnostic_complete",
+                training_eligible=False,
+                production_finalization_permitted=False,
+                ended_host_t=self._clock(),
+                ended_utc_ns=self._wall_time_ns(),
+                n_rgb_frames=self._n_rgb,
+                n_depth_frames=self._n_depth,
+                decoded_rgb_frames=decoded,
+                timeline=timeline,
+                video_timebase=video_timebase,
+                video_stitch=stitch_summary,
+                segment_validation=segment_validation,
+                depth_integrity=depth_integrity,
+                storage=self.storage_health(),
+                capture_boundary=self._finalization_context,
+                frame_index_range=frame_index_range,
+                artifacts=first,
+                audio=audio_summary,
+                audio_authenticity=audio_authenticity,
+                robot=robot_summary,
+                force=force_summary,
+                force_authenticity=force_authenticity,
+                quality=quality_summary,
+                quality_authenticity=quality_authenticity,
+                abort_reason=None,
+            )
+            self._write_manifest()
+            manifest_raw = (self.session_dir / "manifest.json").read_bytes()
+            seal = {
+                "schema_version": DIAGNOSTIC_FINALIZATION_SCHEMA_VERSION,
+                "capture_mode": CAPTURE_MODE,
+                "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
+                "artifacts": first,
+                "sealed_utc_ns": self._wall_time_ns(),
+                "capture_boundary": self._finalization_context,
+                "frame_index_range": frame_index_range,
+                "video_timebase": video_timebase,
+                "video_stitch": stitch_summary,
+                "segment_validation": segment_validation,
+                "depth_integrity": depth_integrity,
+                "storage": self.storage_health(),
+                "provenance": self.provenance,
+                "audio": audio_summary,
+                "audio_authenticity": audio_authenticity,
+                "robot": robot_summary,
+                "force": force_summary,
+                "force_authenticity": force_authenticity,
+                "quality": quality_summary,
+                "quality_authenticity": quality_authenticity,
+            }
+            _atomic_json(self.session_dir / "DIAGNOSTIC_FINALIZATION.json", seal)
+            self._state = "complete"
         return {
             "status": "diagnostic_complete",
             "training_eligible": False,
@@ -2797,13 +2806,28 @@ class DiagnosticPerceptionCapture:
             )
 
     def abort(self, reason: str) -> None:
-        if self._state == "aborted":
-            return
-        if self._state == "complete":
-            raise RuntimeError("cannot abort a completed diagnostic capture")
-        self._abort_internal(str(reason))
+        # Terminal CAS: take the same lock the final commit holds.  If Complete
+        # already won, refuse — the caller must treat this as "already completed"
+        # and never write an ABORTED terminal over a sealed session.  Otherwise
+        # request cancellation and perform the abort atomically.
+        with self._terminal_lock:
+            if self._state == "aborted":
+                return
+            if self._state == "complete":
+                raise RuntimeError("cannot abort a completed diagnostic capture")
+            self._cancel_requested.set()
+            self._abort_internal(str(reason))
 
     def _abort_internal(self, reason: str) -> None:
+        with self._terminal_lock:
+            # Complete may have won the race just before we took the lock.
+            if self._state == "complete":
+                raise RuntimeError("cannot abort a completed diagnostic capture")
+            if self._state == "aborted":
+                return
+            self._abort_internal_locked(reason)
+
+    def _abort_internal_locked(self, reason: str) -> None:
         if self._writer is not None and self._video_segment_frame_count > 0:
             try:
                 self._seal_video_segment()

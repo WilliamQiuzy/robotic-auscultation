@@ -3712,6 +3712,17 @@ def test_complete_proof_binds_full_quality_log_and_rejects_tamper(tmp_path):
                 t_start=inference_t - 0.25,
                 t_end=inference_t,
                 status="OK",
+                raw_source={
+                    "source_channel": 1,
+                    "source_sample_start": int(round((inference_t - 0.25) * 48_000)),
+                    "source_sample_end": int(round((inference_t - 0.25) * 48_000)) + 12_000,
+                    "source_sample_rate": 48_000,
+                    "resampler_identity": {
+                        "algorithm": "polyphase_fir_v1",
+                        "input_sample_rate": 48_000,
+                        "output_sample_rate": 16_000,
+                    },
+                },
             ),
             force_sample=server.SimpleNamespace(
                 t=inference_t - 0.05,
@@ -5849,6 +5860,42 @@ def test_start_is_refused_when_a_worker_is_dead_despite_cached_status(tmp_path):
         assert result["ok"] is False
         assert result["code"] == "start_not_authorized"
         assert "model worker" in result["message"]
+        assert collector.platform.state.value != "RECORDING"
+    finally:
+        collector.shutdown()
+
+
+def test_start_rolls_back_when_a_worker_dies_during_the_arm(tmp_path):
+    # A worker that dies during capture.start()/sensor init (after the entry
+    # re-check) must not leave RECORDING: the health epoch advanced, so the final
+    # arm arbitration rolls the whole Start back.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+
+    class Capture:
+        def start(self):
+            # Simulate a worker dying mid-arm: the loop would have bumped this.
+            collector._health_generation += 1
+
+        def record_event(self, _p): pass
+        def write_frame(self, _f, _t): pass
+        def finalize(self): return {"status": "diagnostic_complete",
+                                    "training_eligible": False}
+        def abort(self, _r): pass
+
+    collector.platform.capture_factory = lambda _p: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
+    collector._runtime_health_snapshot = (
+        lambda **_k: {"strict_ok": True, "blockers": []})
+    try:
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "runtime_degraded_during_start"
         assert collector.platform.state.value != "RECORDING"
     finally:
         collector.shutdown()

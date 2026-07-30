@@ -1062,7 +1062,7 @@ def test_raw_session_validator_rehashes_full_sealed_inventory(tmp_path: Path) ->
     assert identity["manifest_sha256"] == json.loads(
         (session / "FINALIZATION.json").read_text()
     )["manifest_sha256"]
-    assert identity["verified_raw_files"] == 28
+    assert identity["verified_raw_files"] == 29
     assert identity["verified_components"] == [
         "audio", "force", "geometry", "quality", "robot",
     ]
