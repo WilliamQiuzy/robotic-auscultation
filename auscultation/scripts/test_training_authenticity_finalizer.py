@@ -1318,3 +1318,90 @@ def test_canonical_exclusive_write_never_overwrites_existing_receipt(tmp_path: P
 
     assert destination.read_bytes() == first
     assert json.loads(first) == {"status": "PASS"}
+
+
+# --- Finalizer hidden gates: production writer + quality authorization (#3) ---
+
+def _quality_branch_files(session: Path) -> None:
+    """Create the minimal artifacts that reach the quality-verifier branch."""
+
+    inputs = session / "quality_model_inputs"
+    inputs.mkdir(parents=True, exist_ok=True)
+    (inputs / "window_000000.npy").write_bytes(b"\x00\x01")
+    (session / "force.csv").write_text("host_t,newtons\n0.0,1.0\n", encoding="utf-8")
+    (session / "quality_inference_authenticity.json").write_text(
+        "{}", encoding="utf-8"
+    )
+    (session / "quality_inference_packets.jsonl").write_text(
+        "{}\n", encoding="utf-8"
+    )
+
+
+def test_quality_component_not_production_authorized_is_a_blocker(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _quality_branch_files(tmp_path)
+    monkeypatch.setattr(
+        finalizer,
+        "verify_quality_packet_component",
+        lambda _session: {
+            "status": "PASS",
+            "production_authorized": False,
+            "blocker": "activated quality model replay is required",
+        },
+    )
+
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path, manifest_template=_manifest(), finalizer_identity=_identity(),
+    )
+
+    assert "quality_component_not_production_authorized" in report["blockers"]
+    check = report["checks"]["lossless_model_evidence"]["quality_exact_input_verifier"]
+    assert check["status"] == "FAIL"
+    assert check["reason"] == "activated quality model replay is required"
+
+
+def test_quality_component_production_authorized_passes_the_readiness_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _quality_branch_files(tmp_path)
+    monkeypatch.setattr(
+        finalizer,
+        "verify_quality_packet_component",
+        lambda _session: {"status": "PASS", "production_authorized": True},
+    )
+
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path, manifest_template=_manifest(), finalizer_identity=_identity(),
+    )
+
+    assert (
+        "quality_component_not_production_authorized" not in report["blockers"]
+    )
+    check = report["checks"]["lossless_model_evidence"]["quality_exact_input_verifier"]
+    assert check["status"] == "PASS"
+
+
+def test_diagnostic_capture_kind_can_never_be_promoted(tmp_path: Path) -> None:
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path, manifest_template=_manifest(), finalizer_identity=_identity(),
+    )
+
+    assert "capture_kind_not_production" in report["blockers"]
+    assert report["checks"]["production_capture_kind"]["status"] == "FAIL"
+
+
+def test_production_capture_kind_satisfies_the_immutable_writer_gate(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest()
+    manifest["capture_kind"] = "production_teleop_v4"
+
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path, manifest_template=manifest, finalizer_identity=_identity(),
+    )
+
+    assert "capture_kind_not_production" not in report["blockers"]
+    check = report["checks"]["production_capture_kind"]
+    assert check["status"] == "PASS"
+    assert check["capture_kind"] == "production_teleop_v4"

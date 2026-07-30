@@ -16,6 +16,10 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
 from collection_platform import (  # noqa: E402
+    DIAGNOSTIC_PERCEPTION_CONTRACT,
+    PREVIEW_ONLY_CONTRACT,
+    CaptureContract,
+    CaptureMode,
     CollectionPlatform,
     CollectionState,
     create_session_directory,
@@ -723,3 +727,156 @@ def test_abort_is_idempotent_after_capture_self_abort_and_preserves_first_error(
     assert lifecycle["state"] == "ABORTED"
     assert lifecycle["error"] == first_error
     assert platform._journal is None
+
+
+# --- Explicit capture modes + single Start authority (#3.1) -------------------
+
+_PRODUCTION_CONTRACT = CaptureContract(
+    mode=CaptureMode.PRODUCTION_CAPTURE,
+    capture_kind="production_teleop_v4",
+    training_intent=True,
+    writer_identity="OpenArmTeleopSessionWriter",
+    manifest_schema="wam_session_v2",
+    finalization_schema="wam_promotion_v2",
+)
+
+
+def _make_platform(
+    tmp_path: Path,
+    *,
+    contract=None,
+    diagnostic_blockers=(),
+    production_blockers=(),
+) -> tuple[CollectionPlatform, list[_Capture]]:
+    captures: list[_Capture] = []
+
+    def factory(session_dir: Path) -> _Capture:
+        capture = _Capture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1", "R2", "R3"],
+        capture_factory=factory,
+        contract=contract,
+        diagnostic_blockers=diagnostic_blockers,
+        production_blockers=production_blockers,
+        wall_time_ns=lambda: 1_721_234_567_000_000_123,
+        uuid_factory=lambda: UUID("12345678-1234-5678-1234-567812345678"),
+    )
+    return platform, captures
+
+
+def test_capture_contract_refuses_production_mode_with_a_diagnostic_writer():
+    with pytest.raises(ValueError, match="diagnostic writer"):
+        CaptureContract(
+            mode=CaptureMode.PRODUCTION_CAPTURE,
+            capture_kind="production_teleop_v4",
+            training_intent=True,
+            writer_identity="DiagnosticPerceptionCapture",
+            manifest_schema="wam_session_v2",
+            finalization_schema="wam_promotion_v2",
+        )
+
+
+def test_capture_contract_refuses_inconsistent_mode_intent_and_kind():
+    with pytest.raises(ValueError, match="training intent"):
+        CaptureContract(
+            mode=CaptureMode.DIAGNOSTIC_CAPTURE,
+            capture_kind="diagnostic_perception",
+            training_intent=True,
+            writer_identity="DiagnosticPerceptionCapture",
+            manifest_schema="wam_session_v2",
+            finalization_schema="wam_promotion_v2",
+        )
+    with pytest.raises(ValueError, match="production capture_kind"):
+        CaptureContract(
+            mode=CaptureMode.PRODUCTION_CAPTURE,
+            capture_kind="diagnostic_perception",
+            training_intent=True,
+            writer_identity="OpenArmTeleopSessionWriter",
+            manifest_schema="wam_session_v2",
+            finalization_schema="wam_promotion_v2",
+        )
+    with pytest.raises(ValueError, match="training intent"):
+        CaptureContract(
+            mode=CaptureMode.PREVIEW_ONLY,
+            capture_kind="diagnostic_perception_preview",
+            training_intent=True,
+            writer_identity="DiagnosticPerceptionCapture",
+            manifest_schema="wam_session_v2",
+            finalization_schema="wam_promotion_v2",
+        )
+
+
+def test_preview_only_never_authorizes_a_recording(tmp_path):
+    platform, captures = _make_platform(tmp_path, contract=PREVIEW_ONLY_CONTRACT)
+
+    assert platform.start_authorization() == "preview-only mode never records"
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert result["code"] == "invalid_state"
+    assert "preview-only" in result["message"]
+    assert captures == []
+    snapshot = platform.state_snapshot()
+    assert snapshot["training_eligible"] is False
+    assert snapshot["operational_mode"] == "PREVIEW_ONLY"
+
+
+def test_diagnostic_capture_records_but_ignores_production_blockers(tmp_path):
+    # Diagnostic evidence is structurally un-promotable, so a diagnostic console
+    # must still Start even when production preflight is dirty.
+    platform, captures = _make_platform(
+        tmp_path,
+        contract=DIAGNOSTIC_PERCEPTION_CONTRACT,
+        production_blockers=("motor-stop identity missing",),
+    )
+
+    assert platform.start_authorization() is None
+    result = platform.control("start")
+
+    assert result["ok"] is True
+    assert platform.state is CollectionState.RECORDING
+    assert captures[0].started == 1
+    snapshot = platform.state_snapshot()
+    assert snapshot["training_eligible"] is False
+    assert snapshot["capture_kind"] == "diagnostic_perception"
+    assert snapshot["operational_mode"] == "DIAGNOSTIC_CAPTURE"
+
+
+def test_production_capture_start_is_blocked_until_production_preflight_is_clear(
+    tmp_path,
+):
+    platform, captures = _make_platform(
+        tmp_path,
+        contract=_PRODUCTION_CONTRACT,
+        production_blockers=("motor-stop identity missing",),
+    )
+
+    reason = platform.start_authorization()
+    assert reason is not None and "production preflight failed" in reason
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert result["code"] == "invalid_state"
+    assert captures == []
+
+
+def test_production_capture_with_clear_preflight_and_real_writer_records(tmp_path):
+    platform, captures = _make_platform(
+        tmp_path,
+        contract=_PRODUCTION_CONTRACT,
+        production_blockers=(),
+    )
+
+    assert platform.start_authorization() is None
+    result = platform.control("start")
+
+    assert result["ok"] is True
+    assert captures[0].started == 1
+    snapshot = platform.state_snapshot()
+    assert snapshot["training_eligible"] is True
+    assert snapshot["capture_kind"] == "production_teleop_v4"
+    assert snapshot["operational_mode"] == "PRODUCTION_CAPTURE"

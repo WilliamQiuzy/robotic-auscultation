@@ -1553,6 +1553,37 @@ def inspect_training_finalization_readiness(
     blockers.extend(manifest_blockers)
     checks["manifest_template"] = manifest_details
 
+    # Immutable production-writer gate.  A diagnostic capture is *also*
+    # fail-closed (``training_eligible`` False), so that flag alone cannot
+    # distinguish a production writer from a diagnostic one.  Promotion requires
+    # the manifest -- which the source-manifest check below binds by SHA to the
+    # exact on-disk bytes -- to positively declare a ``capture_kind`` of the
+    # form ``production_*``.  It is verified here, never inferred from the
+    # absence of a diagnostic flag or trusted from a producer's summary receipt.
+    declared_capture_kind = (
+        manifest_template.get("capture_kind")
+        if isinstance(manifest_template, Mapping)
+        else None
+    )
+    if (
+        isinstance(declared_capture_kind, str)
+        and declared_capture_kind.startswith("production_")
+    ):
+        checks["production_capture_kind"] = {
+            "status": "PASS",
+            "capture_kind": declared_capture_kind,
+        }
+    else:
+        blockers.append("capture_kind_not_production")
+        checks["production_capture_kind"] = {
+            "status": "FAIL",
+            "capture_kind": declared_capture_kind,
+            "reason": (
+                "promotion requires an immutable capture_kind of the form "
+                "'production_*'; a diagnostic capture can never be upgraded"
+            ),
+        }
+
     identity_ok, identity_details = _identity_check(finalizer_identity)
     if not identity_ok:
         blockers.append("finalizer_identity_invalid")
@@ -1766,10 +1797,27 @@ def inspect_training_finalization_readiness(
                     "reason": str(exc),
                 }
             else:
-                evidence_checks["quality_exact_input_verifier"] = {
-                    "status": "PASS",
-                    "evidence": quality_evidence,
-                }
+                # A self-consistent packet chain is *not* production truth.
+                # verify_quality_packet_component() reports
+                # ``production_authorized=False`` until the activated quality
+                # weights are re-run against lossless audio windows; that
+                # verdict must form a blocker here, never be recorded as PASS.
+                if quality_evidence.get("production_authorized") is True:
+                    evidence_checks["quality_exact_input_verifier"] = {
+                        "status": "PASS",
+                        "evidence": quality_evidence,
+                    }
+                else:
+                    blockers.append("quality_component_not_production_authorized")
+                    evidence_checks["quality_exact_input_verifier"] = {
+                        "status": "FAIL",
+                        "evidence": quality_evidence,
+                        "reason": (
+                            quality_evidence.get("blocker")
+                            or "quality component is diagnostic-only "
+                            "(production_authorized is False)"
+                        ),
+                    }
         else:
             blockers.append("quality_raw_revalidation_failed")
             evidence_checks["quality_exact_input_verifier"] = {

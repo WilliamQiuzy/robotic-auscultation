@@ -13,6 +13,7 @@ import re
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
@@ -28,6 +29,122 @@ class CollectionState(str, Enum):
     COMPLETE = "COMPLETE"
     ABORTED = "ABORTED"
     ERROR = "ERROR"
+
+
+class CaptureMode(str, Enum):
+    """The operational mode a control plane is constructed for.
+
+    The mode is fixed at construction; it is *not* a runtime toggle.  It exists
+    so a single Start authority (:meth:`CollectionPlatform.start_authorization`)
+    can reason about what a session is allowed to do instead of the intent being
+    split across an HTTP handler, a page button, and session allocation.
+    """
+
+    #: Live perception/preview only.  Recording can never be authorized.
+    PREVIEW_ONLY = "PREVIEW_ONLY"
+    #: Records immutable diagnostic evidence that can be kept and inspected but
+    #: can *never* be promoted to a training corpus.
+    DIAGNOSTIC_CAPTURE = "DIAGNOSTIC_CAPTURE"
+    #: Records training-intent evidence produced by a real production writer.
+    #: Requires production preflight to be clear before a session is allocated.
+    PRODUCTION_CAPTURE = "PRODUCTION_CAPTURE"
+
+
+#: Writer class names that are diagnostic-only by construction.  A production
+#: capture can never be produced by one of these; the contract rejects the pair
+#: before a session directory is ever allocated.
+_DIAGNOSTIC_WRITER_IDENTITIES = frozenset({"DiagnosticPerceptionCapture"})
+
+
+@dataclass(frozen=True)
+class CaptureContract:
+    """Immutable binding of a session's mode, writer, intent, and schemas.
+
+    The contract is the single source of truth that a session's operational
+    ``mode``, the ``capture_kind`` persisted into its manifest, whether it may
+    ever promote (``training_intent``), and the ``writer_identity`` that
+    produces it are mutually consistent.  It is validated at construction so an
+    inconsistent triple (e.g. a production mode fronting a diagnostic writer)
+    can never reach the Start gate.
+    """
+
+    mode: CaptureMode
+    capture_kind: str
+    training_intent: bool
+    writer_identity: str
+    manifest_schema: str
+    finalization_schema: str
+
+    def __post_init__(self) -> None:
+        kind = str(self.capture_kind)
+        is_production_kind = kind.startswith("production_")
+        if self.mode is CaptureMode.PREVIEW_ONLY:
+            if self.training_intent:
+                raise ValueError(
+                    "preview-only capture can never carry training intent"
+                )
+            if is_production_kind:
+                raise ValueError(
+                    "preview-only capture cannot claim a production capture_kind"
+                )
+        elif self.mode is CaptureMode.DIAGNOSTIC_CAPTURE:
+            if self.training_intent:
+                raise ValueError(
+                    "diagnostic capture can never carry training intent"
+                )
+            if is_production_kind:
+                raise ValueError(
+                    "diagnostic capture cannot claim a production capture_kind"
+                )
+        elif self.mode is CaptureMode.PRODUCTION_CAPTURE:
+            if not self.training_intent:
+                raise ValueError(
+                    "production capture must carry training intent"
+                )
+            if not is_production_kind:
+                raise ValueError(
+                    "production capture_kind must start with 'production_'"
+                )
+            if self.writer_identity in _DIAGNOSTIC_WRITER_IDENTITIES:
+                raise ValueError(
+                    "production capture cannot be produced by a diagnostic writer"
+                )
+        else:  # pragma: no cover - exhaustive over the enum
+            raise ValueError(f"unknown capture mode: {self.mode!r}")
+
+    @property
+    def records(self) -> bool:
+        """Whether this mode is allowed to record at all."""
+
+        return self.mode is not CaptureMode.PREVIEW_ONLY
+
+    @property
+    def training_eligible(self) -> bool:
+        """Whether a session under this contract may ever promote to training."""
+
+        return self.mode is CaptureMode.PRODUCTION_CAPTURE and self.training_intent
+
+
+#: The console's default: single-camera realtime perception writer, diagnostic
+#: only, structurally un-promotable.
+DIAGNOSTIC_PERCEPTION_CONTRACT = CaptureContract(
+    mode=CaptureMode.DIAGNOSTIC_CAPTURE,
+    capture_kind="diagnostic_perception",
+    training_intent=False,
+    writer_identity="DiagnosticPerceptionCapture",
+    manifest_schema="wam_session_v2",
+    finalization_schema="wam_promotion_v2",
+)
+
+#: Commissioning preview: same writer identity, but recording is never allowed.
+PREVIEW_ONLY_CONTRACT = CaptureContract(
+    mode=CaptureMode.PREVIEW_ONLY,
+    capture_kind="diagnostic_perception_preview",
+    training_intent=False,
+    writer_identity="DiagnosticPerceptionCapture",
+    manifest_schema="wam_session_v2",
+    finalization_schema="wam_promotion_v2",
+)
 
 
 class _Capture(Protocol):
@@ -227,6 +344,7 @@ class CollectionPlatform:
         session_root: str | Path,
         point_names: Iterable[str],
         capture_factory: Callable[[Path], _Capture],
+        contract: CaptureContract | None = None,
         diagnostic_blockers: Iterable[str] = (),
         production_blockers: Iterable[str] = (),
         completion_validator: Callable[[dict, Path], None] | None = None,
@@ -239,6 +357,8 @@ class CollectionPlatform:
         if not self.point_names:
             raise ValueError("point_names cannot be empty")
         self.capture_factory = capture_factory
+        self.contract = contract or DIAGNOSTIC_PERCEPTION_CONTRACT
+        self.mode = self.contract.mode
         self.diagnostic_blockers = tuple(str(item) for item in diagnostic_blockers)
         self.production_blockers = tuple(str(item) for item in production_blockers)
         self.completion_validator = completion_validator
@@ -284,8 +404,9 @@ class CollectionPlatform:
                 "error": self.last_error,
                 "session_id": self.session_id,
                 "session_dir": str(self.session_dir) if self.session_dir else None,
-                "capture_kind": self.CAPTURE_KIND,
-                "training_eligible": False,
+                "capture_kind": self.contract.capture_kind,
+                "operational_mode": self.mode.value,
+                "training_eligible": self.contract.training_eligible,
                 "training_blockers": list(self.production_blockers),
                 "diagnostic_blockers": list(self.diagnostic_blockers),
                 "point_index": self.point_index,
@@ -475,12 +596,48 @@ class CollectionPlatform:
             self._close_journal()
             return self._success(ack=self.action_ack)
 
-    def _start(self) -> dict:
+    def start_authorization(self) -> str | None:
+        """Single Start authority for every mode.
+
+        Returns a human-readable rejection reason, or ``None`` when a Start may
+        proceed to allocate a session.  Every entry point that can begin a
+        recording — the HTTP control handler, the page Start button, and the
+        internal :meth:`_start` allocation — defers to this one decision so the
+        per-mode contract cannot be bypassed by any single path.
+
+        - ``PREVIEW_ONLY``: recording is never authorized.
+        - ``DIAGNOSTIC_CAPTURE``: only diagnostic preflight must be clear; the
+          session is structurally un-promotable regardless.
+        - ``PRODUCTION_CAPTURE``: diagnostic *and* production preflight must be
+          clear, the contract must be training-eligible, and the writer must be
+          a real production writer — a diagnostic writer is refused before any
+          session directory is allocated.
+        """
+
+        if self.mode is CaptureMode.PREVIEW_ONLY:
+            return "preview-only mode never records"
         if self.diagnostic_blockers:
-            raise _Rejected(
-                "invalid_state",
-                "diagnostic preflight failed: " + "; ".join(self.diagnostic_blockers),
+            return "diagnostic preflight failed: " + "; ".join(
+                self.diagnostic_blockers
             )
+        if self.mode is CaptureMode.PRODUCTION_CAPTURE:
+            if not self.contract.training_eligible:
+                return "production capture contract is not training-eligible"
+            if self.contract.writer_identity in _DIAGNOSTIC_WRITER_IDENTITIES:
+                return (
+                    "production capture requires a real production writer, "
+                    "not a diagnostic writer"
+                )
+            if self.production_blockers:
+                return "production preflight failed: " + "; ".join(
+                    self.production_blockers
+                )
+        return None
+
+    def _start(self) -> dict:
+        rejection = self.start_authorization()
+        if rejection is not None:
+            raise _Rejected("invalid_state", rejection)
         retryable_error = (
             self.state is CollectionState.ERROR
             and not self._finalization_active
@@ -533,7 +690,7 @@ class CollectionPlatform:
             error = f"{type(exc).__name__}: {exc}"
             _atomic_json(session_dir / "START_FAILURE.json", {
                 "schema_version": "wam_diagnostic_start_failure_v1",
-                "capture_mode": self.CAPTURE_KIND,
+                "capture_mode": self.contract.capture_kind,
                 "status": "diagnostic_start_failed",
                 "training_eligible": False,
                 "production_finalization_permitted": False,
@@ -739,7 +896,7 @@ class CollectionPlatform:
         payload = self.state_snapshot()
         payload.update(
             schema_version="wam_collection_lifecycle_v1",
-            capture_mode=self.CAPTURE_KIND,
+            capture_mode=self.contract.capture_kind,
             finalization=self._finalization,
         )
         _atomic_json(self.session_dir / "lifecycle.json", payload)

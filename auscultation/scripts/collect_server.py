@@ -171,7 +171,9 @@ ROOT = os.path.dirname(HERE)
 import sys
 sys.path[:0] = [ROOT, os.path.join(ROOT, "ausc", "perception"), os.path.join(ROOT, "ausc")]
 from ausc_targets import load_targets                               # noqa: E402
-from collection_platform import (CollectionPlatform, CollectionState,  # noqa: E402
+from collection_platform import (DIAGNOSTIC_PERCEPTION_CONTRACT,      # noqa: E402
+                                 PREVIEW_ONLY_CONTRACT,
+                                 CollectionPlatform, CollectionState,
                                  reconcile_orphan_diagnostic_sessions)
 from perception_capture import (DiagnosticPerceptionCapture,        # noqa: E402
                                 recover_orphan_diagnostic_video)
@@ -1227,10 +1229,21 @@ class Collector:
                 "sync": None,
             },
         }
+        # The console is structurally a diagnostic/preview control plane: it
+        # only ever constructs a ``DiagnosticPerceptionCapture`` writer, so it
+        # can carry either the preview-only or the diagnostic contract, never a
+        # production one.  A production capture requires a real production
+        # writer and is refused by ``start_authorization`` before any session
+        # directory is allocated.
         self.platform = CollectionPlatform(
             session_root=self.out_dir,
             point_names=self.point_names,
             capture_factory=self._capture_factory,
+            contract=(
+                PREVIEW_ONLY_CONTRACT
+                if self.commissioning_preview_only
+                else DIAGNOSTIC_PERCEPTION_CONTRACT
+            ),
             diagnostic_blockers=self._diagnostic_blockers,
             production_blockers=tuple(production_blockers),
             completion_validator=self._validate_completion_result,
