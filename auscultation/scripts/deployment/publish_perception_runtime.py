@@ -126,7 +126,7 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/robot/openarm_pair_activation.py": "52ac7798fd9cd800118d94bed4a4efd08b5fdd651d8d701095058e0aeeb5f1c9",
     "auscultation/ausc/perception/robot/robot_capture_coordinator.py": "c89e289830a510fcdc82cd18f0a6aafeea8648114856822dc4fa39ec72242444",
     "auscultation/ausc/perception/robot/robot_mask_provider.py": "a6dd78c4fe7203fc035fc4123a1f00efbc53a888195323898cf6a257c86219e2",
-    "auscultation/ausc/perception/robot/robot_session_capture.py": "ce7842e338a1f4b8fcd24ef7855bbddb911bdd1ae9372b6ad657a1738badfc3d",
+    "auscultation/ausc/perception/robot/robot_session_capture.py": "8b6613a3341b3e5b404393701d4828ba1d1cbb3aebd3df5e9fe42916e37f3f2c",
     "auscultation/ausc/perception/robot/robot_socket_receiver.py": "75ab952d59a5174a78baf10f7b5d79fda508afabaa77a48eb6ffa5fb472a26d9",
     "auscultation/ausc/perception/robot/robot_state_stream.py": "35b9dc85084ca1db0cc4f57079a81fbcf7da5da91d2cefe4316da71bd46b962d",
     "auscultation/ausc/perception/tracking/__init__.py": "e135d34389019e483400c79b001d9b9e84d13a0cacebe1585174cad2048bccd6",

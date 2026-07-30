@@ -188,6 +188,7 @@ def _v4_envelope(
     frozen_q: bool = False,
     all_zero_q: bool = False,
     near_zero_q: bool = False,
+    noisy_obs_static_command: bool = False,
     hold_joint_index: int | None = None,
     arm_response_fault: tuple[int, str] | None = None,
     gripper_response: str = "stationary",
@@ -224,6 +225,18 @@ def _v4_envelope(
             record["follower_q_rad"] = values
             record["follower_qd_rad_s"] = [0.0] * 7
             record["follower_arm_mit_q"] = list(values)
+            record["follower_arm_mit_dq"] = [0.0] * 7
+        elif noisy_obs_static_command:
+            # Observation drifts well above the 1e-4 range floor (passive motion /
+            # sensor noise) but the commanded action is held constant, so no action
+            # channel materially moves -> the session must be rejected.
+            record["follower_q_rad"] = [
+                0.25 + index * 0.01 + tick * 1.0e-4 for index in range(7)
+            ]
+            record["follower_qd_rad_s"] = [0.0] * 7
+            record["follower_arm_mit_q"] = [
+                0.25 + index * 0.01 for index in range(7)
+            ]
             record["follower_arm_mit_dq"] = [0.0] * 7
         elif frozen_q:
             record["follower_q_rad"] = [0.25 + index * 0.01 for index in range(7)]
@@ -306,6 +319,7 @@ def _start_and_record_v4(
     frozen_q: bool = False,
     all_zero_q: bool = False,
     near_zero_q: bool = False,
+    noisy_obs_static_command: bool = False,
     hold_joint_index: int | None = None,
     arm_response_fault: tuple[int, str] | None = None,
     gripper_response: str = "stationary",
@@ -320,7 +334,7 @@ def _start_and_record_v4(
             first_observation_ns=980_000_000,
             frozen_q=frozen_q,
             all_zero_q=all_zero_q,
-            near_zero_q=near_zero_q,
+            near_zero_q=near_zero_q, noisy_obs_static_command=noisy_obs_static_command,
             hold_joint_index=hold_joint_index,
             arm_response_fault=arm_response_fault,
             gripper_response=gripper_response,
@@ -331,7 +345,7 @@ def _start_and_record_v4(
             first_observation_ns=990_000_000,
             frozen_q=frozen_q,
             all_zero_q=all_zero_q,
-            near_zero_q=near_zero_q,
+            near_zero_q=near_zero_q, noisy_obs_static_command=noisy_obs_static_command,
             hold_joint_index=hold_joint_index,
             arm_response_fault=arm_response_fault,
             gripper_response=gripper_response,
@@ -362,7 +376,7 @@ def _start_and_record_v4(
                     first_observation_ns=first_ns,
                     frozen_q=frozen_q,
                     all_zero_q=all_zero_q,
-                    near_zero_q=near_zero_q,
+                    near_zero_q=near_zero_q, noisy_obs_static_command=noisy_obs_static_command,
                     hold_joint_index=hold_joint_index,
                     arm_response_fault=arm_response_fault,
                     gripper_response=gripper_response,
@@ -713,6 +727,25 @@ def test_v4_one_held_joint_is_allowed_when_rest_of_7d_trajectory_moves(
     assert summary["trajectory_nondegenerate"] is True
     assert summary["command_response_consistent"] is True
     assert summary["training_eligible"] is True
+
+
+def test_v4_moving_observation_with_static_action_is_blocked(
+    tmp_path: Path,
+) -> None:
+    # Reviewer P0: a stationary arm whose observation drifts above the 1e-4 range
+    # floor (noise / passive motion) but whose commanded action never materially
+    # moves must NOT pass the trajectory authenticity gate. A non-degenerate
+    # observation alone is not proof that a real action was executed.
+    capture = _new_capture(tmp_path)
+    _start_and_record_v4(capture, noisy_obs_static_command=True)
+    _record_frame(capture)
+    summary = capture.finish(now_monotonic_ns=1_030_000_000)
+
+    assert summary["observation_trajectory_max_joint_range_rad"] >= 1.0e-4
+    assert summary["any_command_materially_moving"] is False
+    assert summary["command_materially_moving"] == [False] * 8
+    assert summary["trajectory_nondegenerate"] is False
+    assert summary["training_eligible"] is False
 
 
 @pytest.mark.parametrize(

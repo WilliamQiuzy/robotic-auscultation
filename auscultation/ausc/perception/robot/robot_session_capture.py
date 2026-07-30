@@ -1809,10 +1809,18 @@ def _evaluate_training_trajectory(
     command_response_violations = [
         name for name in actuator_names if name in violation_reasons
     ]
+    # A non-degenerate observation trajectory is not enough: a stationary arm with
+    # ~1e-4 rad sensor noise satisfies the observation-range floor while no real
+    # action was commanded. Training requires that at least one action channel was
+    # actually driven by a materially-moving command (>= COMMAND_SIGNIFICANT_RANGE_RAD),
+    # so an all-zero / noise-only action stream is rejected. (One held joint is
+    # still allowed as long as some other channel materially moves.)
+    any_command_materially_moving = any(materially_moving)
     trajectory_nondegenerate = (
         not all_zero
         and not bit_identical
         and maximum_range >= TRAJECTORY_MIN_WHOLE_7D_RANGE_RAD
+        and any_command_materially_moving
         and not command_response_violations
     )
     return {
@@ -1842,6 +1850,7 @@ def _evaluate_training_trajectory(
         "observation_actuator_range_rad": observation_ranges,
         "action_actuator_range_rad": action_ranges,
         "command_materially_moving": materially_moving,
+        "any_command_materially_moving": any_command_materially_moving,
         "command_response_tracking_gain": tracking_gains,
         "command_response_correlation": correlations,
         "command_net_displacement_rad": action_net_displacements,
