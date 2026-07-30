@@ -645,13 +645,28 @@ class CollectionPlatform:
             self._emit(
                 "abort_requested", reason=primary_reason, mirror_capture=False,
             )
+            was_finalizing = self.state is CollectionState.FINALIZING
             if self.capture is not None:
-                try:
-                    self.capture.abort(primary_reason)
-                except Exception:
-                    # Lifecycle ABORTED evidence is authoritative; retain the
-                    # first capture error rather than losing it to a second abort.
-                    pass
+                if was_finalizing:
+                    # The finalizer thread owns the capture right now; requesting
+                    # cooperative cancellation (thread-safe) instead of calling
+                    # abort() concurrently avoids a data race on the capture's
+                    # state and stops it publishing a diagnostic_complete seal for
+                    # a session being aborted.  The finalizer thread performs the
+                    # actual terminal transition to aborted at its next checkpoint.
+                    request_cancel = getattr(self.capture, "request_cancel", None)
+                    if callable(request_cancel):
+                        try:
+                            request_cancel()
+                        except Exception:
+                            pass
+                else:
+                    try:
+                        self.capture.abort(primary_reason)
+                    except Exception:
+                        # Lifecycle ABORTED evidence is authoritative; retain the
+                        # first capture error rather than losing it to a second abort.
+                        pass
             self.state = CollectionState.ABORTED
             # Aborting a FINALIZING session ends its finalization: clear the
             # active flag here so it can never linger true, and capture the

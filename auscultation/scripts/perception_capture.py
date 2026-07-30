@@ -827,6 +827,15 @@ def _validated_boundary(value, *, label):
     return result
 
 
+class DiagnosticCaptureCancelled(RuntimeError):
+    """A finalization was cooperatively cancelled by a concurrent Abort.
+
+    It flows through ``finalize()``'s handler like any other finalization
+    failure — the capture ends ``diagnostic_aborted`` — but names the cause so
+    an abort-driven cancellation is not misread as a genuine finalization error.
+    """
+
+
 class DiagnosticPerceptionCapture:
     """Write and verify a short camera/model commissioning capture."""
 
@@ -920,6 +929,11 @@ class DiagnosticPerceptionCapture:
         self._wall_time_ns = wall_time_ns
 
         self._state = "new"
+        # Cooperative finalization cancellation.  A concurrent Abort sets this
+        # (thread-safe) so the finalizer bails to ``diagnostic_aborted`` at its
+        # next checkpoint instead of racing on to publish a ``diagnostic_complete``
+        # seal — the two must never both exist for one session.
+        self._cancel_requested = threading.Event()
         self._manifest: dict = {}
         self._writer = None
         self._video_size: tuple[int, int] | None = None
@@ -2530,9 +2544,27 @@ class DiagnosticPerceptionCapture:
         self._check_final_video_reserve()
         return final
 
+    def request_cancel(self) -> None:
+        """Request cooperative cancellation of an in-flight finalization.
+
+        Thread-safe: a concurrent Abort calls this instead of ``abort()`` while
+        the finalizer thread owns the capture, so there is no data race on the
+        capture's state and no ``diagnostic_complete`` seal is published for a
+        session the operator aborted.
+        """
+
+        self._cancel_requested.set()
+
+    def _raise_if_cancelled(self) -> None:
+        if self._cancel_requested.is_set():
+            raise DiagnosticCaptureCancelled(
+                "diagnostic finalization cancelled by abort"
+            )
+
     def finalize(self) -> dict:
         if self._state != "recording":
             raise RuntimeError(f"cannot finalize diagnostic capture from {self._state}")
+        self._raise_if_cancelled()
         self._state = "finalizing"
         try:
             return self._finalize()
@@ -2541,6 +2573,7 @@ class DiagnosticPerceptionCapture:
             raise
 
     def _finalize(self) -> dict:
+        self._raise_if_cancelled()
         if self._n_rgb <= 0:
             raise RuntimeError("diagnostic capture has no RGB frames")
         self._validate_finalization_boundary_indexes()
@@ -2644,6 +2677,10 @@ class DiagnosticPerceptionCapture:
         if (self.session_dir / "FINALIZATION.json").exists():
             raise RuntimeError("production FINALIZATION.json is forbidden in diagnostic capture")
 
+        # Last cancellation checkpoint before the irreversible diagnostic_complete
+        # commit: if Abort raced in during finalization, bail to aborted here so a
+        # single session can never carry both an ABORTED and a complete seal.
+        self._raise_if_cancelled()
         timeline = self._timeline_summary()
         frame_index_range = {
             "first_frame_index": self._first_frame_index,

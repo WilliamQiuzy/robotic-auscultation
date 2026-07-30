@@ -2176,23 +2176,27 @@ class Collector:
             "force": force,
         }
 
-    def _device_start_rejection(self):
-        """Collector-owned device-readiness precondition for Start.
+    def _device_start_rejection(self, *, runtime=None):
+        """Collector-owned device *liveness* precondition for Start.
 
-        The camera and model must be up with no fatal error.  This is the single
-        piece the hardware-agnostic platform cannot see; the served snapshot's
-        unified start_authorized and the control("start") path both consult it,
-        so the page and the API can never diverge on whether a device is ready.
-        The richer per-frame recording-quality signals are deliberately excluded
-        (they govern an active recording, not whether Start may begin).
+        This is the exact strict, bounded liveness gate Confirm already enforces
+        (_runtime_health_snapshot): the collector loop, camera capture thread,
+        model/preview/ingress workers must all be alive AND fresh, and the
+        required Hall force and OpenArm robot ready.  Cached ``camera_status``/
+        ``model_status`` strings are NOT trusted — a dead thread leaves them
+        stale — so this catches a model worker that died, a 99-second-stale Hall
+        reading, or a camera thread that stopped delivering.  The served
+        snapshot's start_authorized and the control("start") path both consult
+        it, so the page and the API can never diverge, and it is re-checked
+        immediately before the arm to shrink the confirm->arm TOCTOU window.
         """
 
-        if self._camera_status != "OK":
-            return "camera is not ready"
-        if self._model_status != "RUNNING":
-            return "perception model is not running"
-        if self._fatal_error is not None:
-            return "a fatal error is present"
+        runtime = self._runtime_health_snapshot() if runtime is None else runtime
+        if runtime.get("strict_ok") is not True:
+            blockers = runtime.get("blockers") or ("runtime is not healthy",)
+            return "device/runtime is not ready: " + "; ".join(
+                str(item) for item in blockers
+            )
         return None
 
     def _control_locked(
@@ -2345,6 +2349,19 @@ class Collector:
             # CameraStream; slow file creation is deliberately outside the
             # recording interval and cannot consume its first frames.
             with self._ingress_submit_lock:
+                # TOCTOU re-check: device/worker liveness may have dropped during
+                # back confirmation or audio preflight since the top-of-Start
+                # gate.  Re-check immediately before opening the interval so a
+                # worker that just died can never arm an empty recording.
+                arm_rejection = self._device_start_rejection()
+                if arm_rejection is not None:
+                    self._clear_back_confirmation("START_FAILED")
+                    return {
+                        "ok": False,
+                        "code": "start_not_authorized",
+                        "message": arm_rejection,
+                        "state": self.platform.state.value,
+                    }
                 if not self._ingress_worker.begin_interval():
                     self._clear_back_confirmation("START_FAILED")
                     return {

@@ -1084,3 +1084,59 @@ def test_abort_during_finalizing_drains_finalizer_and_clears_active(tmp_path):
     assert platform._finalization_active is False
     assert platform.state_snapshot()["finalization_active"] is False
     assert platform.control("start")["ok"] is True
+
+
+def test_abort_cancels_the_finalizer_and_prevents_a_double_commit(tmp_path):
+    # The reviewer's repro: an Abort during FINALIZING must cooperatively cancel
+    # the finalizer so it bails BEFORE publishing a diagnostic_complete seal.  A
+    # session must never carry both an ABORTED state and a completed seal.
+    entered = threading.Event()
+    sealed: list[bool] = []
+
+    class CancellableCapture(_Capture):
+        def __init__(self, session_dir: Path) -> None:
+            super().__init__(session_dir)
+            self._cancel = threading.Event()
+
+        def request_cancel(self) -> None:
+            self._cancel.set()
+
+        def finalize(self) -> dict:
+            self.finalized += 1
+            entered.set()
+            for _ in range(400):
+                if self._cancel.is_set():
+                    # Bail before the irreversible seal, like the real capture.
+                    raise RuntimeError("finalization cancelled by abort")
+                time.sleep(0.005)
+            sealed.append(True)  # would publish the diagnostic_complete seal
+            return {"status": "diagnostic_complete", "training_eligible": False}
+
+    captures: list[_Capture] = []
+
+    def factory(session_dir: Path) -> CancellableCapture:
+        capture = CancellableCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
+        finalize_join_timeout_s=2.0,
+    )
+    assert platform.control("start")["ok"]
+    assert platform.control("end")["state"] == "FINALIZING"
+    assert entered.wait(timeout=1.0)
+
+    result = platform.abort("operator abort")  # requests cancel, then joins
+    assert result["ok"] is True
+    assert platform.state is CollectionState.ABORTED
+    assert platform._finalization_active is False
+
+    platform._finalize_thread.join(timeout=2.0)
+    # The finalizer was cancelled: it never sealed, and the session stays ABORTED.
+    assert sealed == []
+    assert platform.state is CollectionState.ABORTED
+    assert platform.state_snapshot()["finalization_active"] is False
