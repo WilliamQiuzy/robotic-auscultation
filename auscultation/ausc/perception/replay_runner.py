@@ -125,6 +125,94 @@ def compute_bound_artifacts(
     return bound
 
 
+@dataclass(frozen=True)
+class GeometryReplayInput:
+    """One frame of verified geometry model input for the activated detector."""
+
+    frame_index: int
+    depth_scale: float
+    camera_t: float
+    point_names: tuple[str, ...]
+    rgb: np.ndarray
+    depth: np.ndarray
+    back_mask: object  # np.ndarray | None
+    robot_mask: object  # np.ndarray | None
+
+
+def reconstruct_geometry_items(
+    session_dir: "str | Path",
+) -> tuple[list[ReplayItem], dict[str, str]]:
+    """Rebuild the geometry replay items and the recorded model identity.
+
+    Every ledger frame is matched to its recorded packet by the packet's
+    content-addressed input SHAs and by sequence/frame index, and the RGB/depth
+    (and masks) are reopened through the ledger record's own verified reload — so
+    a replay input can never silently diverge from what the session recorded.
+    The recorded outputs are the perception channel's ``points_m`` and
+    ``covariances_m2``; ``recorded_identity`` is the perception model the session
+    ran, which the attestation must reproduce.
+    """
+
+    from ausc.perception.tracking.geometry_channel_packet import (
+        verify_geometry_packet_log_files,
+    )
+    from ausc.perception.tracking.production_evidence_capture import (
+        read_geometry_model_input_ledger,
+    )
+
+    session = Path(session_dir)
+    try:
+        ledger = read_geometry_model_input_ledger(session)
+        entries, receipt = verify_geometry_packet_log_files(session)
+    except Exception as exc:  # any malformed ledger/packet log is a hard failure
+        raise ReplayRunnerError(f"geometry replay inputs are invalid: {exc}") from exc
+
+    if len(entries) != len(ledger):
+        raise ReplayRunnerError(
+            f"geometry ledger has {len(ledger)} frames but the packet log has "
+            f"{len(entries)}"
+        )
+    if not ledger:
+        raise ReplayRunnerError("geometry replay has no frames")
+
+    items: list[ReplayItem] = []
+    for entry, record in zip(entries, ledger):
+        packet = entry.perception_observation_packet
+        if packet.sequence != record.sequence or packet.frame_index != record.frame_index:
+            raise ReplayRunnerError(
+                "geometry packet and ledger frames are not aligned"
+            )
+        if (
+            packet.input_rgb_sha256 != record.rgb_sha256
+            or packet.input_depth_sha256 != record.depth_sha256
+        ):
+            raise ReplayRunnerError(
+                "geometry packet inputs do not match the ledger content addresses"
+            )
+        reloaded = record.reload_for_inference()
+        model_input = GeometryReplayInput(
+            frame_index=record.frame_index,
+            depth_scale=float(record.depth_scale),
+            camera_t=float(record.camera_t),
+            point_names=tuple(packet.point_names),
+            rgb=reloaded.rgb,
+            depth=reloaded.depth,
+            back_mask=reloaded.back_mask,
+            robot_mask=reloaded.robot_mask,
+        )
+        recorded_outputs = {
+            "points_m": np.asarray(packet.points_m),
+            "covariances_m2": np.asarray(packet.covariances_m2),
+        }
+        items.append(ReplayItem(model_input=model_input, recorded_outputs=recorded_outputs))
+
+    recorded_identity = {
+        "release_id": receipt.perception_release_id,
+        "model_sha256": receipt.perception_model_sha256,
+    }
+    return items, recorded_identity
+
+
 def run_replay(
     session_dir: "str | Path",
     items: Sequence[ReplayItem],
@@ -200,9 +288,11 @@ def run_replay(
 
 
 __all__ = [
+    "GeometryReplayInput",
     "ReplayItem",
     "ReplayRunnerError",
     "compare_outputs",
     "compute_bound_artifacts",
+    "reconstruct_geometry_items",
     "run_replay",
 ]
