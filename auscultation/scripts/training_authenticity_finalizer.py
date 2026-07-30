@@ -1758,14 +1758,35 @@ def inspect_training_finalization_readiness(
             _regular_nonempty(session / relative)
             for relative in LOSSLESS_EVIDENCE_ARTIFACTS
         ):
-            blockers.append("geometry_production_evidence_verifier_not_integrated")
-            evidence_checks["geometry_exact_evidence_verifier"] = {
-                "status": "FAIL",
-                "reason": (
-                    "verify_production_evidence_capture activation arguments are "
-                    "not yet bound by the session manifest"
-                ),
-            }
+            try:
+                geometry_evidence = verify_geometry_packet_component(session)
+            except TrainingFinalizationError as exc:
+                blockers.append("geometry_raw_revalidation_failed")
+                evidence_checks["geometry_exact_evidence_verifier"] = {
+                    "status": "FAIL",
+                    "reason": str(exc),
+                }
+            else:
+                # A self-consistent numeric packet chain is not production truth.
+                # Only a valid replay attestation (the activated model re-run on
+                # the persisted inputs) flips ``production_authorized``; until
+                # then this is a blocker, never a PASS.
+                if geometry_evidence.get("production_authorized") is True:
+                    evidence_checks["geometry_exact_evidence_verifier"] = {
+                        "status": "PASS",
+                        "evidence": geometry_evidence,
+                    }
+                else:
+                    blockers.append("geometry_component_not_production_authorized")
+                    evidence_checks["geometry_exact_evidence_verifier"] = {
+                        "status": "FAIL",
+                        "evidence": geometry_evidence,
+                        "reason": (
+                            geometry_evidence.get("blocker")
+                            or "geometry component is diagnostic-only "
+                            "(production_authorized is False)"
+                        ),
+                    }
         quality_input_dir = session / "quality_model_inputs"
         quality_inputs_present = False
         try:
@@ -2682,8 +2703,58 @@ def verify_force_component(session_dir: str | Path) -> dict[str, object]:
     }
 
 
+def _apply_replay_attestation(
+    session_dir: str | Path,
+    base: dict[str, object],
+    *,
+    component: str,
+    recorded_identity: Mapping[str, object],
+    recorded_item_count: object,
+) -> dict[str, object]:
+    """Fold a present, valid replay attestation into a component's verdict.
+
+    Absent attestation -> return ``base`` unchanged (``production_authorized``
+    stays False and the diagnostic blocker remains).  A present attestation must
+    verify against this exact session and model identity, or the whole component
+    fails closed via :class:`TrainingFinalizationError` — a present-but-invalid
+    attestation is never silently downgraded to the diagnostic state.
+    """
+
+    from ausc.perception.replay_attestation import (
+        ReplayAttestationError,
+        load_session_attestation,
+        verify_replay_attestation,
+    )
+
+    try:
+        raw = load_session_attestation(session_dir, component)
+    except ReplayAttestationError as exc:
+        raise TrainingFinalizationError(
+            f"{component} replay attestation path is unsafe: {exc}"
+        ) from exc
+    if raw is None:
+        return dict(base)
+    try:
+        evidence = verify_replay_attestation(
+            session_dir,
+            raw,
+            component=component,
+            recorded_identity=recorded_identity,
+            recorded_item_count=recorded_item_count,
+        )
+    except ReplayAttestationError as exc:
+        raise TrainingFinalizationError(
+            f"{component} replay attestation is invalid: {exc}"
+        ) from exc
+    authorized = dict(base)
+    authorized["production_authorized"] = True
+    authorized.pop("blocker", None)
+    authorized["replay_attestation"] = evidence
+    return authorized
+
+
 def verify_geometry_packet_component(session_dir: str | Path) -> dict[str, object]:
-    """Replay every numeric packet pair; this alone does not authorize promotion."""
+    """Replay every numeric packet pair; a valid attestation authorizes promotion."""
 
     try:
         from ausc.perception.tracking.geometry_channel_packet import (
@@ -2695,7 +2766,7 @@ def verify_geometry_packet_component(session_dir: str | Path) -> dict[str, objec
         raise TrainingFinalizationError(
             f"geometry numeric packet replay failed: {exc}"
         ) from exc
-    return {
+    base = {
         "schema_version": "wam_geometry_packet_component_revalidation_v1",
         "status": "PASS",
         "packet_count": len(entries),
@@ -2709,6 +2780,20 @@ def verify_geometry_packet_component(session_dir: str | Path) -> dict[str, objec
         "production_authorized": False,
         "blocker": "lossless patient-frame and depth-patch replay still required",
     }
+    # Authorize promotion only when the deployment-activated model has been
+    # independently re-run on the exact persisted inputs and its outputs
+    # reproduce the recorded packets.  Absent attestation -> stay diagnostic;
+    # present-but-invalid attestation -> hard failure (never silently PASS).
+    return _apply_replay_attestation(
+        session_dir,
+        base,
+        component="geometry",
+        recorded_identity={
+            "release_id": receipt.perception_release_id,
+            "model_sha256": receipt.perception_model_sha256,
+        },
+        recorded_item_count=len(entries),
+    )
 
 
 def verify_quality_force_rows(
@@ -2837,7 +2922,7 @@ def verify_quality_packet_component(session_dir: str | Path) -> dict[str, object
     if not isinstance(model, Mapping):
         raise TrainingFinalizationError("quality model activation identity is missing")
     force_binding = verify_quality_force_rows(session_dir, packets)
-    return {
+    base = {
         "schema_version": "wam_quality_packet_component_revalidation_v1",
         "status": "PASS",
         "packet_count": receipt["packet_count"],
@@ -2850,17 +2935,27 @@ def verify_quality_packet_component(session_dir: str | Path) -> dict[str, object
         "force_input_identity": receipt.get("force_input_identity"),
         "force_csv_binding": force_binding,
         # The packet chain proves that persisted inputs, force rows, policy EMA,
-        # and recorded outputs are internally consistent.  It does not yet load
-        # the deployment-activated quality weights and independently re-run the
-        # model on audio windows reconstructed from canonical ``audio.wav``
-        # sample offsets.  Keep this component diagnostic until that replay is
-        # implemented; otherwise a self-consistent forged model/output pair
-        # could be mislabeled as production truth.
+        # and recorded outputs are internally consistent.  On its own it does NOT
+        # load the deployment-activated quality weights and independently re-run
+        # the model on audio windows reconstructed from canonical ``audio.wav``
+        # sample offsets; a self-consistent forged model/output pair could
+        # otherwise be mislabeled as production truth.  Promotion is authorized
+        # only by a valid replay attestation covering exactly this session.
         "production_authorized": False,
         "blocker": (
             "activated quality model replay against lossless audio windows is required"
         ),
     }
+    return _apply_replay_attestation(
+        session_dir,
+        base,
+        component="quality",
+        recorded_identity={
+            "release_id": model.get("release_id"),
+            "model_sha256": model.get("model_sha256"),
+        },
+        recorded_item_count=receipt["packet_count"],
+    )
 
 
 def finalize_training_session(
@@ -2884,19 +2979,22 @@ def finalize_training_session(
     )
     if report["status"] != "READY":
         raise TrainingFinalizationNotReady(report)
-    # Presence alone is not proof.  The exact future ledger schemas must be
-    # independently replayed before this branch is allowed to publish PASS.
+    # Readiness now includes the per-component replay attestations: the geometry
+    # and quality components each reached ``production_authorized`` only via a
+    # valid attestation covering exactly this session's persisted inputs.  The
+    # sole remaining gap is the authenticity/finalization publish path that mints
+    # a training-eligible session; it is intentionally not yet activated here
+    # (production promotion, Step 4).  A diagnostic receipt is never silently
+    # upgraded meanwhile.
     hardened = dict(report)
     hardened["status"] = "NOT_READY"
-    hardened["blockers"] = [
-        "lossless_model_input_verifiers_not_activated"
-    ]
+    hardened["blockers"] = ["production_publish_not_activated"]
     hardened["checks"] = dict(report["checks"])
-    hardened["checks"]["lossless_model_input_replay"] = {
-        "status": "FAIL",
+    hardened["checks"]["production_publish"] = {
+        "status": "PENDING",
         "reason": (
-            "artifact presence is insufficient; exact geometry, patient-depth, "
-            "and Q input replay contracts are not yet activated"
+            "replay attestations verified; the training authenticity and "
+            "finalization publish path is not yet activated"
         ),
     }
     raise TrainingFinalizationNotReady(hardened)

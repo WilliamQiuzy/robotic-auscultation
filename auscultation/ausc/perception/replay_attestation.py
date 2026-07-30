@@ -61,6 +61,13 @@ REQUIRED_BOUND_ARTIFACTS: dict[str, frozenset[str]] = {
     }),
 }
 
+#: Canonical in-session location of each component's replay attestation, written
+#: by the box-side runner and read by the framework-free finalizer.
+ATTESTATION_RELATIVE_PATHS: dict[str, str] = {
+    "geometry": "geometry/replay_attestation.json",
+    "quality": "quality/replay_attestation.json",
+}
+
 #: Per-component, per-output frozen tolerance ceilings.  DELIBERATELY EMPTY:
 #: ``frozen_epsilon`` mode is refused for a component with no frozen ceiling, so
 #: promotion requires bit-exact replay until a calibration run on the box proves
@@ -250,6 +257,36 @@ def _rehash_bound_artifact(session: Path, relative: str) -> str:
     return _sha256_file(path)
 
 
+def load_session_attestation(
+    session_dir: "str | Path", component: str,
+) -> bytes | None:
+    """Return the raw attestation bytes for ``component``, or ``None`` if absent.
+
+    Absence is a normal state — a session that has not yet been replayed simply
+    stays un-authorized.  Presence, however, is load-bearing: a symlinked path or
+    a symlinked parent is refused, so a present attestation can never be
+    redirected outside the session.
+    """
+
+    if component not in ATTESTATION_RELATIVE_PATHS:
+        raise ReplayAttestationError("unsupported component for replay attestation")
+    session = Path(session_dir).absolute()
+    relative = ATTESTATION_RELATIVE_PATHS[component]
+    probe = session
+    for part in PurePosixPath(relative).parts:
+        probe = probe / part
+        if probe.is_symlink():
+            raise ReplayAttestationError(
+                f"replay attestation path {relative} traverses a symlink"
+            )
+    path = session / relative
+    if not path.exists():
+        return None
+    if not path.is_file():
+        raise ReplayAttestationError("replay attestation is not a regular file")
+    return path.read_bytes()
+
+
 def verify_replay_attestation(
     session_dir: "str | Path",
     attestation: object,
@@ -375,6 +412,7 @@ def verify_replay_attestation(
 
 
 __all__ = [
+    "ATTESTATION_RELATIVE_PATHS",
     "COMPARISON_BIT_EXACT",
     "COMPARISON_FROZEN_EPSILON",
     "FROZEN_EPSILON_CEILINGS",
@@ -382,5 +420,6 @@ __all__ = [
     "REQUIRED_BOUND_ARTIFACTS",
     "ReplayAttestation",
     "ReplayAttestationError",
+    "load_session_attestation",
     "verify_replay_attestation",
 ]

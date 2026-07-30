@@ -1382,6 +1382,214 @@ def test_quality_component_production_authorized_passes_the_readiness_check(
     assert check["status"] == "PASS"
 
 
+def _geometry_branch_files(session: Path) -> None:
+    """Create the minimal artifacts that reach the geometry evidence branch."""
+
+    inputs = session / "geometry" / "model_inputs"
+    inputs.mkdir(parents=True, exist_ok=True)
+    (inputs / ("a" * 64 + ".npy")).write_bytes(b"\x00\x01")
+    (session / "geometry" / "patient_depth_evidence.jsonl").write_text(
+        "{}\n", encoding="utf-8"
+    )
+    (session / "geometry" / "patient_depth_authenticity.json").write_text(
+        "{}", encoding="utf-8"
+    )
+
+
+def test_geometry_component_not_production_authorized_is_a_blocker(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _geometry_branch_files(tmp_path)
+    monkeypatch.setattr(
+        finalizer,
+        "verify_geometry_packet_component",
+        lambda _session: {
+            "status": "PASS",
+            "production_authorized": False,
+            "blocker": "geometry replay attestation required",
+        },
+    )
+
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path, manifest_template=_manifest(), finalizer_identity=_identity(),
+    )
+
+    assert "geometry_component_not_production_authorized" in report["blockers"]
+    check = report["checks"]["lossless_model_evidence"]["geometry_exact_evidence_verifier"]
+    assert check["status"] == "FAIL"
+    assert check["reason"] == "geometry replay attestation required"
+
+
+def test_geometry_component_production_authorized_passes_the_readiness_check(
+    tmp_path: Path, monkeypatch
+) -> None:
+    _geometry_branch_files(tmp_path)
+    monkeypatch.setattr(
+        finalizer,
+        "verify_geometry_packet_component",
+        lambda _session: {"status": "PASS", "production_authorized": True},
+    )
+
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path, manifest_template=_manifest(), finalizer_identity=_identity(),
+    )
+
+    assert (
+        "geometry_component_not_production_authorized" not in report["blockers"]
+    )
+    check = report["checks"]["lossless_model_evidence"]["geometry_exact_evidence_verifier"]
+    assert check["status"] == "PASS"
+
+
+def _geometry_component_session(tmp_path: Path) -> tuple[Path, Path, Path]:
+    packets = tmp_path / "geometry_frame_packets.jsonl"
+    packets.write_bytes(b'{"frame":1}\n{"frame":2}\n')
+    ledger = tmp_path / "geometry" / "model_input_ledger.jsonl"
+    ledger.parent.mkdir(parents=True, exist_ok=True)
+    ledger.write_bytes(b'{"sequence":1}\n{"sequence":2}\n')
+    return tmp_path, packets, ledger
+
+
+def _mock_geometry_log(monkeypatch, *, model_sha: str, release_id: str) -> None:
+    receipt = SimpleNamespace(
+        packet_log_sha256="a" * 64,
+        receipt_sha256="b" * 64,
+        episode_id="ep-1",
+        perception_release_id=release_id,
+        perception_model_sha256=model_sha,
+        independent_release_id="independent-" + "c" * 20,
+        independent_model_sha256="c" * 64,
+    )
+    monkeypatch.setattr(
+        "ausc.perception.tracking.geometry_channel_packet.verify_geometry_packet_log_files",
+        lambda _session: (({"a": 1}, {"a": 2}), receipt),
+    )
+
+
+def _geometry_attestation(session, packets, ledger, *, model_sha, release_id):
+    return {
+        "schema_version": "wam_model_replay_attestation_v1",
+        "component": "geometry",
+        "session_id": "session-geo-001",
+        "bound_artifacts": {
+            "geometry_frame_packets.jsonl": hashlib.sha256(packets.read_bytes()).hexdigest(),
+            "geometry/model_input_ledger.jsonl": hashlib.sha256(ledger.read_bytes()).hexdigest(),
+        },
+        "model_release_id": release_id,
+        "model_sha256": model_sha,
+        "comparison_mode": "bit_exact",
+        "item_count": 2,
+        "matched_count": 2,
+        "max_abs_residual": {"landmark_uv": 0.0, "depth_m": 0.0},
+        "epsilon": {},
+        "producer": {
+            "code_release_id": "code_release-" + "b" * 20,
+            "module_sha256": "c" * 64,
+            "activation_sha256": "d" * 64,
+        },
+    }
+
+
+def test_geometry_component_authorized_by_a_valid_attestation(tmp_path, monkeypatch):
+    session, packets, ledger = _geometry_component_session(tmp_path)
+    model_sha = "d" * 64
+    release = "perception-" + model_sha[:20]
+    _mock_geometry_log(monkeypatch, model_sha=model_sha, release_id=release)
+    attestation = _geometry_attestation(
+        session, packets, ledger, model_sha=model_sha, release_id=release
+    )
+    (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
+
+    evidence = finalizer.verify_geometry_packet_component(session)
+
+    assert evidence["production_authorized"] is True
+    assert "blocker" not in evidence
+    assert evidence["replay_attestation"]["production_authorized"] is True
+
+
+def test_geometry_component_rejects_an_invalid_attestation(tmp_path, monkeypatch):
+    session, packets, ledger = _geometry_component_session(tmp_path)
+    model_sha = "d" * 64
+    release = "perception-" + model_sha[:20]
+    _mock_geometry_log(monkeypatch, model_sha=model_sha, release_id=release)
+    attestation = _geometry_attestation(
+        session, packets, ledger, model_sha=model_sha, release_id=release
+    )
+    # Bind a wrong ledger SHA: a present-but-invalid attestation fails closed.
+    attestation["bound_artifacts"]["geometry/model_input_ledger.jsonl"] = "f" * 64
+    (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
+
+    with pytest.raises(finalizer.TrainingFinalizationError, match="attestation is invalid"):
+        finalizer.verify_geometry_packet_component(session)
+
+
+def test_geometry_component_without_attestation_stays_diagnostic(tmp_path, monkeypatch):
+    session, _packets, _ledger = _geometry_component_session(tmp_path)
+    model_sha = "d" * 64
+    release = "perception-" + model_sha[:20]
+    _mock_geometry_log(monkeypatch, model_sha=model_sha, release_id=release)
+
+    evidence = finalizer.verify_geometry_packet_component(session)
+
+    assert evidence["production_authorized"] is False
+    assert evidence["blocker"]
+
+
+def test_quality_component_authorized_by_a_valid_attestation(tmp_path, monkeypatch):
+    packets = tmp_path / "quality_inference_packets.jsonl"
+    packets.write_bytes(b'{"q":0.4}\n{"q":0.6}\n{"q":0.5}\n')
+    audio = tmp_path / "audio.wav"
+    audio.write_bytes(b"real-audio-pcm")
+    model_sha = "d" * 64
+    release = "quality-model-" + model_sha[:20]
+    receipt = {
+        "packet_count": 3,
+        "sha256": SHA_A,
+        "last_packet_chain_sha256": SHA_B,
+        "model_input_inventory": {"count": 3},
+        "force_input_identity": {"sha256": "c" * 64},
+        "chain_verification": {"training_signal_eligible": True},
+        "quality_authenticity": {
+            "model": {"release_id": release, "model_sha256": model_sha},
+            "policy_sha256": "e" * 64,
+        },
+    }
+    monkeypatch.setattr("ausc.realtime_q.verify_quality_packet_log", lambda _s: receipt)
+    monkeypatch.setattr("ausc.realtime_q.read_quality_packet_log", lambda _p: [{"sequence": 1}])
+    monkeypatch.setattr(
+        finalizer, "verify_quality_force_rows", lambda _s, _p: {"status": "PASS"}
+    )
+    attestation = {
+        "schema_version": "wam_model_replay_attestation_v1",
+        "component": "quality",
+        "session_id": "session-q-001",
+        "bound_artifacts": {
+            "quality_inference_packets.jsonl": hashlib.sha256(packets.read_bytes()).hexdigest(),
+            "audio.wav": hashlib.sha256(audio.read_bytes()).hexdigest(),
+        },
+        "model_release_id": release,
+        "model_sha256": model_sha,
+        "comparison_mode": "bit_exact",
+        "item_count": 3,
+        "matched_count": 3,
+        "max_abs_residual": {"quality": 0.0},
+        "epsilon": {},
+        "producer": {
+            "code_release_id": "code_release-" + "b" * 20,
+            "module_sha256": "c" * 64,
+            "activation_sha256": "d" * 64,
+        },
+    }
+    (tmp_path / "quality").mkdir()
+    (tmp_path / "quality" / "replay_attestation.json").write_text(json.dumps(attestation))
+
+    evidence = finalizer.verify_quality_packet_component(tmp_path)
+
+    assert evidence["production_authorized"] is True
+    assert "blocker" not in evidence
+    assert evidence["replay_attestation"]["production_authorized"] is True
+
+
 def test_diagnostic_capture_kind_can_never_be_promoted(tmp_path: Path) -> None:
     report = finalizer.inspect_training_finalization_readiness(
         tmp_path, manifest_template=_manifest(), finalizer_identity=_identity(),
