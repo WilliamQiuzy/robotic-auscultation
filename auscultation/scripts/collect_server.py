@@ -1623,10 +1623,12 @@ class Collector:
                 self._force_recording_active = False
         if self._thread is not None and self._thread is not threading.current_thread():
             self._thread.join(timeout=2.0)
-        if self.platform.state is CollectionState.FINALIZING:
-            # Do not let the interpreter discard a session while its video and
-            # indexes are being verified.  systemd still owns the outer stop timeout.
-            self.platform.wait_for_terminal(timeout=None)
+        # Always drain the one non-daemon finalizer thread, even if the session
+        # was Aborted out of FINALIZING while the thread was still mid-flight;
+        # otherwise the interpreter cannot exit cleanly.  A no-op when the thread
+        # is already gone.  systemd owns the outer stop timeout for a genuinely
+        # stuck finalize.
+        self.platform.wait_for_terminal(timeout=None)
 
     def control(
         self, action, *, preview_frame_index=None, preview_frame_token=None,
@@ -2174,6 +2176,25 @@ class Collector:
             "force": force,
         }
 
+    def _device_start_rejection(self):
+        """Collector-owned device-readiness precondition for Start.
+
+        The camera and model must be up with no fatal error.  This is the single
+        piece the hardware-agnostic platform cannot see; the served snapshot's
+        unified start_authorized and the control("start") path both consult it,
+        so the page and the API can never diverge on whether a device is ready.
+        The richer per-frame recording-quality signals are deliberately excluded
+        (they govern an active recording, not whether Start may begin).
+        """
+
+        if self._camera_status != "OK":
+            return "camera is not ready"
+        if self._model_status != "RUNNING":
+            return "perception model is not running"
+        if self._fatal_error is not None:
+            return "a fatal error is present"
+        return None
+
     def _control_locked(
         self, action, *, preview_frame_index=None, preview_frame_token=None,
     ):
@@ -2229,12 +2250,15 @@ class Collector:
         start_back_gate = None
         start_back_token = None
         if normalized == "start":
-            # Defer the core Start decision (mode / preflight / writer / state)
-            # to the one platform authority before layering the collector's
-            # hardware-specific sensor and back-confirmation gates.  The HTTP
-            # layer never recomputes that decision; it only adds the gates the
-            # hardware-agnostic platform cannot own.
+            # Single Start authority, shared with the served snapshot: the
+            # platform decision (mode/preflight/writer/state) AND the
+            # collector-owned device readiness (camera/model up, no fatal error).
+            # Device readiness is exactly the piece the platform cannot see and
+            # the one the reviewer saw the page block while the API allowed; the
+            # specific audio/back gates below then add their own precise codes.
             start_rejection = self.platform.start_authorization()
+            if start_rejection is None:
+                start_rejection = self._device_start_rejection()
             if start_rejection is not None:
                 return {
                     "ok": False,
@@ -5135,6 +5159,14 @@ class Collector:
         # confirmation) the platform cannot see.  These mirror the HTTP
         # _control_locked start checks exactly, so the page and API never disagree.
         platform_ok = snapshot.get("start_authorized") is True
+        # Device readiness is the Start precondition: the camera and model must be
+        # up, with no fatal error or outstanding preflight blocker.  The richer
+        # per-frame recording-quality signals (live constellation strictness,
+        # delivery-interval health) are NOT Start gates -- they govern an active
+        # recording and the back-confirmation handshake, not whether Start may
+        # begin -- so folding them in here would wrongly forbid a legitimate
+        # Start (and diverge from the operator's confirm-then-start flow).
+        device_ready = self._device_start_rejection() is None
         audio_gate_ok = True
         audio_reason = None
         if self.require_audio or self.audio_device is not None:
@@ -5151,17 +5183,14 @@ class Collector:
             and back_confirmation.get("confirmed") is not True
         )
         unified_ok = (
-            platform_ok
-            and bool(diagnostic_ready)
-            and audio_gate_ok
-            and back_gate_ok
+            platform_ok and device_ready and audio_gate_ok and back_gate_ok
         )
         if unified_ok:
             unified_reason = None
         elif not platform_ok:
             unified_reason = snapshot.get("start_rejection") or "start is not authorized"
-        elif not diagnostic_ready:
-            unified_reason = "diagnostic preflight is not ready"
+        elif not device_ready:
+            unified_reason = "camera/model preflight is not ready"
         elif not audio_gate_ok:
             unified_reason = audio_reason
         else:

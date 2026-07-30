@@ -1038,3 +1038,49 @@ def test_production_without_a_registry_is_never_authorized(tmp_path):
     assert "registered production writer" in reason
     assert platform.control("start")["ok"] is False
     assert captures == []
+
+
+def test_abort_during_finalizing_drains_finalizer_and_clears_active(tmp_path):
+    # Abort of a FINALIZING session must clear the active flag, best-effort join
+    # the finalizer, and its late return must never resurrect the aborted
+    # session or leave a lingering non-daemon thread that blocks the next Start.
+    entered = threading.Event()
+    release = threading.Event()
+
+    class SlowCapture(_Capture):
+        def finalize(self) -> dict:
+            self.finalized += 1
+            entered.set()
+            release.wait(timeout=2.0)
+            return {"status": "diagnostic_complete", "training_eligible": False}
+
+    captures: list[_Capture] = []
+
+    def factory(session_dir: Path) -> SlowCapture:
+        capture = SlowCapture(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        writer_types={"DiagnosticPerceptionCapture": _Capture},
+        finalize_join_timeout_s=0.2,
+    )
+    assert platform.control("start")["ok"]
+    assert platform.control("end")["state"] == "FINALIZING"
+    assert entered.wait(timeout=1.0)
+
+    result = platform.abort("operator abort")  # bounded join times out here
+    assert result["ok"] is True
+    assert platform.state is CollectionState.ABORTED
+    assert platform._finalization_active is False
+
+    # Let the still-blocked finalizer finish; its late return must not resurrect.
+    release.set()
+    platform._finalize_thread.join(timeout=2.0)
+    assert platform.state is CollectionState.ABORTED
+    assert platform._finalization_active is False
+    assert platform.state_snapshot()["finalization_active"] is False
+    assert platform.control("start")["ok"] is True

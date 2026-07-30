@@ -1521,6 +1521,8 @@ def test_required_left_robot_session_starts_before_camera_is_armed(tmp_path):
     collector._last_camera_index = 40
     preview_episode_id = collector._occlusion_episode_id
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         result = collector.control("start")
         assert result["ok"] is True
         assert collector._occlusion_episode_id.startswith("session-")
@@ -1688,6 +1690,8 @@ def test_collector_allows_redo_when_current_ui_gate_hides_old_model_result(tmp_p
         targets, fake=True, out_dir=tmp_path, start_thread=False,
     )
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         collector.platform.back_present = True
         collector.platform.initialized = True
@@ -1717,6 +1721,8 @@ def test_confirm_fails_closed_when_collector_runtime_thread_is_dead(tmp_path):
         fake=True, out_dir=tmp_path, start_thread=False,
     )
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         collector._current_tracking = {
             "back_present": True,
@@ -2049,6 +2055,8 @@ def test_start_without_active_back_confirmation_creates_nothing(tmp_path):
     )
     collector._back_gate = BackGate()
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         result = collector.control("start")
         assert result["ok"] is False
         assert result["code"] == "back_confirmation_required"
@@ -2139,6 +2147,8 @@ def test_start_revalidates_the_same_confirmation_before_recording_is_armed(tmp_p
     )
     collector._back_gate = BackGate()
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         result = collector.control("start")
         assert result["ok"] is False
         assert result["code"] == "back_confirmation_lost_during_start"
@@ -2215,6 +2225,8 @@ def test_failed_start_aborts_audio_and_clears_back_confirmation(tmp_path):
     collector.platform.capture_factory = lambda _path: Capture()
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         result = collector.control("start")
         assert result["ok"] is False
         assert result["code"] == "capture_start_boundary_not_persisted"
@@ -2346,6 +2358,8 @@ def test_force_prearms_before_camera_and_uses_exact_shared_boundaries(tmp_path):
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector.platform.completion_validator = None
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert events[:5] == [
             "capture_start", "force_prearm", "camera_start",
@@ -2400,6 +2414,8 @@ def test_force_state_is_live_and_unsafe_event_aborts_recording(tmp_path):
         state = collector.state_snapshot()
         assert state["force"] == 3.25
         assert state["force_sensor"]["status"] == "WARN"
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         collector._on_force_safety_event(server.SimpleNamespace(
             force_n=9.5, status="SCREENED_LIMIT", age_s=0.0,
@@ -2639,6 +2655,8 @@ def test_runtime_abort_continues_after_audio_cleanup_oserror(tmp_path):
         fake=True, out_dir=tmp_path, start_thread=False,
     )
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         collector._audio = Audio()
         collector._audio_recording_active = True
@@ -2662,6 +2680,8 @@ def test_shutdown_continues_after_audio_stop_oserror(tmp_path):
         [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
         fake=True, out_dir=tmp_path, start_thread=False,
     )
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
     assert collector.control("start")["ok"] is True
     collector._audio = Audio()
     collector._audio_recording_active = True
@@ -2717,6 +2737,8 @@ def test_boundary_persistence_cannot_clear_gate_then_arm_recording(tmp_path):
     collector.platform.capture_factory = lambda _path: Capture()
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         result = collector.control("start")
         assert result["ok"] is False
         assert result["code"] == "back_confirmation_lost_during_start"
@@ -3974,6 +3996,8 @@ def test_collector_shutdown_aborts_an_open_diagnostic_session(tmp_path):
     collector = server.Collector(
         targets, fake=True, out_dir=tmp_path, start_thread=False,
     )
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
     assert collector.control("start")["ok"] is True
     session_dir = collector.platform.session_dir
 
@@ -3993,6 +4017,8 @@ def test_automatic_abort_freezes_elapsed_time(tmp_path):
         fake=True, out_dir=tmp_path, start_thread=False,
     )
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         collector._record_started = time.monotonic() - 1.0
         collector._abort_recording("camera stale")
@@ -4619,6 +4645,8 @@ def test_capture_ingress_is_armed_only_inside_explicit_recording_interval(tmp_pa
     try:
         assert collector._submit_ingress(frame, {}) is True
         assert stub.submitted == []
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         frame.t = collector._recording_boundary["start_host_t_s"] + 0.01
         assert collector._submit_ingress(frame, {}) is True
@@ -4648,6 +4676,8 @@ def test_direct_camera_path_cannot_submit_after_lossless_delivery_is_armed(tmp_p
     stub = _IngressStub()
     collector._ingress_worker = stub
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         collector._camera_delivery_enabled = True
         boundary_t = collector._recording_boundary["start_host_t_s"]
@@ -4678,6 +4708,8 @@ def test_model_staleness_records_unavailable_association_without_aborting_rgbd(t
         "status": "OK", "thread_alive": True, "last_result_age_s": 5.0,
     })
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         boundary_t = collector._recording_boundary["start_host_t_s"]
         collector._latest_tracking = {
@@ -4709,6 +4741,8 @@ def test_end_aborts_instead_of_sealing_when_capture_ingress_dropped_a_frame(tmp_
     stub = _IngressStub()
     collector._ingress_worker = stub
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         stub.dropped = 1
 
@@ -4742,6 +4776,8 @@ def test_end_boundary_blocks_concurrent_operator_controls_until_finalizing(tmp_p
     )
     collector._ingress_worker.stop()
     collector._ingress_worker = BlockingIngress()
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
     assert collector.control("start")["ok"] is True
     collector._current_tracking = {
         "constellation_valid": True, "reason": "TRACKING",
@@ -4793,6 +4829,8 @@ def test_live_fault_during_end_drain_cannot_abort_closed_capture_boundary(tmp_pa
     )
     collector._ingress_worker.stop()
     collector._ingress_worker = BlockingIngress()
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
     assert collector.control("start")["ok"] is True
     result = {}
     end_thread = threading.Thread(
@@ -4831,6 +4869,8 @@ def test_collector_submits_every_camera_frame_with_explicit_tracking_source(tmp_
         "points": [],
     }
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         start_t = collector._recording_boundary["start_host_t_s"]
         collector._latest_tracking["camera_host_t_s"] = start_t + 0.001
@@ -4872,6 +4912,8 @@ def test_pre_start_camera_and_pending_model_result_never_leak_into_new_session(t
         "points": [],
     }
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         boundary = collector._recording_boundary
         assert boundary["camera_start_boundary_index"] == 10
@@ -4949,6 +4991,8 @@ def test_end_persists_capture_model_boundaries_before_finalization(tmp_path):
     stub = _IngressStub()
     collector._ingress_worker = stub
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         start_t = collector._recording_boundary["start_host_t_s"]
         assert collector._submit_ingress(
@@ -5004,6 +5048,8 @@ def test_live_fault_after_end_boundary_cannot_abort_active_finalizer(tmp_path):
     collector._ingress_worker.stop()
     collector._ingress_worker = _IngressStub()
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert collector.control("end")["state"] == "FINALIZING"
         assert entered.wait(1.0)
@@ -5027,6 +5073,8 @@ def test_capture_fifo_overflow_aborts_immediately_and_never_seals(tmp_path):
     stub = _IngressStub()
     collector._ingress_worker = stub
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         stub.submit = lambda _bundle: False
         stub.overflow = 1
@@ -5055,6 +5103,8 @@ def test_camera_index_gap_aborts_at_submission_boundary(tmp_path):
     stub = _IngressStub()
     collector._ingress_worker = stub
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         start_t = collector._recording_boundary["start_host_t_s"]
         assert collector._submit_camera_capture(
@@ -5080,6 +5130,8 @@ def test_first_post_start_camera_index_must_follow_start_boundary_exactly(tmp_pa
     collector._ingress_worker = stub
     collector._last_camera_index = 40
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert collector._submit_camera_capture(server.SimpleNamespace(
             index=42,
@@ -5117,6 +5169,8 @@ def test_start_snapshots_camera_slot_before_persisting_strict_boundary(tmp_path)
 
     collector._cam = Camera()
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert collector._recording_boundary["camera_start_boundary_index"] == 41
         boundary_t = collector._recording_boundary["start_host_t_s"]
@@ -5224,6 +5278,8 @@ def test_slow_capture_start_latches_camera_boundary_only_after_files_are_ready(t
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector._cam = camera
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert collector._recording_boundary["camera_start_boundary_index"] == 50
         assert boundary_contexts[-1]["camera_start_boundary_index"] == 50
@@ -5295,6 +5351,8 @@ def test_camera_delivery_overflow_aborts_recording_and_never_reports_complete(tm
 
     collector._cam = Camera()
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         session_dir = collector.platform.session_dir
         Camera.overflow = 1
@@ -5356,6 +5414,8 @@ def test_model_completion_updates_tracking_timeline_but_never_submits_capture_fr
     collector._model_worker = Worker()
     collector._frame_ring[5] = frame
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert collector._consume_model_result() is True
         assert collector._latest_tracking["frame_index"] == 5
@@ -5380,6 +5440,8 @@ def test_expired_model_source_frame_is_dropped_without_resetting_recording(tmp_p
 
     collector._model_worker = Worker()
     try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         assert collector._consume_model_result() is True
         assert collector.platform.state.value == "RECORDING"
@@ -5607,6 +5669,8 @@ def test_stale_camera_aborts_recording_clears_points_and_reopens_pipeline(tmp_pa
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     try:
         assert _wait_until(lambda: collector._model_status == "RUNNING")
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
         assert collector.control("start")["ok"] is True
         stale.set()
         assert _wait_until(lambda: collector._camera_status == "RECONNECTING")
@@ -5642,5 +5706,36 @@ def test_served_start_authorized_folds_in_the_audio_gate(tmp_path):
         silent = collector.state_snapshot()
         assert silent["start_authorized"] is False
         assert silent["start_rejection"]
+    finally:
+        collector.shutdown()
+
+
+def test_control_start_and_page_agree_when_device_is_not_ready(tmp_path):
+    # The reviewer's repro: with camera/model not running, the page shows
+    # start_authorized false AND the control path must refuse too (no empty
+    # recording).  They consult the same device-readiness precondition.
+    server = _load_collect_server()
+
+    class Capture:
+        def start(self): pass
+        def record_event(self, _p): pass
+        def write_frame(self, _f, _t): pass
+        def finalize(self): return {"status": "diagnostic_complete",
+                                     "training_eligible": False}
+        def abort(self, _r): pass
+
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    collector.platform.capture_factory = lambda _p: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
+    try:
+        # Device threads never started -> camera not OK, model not RUNNING.
+        assert collector.state_snapshot()["start_authorized"] is False
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "start_not_authorized"
+        assert collector.platform.state.value != "RECORDING"
     finally:
         collector.shutdown()

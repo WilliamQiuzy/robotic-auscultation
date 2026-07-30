@@ -375,6 +375,7 @@ class CollectionPlatform:
         clock: Callable[[], float] = time.monotonic,
         wall_time_ns: Callable[[], int] = time.time_ns,
         uuid_factory: Callable[[], uuid.UUID] = uuid.uuid4,
+        finalize_join_timeout_s: float = 5.0,
     ) -> None:
         self.session_root = Path(session_root).expanduser().resolve()
         self.point_names = tuple(str(name) for name in point_names)
@@ -396,6 +397,7 @@ class CollectionPlatform:
         self._clock = clock
         self._wall_time_ns = wall_time_ns
         self._uuid_factory = uuid_factory
+        self._finalize_join_timeout_s = float(finalize_join_timeout_s)
         self._lock = threading.RLock()
 
         self.state = (
@@ -623,6 +625,7 @@ class CollectionPlatform:
                     raise
 
     def abort(self, reason: str) -> dict:
+        thread_to_join = None
         with self._lock:
             if self.state is CollectionState.ABORTED:
                 return self._success(
@@ -650,13 +653,29 @@ class CollectionPlatform:
                     # first capture error rather than losing it to a second abort.
                     pass
             self.state = CollectionState.ABORTED
+            # Aborting a FINALIZING session ends its finalization: clear the
+            # active flag here so it can never linger true, and capture the
+            # background thread to drain once the lock is released.
+            self._finalization_active = False
+            thread_to_join = self._finalize_thread
             self.action_ack = f"Diagnostic capture aborted: {primary_reason}"
             self.last_error = primary_reason
             self.revision += 1
             self._emit("capture_aborted", reason=primary_reason, mirror_capture=False)
             self._write_lifecycle()
             self._close_journal()
-            return self._success(ack=self.action_ack)
+            result = self._success(ack=self.action_ack)
+        # Drain the finalizer OUTSIDE the lock (it acquires the lock to commit,
+        # so joining under it would deadlock).  Bounded + best-effort: the
+        # generation/state guards already stop it mutating this aborted session;
+        # this just keeps a non-daemon thread from lingering and unblocks a
+        # later Start once it exits.
+        if (
+            thread_to_join is not None
+            and thread_to_join is not threading.current_thread()
+        ):
+            thread_to_join.join(timeout=self._finalize_join_timeout_s)
+        return result
 
     def start_authorization(self) -> str | None:
         """Single Start authority for every mode.
@@ -934,14 +953,14 @@ class CollectionPlatform:
             return
 
         with self._lock:
-            # Generation guard: only commit if the platform is still on the exact
-            # session this thread finalized.  If an Abort + new Start moved the
-            # platform on, this result belongs to an abandoned session and must
-            # never mutate the live one.
-            if (
-                self.state is not CollectionState.FINALIZING
-                or self._generation != generation
-            ):
+            # A different session now owns the platform: never touch it.
+            if self._generation != generation:
+                return
+            # Same session, but it was Aborted (or already terminal) while this
+            # finalizer ran.  Drain our own active flag so it cannot stick true,
+            # but never resurrect an ABORTED session into COMPLETE.
+            if self.state is not CollectionState.FINALIZING:
+                self._finalization_active = False
                 return
             self._finalization = dict(result)
             # Realized eligibility is committed here, under the same guard, so it
@@ -966,10 +985,13 @@ class CollectionPlatform:
             except Exception:
                 pass
         with self._lock:
-            # Only surface the failure on the live session if the platform is
-            # still on this thread's generation; otherwise the failure belongs to
-            # an abandoned session and must not touch the current one.
+            # A different session now owns the platform: never touch it.
             if self._generation != generation:
+                return
+            # Same session but already Aborted/terminal: do not overwrite a
+            # written ABORTED with ERROR; just drain our own active flag.
+            if self.state is not CollectionState.FINALIZING:
+                self._finalization_active = False
                 return
             self.last_error = f"finalization failed: {type(exc).__name__}: {exc}"
             self.action_ack = "Diagnostic finalization failed"
