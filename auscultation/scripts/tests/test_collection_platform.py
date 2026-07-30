@@ -18,6 +18,7 @@ sys.path.insert(0, str(SCRIPTS))
 from collection_platform import (  # noqa: E402
     DIAGNOSTIC_PERCEPTION_CONTRACT,
     PREVIEW_ONLY_CONTRACT,
+    PRODUCTION_TELEOP_CONTRACT,
     CaptureContract,
     CaptureMode,
     CollectionPlatform,
@@ -74,6 +75,31 @@ def _platform(tmp_path: Path, *, blockers=()) -> tuple[CollectionPlatform, list[
         uuid_factory=lambda: UUID("12345678-1234-5678-1234-567812345678"),
     )
     return platform, captures
+
+
+def test_production_teleop_contract_is_the_only_promotable_recording_contract():
+    # Production is the sole training-eligible, recording contract; diagnostic and
+    # preview are structurally un-promotable.
+    assert PRODUCTION_TELEOP_CONTRACT.mode is CaptureMode.PRODUCTION_CAPTURE
+    assert PRODUCTION_TELEOP_CONTRACT.capture_kind == "production_teleop_v4"
+    assert PRODUCTION_TELEOP_CONTRACT.training_intent is True
+    assert PRODUCTION_TELEOP_CONTRACT.training_eligible is True
+    assert PRODUCTION_TELEOP_CONTRACT.records is True
+    assert PRODUCTION_TELEOP_CONTRACT.writer_identity == "ProductionTeleopCapture"
+    assert DIAGNOSTIC_PERCEPTION_CONTRACT.training_eligible is False
+    assert PREVIEW_ONLY_CONTRACT.training_eligible is False
+
+
+def test_production_contract_cannot_be_fronted_by_a_diagnostic_writer():
+    with pytest.raises(ValueError, match="diagnostic writer"):
+        CaptureContract(
+            mode=CaptureMode.PRODUCTION_CAPTURE,
+            capture_kind="production_teleop_v4",
+            training_intent=True,
+            writer_identity="DiagnosticPerceptionCapture",
+            manifest_schema="wam_session_v2",
+            finalization_schema="wam_promotion_v2",
+        )
 
 
 def test_session_directory_is_contained_and_never_reuses_an_existing_path(tmp_path):

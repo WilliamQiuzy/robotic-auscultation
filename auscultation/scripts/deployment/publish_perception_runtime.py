@@ -149,7 +149,7 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = {
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "516c2a9c7f35ce0758fa0b7a2727e267444acfa051dbfd603719ef9f56c3160a",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
     "auscultation/scripts/collect_server.py": "4e2ec99199c2e2b3e1ea40fa53c89f87bcab9605a63878323a6d59061a88ba55",
-    "auscultation/scripts/collection_platform.py": "712a53c79b9d19f7ddbbae2b612cc05cf1ea20f58027132259c760494e9fe57d",
+    "auscultation/scripts/collection_platform.py": "205fdc5173d10480b5b3b70c4538d282d8ba6b18657ce4b69475921b679bda46",
     "auscultation/scripts/collection_supervisor.py": "03f265cc6540770066f8ed5ca11b609e13a842e59aa94fe211c806de4508d420",
     "auscultation/scripts/perception_capture.py": "cdf0185e05271f90dd7373b343eff4534dd92f543f5de289539e05153bfad8ba",
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",

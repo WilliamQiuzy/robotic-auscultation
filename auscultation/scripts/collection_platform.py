@@ -186,6 +186,21 @@ PREVIEW_ONLY_CONTRACT = CaptureContract(
     finalization_schema="wam_promotion_v2",
 )
 
+#: Production teleoperation capture: the only contract that may ever promote to
+#: training.  Its ``capture_kind`` is exactly the ``production_teleop_v4`` the
+#: finalizer/converter accept, it carries training intent, and its writer is a
+#: real production writer (``ProductionTeleopCapture``) — the contract validation
+#: refuses a diagnostic writer here, so a diagnostic session can never be
+#: relabelled as production.
+PRODUCTION_TELEOP_CONTRACT = CaptureContract(
+    mode=CaptureMode.PRODUCTION_CAPTURE,
+    capture_kind="production_teleop_v4",
+    training_intent=True,
+    writer_identity="ProductionTeleopCapture",
+    manifest_schema="wam_session_v2",
+    finalization_schema="wam_promotion_v2",
+)
+
 
 class _Capture(Protocol):
     def start(self) -> None: ...
