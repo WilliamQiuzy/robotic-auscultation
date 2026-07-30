@@ -77,12 +77,24 @@ def _quality_policy() -> dict:
 
 def _audio_window(value: float, *, t_start: float):
     samples = np.linspace(value, value + 0.01, 4_000, dtype=np.float32)
+    source_start = int(round(t_start * 48_000))
     return SimpleNamespace(
         samples=samples,
         sr=16_000,
         t_start=t_start,
         t_end=t_start + 0.25,
         status="OK",
+        raw_source={
+            "source_channel": 1,
+            "source_sample_start": source_start,
+            "source_sample_end": source_start + 12_000,
+            "source_sample_rate": 48_000,
+            "resampler_identity": {
+                "algorithm": "polyphase_fir_v1",
+                "input_sample_rate": 48_000,
+                "output_sample_rate": 16_000,
+            },
+        },
     )
 
 
@@ -381,7 +393,7 @@ def test_constant_zero_model_output_is_live_when_packet_evidence_advances(tmp_pa
     assert {
         key: value
         for key, value in packet["audio_window"].items()
-        if key != "model_input"
+        if key not in ("model_input", "raw_source")
     } == {
         "t_start_monotonic_s": pytest.approx(1.3),
         "t_end_monotonic_s": pytest.approx(1.55),
@@ -399,6 +411,15 @@ def test_constant_zero_model_output_is_live_when_packet_evidence_advances(tmp_pa
         "shape": [4_000],
         "bytes": 16_000,
         "sha256": expected_audio_sha,
+    }
+    raw_source = packet["audio_window"]["raw_source"]
+    assert raw_source["schema_version"] == "wam_quality_audio_raw_source_v1"
+    assert raw_source["source_channel"] == 1
+    assert raw_source["source_sample_end"] > raw_source["source_sample_start"]
+    assert raw_source["resampler_identity"] == {
+        "algorithm": "polyphase_fir_v1",
+        "input_sample_rate": 48_000,
+        "output_sample_rate": 16_000,
     }
     assert packet["force_sample"] == {
         "host_t_s": pytest.approx(1.5),
@@ -1423,3 +1444,59 @@ def test_quality_packet_writer_refuses_publication_without_force_csv(tmp_path):
     assert writer.staging_path.is_file()
     assert writer.input_staging_path.is_dir()
     assert not writer.final_path.exists()
+
+
+# --- Q raw-source provenance validator (Step 2b) -----------------------------
+
+def _raw_source(**overrides):
+    base = {
+        "source_channel": 1,
+        "source_sample_start": 0,
+        "source_sample_end": 12_000,
+        "source_sample_rate": 48_000,
+        "resampler_identity": {
+            "algorithm": "polyphase_fir_v1",
+            "input_sample_rate": 48_000,
+            "output_sample_rate": 16_000,
+        },
+    }
+    base.update(overrides)
+    return base
+
+
+def test_raw_source_claim_round_trips_and_binds_window_rate():
+    out = realtime_q._normalize_raw_source_claim(_raw_source(), window_sample_rate=16_000)
+    assert out["schema_version"] == "wam_quality_audio_raw_source_v1"
+    # Re-validating the stored form (with schema_version) is idempotent.
+    assert realtime_q._normalize_raw_source_claim(out, window_sample_rate=16_000) == out
+
+
+@pytest.mark.parametrize("claim, match", [
+    (_raw_source(source_channel=-1), "channel"),
+    (_raw_source(source_sample_start=5, source_sample_end=5), "sample range"),
+    (_raw_source(source_sample_start=10, source_sample_end=3), "sample range"),
+    (_raw_source(source_sample_rate=0), "sample rate"),
+    (_raw_source(resampler_identity={"algorithm": "x", "input_sample_rate": 48_000}),
+     "exact schema"),
+    (_raw_source(resampler_identity={
+        "algorithm": "", "input_sample_rate": 48_000, "output_sample_rate": 16_000}),
+     "algorithm"),
+    (_raw_source(resampler_identity={
+        "algorithm": "x", "input_sample_rate": 44_100, "output_sample_rate": 16_000}),
+     "input rate must equal the source"),
+])
+def test_raw_source_claim_rejects_bad_provenance(claim, match):
+    with pytest.raises(ValueError, match=match):
+        realtime_q._normalize_raw_source_claim(claim, window_sample_rate=16_000)
+
+
+def test_raw_source_claim_rejects_window_rate_mismatch():
+    with pytest.raises(ValueError, match="output rate must equal the window"):
+        realtime_q._normalize_raw_source_claim(_raw_source(), window_sample_rate=8_000)
+
+
+def test_raw_source_claim_rejects_missing_or_extra_fields():
+    with pytest.raises(ValueError, match="exact schema"):
+        realtime_q._normalize_raw_source_claim({"source_channel": 1})
+    with pytest.raises(ValueError, match="exact schema"):
+        realtime_q._normalize_raw_source_claim(_raw_source(unexpected=1))

@@ -264,3 +264,134 @@ def test_existing_exact_depth_is_reused_but_mismatch_and_symlink_are_rejected(
         _capture(symlink_root).stage_model_input(
             _patient_evidence(), episode_id=EPISODE, sequence=1,
         )
+
+
+# --- Geometry per-frame ledger (Step 2a) -------------------------------------
+
+from ausc.perception.tracking.production_evidence_capture import (  # noqa: E402
+    GEOMETRY_MODEL_INPUT_LEDGER_RELATIVE,
+    PERSISTED_GEOMETRY_MODEL_INPUT_SCHEMA,
+    PersistedGeometryModelInput,
+    ProductionEvidenceCaptureError,
+    append_geometry_model_input_ledger,
+    read_geometry_model_input_ledger,
+)
+
+
+def _ledger_record(session_dir, *, sequence, frame_index, episode_id="episode-xyz"):
+    rgb_sha = f"{sequence:064x}"
+    return PersistedGeometryModelInput(
+        schema=PERSISTED_GEOMETRY_MODEL_INPUT_SCHEMA,
+        session_dir=Path(session_dir).absolute(),
+        episode_id=episode_id,
+        sequence=sequence,
+        patient_frame_evidence_id="patient_frame_evidence-" + "a" * 20,
+        frame_index=frame_index,
+        camera_t=1.0 + sequence,
+        depth_scale=0.001,
+        rgb_relative_path=f"geometry/model_inputs/{rgb_sha}.npy",
+        rgb_sha256=rgb_sha,
+        rgb_file_sha256=f"{(sequence + 2) * 3:064x}",
+        rgb_dtype=np.dtype(np.uint8).str,
+        rgb_shape=(4, 4, 3),
+        depth_relative_path=f"depth/depth_{frame_index:06d}.npy",
+        depth_sha256=f"{(sequence + 1) * 7:064x}",
+        depth_file_sha256=f"{(sequence + 3) * 5:064x}",
+        depth_dtype=np.dtype(np.uint16).str,
+        depth_shape=(4, 4),
+        back_mask_relative_path=None,
+        back_mask_sha256=None,
+        back_mask_file_sha256=None,
+        robot_mask_relative_path=None,
+        robot_mask_sha256=None,
+        robot_mask_file_sha256=None,
+    )
+
+
+def _ledger_path(session_dir):
+    return Path(session_dir) / GEOMETRY_MODEL_INPUT_LEDGER_RELATIVE
+
+
+def test_ledger_round_trips_in_strict_episode_order(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    records = [
+        _ledger_record(tmp_path, sequence=i, frame_index=i - 1) for i in (1, 2, 3)
+    ]
+    for record in records:
+        append_geometry_model_input_ledger(tmp_path, record)
+
+    read_back = read_geometry_model_input_ledger(tmp_path)
+
+    assert [r.to_manifest() for r in read_back] == [r.to_manifest() for r in records]
+    # to_manifest carries no absolute session_dir.
+    assert "session_dir" not in records[0].to_manifest()
+
+
+def test_ledger_rejects_a_sequence_gap(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=1, frame_index=0))
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=3, frame_index=2))
+    with pytest.raises(ProductionEvidenceCaptureError, match="contiguous"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_rejects_a_duplicate_sequence(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=1, frame_index=0))
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=1, frame_index=1))
+    with pytest.raises(ProductionEvidenceCaptureError, match="contiguous"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_rejects_reordered_records(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=2, frame_index=1))
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=1, frame_index=0))
+    with pytest.raises(ProductionEvidenceCaptureError, match="contiguous"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_rejects_more_than_one_episode(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    append_geometry_model_input_ledger(
+        tmp_path, _ledger_record(tmp_path, sequence=1, frame_index=0, episode_id="episode-a"))
+    append_geometry_model_input_ledger(
+        tmp_path, _ledger_record(tmp_path, sequence=2, frame_index=1, episode_id="episode-b"))
+    with pytest.raises(ProductionEvidenceCaptureError, match="one episode"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_rejects_non_increasing_frame_index(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=1, frame_index=5))
+    append_geometry_model_input_ledger(tmp_path, _ledger_record(tmp_path, sequence=2, frame_index=5))
+    with pytest.raises(ProductionEvidenceCaptureError, match="strictly increasing"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_rejects_a_non_canonical_line(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    record = _ledger_record(tmp_path, sequence=1, frame_index=0)
+    # Same content on one line, but with non-canonical whitespace (default
+    # json.dumps inserts ", " / ": " separators).
+    import json as _json
+    _ledger_path(tmp_path).write_bytes(
+        (_json.dumps(record.to_manifest()) + "\n").encode("utf-8"))
+    with pytest.raises(ProductionEvidenceCaptureError, match="canonical"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_rejects_a_tampered_field_set(tmp_path):
+    (tmp_path / "geometry").mkdir()
+    import json as _json
+    manifest = _ledger_record(tmp_path, sequence=1, frame_index=0).to_manifest()
+    manifest.pop("depth_sha256")  # drop a required identity
+    _ledger_path(tmp_path).write_bytes(
+        (_json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"))
+    with pytest.raises(ProductionEvidenceCaptureError, match="field set is not exact"):
+        read_geometry_model_input_ledger(tmp_path)
+
+
+def test_ledger_read_fails_closed_when_missing(tmp_path):
+    with pytest.raises(ProductionEvidenceCaptureError, match="missing"):
+        read_geometry_model_input_ledger(tmp_path)

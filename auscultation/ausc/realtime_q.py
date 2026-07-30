@@ -117,7 +117,28 @@ _QUALITY_AUDIO_BASE_FIELDS = frozenset({
     "encoding",
     "status",
 })
-_QUALITY_PRODUCTION_AUDIO_FIELDS = _QUALITY_AUDIO_BASE_FIELDS | {"model_input"}
+_QUALITY_PRODUCTION_AUDIO_FIELDS = (
+    _QUALITY_AUDIO_BASE_FIELDS | {"model_input", "raw_source"}
+)
+#: Provenance that ties a production Q window to the session's physical audio.
+#: Without it, a real-model replay only proves the persisted f32 window and the
+#: Q output are self-consistent — NOT that the window was actually derived from
+#: this session's canonical ``audio.wav``.  These fields name the exact PCM16
+#: sample range, the source channel, and the resampler used, so the derivation
+#: is reproducible.
+_QUALITY_RAW_SOURCE_FIELDS = frozenset({
+    "source_channel",
+    "source_sample_start",
+    "source_sample_end",
+    "source_sample_rate",
+    "resampler_identity",
+})
+_QUALITY_RESAMPLER_IDENTITY_FIELDS = frozenset({
+    "algorithm",
+    "input_sample_rate",
+    "output_sample_rate",
+})
+QUALITY_AUDIO_RAW_SOURCE_SCHEMA_VERSION = "wam_quality_audio_raw_source_v1"
 _QUALITY_FORCE_FIELDS = frozenset({
     "host_t_s",
     "raw",
@@ -310,6 +331,18 @@ def verify_quality_inference_packet(
         except (TypeError, ValueError) as exc:
             raise QualityPacketError(
                 f"quality inference packet model input claim is invalid: {exc}"
+            ) from exc
+        # A production window must prove where it came from in the physical
+        # audio: exact PCM16 sample range + channel + resampler identity, with
+        # the resampler output rate equal to this window's sample rate.
+        try:
+            _normalize_raw_source_claim(
+                audio.get("raw_source"),
+                window_sample_rate=audio.get("sample_rate"),
+            )
+        except (TypeError, ValueError) as exc:
+            raise QualityPacketError(
+                f"quality inference packet raw-source claim is invalid: {exc}"
             ) from exc
     try:
         stored_packet_sha = _require_sha256(
@@ -1500,6 +1533,85 @@ def _normalize_model_input_claim(value: object) -> dict[str, object]:
     }
 
 
+def _normalize_raw_source_claim(
+    value: object, *, window_sample_rate: object = None,
+) -> dict[str, object]:
+    """Validate a Q window's provenance into the session's physical audio.
+
+    Requires an exact PCM16 sample range ``[start, end)`` on a named channel of a
+    source at ``source_sample_rate``, plus a ``resampler_identity`` whose input
+    rate equals the source rate.  When ``window_sample_rate`` is supplied, the
+    resampler's output rate must equal it — so the persisted f32 window's rate is
+    provably the source audio resampled by the named path, not an unrelated
+    buffer.
+    """
+
+    if not isinstance(value, Mapping):
+        raise ValueError("quality audio raw-source claim has an invalid exact schema")
+    # Accept both the raw builder input (core fields only) and the stored form
+    # (which additionally carries schema_version); validate the version when
+    # present and always return the canonical stored form.
+    if "schema_version" in value:
+        if value["schema_version"] != QUALITY_AUDIO_RAW_SOURCE_SCHEMA_VERSION:
+            raise ValueError("quality audio raw-source schema version is invalid")
+        core = {key: value[key] for key in value if key != "schema_version"}
+    else:
+        core = dict(value)
+    if set(core) != _QUALITY_RAW_SOURCE_FIELDS:
+        raise ValueError("quality audio raw-source claim has an invalid exact schema")
+    value = core
+    channel = value.get("source_channel")
+    start = value.get("source_sample_start")
+    end = value.get("source_sample_end")
+    source_rate = value.get("source_sample_rate")
+    identity = value.get("resampler_identity")
+    if type(channel) is not int or channel < 0:
+        raise ValueError("quality raw-source channel is invalid")
+    if (
+        type(start) is not int
+        or type(end) is not int
+        or start < 0
+        or end <= start
+    ):
+        raise ValueError("quality raw-source sample range is invalid")
+    if type(source_rate) is not int or source_rate <= 0:
+        raise ValueError("quality raw-source sample rate is invalid")
+    if (
+        not isinstance(identity, Mapping)
+        or set(identity) != _QUALITY_RESAMPLER_IDENTITY_FIELDS
+    ):
+        raise ValueError("quality resampler identity has an invalid exact schema")
+    algorithm = identity.get("algorithm")
+    input_rate = identity.get("input_sample_rate")
+    output_rate = identity.get("output_sample_rate")
+    if not isinstance(algorithm, str) or not algorithm:
+        raise ValueError("quality resampler algorithm is invalid")
+    if type(input_rate) is not int or input_rate <= 0:
+        raise ValueError("quality resampler input sample rate is invalid")
+    if type(output_rate) is not int or output_rate <= 0:
+        raise ValueError("quality resampler output sample rate is invalid")
+    if input_rate != source_rate:
+        raise ValueError(
+            "quality resampler input rate must equal the source sample rate"
+        )
+    if window_sample_rate is not None and output_rate != window_sample_rate:
+        raise ValueError(
+            "quality resampler output rate must equal the window sample rate"
+        )
+    return {
+        "schema_version": QUALITY_AUDIO_RAW_SOURCE_SCHEMA_VERSION,
+        "source_channel": channel,
+        "source_sample_start": start,
+        "source_sample_end": end,
+        "source_sample_rate": source_rate,
+        "resampler_identity": {
+            "algorithm": algorithm,
+            "input_sample_rate": input_rate,
+            "output_sample_rate": output_rate,
+        },
+    }
+
+
 def _normalize_output_contract(value: object) -> dict[str, object]:
     if not isinstance(value, Mapping) or set(value) != _OUTPUT_CONTRACT_FIELDS:
         raise ValueError("quality output_contract has an invalid exact schema")
@@ -1990,6 +2102,20 @@ class StreamingQuality:
                     raw=immutable_raw,
                 )
             )
+            # Bind the window to the session's physical audio: the exact PCM16
+            # sample range, channel, and resampler identity travel with the
+            # packet so a later real-model replay can prove the window derives
+            # from this session's canonical audio.wav, not just that the f32 file
+            # and the Q output are self-consistent.
+            try:
+                audio_evidence["raw_source"] = _normalize_raw_source_claim(
+                    getattr(audio_window, "raw_source", None),
+                    window_sample_rate=sample_rate,
+                )
+            except (TypeError, ValueError) as exc:
+                raise QualityPacketError(
+                    f"production Q raw-source provenance is invalid: {exc}"
+                ) from exc
         assert callable(self.scorer)
         before_scorer_sha256 = _sha256_bytes(samples.tobytes(order="C"))
         if before_scorer_sha256 != audio_evidence["content_sha256"]:

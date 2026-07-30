@@ -9,10 +9,12 @@ arrays.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 import errno
 import hashlib
 import io
+import json
 import math
 import os
 from pathlib import Path, PurePosixPath
@@ -28,6 +30,20 @@ from .production_geometry_gate import ProductionGeometryProfile
 
 
 PERSISTED_GEOMETRY_MODEL_INPUT_SCHEMA = "wam_persisted_geometry_model_input_v1"
+#: The durable, ordered per-frame index the finalizer replays.  RGB inputs are
+#: content-addressed and deduplicated in ``geometry/model_inputs/``, and depth
+#: and masks live in other directories, so the directory tree alone cannot be
+#: walked in episode order — only this ledger can.
+GEOMETRY_MODEL_INPUT_LEDGER_RELATIVE = "geometry/model_input_ledger.jsonl"
+_LEDGER_FIELDS = (
+    "schema", "episode_id", "sequence", "patient_frame_evidence_id",
+    "frame_index", "camera_t", "depth_scale",
+    "rgb_relative_path", "rgb_sha256", "rgb_file_sha256", "rgb_dtype", "rgb_shape",
+    "depth_relative_path", "depth_sha256", "depth_file_sha256", "depth_dtype",
+    "depth_shape",
+    "back_mask_relative_path", "back_mask_sha256", "back_mask_file_sha256",
+    "robot_mask_relative_path", "robot_mask_sha256", "robot_mask_file_sha256",
+)
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MAX_NPY_BYTES = 512 * 1024 * 1024
 
@@ -321,6 +337,95 @@ class PersistedGeometryModelInput:
                 f"{kind} mask path is not content-addressed"
             )
 
+    def to_manifest(self) -> dict:
+        """Serialize this frozen locator to a canonical, session-relative dict.
+
+        ``session_dir`` is deliberately omitted — the ledger is per-session, so
+        the directory is implicit and never travels in the record.  Every other
+        exact identity (paths, array/file SHA-256, dtype, shape, timing) is kept
+        so the finalizer can reconstruct and reopen the frame without trusting
+        anything not written here.
+        """
+
+        return {
+            "schema": self.schema,
+            "episode_id": self.episode_id,
+            "sequence": self.sequence,
+            "patient_frame_evidence_id": self.patient_frame_evidence_id,
+            "frame_index": self.frame_index,
+            "camera_t": float(self.camera_t),
+            "depth_scale": float(self.depth_scale),
+            "rgb_relative_path": self.rgb_relative_path,
+            "rgb_sha256": self.rgb_sha256,
+            "rgb_file_sha256": self.rgb_file_sha256,
+            "rgb_dtype": self.rgb_dtype,
+            "rgb_shape": list(self.rgb_shape),
+            "depth_relative_path": self.depth_relative_path,
+            "depth_sha256": self.depth_sha256,
+            "depth_file_sha256": self.depth_file_sha256,
+            "depth_dtype": self.depth_dtype,
+            "depth_shape": list(self.depth_shape),
+            "back_mask_relative_path": self.back_mask_relative_path,
+            "back_mask_sha256": self.back_mask_sha256,
+            "back_mask_file_sha256": self.back_mask_file_sha256,
+            "robot_mask_relative_path": self.robot_mask_relative_path,
+            "robot_mask_sha256": self.robot_mask_sha256,
+            "robot_mask_file_sha256": self.robot_mask_file_sha256,
+        }
+
+    @classmethod
+    def from_manifest(
+        cls, session_dir: "str | Path", manifest: object,
+    ) -> "PersistedGeometryModelInput":
+        """Reconstruct a record from a ledger entry, re-running every check.
+
+        The passed ``session_dir`` is the only trusted external input; all exact
+        identities come from ``manifest`` and are re-validated by __post_init__
+        (content-addressed paths, SHA-256, dtype, shape).  The field set must be
+        exactly the ledger schema — extra or missing keys are refused.
+        """
+
+        if not isinstance(manifest, Mapping):
+            raise ProductionEvidenceCaptureError("ledger entry is not an object")
+        if set(manifest) != set(_LEDGER_FIELDS):
+            raise ProductionEvidenceCaptureError(
+                "ledger entry field set is not exact"
+            )
+
+        def _shape(value: object, label: str) -> Tuple[int, ...]:
+            if not isinstance(value, list) or not all(
+                type(item) is int for item in value
+            ):
+                raise ProductionEvidenceCaptureError(f"{label} shape is invalid")
+            return tuple(value)
+
+        return cls(
+            schema=manifest["schema"],
+            session_dir=Path(session_dir).absolute(),
+            episode_id=manifest["episode_id"],
+            sequence=manifest["sequence"],
+            patient_frame_evidence_id=manifest["patient_frame_evidence_id"],
+            frame_index=manifest["frame_index"],
+            camera_t=manifest["camera_t"],
+            depth_scale=manifest["depth_scale"],
+            rgb_relative_path=manifest["rgb_relative_path"],
+            rgb_sha256=manifest["rgb_sha256"],
+            rgb_file_sha256=manifest["rgb_file_sha256"],
+            rgb_dtype=manifest["rgb_dtype"],
+            rgb_shape=_shape(manifest["rgb_shape"], "RGB"),
+            depth_relative_path=manifest["depth_relative_path"],
+            depth_sha256=manifest["depth_sha256"],
+            depth_file_sha256=manifest["depth_file_sha256"],
+            depth_dtype=manifest["depth_dtype"],
+            depth_shape=_shape(manifest["depth_shape"], "depth"),
+            back_mask_relative_path=manifest["back_mask_relative_path"],
+            back_mask_sha256=manifest["back_mask_sha256"],
+            back_mask_file_sha256=manifest["back_mask_file_sha256"],
+            robot_mask_relative_path=manifest["robot_mask_relative_path"],
+            robot_mask_sha256=manifest["robot_mask_sha256"],
+            robot_mask_file_sha256=manifest["robot_mask_file_sha256"],
+        )
+
     def reload_for_inference(self) -> ReloadedGeometryModelInput:
         """Reopen and verify every artifact before detector invocation."""
 
@@ -592,10 +697,115 @@ class ProductionGeometryEvidenceCapture:
         )
 
 
+def _canonical_ledger_line(value: dict) -> bytes:
+    return (
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        + "\n"
+    ).encode("utf-8")
+
+
+def append_geometry_model_input_ledger(
+    session_dir: "str | Path", record: PersistedGeometryModelInput,
+) -> None:
+    """Append one per-frame locator to the durable, ordered ledger.
+
+    The record is re-validated and bound to this session before it is written as
+    one canonical JSON line, appended and fsynced.  The writer trusts the caller
+    to produce records in strictly increasing sequence; the *reader* is the
+    single fail-closed authority that proves ordering, so no O(N^2) re-scan is
+    done on every frame here.
+    """
+
+    if not isinstance(record, PersistedGeometryModelInput):
+        raise ProductionEvidenceCaptureError("ledger record type is invalid")
+    record.__post_init__()
+    session = Path(session_dir).absolute()
+    if record.session_dir != session:
+        raise ProductionEvidenceCaptureError(
+            "ledger record session directory mismatch"
+        )
+    path = session / GEOMETRY_MODEL_INPUT_LEDGER_RELATIVE
+    _require_nonsymlink_components(session, path)
+    line = _canonical_ledger_line(record.to_manifest())
+    descriptor = os.open(
+        str(path),
+        os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0),
+        0o640,
+    )
+    try:
+        os.write(descriptor, line)
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def read_geometry_model_input_ledger(
+    session_dir: "str | Path",
+) -> Tuple[PersistedGeometryModelInput, ...]:
+    """Read and strictly validate the per-frame ledger for episode-order replay.
+
+    Fail-closed on anything that would let a forged or reordered episode through:
+    the sequence must be 1..N contiguous with no gap, duplicate, or reorder; the
+    episode ID must be constant; the frame index must strictly increase.  Each
+    entry is reconstructed via :meth:`PersistedGeometryModelInput.from_manifest`,
+    so every record is re-checked against its own content-addressed identity.
+    """
+
+    session = Path(session_dir).absolute()
+    raw = _stable_regular_bytes(
+        session, GEOMETRY_MODEL_INPUT_LEDGER_RELATIVE,
+        label="geometry model-input ledger",
+    )
+    lines = raw.split(b"\n")
+    if lines and lines[-1] == b"":
+        lines = lines[:-1]  # exactly one trailing newline is canonical
+    if not lines:
+        raise ProductionEvidenceCaptureError(
+            "geometry model-input ledger is empty"
+        )
+    records: list[PersistedGeometryModelInput] = []
+    episode_id: Optional[str] = None
+    last_frame_index = -1
+    for number, raw_line in enumerate(lines, start=1):
+        try:
+            entry = json.loads(raw_line.decode("utf-8"))
+        except (UnicodeError, ValueError) as exc:
+            raise ProductionEvidenceCaptureError(
+                f"ledger line {number} is not valid JSON"
+            ) from exc
+        # Each line must be exactly the canonical serialization of its content:
+        # no extra whitespace, no key reordering, no non-canonical numbers.
+        if _canonical_ledger_line(entry) != raw_line + b"\n":
+            raise ProductionEvidenceCaptureError(
+                f"ledger line {number} is not canonical"
+            )
+        record = PersistedGeometryModelInput.from_manifest(session, entry)
+        if record.sequence != number:
+            raise ProductionEvidenceCaptureError(
+                f"ledger line {number} sequence {record.sequence} is not contiguous"
+            )
+        if episode_id is None:
+            episode_id = record.episode_id
+        elif record.episode_id != episode_id:
+            raise ProductionEvidenceCaptureError(
+                "ledger spans more than one episode"
+            )
+        if record.frame_index <= last_frame_index:
+            raise ProductionEvidenceCaptureError(
+                "ledger frame index is not strictly increasing"
+            )
+        last_frame_index = record.frame_index
+        records.append(record)
+    return tuple(records)
+
+
 __all__ = [
+    "GEOMETRY_MODEL_INPUT_LEDGER_RELATIVE",
     "PERSISTED_GEOMETRY_MODEL_INPUT_SCHEMA",
     "PersistedGeometryModelInput",
     "ProductionEvidenceCaptureError",
     "ProductionGeometryEvidenceCapture",
     "ReloadedGeometryModelInput",
+    "append_geometry_model_input_ledger",
+    "read_geometry_model_input_ledger",
 ]
