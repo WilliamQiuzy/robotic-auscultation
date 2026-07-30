@@ -27,7 +27,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 import hashlib
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import numpy as np
 
@@ -213,6 +213,91 @@ def reconstruct_geometry_items(
     return items, recorded_identity
 
 
+@dataclass(frozen=True)
+class QualityReplayInput:
+    """One lossless persisted audio window for the activated quality scorer."""
+
+    inference_sequence: int
+    sample_rate: int
+    window: np.ndarray  # float32 samples
+
+
+def _symlink_safe_file(session: Path, relative: str, *, label: str) -> Path:
+    probe = session
+    for part in PurePosixPath(relative).parts:
+        probe = probe / part
+        if probe.is_symlink():
+            raise ReplayRunnerError(f"{label} traverses a symlink")
+    path = session / relative
+    if not path.is_file():
+        raise ReplayRunnerError(f"{label} is missing")
+    return path
+
+
+def _load_quality_window(session: Path, claim: Mapping[str, object]) -> np.ndarray:
+    relative = str(claim["path"])
+    path = _symlink_safe_file(session, relative, label="quality model input window")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != claim["sha256"]:
+        raise ReplayRunnerError("quality model input window SHA-256 does not match its claim")
+    window = np.frombuffer(raw, dtype="<f4")
+    expected_length = int(claim["shape"][0])
+    if window.shape[0] != expected_length:
+        raise ReplayRunnerError("quality model input window length does not match its claim")
+    return np.array(window, dtype=np.float32)  # writable copy for the model seam
+
+
+def reconstruct_quality_items(
+    session_dir: "str | Path",
+) -> tuple[list[ReplayItem], dict[str, str]]:
+    """Rebuild the quality replay items and the recorded model identity.
+
+    Each packet's lossless persisted f32 window (the exact tensor the scorer
+    consumed) is reopened and re-verified against its content-addressed claim;
+    the recorded output is the scorer's raw output ``q_raw`` (the EMA-smoothed
+    ``p_usable`` is a stateful policy transform already proven by the packet
+    chain, so it is not part of the single-window replay).  ``recorded_identity``
+    is the activated quality model the receipt records — the same identity the
+    finalizer checks the attestation against.
+    """
+
+    from ausc.realtime_q import read_quality_packet_log, verify_quality_packet_log
+
+    session = Path(session_dir)
+    try:
+        receipt = verify_quality_packet_log(session)
+        packets = read_quality_packet_log(session / "quality_inference_packets.jsonl")
+    except Exception as exc:
+        raise ReplayRunnerError(f"quality replay inputs are invalid: {exc}") from exc
+
+    authenticity = receipt.get("quality_authenticity") if isinstance(receipt, Mapping) else None
+    model = authenticity.get("model") if isinstance(authenticity, Mapping) else None
+    if not isinstance(model, Mapping) or "release_id" not in model or "model_sha256" not in model:
+        raise ReplayRunnerError("quality receipt has no activated model identity")
+    recorded_identity = {
+        "release_id": model["release_id"],
+        "model_sha256": model["model_sha256"],
+    }
+
+    if not packets:
+        raise ReplayRunnerError("quality replay has no packets")
+    items: list[ReplayItem] = []
+    for packet in packets:
+        audio = packet["audio_window"]
+        window = _load_quality_window(session, audio["model_input"])
+        result = packet["result"]
+        recorded_outputs = {
+            "q_raw": np.array([float(result["q_raw"])], dtype=np.float64),
+        }
+        model_input = QualityReplayInput(
+            inference_sequence=int(packet["inference_sequence"]),
+            sample_rate=int(audio["sample_rate"]),
+            window=window,
+        )
+        items.append(ReplayItem(model_input=model_input, recorded_outputs=recorded_outputs))
+    return items, recorded_identity
+
+
 def run_replay(
     session_dir: "str | Path",
     items: Sequence[ReplayItem],
@@ -289,10 +374,12 @@ def run_replay(
 
 __all__ = [
     "GeometryReplayInput",
+    "QualityReplayInput",
     "ReplayItem",
     "ReplayRunnerError",
     "compare_outputs",
     "compute_bound_artifacts",
     "reconstruct_geometry_items",
+    "reconstruct_quality_items",
     "run_replay",
 ]

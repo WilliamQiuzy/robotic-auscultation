@@ -21,6 +21,7 @@ from ausc.perception.replay_runner import (
     compare_outputs,
     compute_bound_artifacts,
     reconstruct_geometry_items,
+    reconstruct_quality_items,
     run_replay,
 )
 
@@ -316,6 +317,89 @@ def test_reconstruct_then_run_replay_round_trips(tmp_path, monkeypatch):
     )
     evidence = verify_replay_attestation(
         session, manifest, component="geometry",
+        recorded_identity=identity, recorded_item_count=len(items),
+    )
+    assert evidence["production_authorized"] is True
+
+
+def _quality_session_with_windows(tmp_path, n, *, scores):
+    import hashlib as _hashlib
+
+    session = tmp_path / "session-q-001"
+    (session / "quality_model_inputs").mkdir(parents=True)
+    session.joinpath("quality_inference_packets.jsonl").write_bytes(b'{"p":1}\n')
+    session.joinpath("audio.wav").write_bytes(b"real-audio-pcm")
+    packets = []
+    for i in range(n):
+        window = np.linspace(0.1 + i, 0.2 + i, 32, dtype=np.float32)
+        raw = window.tobytes()
+        rel = f"quality_model_inputs/input_{i:020d}.f32le"
+        (session / rel).write_bytes(raw)
+        packets.append({
+            "model": {"release_id": _MODEL_RELEASE, "model_sha256": _MODEL_SHA},
+            "inference_sequence": i,
+            "audio_window": {
+                "sample_rate": 16_000,
+                "model_input": {
+                    "path": rel,
+                    "sha256": _hashlib.sha256(raw).hexdigest(),
+                    "shape": [32],
+                },
+            },
+            "result": {"q_raw": scores[i]},
+        })
+    return session, packets
+
+
+def _patch_quality_sources(monkeypatch, packets):
+    receipt = {
+        "quality_authenticity": {
+            "model": {"release_id": _MODEL_RELEASE, "model_sha256": _MODEL_SHA},
+        },
+    }
+    monkeypatch.setattr("ausc.realtime_q.verify_quality_packet_log", lambda _s: receipt)
+    monkeypatch.setattr("ausc.realtime_q.read_quality_packet_log", lambda _p: list(packets))
+
+
+def test_reconstruct_quality_items_loads_verified_windows(tmp_path, monkeypatch):
+    session, packets = _quality_session_with_windows(tmp_path, 3, scores=[0.4, 0.55, 0.6])
+    _patch_quality_sources(monkeypatch, packets)
+    items, identity = reconstruct_quality_items(session)
+    assert len(items) == 3
+    assert identity == {"release_id": _MODEL_RELEASE, "model_sha256": _MODEL_SHA}
+    assert items[1].model_input.window.shape == (32,)
+    assert items[1].recorded_outputs["q_raw"][0] == pytest.approx(0.55)
+
+
+def test_reconstruct_quality_rejects_tampered_window(tmp_path, monkeypatch):
+    session, packets = _quality_session_with_windows(tmp_path, 1, scores=[0.4])
+    # Corrupt the persisted window after its SHA was claimed.
+    (session / packets[0]["audio_window"]["model_input"]["path"]).write_bytes(
+        np.zeros(32, dtype=np.float32).tobytes()
+    )
+    _patch_quality_sources(monkeypatch, packets)
+    with pytest.raises(ReplayRunnerError, match="SHA-256 does not match"):
+        reconstruct_quality_items(session)
+
+
+def test_reconstruct_quality_then_run_replay_round_trips(tmp_path, monkeypatch):
+    scores = [0.4, 0.55, 0.6]
+    session, packets = _quality_session_with_windows(tmp_path, 3, scores=scores)
+    _patch_quality_sources(monkeypatch, packets)
+    items, identity = reconstruct_quality_items(session)
+
+    # A perfect scorer reproduces the recorded q_raw exactly for each window.
+    def model_run(model_input):
+        return {"q_raw": np.array([scores[model_input.inference_sequence]], dtype=np.float64)}
+
+    manifest = run_replay(
+        session, items, model_run,
+        component="quality",
+        model_release_id=identity["release_id"], model_sha256=identity["model_sha256"],
+        producer=_PRODUCER,
+    )
+    evidence = verify_replay_attestation(
+        session, manifest, component="quality",
         recorded_identity=identity, recorded_item_count=len(items),
     )
     assert evidence["production_authorized"] is True
