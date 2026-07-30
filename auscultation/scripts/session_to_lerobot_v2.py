@@ -57,9 +57,18 @@ ORBBEC_ALIGN_MODES = frozenset({"software_depth_to_color", "disabled"})
 _CAMERA_TIMING_METHODS = frozenset({"hardware_led_flash", "device_timer_host_sync"})
 REQUIRED_RAW_ARTIFACTS = frozenset({
     "audio.wav", "rgb.mp4", "force.csv", "rgb_times.csv", "obs.csv",
-    "targets.jsonl", "depth/depth_times.csv", "robot_control_envelopes.jsonl",
+    "targets.jsonl", "tracker.jsonl", "depth/depth_times.csv",
+    "robot_control_envelopes.jsonl",
     "robot_exact_control.csv", "robot_frame_index.jsonl", "robot_capture_summary.json",
 })
+
+#: Immutable capture kinds that a production writer may stamp into the session
+#: manifest and that this converter is willing to promote.  A diagnostic capture
+#: (``diagnostic_perception``/``diagnostic_perception_preview``) is never a
+#: member, so it can never be converted to training data even if a forged
+#: manifest also claims ``training_eligible=true``.  This allowlist MUST stay in
+#: agreement with ``training_authenticity_finalizer.PRODUCTION_CAPTURE_KINDS``.
+PRODUCTION_CAPTURE_KINDS = frozenset({"production_teleop_v4"})
 ARTIFACT_HASH_SCHEMA_VERSION = "wam_session_artifact_hashes_v1"
 PROMOTION_CONTRACT_VERSION = "wam_promotion_v2"
 TRUSTED_FINALIZATION_REGISTRY_ENV = "WAM_TRAINING_FINALIZATION_REGISTRY"
@@ -2042,6 +2051,15 @@ def validate_manifest_for_conversion(manifest: dict) -> None:
         )
     if manifest.get("status") != "complete" or manifest.get("training_eligible") is not True:
         raise ValueError("session is not complete and training_eligible")
+    # Immutable production-writer gate (defense in depth with the finalizer).
+    # ``training_eligible`` alone cannot distinguish a diagnostic capture from a
+    # production one, so the manifest must positively declare an allowlisted
+    # production ``capture_kind``; a diagnostic kind can never be converted.
+    if manifest.get("capture_kind") not in PRODUCTION_CAPTURE_KINDS:
+        raise ValueError(
+            "canonical conversion requires an allowlisted production capture_kind; "
+            "diagnostic captures can never be promoted to training data"
+        )
     if manifest.get("rehearsal_overrides"):
         raise ValueError("rehearsal sessions cannot be converted as training data")
     required = {"force", "audio", "cam", "robot"}

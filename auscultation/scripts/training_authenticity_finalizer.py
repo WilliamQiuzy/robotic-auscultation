@@ -36,6 +36,11 @@ import numpy as np
 
 PROMOTION_CONTRACT_VERSION = "wam_promotion_v2"
 SESSION_SCHEMA_VERSION = "wam_session_v2"
+#: Immutable capture kinds a production writer may stamp into the session
+#: manifest and that this finalizer is willing to promote.  A diagnostic capture
+#: is never a member.  This allowlist MUST stay in agreement with
+#: ``session_to_lerobot_v2.PRODUCTION_CAPTURE_KINDS``.
+PRODUCTION_CAPTURE_KINDS = frozenset({"production_teleop_v4"})
 COMPONENT_SCHEMA_VERSION = "wam_training_component_authenticity_v2"
 AUTHENTICITY_SCHEMA_VERSION = "wam_training_authenticity_v2"
 FINALIZATION_SCHEMA_VERSION = "wam_session_finalization_v2"
@@ -1557,18 +1562,17 @@ def inspect_training_finalization_readiness(
     # fail-closed (``training_eligible`` False), so that flag alone cannot
     # distinguish a production writer from a diagnostic one.  Promotion requires
     # the manifest -- which the source-manifest check below binds by SHA to the
-    # exact on-disk bytes -- to positively declare a ``capture_kind`` of the
-    # form ``production_*``.  It is verified here, never inferred from the
-    # absence of a diagnostic flag or trusted from a producer's summary receipt.
+    # exact on-disk bytes -- to positively declare an *allowlisted* production
+    # ``capture_kind``.  An allowlist (not a mere ``production_*`` prefix) means
+    # a forged arbitrary ``production_anything`` string cannot pass either.  It
+    # is verified here, never inferred from the absence of a diagnostic flag or
+    # trusted from a producer's summary receipt.
     declared_capture_kind = (
         manifest_template.get("capture_kind")
         if isinstance(manifest_template, Mapping)
         else None
     )
-    if (
-        isinstance(declared_capture_kind, str)
-        and declared_capture_kind.startswith("production_")
-    ):
+    if declared_capture_kind in PRODUCTION_CAPTURE_KINDS:
         checks["production_capture_kind"] = {
             "status": "PASS",
             "capture_kind": declared_capture_kind,
@@ -1579,8 +1583,8 @@ def inspect_training_finalization_readiness(
             "status": "FAIL",
             "capture_kind": declared_capture_kind,
             "reason": (
-                "promotion requires an immutable capture_kind of the form "
-                "'production_*'; a diagnostic capture can never be upgraded"
+                "promotion requires an allowlisted production capture_kind; a "
+                "diagnostic or unrecognized capture kind can never be upgraded"
             ),
         }
 

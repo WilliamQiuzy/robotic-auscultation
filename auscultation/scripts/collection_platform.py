@@ -56,6 +56,30 @@ class CaptureMode(str, Enum):
 _DIAGNOSTIC_WRITER_IDENTITIES = frozenset({"DiagnosticPerceptionCapture"})
 
 
+class WriterIdentityMismatch(RuntimeError):
+    """The live capture writer does not match the contract's declared writer.
+
+    The contract's ``writer_identity`` is only a *declaration*.  This is raised
+    when the object actually returned by ``capture_factory`` is a different
+    writer, so a diagnostic writer can never be recorded under a production
+    contract by simply mislabelling the contract string.
+    """
+
+
+def _resolve_writer_identity(capture: "_Capture") -> str:
+    """Return a capture's self-declared writer identity, else its class name.
+
+    Real writers may expose an explicit ``writer_identity`` attribute; when they
+    do not, the concrete class name is the authoritative identity.  Either way
+    the value is compared against the contract before a session may record.
+    """
+
+    declared = getattr(capture, "writer_identity", None)
+    if isinstance(declared, str) and declared:
+        return declared
+    return type(capture).__name__
+
+
 @dataclass(frozen=True)
 class CaptureContract:
     """Immutable binding of a session's mode, writer, intent, and schemas.
@@ -380,6 +404,13 @@ class CollectionPlatform:
         self._finalize_thread: threading.Thread | None = None
         self._finalization_active = False
         self._end_requested = False
+        # Whether the live writer's identity was verified against the contract
+        # at capture creation, and the training eligibility the writer actually
+        # reported at finalize.  The snapshot's ``training_eligible`` is gated by
+        # both so a contract's declared intent can never be reported as real
+        # eligibility unless a matching writer produced a matching result.
+        self._capture_writer_verified = False
+        self._finalized_training_eligible: bool | None = None
         self.point_index = 0
         self.attempt = 1
         self.completed: list[int] = []
@@ -397,6 +428,22 @@ class CollectionPlatform:
 
     def state_snapshot(self) -> dict:
         with self._lock:
+            # ``training_eligible`` is never the contract's *declared* intent
+            # alone: it also requires that the live writer was verified against
+            # the contract at Start, and — once finalized — that the writer
+            # actually reported eligibility.  A mislabelled contract fronting a
+            # diagnostic writer can therefore never be reported as eligible.
+            training_eligible = (
+                self.contract.training_eligible and self._capture_writer_verified
+            )
+            if self._finalized_training_eligible is not None:
+                training_eligible = (
+                    training_eligible and self._finalized_training_eligible
+                )
+            # Single Start authority: expose the exact verdict the control
+            # plane will enforce so the HTTP layer and the page cannot compute a
+            # divergent "can start" from raw fields.
+            start_rejection = self.start_authorization()
             return {
                 "state": self.state.value,
                 "revision": self.revision,
@@ -406,7 +453,9 @@ class CollectionPlatform:
                 "session_dir": str(self.session_dir) if self.session_dir else None,
                 "capture_kind": self.contract.capture_kind,
                 "operational_mode": self.mode.value,
-                "training_eligible": self.contract.training_eligible,
+                "training_eligible": training_eligible,
+                "start_authorized": start_rejection is None,
+                "start_rejection": start_rejection,
                 "training_blockers": list(self.production_blockers),
                 "diagnostic_blockers": list(self.diagnostic_blockers),
                 "point_index": self.point_index,
@@ -670,6 +719,8 @@ class CollectionPlatform:
         self._finalize_thread = None
         self._finalization_active = False
         self._end_requested = False
+        self._capture_writer_verified = False
+        self._finalized_training_eligible = None
         self.point_index = 0
         self.attempt = 1
         self.completed = []
@@ -685,6 +736,17 @@ class CollectionPlatform:
         try:
             self._journal = _DurableJournal(session_dir / "control_journal.jsonl")
             self.capture = self.capture_factory(session_dir)
+            # Bind the *declared* contract writer to the *actual* writer before
+            # a single frame is recorded.  A mismatch is fail-closed: the
+            # session never enters RECORDING, so a diagnostic writer can never
+            # be recorded (or later reported) under a production contract.
+            actual_writer = _resolve_writer_identity(self.capture)
+            if actual_writer != self.contract.writer_identity:
+                raise WriterIdentityMismatch(
+                    "capture writer %r does not match contract writer %r"
+                    % (actual_writer, self.contract.writer_identity)
+                )
+            self._capture_writer_verified = True
             self.capture.start()
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
@@ -770,6 +832,10 @@ class CollectionPlatform:
                 raise RuntimeError("diagnostic finalize result has no complete status")
             if result.get("training_eligible") is not False:
                 raise RuntimeError("diagnostic capture attempted to become training eligible")
+            # Record what the writer actually finalized so the snapshot reports
+            # the real eligibility, not the contract's declared intent.  The
+            # current finalize path is diagnostic-only, so this is always False.
+            self._finalized_training_eligible = bool(result.get("training_eligible"))
             if self.session_dir is None:
                 raise RuntimeError("diagnostic session path disappeared before validation")
             if self.completion_validator is not None:

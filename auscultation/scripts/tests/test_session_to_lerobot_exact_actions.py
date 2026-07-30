@@ -524,6 +524,7 @@ def test_legacy_position_target_manifest_cannot_pass_canonical_conversion():
         "promotion_contract_version": conv.PROMOTION_CONTRACT_VERSION,
         "status": "complete",
         "training_eligible": True,
+        "capture_kind": "production_teleop_v4",
         "rehearsal_overrides": [],
         "streams": ["force", "audio", "cam", "robot"],
         "arm": {
@@ -545,3 +546,23 @@ def test_legacy_position_target_manifest_cannot_pass_canonical_conversion():
 
     with pytest.raises(ValueError, match="exact MIT action"):
         conv.validate_manifest_for_conversion(manifest)
+
+
+def test_diagnostic_capture_kind_cannot_be_converted_even_if_eligible():
+    # A forged manifest may claim training_eligible=true, but a diagnostic
+    # capture_kind must still be refused before any conversion work.
+    manifest = {
+        "schema_version": "wam_session_v2",
+        "promotion_contract_version": conv.PROMOTION_CONTRACT_VERSION,
+        "status": "complete",
+        "training_eligible": True,
+        "capture_kind": "diagnostic_perception",
+        "rehearsal_overrides": [],
+    }
+
+    with pytest.raises(ValueError, match="production capture_kind"):
+        conv.validate_manifest_for_conversion(manifest)
+
+
+def test_tracker_jsonl_is_a_required_raw_artifact():
+    assert "tracker.jsonl" in conv.REQUIRED_RAW_ARTIFACTS

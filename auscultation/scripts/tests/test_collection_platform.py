@@ -29,8 +29,11 @@ from collection_platform import (  # noqa: E402
 
 
 class _Capture:
-    def __init__(self, session_dir: Path) -> None:
+    def __init__(
+        self, session_dir: Path, writer_identity: str = "DiagnosticPerceptionCapture",
+    ) -> None:
         self.session_dir = Path(session_dir)
+        self.writer_identity = writer_identity
         self.started = 0
         self.finalized = 0
         self.aborted: list[str] = []
@@ -747,11 +750,18 @@ def _make_platform(
     contract=None,
     diagnostic_blockers=(),
     production_blockers=(),
+    capture_writer_identity=None,
 ) -> tuple[CollectionPlatform, list[_Capture]]:
     captures: list[_Capture] = []
+    effective_contract = contract or DIAGNOSTIC_PERCEPTION_CONTRACT
+    writer_identity = (
+        capture_writer_identity
+        if capture_writer_identity is not None
+        else effective_contract.writer_identity
+    )
 
     def factory(session_dir: Path) -> _Capture:
-        capture = _Capture(session_dir)
+        capture = _Capture(session_dir, writer_identity=writer_identity)
         captures.append(capture)
         return capture
 
@@ -880,3 +890,24 @@ def test_production_capture_with_clear_preflight_and_real_writer_records(tmp_pat
     assert snapshot["training_eligible"] is True
     assert snapshot["capture_kind"] == "production_teleop_v4"
     assert snapshot["operational_mode"] == "PRODUCTION_CAPTURE"
+    assert snapshot["start_authorized"] is True
+
+
+def test_production_contract_with_a_diagnostic_writer_is_refused(tmp_path):
+    # A production contract can *declare* a real writer, but the live factory
+    # here produces a diagnostic writer.  Start must fail-closed and the
+    # platform must never report the declared eligibility as real.
+    platform, captures = _make_platform(
+        tmp_path,
+        contract=_PRODUCTION_CONTRACT,
+        production_blockers=(),
+        capture_writer_identity="DiagnosticPerceptionCapture",
+    )
+
+    result = platform.control("start")
+
+    assert result["ok"] is False
+    assert platform.state is not CollectionState.RECORDING
+    assert captures[0].started == 0  # writer verified BEFORE the first frame
+    snapshot = platform.state_snapshot()
+    assert snapshot["training_eligible"] is False

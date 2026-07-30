@@ -487,6 +487,7 @@ def test_http_end_returns_finalizing_without_waiting_for_slow_verification(tmp_p
     release = threading.Event()
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -1464,6 +1465,7 @@ def test_required_left_robot_session_starts_before_camera_is_armed(tmp_path):
             return True
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             events.append("capture_start")
 
@@ -2190,6 +2192,7 @@ def test_failed_start_aborts_audio_and_clears_back_confirmation(tmp_path):
             self.aborted = True
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -2262,6 +2265,7 @@ def test_force_prearms_before_camera_and_uses_exact_shared_boundaries(tmp_path):
             )
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             events.append("capture_start")
 
@@ -2693,6 +2697,7 @@ def test_boundary_persistence_cannot_clear_gate_then_arm_recording(tmp_path):
     assert gate.confirmation_snapshot()["confirmed"] is True
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -4281,6 +4286,7 @@ def test_robot_sidecar_is_finalized_and_bound_before_platform_finalize(tmp_path)
             return summary
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         @staticmethod
         def set_robot_summary(value, *, contract):
             calls.append("capture_bind_robot")
@@ -4906,6 +4912,7 @@ def test_end_persists_capture_model_boundaries_before_finalization(tmp_path):
     contexts = []
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -4968,6 +4975,7 @@ def test_live_fault_after_end_boundary_cannot_abort_active_finalizer(tmp_path):
     aborted = []
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def start(self):
             pass
 
@@ -5185,6 +5193,7 @@ def test_slow_capture_start_latches_camera_boundary_only_after_files_are_ready(t
     camera = Camera()
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         started = False
 
         def start(self):
@@ -5566,6 +5575,7 @@ def test_stale_camera_aborts_recording_clears_points_and_reopens_pipeline(tmp_pa
         return camera
 
     class Capture:
+        writer_identity = "DiagnosticPerceptionCapture"
         def __init__(self):
             self.aborted = []
 
