@@ -3102,17 +3102,19 @@ class Collector:
         self._clear_back_confirmation("CAMERA_PIPELINE_RESET")
         self._back_gate = None
         worker, self._model_worker = self._model_worker, None
+        model_exited = worker is None
         if worker is not None:
             try:
-                worker.stop()
+                model_exited = bool(worker.stop())
             except Exception:
-                pass
+                model_exited = False
         preview_worker, self._preview_worker = self._preview_worker, None
+        preview_exited = preview_worker is None
         if preview_worker is not None:
             try:
-                preview_worker.stop()
+                preview_exited = bool(preview_worker.stop())
             except Exception:
-                pass
+                preview_exited = False
         camera, self._cam = self._cam, None
         if camera is not None:
             try:
@@ -3125,9 +3127,21 @@ class Collector:
         self._latest_recorded_robot_evidence = None
         self._last_camera_index = -1
         self._last_result_index = -1
-        replacement_preview_worker = LatestFrameWorker(
-            self._render_preview_bundle, name="wam-diagnostic-preview",
-        ).start()
+        if model_exited and preview_exited:
+            replacement_preview_worker = LatestFrameWorker(
+                self._render_preview_bundle, name="wam-diagnostic-preview",
+            ).start()
+        else:
+            # A predecessor worker thread refused to exit within its stop()
+            # timeout (e.g. a hung GPU forward pass).  NEVER spawn a replacement
+            # on top of a live thread: two workers would race the single camera
+            # stream and silently grow the thread count.  Keep the unresponsive
+            # worker visible so health/freshness report the pipeline degraded and
+            # every Start rolls back, and mark the fault terminal — a stuck thread
+            # cannot be recovered in-process; the unit must restart.
+            replacement_preview_worker = preview_worker
+            stuck = "model" if not model_exited else "preview"
+            reason = f"{reason}; {stuck} worker thread did not exit (restart required)"
         reset_jpeg = encode_jpeg(np.zeros((480, 640, 3), np.uint8))
         with self._lock:
             self._preview_worker = replacement_preview_worker

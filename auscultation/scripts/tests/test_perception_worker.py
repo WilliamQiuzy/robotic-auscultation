@@ -50,6 +50,44 @@ def _wait_until(predicate, timeout=1.0):
     raise AssertionError("condition was not reached")
 
 
+def test_stop_reports_failure_when_worker_thread_is_stuck():
+    entered = threading.Event()
+    release = threading.Event()
+
+    def processor(frame):
+        entered.set()
+        release.wait(5.0)  # hang until released (simulates a wedged GPU pass)
+        return {"frame_index": frame.index, "points": []}
+
+    worker = LatestFrameWorker(processor, name="stuck-worker").start()
+    try:
+        worker.submit(SimpleNamespace(index=1, t=1.0))
+        assert entered.wait(1.0)
+        # The thread is stuck inside the processor: stop() cannot join it and must
+        # report failure so the caller refuses to spawn a replacement on top of it.
+        assert worker.stop(timeout=0.2) is False
+        assert worker.is_alive() is True
+    finally:
+        release.set()
+    _wait_until(lambda: not worker.is_alive(), timeout=2.0)
+    assert worker.stop(timeout=1.0) is True  # now it has exited
+
+
+def test_stop_reports_success_on_clean_exit():
+    worker = LatestFrameWorker(
+        lambda frame: {"frame_index": frame.index, "points": []}, name="clean-worker"
+    ).start()
+    worker.submit(SimpleNamespace(index=1, t=1.0))
+    assert worker.stop(timeout=1.0) is True
+    assert worker.is_alive() is False
+
+
+def test_stop_before_start_reports_success():
+    worker = LatestFrameWorker(lambda frame: {"frame_index": frame.index, "points": []})
+    assert worker.stop(timeout=0.1) is True
+    assert worker.is_alive() is False
+
+
 def test_asset_hash_mismatch_fails_before_model_load(tmp_path):
     asset = tmp_path / "best.pt"
     asset.write_bytes(b"checkpoint")

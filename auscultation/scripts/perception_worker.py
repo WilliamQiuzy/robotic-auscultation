@@ -199,15 +199,30 @@ class LatestFrameWorker:
                 self._condition.wait(remaining)
             return True
 
+    def is_alive(self):
+        """True iff the worker thread exists and has not yet exited."""
+        with self._condition:
+            thread = self._thread
+        return bool(thread is not None and thread.is_alive())
+
     def stop(self, timeout=2.0):
+        """Signal stop and join; return True iff the thread actually exited.
+
+        A stuck processor (e.g. a hung GPU forward pass) cannot be forced to
+        return, so ``join`` may time out with the thread still alive.  Reporting
+        that failure lets the caller refuse to spawn a replacement worker on top
+        of a live thread (which would silently grow the thread count and race on
+        the shared camera stream).
+        """
         with self._condition:
             self._stopping = True
             self._pending = None
             self._condition.notify_all()
             thread = self._thread
-        if thread is not None and thread is not threading.current_thread():
-            thread.join(timeout)
-        return self
+        if thread is None or thread is threading.current_thread():
+            return True
+        thread.join(timeout)
+        return not thread.is_alive()
 
 
 class BoundedFifoWorker:
@@ -385,7 +400,14 @@ class BoundedFifoWorker:
                 "dropped_before_inference": 0,
             }
 
+    def is_alive(self):
+        """True iff the worker thread exists and has not yet exited."""
+        with self._condition:
+            thread = self._thread
+        return bool(thread is not None and thread.is_alive())
+
     def stop(self, timeout=2.0):
+        """Signal stop and join; return True iff the thread actually exited."""
         with self._condition:
             self._interval_active = False
             self._stopping = True
@@ -393,9 +415,10 @@ class BoundedFifoWorker:
             self._queue.clear()
             self._condition.notify_all()
             thread = self._thread
-        if thread is not None and thread is not threading.current_thread():
-            thread.join(timeout)
-        return self
+        if thread is None or thread is threading.current_thread():
+            return True
+        thread.join(timeout)
+        return not thread.is_alive()
 
 
 def tracker_result_to_dict(output):
