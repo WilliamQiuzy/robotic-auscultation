@@ -5983,6 +5983,78 @@ def test_start_rolls_back_when_a_worker_dies_right_before_ingress_opens(tmp_path
         collector.shutdown()
 
 
+def test_storage_gate_estimate_and_rejection(tmp_path, monkeypatch):
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    try:
+        collector.camera_width, collector.camera_height, collector.depth_fps = 1920, 1080, 30
+        collector.capture_rate_margin = 1.3
+        collector.diagnostic_min_free_bytes = 0  # isolate the duration math
+        rate = collector._estimated_capture_bytes_per_s()
+        assert rate == 1920 * 1080 * 2 * 30 * 1.3
+        need = int(60 * rate)
+
+        # Only ~59 s fits -> refuse a 60 s planned session.
+        monkeypatch.setattr(server.shutil, "disk_usage",
+                            lambda _p: server.SimpleNamespace(total=1 << 50, used=0, free=need - 1))
+        rej = collector._storage_start_rejection(60.0)
+        assert rej is not None and "insufficient storage" in rej
+
+        # Plenty of room -> allowed.
+        monkeypatch.setattr(server.shutil, "disk_usage",
+                            lambda _p: server.SimpleNamespace(total=1 << 50, used=0, free=need * 4))
+        assert collector._storage_start_rejection(60.0) is None
+
+        # Gate disabled for a non-positive planned duration.
+        assert collector._storage_start_rejection(0) is None
+        # Unknown camera mode -> rate 0 -> gate not applicable.
+        collector.camera_width = None
+        assert collector._estimated_capture_bytes_per_s() == 0.0
+        assert collector._storage_start_rejection(60.0) is None
+    finally:
+        collector.shutdown()
+
+
+def test_start_refused_when_storage_cannot_hold_planned_session(tmp_path, monkeypatch):
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+
+    class Capture:
+        def request_cancel(self): pass
+        def start(self): pass
+        def record_event(self, _p): pass
+        def write_frame(self, _f, _t): pass
+        def finalize(self): return {"status": "diagnostic_complete", "training_eligible": False}
+        def abort(self, _r): pass
+
+    collector.platform.capture_factory = lambda _p: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
+    collector._runtime_health_snapshot = lambda **_k: {"strict_ok": True, "blockers": []}
+    collector._device_start_rejection = lambda **_k: None
+    collector.camera_width, collector.camera_height, collector.depth_fps = 1920, 1080, 30
+    collector.diagnostic_min_free_bytes = 0
+    collector.planned_session_duration_s = 60.0
+    rate = collector._estimated_capture_bytes_per_s()
+    # Only ~30 s of headroom -> Start must refuse before opening the interval.
+    monkeypatch.setattr(server.shutil, "disk_usage",
+                        lambda _p: server.SimpleNamespace(total=1 << 50, used=0, free=int(30 * rate)))
+    try:
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "insufficient_storage_for_planned_session"
+        assert collector.platform.state.value != "RECORDING"
+    finally:
+        collector.shutdown()
+
+
 def test_arm_interval_if_healthy_is_atomic_on_the_health_epoch(tmp_path):
     # Unit-level proof of the atomic arm: it opens ingress only when the health
     # epoch is exactly the one captured before setup, and never otherwise.

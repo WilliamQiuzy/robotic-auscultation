@@ -911,6 +911,8 @@ class Collector:
         ffmpeg_sha256=None,
         diagnostic_fps=20.0,
         diagnostic_min_free_bytes=5 * 1024 ** 3,
+        planned_session_duration_s=60.0,
+        capture_rate_margin=1.3,
         max_tracking_age_s=0.25,
         capture_queue_frames=8,
         camera_delivery_frames=32,
@@ -1015,6 +1017,8 @@ class Collector:
         self.ffmpeg_sha256 = ffmpeg_sha256
         self.diagnostic_fps = float(diagnostic_fps)
         self.diagnostic_min_free_bytes = int(diagnostic_min_free_bytes)
+        self.planned_session_duration_s = float(planned_session_duration_s)
+        self.capture_rate_margin = max(1.0, float(capture_rate_margin))
         self.max_tracking_age_s = float(max_tracking_age_s)
         if not math.isfinite(self.max_tracking_age_s) or self.max_tracking_age_s <= 0:
             raise ValueError("max_tracking_age_s must be finite and positive")
@@ -2411,6 +2415,21 @@ class Collector:
                         "ok": False,
                         "code": "start_not_authorized",
                         "message": arm_rejection,
+                        "state": self.platform.state.value,
+                    }
+                # Duration-aware storage gate: never open a recording that cannot
+                # hold the planned session length plus the finalization reserve
+                # (a static min-free watermark would still let Start proceed with
+                # only a second of headroom, then fail mid-record).
+                storage_rejection = self._storage_start_rejection(
+                    self.planned_session_duration_s,
+                )
+                if storage_rejection is not None:
+                    self._clear_back_confirmation("START_FAILED")
+                    return {
+                        "ok": False,
+                        "code": "insufficient_storage_for_planned_session",
+                        "message": storage_rejection,
                         "state": self.platform.state.value,
                     }
                 # Snapshot the health epoch here, at the last known-healthy point,
@@ -4984,6 +5003,60 @@ class Collector:
             raise AttributeError("live audio is disabled")
         return self._audio.monitor_chunk(cursor, max_samples=max_samples)
 
+    def _capture_target_dir(self):
+        target = Path(self.out_dir)
+        while not target.exists() and target != target.parent:
+            target = target.parent
+        return target
+
+    def _estimated_capture_bytes_per_s(self):
+        """Conservative on-disk byte rate for a diagnostic session.
+
+        Aligned per-frame u16 depth (camera_width x camera_height) dominates; a
+        margin covers the RGB copy, audio, force, robot ledger and tracker
+        sidecars.  Returns 0.0 if the camera mode is not fully pinned.
+        """
+        try:
+            depth_rate = (
+                int(self.camera_width) * int(self.camera_height)
+                * np.dtype(np.uint16).itemsize * float(self.depth_fps)
+            )
+        except (TypeError, ValueError):
+            return 0.0
+        if depth_rate <= 0:
+            return 0.0
+        return depth_rate * float(self.capture_rate_margin)
+
+    def _storage_start_rejection(self, planned_duration_s):
+        """Refuse Start unless the disk holds the whole planned session + reserve.
+
+        Returns a human-readable rejection string, or None when there is room (or
+        when the gate is disabled / the rate cannot be estimated).
+        """
+        try:
+            planned = float(planned_duration_s)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(planned) or planned <= 0:
+            return None  # gate disabled
+        rate = self._estimated_capture_bytes_per_s()
+        if rate <= 0:
+            return None  # cannot estimate; other camera-mode gates cover this
+        free = int(shutil.disk_usage(self._capture_target_dir()).free)
+        reserve = int(self.diagnostic_min_free_bytes)
+        usable = max(0, free - reserve)
+        required = int(planned * rate)
+        if usable < required:
+            recordable_s = usable / rate
+            return (
+                f"insufficient storage for a {planned:.0f}s session: only "
+                f"~{recordable_s:.0f}s recordable above the "
+                f"{reserve / 1024 ** 3:.0f} GiB finalization reserve "
+                f"(free={free / 1024 ** 3:.1f} GiB, "
+                f"rate={rate / 1024 ** 2:.0f} MiB/s)"
+            )
+        return None
+
     def _idle_storage_health(self):
         """Estimate safe recording time before a session capture exists."""
 
@@ -5665,6 +5738,8 @@ def build_parser():
     ap.add_argument("--ffmpeg-sha256", default=None)
     ap.add_argument("--diagnostic-fps", type=float, default=20.0)
     ap.add_argument("--diagnostic-min-free-gib", type=float, default=5.0)
+    ap.add_argument("--planned-session-duration-s", type=float, default=60.0)
+    ap.add_argument("--capture-rate-margin", type=float, default=1.3)
     ap.add_argument("--max-tracking-age-ms", type=float, default=250.0)
     ap.add_argument("--capture-queue-frames", type=int, default=8)
     ap.add_argument(
@@ -5935,6 +6010,8 @@ def main(argv=None):
             ffmpeg_sha256=a.ffmpeg_sha256,
             diagnostic_fps=a.diagnostic_fps,
             diagnostic_min_free_bytes=int(a.diagnostic_min_free_gib * 1024 ** 3),
+            planned_session_duration_s=a.planned_session_duration_s,
+            capture_rate_margin=a.capture_rate_margin,
             max_tracking_age_s=a.max_tracking_age_ms / 1000.0,
             capture_queue_frames=a.capture_queue_frames,
             camera_delivery_frames=a.camera_delivery_frames,
