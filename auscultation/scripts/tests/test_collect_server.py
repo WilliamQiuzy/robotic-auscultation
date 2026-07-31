@@ -5964,19 +5964,55 @@ def test_start_rolls_back_when_a_worker_dies_right_before_ingress_opens(tmp_path
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector._camera_status = "OK"
     collector._model_status = "RUNNING"
+    # Every earlier liveness gate passes; the worker death is observable ONLY as a
+    # health-epoch advance inside the final atomic arm (arm_interval_if_healthy):
+    # its fresh degraded snapshot advances the epoch under the epoch lock, so the
+    # arm sees epoch != expected and refuses to open capture ingress.  The whole
+    # Start must roll back rather than record on a dead model.
+    collector._device_start_rejection = lambda **_k: None
     collector._runtime_health_snapshot = (
-        lambda **_k: {"strict_ok": True, "blockers": []})
-
-    # The death is observable ONLY at the final arm_start re-evaluation: patch the
-    # synchronous observer so it advances the health epoch exactly when arm_start
-    # calls it, after the earlier arm check has already passed.
-    collector._observe_runtime_health = (
-        lambda: setattr(collector, "_health_generation",
-                        collector._health_generation + 1))
+        lambda **_k: {"strict_ok": False, "blockers": ["worker died before ingress open"]})
 
     try:
         result = collector.control("start")
         assert result["ok"] is False
         assert collector.platform.state.value != "RECORDING"
+        # Ingress must remain paused (never opened on the dead model).
+        assert collector._capture_ingress_paused is True
+    finally:
+        collector.shutdown()
+
+
+def test_arm_interval_if_healthy_is_atomic_on_the_health_epoch(tmp_path):
+    # Unit-level proof of the atomic arm: it opens ingress only when the health
+    # epoch is exactly the one captured before setup, and never otherwise.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    try:
+        collector._capture_ingress_paused = True
+        collector._health_generation = 7
+        collector._last_runtime_strict_ok = True
+        collector._device_start_rejection = lambda **_k: None
+
+        # Healthy + matching epoch -> opens ingress.
+        collector._runtime_health_snapshot = lambda **_k: {"strict_ok": True, "blockers": []}
+        assert collector.arm_interval_if_healthy(7) is True
+        assert collector._capture_ingress_paused is False
+
+        # Reset; a stale expected epoch -> refuse, ingress stays paused.
+        collector._capture_ingress_paused = True
+        assert collector.arm_interval_if_healthy(6) is False
+        assert collector._capture_ingress_paused is True
+
+        # A degraded snapshot advances the epoch under the lock -> refuse.
+        collector._health_generation = 7
+        collector._last_runtime_strict_ok = True
+        collector._runtime_health_snapshot = lambda **_k: {"strict_ok": False, "blockers": ["x"]}
+        assert collector.arm_interval_if_healthy(7) is False
+        assert collector._capture_ingress_paused is True
+        assert collector._health_generation == 8  # epoch advanced on the degrade edge
     finally:
         collector.shutdown()

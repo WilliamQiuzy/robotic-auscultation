@@ -1123,6 +1123,10 @@ class Collector:
         # rollback instead of arming an empty recording.
         self._health_generation = 0
         self._last_runtime_strict_ok = True
+        # Serialises the health-epoch bump (a worker death, observed on the loop
+        # thread) against the final Start arm (on the request thread), so the
+        # epoch check and the capture-ingress open are one atomic step.
+        self._health_epoch_lock = threading.Lock()
         self._cam = None
         self._audio = None
         self._audio_hardware = None
@@ -2194,10 +2198,34 @@ class Collector:
 
         runtime = self._runtime_health_snapshot() if runtime is None else runtime
         strict = runtime.get("strict_ok") is True
+        with self._health_epoch_lock:
+            self._advance_health_epoch_locked(strict)
+        return strict
+
+    def _advance_health_epoch_locked(self, strict):
+        """Advance the epoch on a healthy->degraded edge.  Caller holds the lock."""
         if not strict and self._last_runtime_strict_ok:
             self._health_generation += 1
         self._last_runtime_strict_ok = strict
-        return strict
+
+    def arm_interval_if_healthy(self, expected_generation):
+        """Atomically re-check liveness at the exact health epoch and open ingress.
+
+        The health-epoch bump (driven by a worker death observed on the loop
+        thread) and this final check-and-open are serialised by ``_health_epoch_lock``
+        so no worker death can be observed *between* the check and the ingress open:
+        either the epoch has already advanced (and we refuse), or it cannot advance
+        until after ingress is open (and the recording's ongoing liveness monitor
+        catches any death from that point).  Returns True iff ingress was opened.
+        """
+        runtime = self._runtime_health_snapshot()
+        rejection = self._device_start_rejection(runtime=runtime)
+        with self._health_epoch_lock:
+            self._advance_health_epoch_locked(runtime.get("strict_ok") is True)
+            if rejection is not None or self._health_generation != expected_generation:
+                return False
+            self._capture_ingress_paused = False
+            return True
 
     def _device_start_rejection(self, *, runtime=None):
         """Collector-owned device *liveness* precondition for Start.
@@ -2598,14 +2626,6 @@ class Collector:
                         # here; a worker death anywhere in that window must still roll
                         # the Start back rather than open ingress on a dead model.
                         # Any raise here is caught below and fully rolled back.
-                        self._observe_runtime_health()
-                        if (
-                            self._device_start_rejection() is not None
-                            or self._health_generation != health_gen_before
-                        ):
-                            raise RuntimeError(
-                                "runtime health degraded before capture ingress open"
-                            )
                         self._end_boundary_closing = False
                         self._completion_proof_cache = None
                         ingress_health = self._ingress_worker.health()
@@ -2620,7 +2640,12 @@ class Collector:
                             camera_health.get("overflow_frames", 0) or 0
                         )
                         self._record_last_camera_index = None
-                        self._capture_ingress_paused = False
+                        # Atomic: re-check the health epoch and open capture ingress in
+                        # one step, so a worker death cannot be observed between them.
+                        if not self.arm_interval_if_healthy(health_gen_before):
+                            raise RuntimeError(
+                                "runtime health degraded before capture ingress open"
+                            )
 
                     try:
                         if start_back_gate is None:
