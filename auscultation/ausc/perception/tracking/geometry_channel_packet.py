@@ -40,7 +40,9 @@ _CHANNELS = frozenset(
     {PERCEPTION_OBSERVATION_CHANNEL, INDEPENDENT_PATIENT_MODEL_CHANNEL}
 )
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-_RELEASE_ID = re.compile(r"^[a-z][a-z0-9-]{2,96}-[0-9a-f]{20}$")
+# Underscores are permitted so the real activated model ids (e.g.
+# ``patient_pose-<sha20>``) validate; the content-address suffix is unchanged.
+_RELEASE_ID = re.compile(r"^[a-z][a-z0-9_-]{2,96}-[0-9a-f]{20}$")
 _PRODUCER_ID = re.compile(r"^[a-z][a-z0-9-]{2,63}$")
 
 

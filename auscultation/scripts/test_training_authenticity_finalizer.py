@@ -1470,7 +1470,7 @@ def _geometry_attestation(session, packets, ledger, *, model_sha, release_id):
     return {
         "schema_version": "wam_model_replay_attestation_v1",
         "component": "geometry",
-        "session_id": "session-geo-001",
+        "session_id": Path(session).name,
         "bound_artifacts": {
             "geometry_frame_packets.jsonl": hashlib.sha256(packets.read_bytes()).hexdigest(),
             "geometry/model_input_ledger.jsonl": hashlib.sha256(ledger.read_bytes()).hexdigest(),
@@ -1500,7 +1500,9 @@ def test_geometry_component_authorized_by_a_valid_attestation(tmp_path, monkeypa
     )
     (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
 
-    evidence = finalizer.verify_geometry_packet_component(session)
+    evidence = finalizer.verify_geometry_packet_component(
+        session, trust_verifier=lambda _record: True,
+    )
 
     assert evidence["production_authorized"] is True
     assert "blocker" not in evidence
@@ -1520,7 +1522,9 @@ def test_geometry_component_rejects_an_invalid_attestation(tmp_path, monkeypatch
     (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
 
     with pytest.raises(finalizer.TrainingFinalizationError, match="attestation is invalid"):
-        finalizer.verify_geometry_packet_component(session)
+        finalizer.verify_geometry_packet_component(
+            session, trust_verifier=lambda _record: True,
+        )
 
 
 def test_geometry_component_without_attestation_stays_diagnostic(tmp_path, monkeypatch):
@@ -1562,7 +1566,7 @@ def test_quality_component_authorized_by_a_valid_attestation(tmp_path, monkeypat
     attestation = {
         "schema_version": "wam_model_replay_attestation_v1",
         "component": "quality",
-        "session_id": "session-q-001",
+        "session_id": tmp_path.name,
         "bound_artifacts": {
             "quality_inference_packets.jsonl": hashlib.sha256(packets.read_bytes()).hexdigest(),
             "audio.wav": hashlib.sha256(audio.read_bytes()).hexdigest(),
@@ -1583,11 +1587,30 @@ def test_quality_component_authorized_by_a_valid_attestation(tmp_path, monkeypat
     (tmp_path / "quality").mkdir()
     (tmp_path / "quality" / "replay_attestation.json").write_text(json.dumps(attestation))
 
-    evidence = finalizer.verify_quality_packet_component(tmp_path)
+    evidence = finalizer.verify_quality_packet_component(
+        tmp_path, trust_verifier=lambda _record: True,
+    )
 
     assert evidence["production_authorized"] is True
     assert "blocker" not in evidence
     assert evidence["replay_attestation"]["production_authorized"] is True
+
+
+def test_present_attestation_without_a_trusted_root_fails_closed(tmp_path, monkeypatch):
+    # The finalizer's DEFAULT trust root is "unconfigured -> refuse": a present,
+    # otherwise-valid attestation must fail closed, not authorize, until a real
+    # trust root is wired.
+    session, packets, ledger = _geometry_component_session(tmp_path)
+    model_sha = "d" * 64
+    release = "perception-" + model_sha[:20]
+    _mock_geometry_log(monkeypatch, model_sha=model_sha, release_id=release)
+    attestation = _geometry_attestation(
+        session, packets, ledger, model_sha=model_sha, release_id=release
+    )
+    (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
+
+    with pytest.raises(finalizer.TrainingFinalizationError, match="not vouched by a trusted root"):
+        finalizer.verify_geometry_packet_component(session)  # default: unconfigured
 
 
 def test_diagnostic_capture_kind_can_never_be_promoted(tmp_path: Path) -> None:

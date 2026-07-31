@@ -12,8 +12,12 @@ from ausc.perception.replay_attestation import (
     COMPARISON_BIT_EXACT,
     COMPARISON_FROZEN_EPSILON,
     ReplayAttestationError,
-    verify_replay_attestation,
+    verify_replay_attestation as _verify_impl,
 )
+
+
+def verify_replay_attestation(session_dir, attestation, *, trust_verifier=lambda _r: True, **kwargs):
+    return _verify_impl(session_dir, attestation, trust_verifier=trust_verifier, **kwargs)
 from ausc.perception import replay_runner
 from ausc.perception.replay_runner import (
     ReplayItem,
@@ -83,6 +87,16 @@ def test_compare_output_name_mismatch_is_rejected():
     with pytest.raises(ReplayRunnerError, match="do not match"):
         compare_outputs(
             {"a": np.zeros((1,))}, {"b": np.zeros((1,))},
+            mode=COMPARISON_BIT_EXACT, epsilon={},
+        )
+
+
+def test_compare_bit_exact_dtype_mismatch_is_rejected():
+    # np.array_equal ignores dtype; bit-exact must not.
+    with pytest.raises(ReplayRunnerError, match="dtype"):
+        compare_outputs(
+            {"p": np.zeros(2, dtype=np.float32)},
+            {"p": np.zeros(2, dtype=np.float64)},
             mode=COMPARISON_BIT_EXACT, epsilon={},
         )
 

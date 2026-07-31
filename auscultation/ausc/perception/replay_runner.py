@@ -88,6 +88,13 @@ def compare_outputs(
             raise ReplayRunnerError(
                 f"output {name!r} shape {rep.shape} does not match recorded {rec.shape}"
             )
+        if mode == COMPARISON_BIT_EXACT and rec.dtype != rep.dtype:
+            # Bit-exact means bit-exact: a float32 replay of a float64 record is a
+            # mismatch, not a zero residual (np.array_equal ignores dtype).
+            raise ReplayRunnerError(
+                f"output {name!r} dtype {rep.dtype} does not match recorded "
+                f"{rec.dtype} under bit-exact comparison"
+            )
         if rec.size == 0:
             residuals[name] = 0.0
             continue

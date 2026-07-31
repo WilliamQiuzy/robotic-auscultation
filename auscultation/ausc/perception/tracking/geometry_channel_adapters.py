@@ -55,6 +55,10 @@ def perception_channel_geometry(
         raise ValueError("perception position std must be one scalar per point")
     if not np.isfinite(points).all() or not np.isfinite(std).all():
         raise ValueError("perception geometry has non-finite values")
+    # A negative std is a producer bug, not a tiny uncertainty: reject it rather
+    # than silently flooring it to a small variance.
+    if np.any(std < 0.0):
+        raise ValueError("perception position std must be non-negative")
     if float(min_position_std_m) <= 0.0:
         raise ValueError("minimum position std must be positive")
     floored = np.maximum(std, float(min_position_std_m))

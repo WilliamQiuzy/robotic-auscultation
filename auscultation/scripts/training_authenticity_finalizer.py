@@ -28,7 +28,7 @@ from pathlib import Path, PurePosixPath
 import re
 import stat
 import time
-from typing import Any
+from typing import Any, Callable
 import wave
 
 import numpy as np
@@ -2703,6 +2703,19 @@ def verify_force_component(session_dir: str | Path) -> dict[str, object]:
     }
 
 
+def _unconfigured_replay_trust_root(_record: object) -> bool:
+    """The default replay-attestation trust root: refuse everything.
+
+    No signing/registry trust root for replay attestations is wired into the
+    finalizer yet, so a present attestation can never authorize promotion.  This
+    makes the gate EXPLICITLY refuse (a session-local JSON file is not proof)
+    rather than relying on the downstream NOT_READY lock to hide a forgeable
+    authorization.  A real trust verifier is injected once it exists.
+    """
+
+    return False
+
+
 def _apply_replay_attestation(
     session_dir: str | Path,
     base: dict[str, object],
@@ -2710,13 +2723,15 @@ def _apply_replay_attestation(
     component: str,
     recorded_identity: Mapping[str, object],
     recorded_item_count: object,
+    trust_verifier: "Callable[[object], bool]" = _unconfigured_replay_trust_root,
 ) -> dict[str, object]:
     """Fold a present, valid replay attestation into a component's verdict.
 
     Absent attestation -> return ``base`` unchanged (``production_authorized``
     stays False and the diagnostic blocker remains).  A present attestation must
-    verify against this exact session and model identity, or the whole component
-    fails closed via :class:`TrainingFinalizationError` — a present-but-invalid
+    pass the mandatory ``trust_verifier`` AND verify against this exact session and
+    model identity, or the whole component fails closed via
+    :class:`TrainingFinalizationError` — a present-but-invalid or un-vouched
     attestation is never silently downgraded to the diagnostic state.
     """
 
@@ -2741,6 +2756,7 @@ def _apply_replay_attestation(
             component=component,
             recorded_identity=recorded_identity,
             recorded_item_count=recorded_item_count,
+            trust_verifier=trust_verifier,
         )
     except ReplayAttestationError as exc:
         raise TrainingFinalizationError(
@@ -2753,7 +2769,11 @@ def _apply_replay_attestation(
     return authorized
 
 
-def verify_geometry_packet_component(session_dir: str | Path) -> dict[str, object]:
+def verify_geometry_packet_component(
+    session_dir: str | Path,
+    *,
+    trust_verifier: "Callable[[object], bool]" = _unconfigured_replay_trust_root,
+) -> dict[str, object]:
     """Replay every numeric packet pair; a valid attestation authorizes promotion."""
 
     try:
@@ -2793,6 +2813,7 @@ def verify_geometry_packet_component(session_dir: str | Path) -> dict[str, objec
             "model_sha256": receipt.perception_model_sha256,
         },
         recorded_item_count=len(entries),
+        trust_verifier=trust_verifier,
     )
 
 
@@ -2898,7 +2919,11 @@ def verify_quality_force_rows(
     }
 
 
-def verify_quality_packet_component(session_dir: str | Path) -> dict[str, object]:
+def verify_quality_packet_component(
+    session_dir: str | Path,
+    *,
+    trust_verifier: "Callable[[object], bool]" = _unconfigured_replay_trust_root,
+) -> dict[str, object]:
     """Replay the entire Q chain; lossless model-input replay remains separate."""
 
     try:
@@ -2955,6 +2980,7 @@ def verify_quality_packet_component(session_dir: str | Path) -> dict[str, object
             "model_sha256": model.get("model_sha256"),
         },
         recorded_item_count=receipt["packet_count"],
+        trust_verifier=trust_verifier,
     )
 
 

@@ -561,6 +561,29 @@ def test_recorded_session_is_replayable_by_the_runner(tmp_path):
     assert items[0].model_input.depth.ndim == 2
 
 
+def test_recorder_accepts_the_real_patient_pose_independent_identity(tmp_path):
+    # The real activated independent model id is "patient_pose-<sha20>" (with an
+    # underscore); it must validate as a geometry channel release id.
+    sha = "b" * 64
+    recorder = ProductionGeometrySessionRecorder(
+        tmp_path, intrinsics=_intrinsics(), geometry_profile=_profile(),
+        point_names=POINT_NAMES,
+        perception_channel=_PERCEPTION_CHANNEL,
+        independent_channel=GeometryChannelIdentity(
+            producer_id="metric-patient-model",
+            release_id="patient_pose-" + sha[:20],
+            model_sha256=sha,
+        ),
+    )
+    recorder.record_frame(
+        _patient_evidence(frame_index=10),
+        episode_id=EPISODE, sequence=1,
+        perception_points_m=_points(0.0), perception_covariances_m2=_covariances(),
+        independent_points_m=_points(0.001), independent_covariances_m2=_covariances(),
+    )
+    assert recorder.frame_count == 1
+
+
 def test_recorder_requires_independent_channels(tmp_path):
     same = GeometryChannelIdentity(
         producer_id="v9-landmark-worker",

@@ -30,7 +30,7 @@ the trusted loader as its single privileged seam.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 import hashlib
 import json
@@ -294,16 +294,29 @@ def verify_replay_attestation(
     component: str,
     recorded_identity: Mapping[str, object],
     recorded_item_count: int,
+    trust_verifier: "Callable[[ReplayAttestation], bool]",
     epsilon_ceilings: Mapping[str, Mapping[str, float]] = FROZEN_EPSILON_CEILINGS,
 ) -> dict[str, object]:
     """Return promotion evidence iff ``attestation`` authorizes ``component``.
 
     ``recorded_identity`` is the model identity taken from the session's own
     verified packets (``{"release_id", "model_sha256"}``); ``recorded_item_count``
-    is that component's packet count.  Raises :class:`ReplayAttestationError` on
-    any mismatch, so a caller that reaches a return value has proof — not a claim.
+    is that component's packet count.
+
+    ``trust_verifier`` is the MANDATORY trust root: a callable that proves the
+    attestation was produced by verified, trusted execution (e.g. it is signed by,
+    or registered under, the activated production runtime) rather than hand-written
+    into the session.  It is checked before any content claim is trusted, and a
+    falsy result refuses authorization — so a session-local JSON file with a
+    forged producer can never authorize promotion, no matter how well its bound
+    hashes and model identity line up.  Raises :class:`ReplayAttestationError` on
+    any failure, so a caller that reaches a return value has proof — not a claim.
     """
 
+    if not callable(trust_verifier):
+        raise ReplayAttestationError(
+            "a replay attestation trust root is mandatory; refusing to authorize"
+        )
     session = Path(session_dir).absolute()
     if component not in REQUIRED_BOUND_ARTIFACTS:
         raise ReplayAttestationError("unsupported component for replay attestation")
@@ -324,6 +337,28 @@ def verify_replay_attestation(
 
     if record.component != component:
         raise ReplayAttestationError("attestation component does not match the request")
+
+    # 0a) Session binding by identity: the attestation must name THIS session, so
+    # an attestation minted for one session cannot be dropped into another.
+    if record.session_id != session.name:
+        raise ReplayAttestationError(
+            "attestation session id does not match the session directory"
+        )
+
+    # 0b) Trust root FIRST: a forged, hand-written attestation is refused before
+    # any of its self-reported content is examined.
+    try:
+        vouched = bool(trust_verifier(record))
+    except ReplayAttestationError:
+        raise
+    except Exception as exc:  # a trust verifier that errors must never authorize
+        raise ReplayAttestationError(
+            f"replay attestation trust verification failed: {exc}"
+        ) from exc
+    if not vouched:
+        raise ReplayAttestationError(
+            "replay attestation is not vouched by a trusted root; refusing to authorize"
+        )
 
     # 1) Model identity must equal the identity the session's own packets recorded.
     if not isinstance(recorded_identity, Mapping):

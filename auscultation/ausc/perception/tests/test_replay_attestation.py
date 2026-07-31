@@ -14,8 +14,18 @@ from ausc.perception.replay_attestation import (
     REPLAY_ATTESTATION_SCHEMA,
     ReplayAttestation,
     ReplayAttestationError,
-    verify_replay_attestation,
+    verify_replay_attestation as _verify_impl,
 )
+
+
+def _accept_trust(_record):
+    return True
+
+
+def verify_replay_attestation(session_dir, attestation, *, trust_verifier=_accept_trust, **kwargs):
+    # Default the mandatory trust root to "accept" so the many content-focused
+    # tests below stay concise; the trust root itself is exercised explicitly.
+    return _verify_impl(session_dir, attestation, trust_verifier=trust_verifier, **kwargs)
 
 _MODEL_SHA = "a" * 64
 _MODEL_RELEASE = "perception-" + _MODEL_SHA[:20]
@@ -299,6 +309,38 @@ def test_manifest_field_set_must_be_exact(tmp_path):
     attestation["unexpected"] = True
     with pytest.raises(ReplayAttestationError, match="field set is not exact"):
         ReplayAttestation.from_manifest(attestation)
+
+
+def test_attestation_without_a_trusted_root_cannot_authorize(tmp_path):
+    # The core anti-forgery property: a perfectly-formed, correctly-bound
+    # attestation with a refusing (or missing) trust root NEVER authorizes.
+    session, attestation = _geometry_session(tmp_path)
+    with pytest.raises(ReplayAttestationError, match="not vouched by a trusted root"):
+        _verify_impl(
+            session, attestation, component="geometry",
+            recorded_identity=_RECORDED_IDENTITY, recorded_item_count=2,
+            trust_verifier=lambda _record: False,
+        )
+
+
+def test_non_callable_trust_root_is_refused(tmp_path):
+    session, attestation = _geometry_session(tmp_path)
+    with pytest.raises(ReplayAttestationError, match="trust root is mandatory"):
+        _verify_impl(
+            session, attestation, component="geometry",
+            recorded_identity=_RECORDED_IDENTITY, recorded_item_count=2,
+            trust_verifier=None,
+        )
+
+
+def test_attestation_minted_for_another_session_is_refused(tmp_path):
+    session, attestation = _geometry_session(tmp_path)
+    attestation["session_id"] = "session-geo-999"  # not this directory's name
+    with pytest.raises(ReplayAttestationError, match="session id does not match"):
+        verify_replay_attestation(
+            session, attestation, component="geometry",
+            recorded_identity=_RECORDED_IDENTITY, recorded_item_count=2,
+        )
 
 
 def test_producer_identity_must_be_exact_and_valid(tmp_path):

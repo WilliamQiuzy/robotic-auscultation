@@ -49,6 +49,14 @@ def test_perception_rejects_shape_mismatch():
         )
 
 
+def test_perception_rejects_a_negative_std():
+    # A negative std is a producer bug; it must be rejected, not floored.
+    with pytest.raises(ValueError, match="non-negative"):
+        perception_channel_geometry(
+            np.zeros((2, 3)), np.array([0.01, -0.01]),
+        )
+
+
 class _PoseStub:
     def __init__(self, rotation, translation, covariance_se3):
         self.rotation_camera_from_patient = np.asarray(rotation, dtype=np.float64)
