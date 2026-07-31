@@ -5983,6 +5983,126 @@ def test_start_rolls_back_when_a_worker_dies_right_before_ingress_opens(tmp_path
         collector.shutdown()
 
 
+class _ArmHealth:
+    def __init__(self, status, preflight_ready=False):
+        self.status = status
+        self.preflight_ready = preflight_ready
+        self.error = ""
+
+
+class _ArmCoord:
+    def __init__(self, script):
+        self._script = list(script)
+        self.events = []
+        self._faulted = False
+        self._fr = ""
+
+    def prepare_receiver_socket(self): self.events.append("prepare")
+    def attach_controller_process(self, a): self.events.append("attach")
+    def start_receiver(self): self.events.append("start")
+    def stop_receiver(self): self.events.append("stop")
+
+    def receiver_health(self, **k):
+        return self._script.pop(0) if len(self._script) > 1 else self._script[0]
+
+    @property
+    def faulted(self): return self._faulted
+
+    @property
+    def fault_reason(self): return self._fr
+
+
+class _ArmCtrl:
+    def __init__(self): self._exit = None; self.terminated = False
+    @property
+    def pid(self): return 999
+    def poll(self): return self._exit
+    def terminate(self): self.terminated = True
+
+
+class _ArmDisable:
+    def __init__(self): self.calls = []
+    def __call__(self, reason):
+        self.calls.append(reason)
+        return type("O", (), {"outcome": "energy_isolated"})()
+
+
+def _configure_arm(collector, coord, disable):
+    collector.require_robot = True
+    collector.commissioning_preview_only = False
+    collector._robot_coordinator = coord
+    collector._controller_launcher = lambda: _ArmCtrl()
+    collector._controller_disable = disable
+    collector._controller_attest = lambda pid, uid: f"attest{pid}"
+    collector._controller_readiness_timeout_s = 2.0
+
+
+def test_arm_bringup_ready_then_disable(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("READY", True)])
+    disable = _ArmDisable()
+    _configure_arm(c, coord, disable)
+    try:
+        assert c._controller_configured() is True
+        assert c._controller_status_payload()["state"] == "idle"
+        r = c.bring_up_controller()
+        assert r["ok"] and r["code"] == "controller_ready" and r["controller_pid"] == 999
+        assert c._controller_ready() is True
+        assert coord.events[:3] == ["prepare", "attach", "start"]
+        assert disable.calls == []                       # never disabled on success
+        d = c.disable_controller()
+        assert d["ok"] and d["code"] == "controller_disabled"
+        assert disable.calls == ["operator_estop"]
+        assert c._controller_ready() is False
+    finally:
+        c.shutdown()
+
+
+def test_arm_bringup_fault_energy_isolates(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("FAULT")])
+    disable = _ArmDisable()
+    _configure_arm(c, coord, disable)
+    try:
+        r = c.bring_up_controller()
+        assert r["ok"] is False and r["code"] == "controller_bring_up_faulted"
+        assert len(disable.calls) == 1                   # energy-isolated on failure
+        assert c._controller_ready() is False
+    finally:
+        c.shutdown()
+
+
+def test_start_robot_session_requires_arm_brought_up(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), _ArmDisable())
+    try:
+        with pytest.raises(RuntimeError, match="not brought up"):
+            c._start_robot_session(str(tmp_path))
+    finally:
+        c.shutdown()
+
+
+def test_arm_actions_inert_when_not_configured(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    try:
+        assert c._controller_configured() is False        # fake -> no arm UI
+        r = c.bring_up_controller()
+        assert r["ok"] is False and r["code"] == "controller_not_configured"
+        d = c.disable_controller()
+        assert d["ok"] and d["code"] == "controller_not_running"
+        assert c._controller_status_payload()["configured"] is False
+    finally:
+        c.shutdown()
+
+
 def test_storage_gate_estimate_and_rejection(tmp_path, monkeypatch):
     server = _load_collect_server()
     collector = server.Collector(

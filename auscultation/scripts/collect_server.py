@@ -190,6 +190,11 @@ from ausc.perception.robot.robot_capture_coordinator import (       # noqa: E402
     RobotCaptureCoordinatorError,
     RobotCaptureNotReady,
 )
+from ausc.perception.robot.trusted_controller_companion import (    # noqa: E402
+    CompanionError,
+    CompanionFault,
+    TrustedControllerCompanion,
+)
 from ausc.perception.production_runtime_activation import (        # noqa: E402
     ProductionRuntimeActivationError,
     load_completed_handeye_release,
@@ -937,6 +942,10 @@ class Collector:
         require_force=None,
         require_robot=None,
         robot_capture_coordinator=None,
+        controller_launcher=None,
+        controller_disable=None,
+        controller_attest=None,
+        controller_readiness_timeout_s=15.0,
         robot_mask_provider=None,
         handeye_activation=None,
         frame_evidence_bundle_factory=None,
@@ -1067,6 +1076,16 @@ class Collector:
             not self.fake if require_robot is None else bool(require_robot)
         )
         self._robot_coordinator = robot_capture_coordinator
+        # Optional trusted controller companion: the collector becomes the single
+        # owner of the left-arm controller lifecycle, so the arm can be brought up
+        # and energy-isolated from the console (no CLI).  Absent in preview/fake or
+        # when no launch/disable command is configured -> the arm UI is inert.
+        self._controller_launcher = controller_launcher
+        self._controller_disable = controller_disable
+        self._controller_attest = controller_attest
+        self._controller_readiness_timeout_s = float(controller_readiness_timeout_s)
+        self._controller_companion = None
+        self._controller_lock = threading.Lock()
         self._robot_mask_provider = robot_mask_provider
         self._handeye_activation = handeye_activation
         self._frame_evidence_bundle_factory = (
@@ -1611,6 +1630,12 @@ class Collector:
         self._stop.set()
         if self.platform.state is CollectionState.RECORDING:
             self._abort_recording("service shutdown before End")
+        # Never leave the arm energized across a collector shutdown.
+        if self._controller_companion is not None and not self._controller_companion.disabled:
+            try:
+                self.disable_controller("service_shutdown")
+            except Exception:
+                pass
         if self._model_worker is not None:
             self._model_worker.stop()
         if self._preview_worker is not None:
@@ -1751,9 +1776,104 @@ class Collector:
         payload["authorized_monotonic_ns"] = authorized_ns
         return payload
 
+    def _controller_configured(self):
+        """True when the console can own the arm controller lifecycle."""
+        return bool(
+            self.require_robot
+            and not self.commissioning_preview_only
+            and self._robot_coordinator is not None
+            and callable(self._controller_launcher)
+            and callable(self._controller_disable)
+        )
+
+    def _controller_ready(self):
+        comp = self._controller_companion
+        return bool(comp is not None and comp.state == "ready" and not comp.disabled)
+
+    def bring_up_controller(self):
+        """Console-triggered left-arm bring-up via the trusted companion.
+
+        Single owner; a fresh companion per bring-up; fault-closed to a
+        direct-disable.  Real motion begins here, so it is gated to a configured,
+        non-preview collector and returns only after the receiver reports per-motor
+        READY (or after the arm has been energy-isolated on failure).
+        """
+        if not self._controller_configured():
+            return {
+                "ok": False, "code": "controller_not_configured",
+                "message": "arm controller launch/disable is not configured on this collector",
+            }
+        with self._controller_lock:
+            comp = self._controller_companion
+            if comp is not None and comp.state == "ready" and not comp.disabled:
+                return {
+                    "ok": True, "code": "controller_already_up",
+                    "message": "left arm controller already brought up",
+                    "controller_pid": comp.controller_pid,
+                }
+            companion = TrustedControllerCompanion(
+                coordinator=self._robot_coordinator,
+                launch_controller=self._controller_launcher,
+                direct_disable=self._controller_disable,
+                attest_controller=self._controller_attest,
+                readiness_timeout_s=self._controller_readiness_timeout_s,
+            )
+            self._controller_companion = companion
+            try:
+                companion.bring_up()
+            except CompanionFault as exc:
+                return {
+                    "ok": False, "code": "controller_bring_up_faulted",
+                    "message": f"arm bring-up failed and was energy-isolated: {exc}",
+                }
+            except CompanionError as exc:
+                return {"ok": False, "code": "controller_bring_up_error", "message": str(exc)}
+            return {
+                "ok": True, "code": "controller_ready",
+                "message": "left arm controller ready (per-motor telemetry verified)",
+                "controller_pid": companion.controller_pid,
+            }
+
+    def disable_controller(self, reason="operator_estop"):
+        """Console E-stop: energy-isolate the arm (direct-disable first)."""
+        with self._controller_lock:
+            comp = self._controller_companion
+            if comp is None:
+                return {"ok": True, "code": "controller_not_running", "message": "no arm controller is running"}
+            try:
+                outcome = comp.shutdown(str(reason))
+            except Exception as exc:  # noqa: BLE001 - disable path must report, never raise out
+                return {"ok": False, "code": "controller_disable_error", "message": f"{type(exc).__name__}: {exc}"}
+            return {"ok": True, "code": "controller_disabled", "message": f"left arm energy-isolated ({outcome.outcome})"}
+
+    def _supervise_controller(self):
+        """Loop-thread tick: a telemetry fault after ready auto-energy-isolates."""
+        comp = self._controller_companion
+        if comp is None or comp.state != "ready" or comp.disabled:
+            return
+        try:
+            comp.poll()
+        except CompanionFault:
+            pass  # the companion already direct-disabled; status reflects it
+
+    def _controller_status_payload(self):
+        comp = self._controller_companion
+        if not self._controller_configured():
+            return {"configured": False, "state": "unavailable"}
+        if comp is None:
+            return {"configured": True, "state": "idle"}
+        return {
+            "configured": True, "state": comp.state,
+            "disabled": bool(comp.disabled), "controller_pid": comp.controller_pid,
+        }
+
     def _start_robot_session(self, session_dir):
         if not self.require_robot:
             return None
+        if self._controller_configured() and not self._controller_ready():
+            raise RuntimeError(
+                "left OpenArm controller is not brought up; use Bring up arm first"
+            )
         coordinator = self._robot_coordinator
         if coordinator is None:
             raise RuntimeError("left OpenArm capture coordinator is unavailable")
@@ -2267,6 +2387,12 @@ class Collector:
                 "message": "Recording is disabled in commissioning preview",
                 "state": self.platform.state.value,
             }
+        # Left-arm controller lifecycle from the console (real motion).  Disable is
+        # always honoured; bring-up is gated to a configured, non-preview collector.
+        if normalized == "arm_disable":
+            return self.disable_controller()
+        if normalized == "arm_bringup":
+            return self.bring_up_controller()
         if normalized == "confirm_back":
             token_valid = (
                 type(preview_frame_index) is int
@@ -3840,6 +3966,8 @@ class Collector:
             # Advance the health epoch on any liveness degradation so an
             # in-flight Start can detect a worker that died mid-arm.
             self._observe_runtime_health()
+            # A brought-up arm that loses per-motor telemetry auto-energy-isolates.
+            self._supervise_controller()
             if self.require_force:
                 self._force_snapshot()
             self._consume_preview_result()
@@ -5328,6 +5456,7 @@ class Collector:
             "audio": audio,
             "force_sensor": force,
             "robot": robot,
+            "controller": self._controller_status_payload(),
             "handeye": self._handeye_snapshot(),
             "capture_storage": capture_storage,
             "fatal_error": fatal_error,
@@ -5601,7 +5730,7 @@ h1{font:650 clamp(21px,2.4vw,34px)/1.05 var(--sans);margin:7px 0 0}.scope{max-wi
 .pill{font:800 10px var(--mono);letter-spacing:.08em;border:1px solid currentColor;padding:5px 8px}.target{font:750 34px/1 var(--mono);letter-spacing:-.05em}.meta{display:grid;grid-template-columns:100px 1fr;gap:7px 10px;margin-top:13px;font:11px/1.35 var(--mono)}.meta dt{color:var(--dim)}.meta dd{margin:0;overflow-wrap:anywhere}
 .back{margin-top:13px;padding:9px 10px;border-left:3px solid var(--red);background:#190f13;color:#e0a7b0;font:700 11px/1.4 var(--mono)}.back.ok{border-color:var(--green);background:#0b1914;color:var(--green)}
 .points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 4px}.point{display:flex;align-items:center;gap:7px;min-width:0;padding:4px 6px;color:var(--muted);font:10px/1.2 var(--mono);border:1px solid transparent}.point span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.point i{width:7px;height:7px;flex:0 0 auto;border:1px solid var(--dim);border-radius:50%}.point.active{color:var(--amber);border-color:#594825;background:#1a160d}.point.active i{background:var(--amber);border-color:var(--amber)}.point.done{color:var(--green)}.point.done i{background:var(--green);border-color:var(--green)}
-.buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}.backcontrol{margin-top:8px}button{appearance:none;border:1px solid #3b4650;background:#161d23;color:var(--ink);min-height:42px;padding:9px;font:750 11px var(--mono);cursor:pointer}button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}button:disabled{opacity:.35;cursor:not-allowed}.start{border-color:#28634d;color:var(--green)}.end{border-color:#7b3340;color:var(--red)}.wide{grid-column:1/-1}
+.buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}.backcontrol{margin-top:8px}button{appearance:none;border:1px solid #3b4650;background:#161d23;color:var(--ink);min-height:42px;padding:9px;font:750 11px var(--mono);cursor:pointer}button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}button:disabled{opacity:.35;cursor:not-allowed}.start{border-color:#28634d;color:var(--green)}.end{border-color:#7b3340;color:var(--red)}.wide{grid-column:1/-1}.estop{border-color:var(--red);color:var(--red);font-weight:800}.estop:hover:not(:disabled){background:var(--red);color:#0a0d10;border-color:var(--red)}.armctl{margin-bottom:10px;padding:8px;border:1px solid #3b4650;border-radius:4px}.armstat{font:750 11px var(--mono);margin-bottom:6px}.armstat.good{color:var(--green)}.armstat.bad{color:var(--red)}.armstat.warn{color:#e0a030}
 .keyline{margin-top:10px;color:var(--dim);font:10px/1.5 var(--mono)}.blockers{margin:0;padding-left:17px;color:#d2a5ad;font:11px/1.45 var(--mono)}.blockers li+li{margin-top:6px}.sessionpath{font:10px/1.4 var(--mono);color:var(--muted);overflow-wrap:anywhere}
 .capturestrip{margin-top:12px;padding:11px 12px;border:1px solid var(--line);background:linear-gradient(145deg,#11171c,#0b1014)}.capturetop{display:flex;align-items:center;justify-content:space-between;gap:12px}.capturemetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}.capturemetric{min-width:0;padding-left:9px;border-left:2px solid #26313a}.capturemetric b{display:block;margin-top:4px;font:750 14px/1.2 var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.capturefoot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:9px}.capturefoot>:last-child{text-align:right}@media(max-width:720px){.capturemetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.capturefoot{grid-template-columns:1fr}.capturefoot>:last-child{text-align:left}}
 .audiolevel{height:8px;border-radius:10px;background:#080b0e;overflow:hidden;border:1px solid var(--line);margin:10px 0}.audiolevel i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green),var(--amber));transition:width .18s ease}
@@ -5625,6 +5754,7 @@ details.engineering{margin-top:10px;background:#0c1115;border:1px solid var(--li
 <section class="card railcard" id="sensorcard"><div class="sensorblock"><div class="cardhead"><span class="label">Lung audio</span><span class="pill" id="audiopill">—</span></div><div class="audio-row"><div class="audio-copy"><strong id="audiostatus">Checking input</strong><span id="audiodb">— dBFS</span></div><button class="listen" id="btnaudio">▶ Monitor</button></div><div class="audiolevel" aria-hidden="true"><i id="audiofill"></i></div><div class="keyline">Headphones required.</div></div>
 <div class="sensorblock"><div class="cardhead"><span class="label">Contact force</span><span class="pill" id="forcepill">—</span></div><div class="forcelevel" id="forcebar" role="progressbar" aria-label="Contact force level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Unavailable"><i id="forcefill"></i></div><div class="keyline">Stops if force is unsafe or stale.</div></div></section>
 <section class="card railcard" id="controlcard"><div class="cardhead"><span class="label">Controls</span></div><div class="buttons">
+<div class="armctl" id="armctl" hidden><div class="armstat" id="armstat">Arm —</div><div class="buttons"><button class="wide" id="btnarm">⬆ Bring up arm</button><button class="wide estop" id="btnestop">■ Disable (E-stop)</button></div></div>
 <button class="start wide" id="btnstart">● Start</button><button class="end wide" id="btnend">■ End &amp; Verify</button>
 <button id="btnconfirm">✓ Confirm</button><button id="btnredo">↻ Redo</button><button id="btnprev">← Previous</button><button id="btnnext">Next →</button></div>
 </section></aside></section></main>
@@ -5654,7 +5784,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point;
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true;$('armstat').textContent='Arm '+(dis?'DISABLED (energy-isolated)':st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · energy-isolated':st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Stop',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
@@ -5674,6 +5804,7 @@ function stopAudio(){listening=false;if(audioTimer)clearTimeout(audioTimer);audi
 async function pumpAudio(){if(!listening)return;try{const query=new URLSearchParams({samples:'4410'});if(audioCursor!==null)query.set('cursor',String(audioCursor));const response=await fetch('/audio/pcm?'+query,{cache:'no-store'});if(!response.ok)throw new Error('audio HTTP '+response.status);const audioStatus=response.headers.get('X-Audio-Status')||'NO_DATA';if(audioStatus!=='OK')throw new Error('Audio input '+audioStatus.toLowerCase());const rate=Number(response.headers.get('X-Audio-Sample-Rate'));const overrun=response.headers.get('X-Audio-Overrun')==='1';audioCursor=Number(response.headers.get('X-Audio-Next-Sample'));const raw=await response.arrayBuffer();if(raw.byteLength&&Number.isFinite(rate)&&rate>0){const pcm=new Int16Array(raw),buffer=audioContext.createBuffer(1,pcm.length,rate),channel=buffer.getChannelData(0);for(let i=0;i<pcm.length;i++)channel[i]=pcm[i]/32768;const lead=.08;if(overrun||audioNextAt<audioContext.currentTime||audioNextAt>audioContext.currentTime+.6)audioNextAt=audioContext.currentTime+lead;const source=audioContext.createBufferSource();source.buffer=buffer;source.connect(audioContext.destination);source.onended=()=>source.disconnect();source.start(audioNextAt);audioNextAt+=buffer.duration}audioTimer=setTimeout(pumpAudio,60)}catch(error){action('Audio monitoring stopped: '+error.message,'bad');stopAudio()}}
 async function toggleAudio(){if(listening){stopAudio();return}try{audioContext=audioContext||new AudioContext();await audioContext.resume();listening=true;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='■ Stop audio';$('btnaudio').className='listen on';pumpAudio()}catch(error){action('Browser audio unavailable: '+error.message,'bad');stopAudio()}}
 $('btnback').onclick=()=>ctl('confirm_back');$('btnstart').onclick=()=>ctl('start');$('btnend').onclick=()=>ctl('end');$('btnconfirm').onclick=()=>ctl('confirm');$('btnredo').onclick=()=>ctl('redo');$('btnprev').onclick=()=>ctl('prev');$('btnnext').onclick=()=>ctl('next');
+$('btnarm').onclick=()=>{if(confirm('Bring up the LEFT arm controller? The arm will energize and move.'))ctl('arm_bringup')};$('btnestop').onclick=()=>ctl('arm_disable');
 $('btnaudio').onclick=toggleAudio;
 addEventListener('keydown',event=>{if(event.repeat||event.metaKey||event.ctrlKey||event.altKey)return;const key=event.key;if((key==='b'||key==='B')&&!$('btnback').disabled)ctl('confirm_back');else if(key===' '){event.preventDefault();if(!$('btnconfirm').disabled)ctl('confirm')}else if((key==='r'||key==='R')&&!$('btnredo').disabled)ctl('redo');else if(key==='ArrowLeft'&&!$('btnprev').disabled)ctl('prev');else if(key==='ArrowRight'&&!$('btnnext').disabled)ctl('next');else if(key==='s'||key==='S'){if(latest?.state==='RECORDING')ctl('end');else if(!$('btnstart').disabled)ctl('start')}else if(key==='f'||key==='F')$('feed').requestFullscreen?.()});
 addEventListener('visibilitychange',()=>{if(document.hidden){if(listening)stopAudio();return}schedulePoll(0);scheduleCamera(0)});
@@ -5740,6 +5871,12 @@ def build_parser():
     ap.add_argument("--diagnostic-min-free-gib", type=float, default=5.0)
     ap.add_argument("--planned-session-duration-s", type=float, default=60.0)
     ap.add_argument("--capture-rate-margin", type=float, default=1.3)
+    ap.add_argument("--teleop-launch-cmd", default=None,
+                    help="shell command that launches the pinned left teleop controller "
+                         "(can1 leader -> can3 follower); enables the console Bring-up-arm button")
+    ap.add_argument("--controller-disable-cmd", default=None,
+                    help="shell command that energy-isolates the left arm (direct-disable)")
+    ap.add_argument("--controller-readiness-timeout-s", type=float, default=15.0)
     ap.add_argument("--max-tracking-age-ms", type=float, default=250.0)
     ap.add_argument("--capture-queue-frames", type=int, default=8)
     ap.add_argument(
@@ -5976,6 +6113,24 @@ def main(argv=None):
     )
     for path in reconciled:
         print(f"[collect] marked interrupted diagnostic session ABORTED: {path}")
+    # Console-owned arm controller lifecycle (both commands required together so a
+    # bring-up can always be energy-isolated).
+    controller_launcher = None
+    controller_disable = None
+    if a.teleop_launch_cmd or a.controller_disable_cmd:
+        if not (a.teleop_launch_cmd and a.controller_disable_cmd):
+            parser.error("--teleop-launch-cmd and --controller-disable-cmd must be given together")
+        from ausc.perception.robot.controller_launch import (
+            make_subprocess_direct_disable,
+            make_subprocess_launcher,
+            parse_command,
+        )
+        controller_launcher = make_subprocess_launcher(
+            parse_command(a.teleop_launch_cmd, label="--teleop-launch-cmd"),
+        )
+        controller_disable = make_subprocess_direct_disable(
+            parse_command(a.controller_disable_cmd, label="--controller-disable-cmd"),
+        )
     col = None
     server = None
     try:
@@ -6044,6 +6199,9 @@ def main(argv=None):
                 if production_runtime is None
                 else production_runtime.robot_capture_coordinator
             ),
+            controller_launcher=controller_launcher,
+            controller_disable=controller_disable,
+            controller_readiness_timeout_s=a.controller_readiness_timeout_s,
             robot_mask_provider=(
                 None
                 if production_runtime is None
