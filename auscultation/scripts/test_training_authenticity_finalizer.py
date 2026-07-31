@@ -1499,6 +1499,9 @@ def test_geometry_component_authorized_by_a_valid_attestation(tmp_path, monkeypa
         session, packets, ledger, model_sha=model_sha, release_id=release
     )
     (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
+    # The mocked geometry log has no real model-input npys; the model-input
+    # re-verification is covered separately with a real recorded session.
+    monkeypatch.setattr(finalizer, "_reverify_geometry_model_inputs", lambda _s: 2)
 
     evidence = finalizer.verify_geometry_packet_component(
         session, trust_verifier=lambda _record: True,
@@ -1507,6 +1510,7 @@ def test_geometry_component_authorized_by_a_valid_attestation(tmp_path, monkeypa
     assert evidence["production_authorized"] is True
     assert "blocker" not in evidence
     assert evidence["replay_attestation"]["production_authorized"] is True
+    assert evidence["model_inputs_reverified"] == 2
 
 
 def test_geometry_component_rejects_an_invalid_attestation(tmp_path, monkeypatch):

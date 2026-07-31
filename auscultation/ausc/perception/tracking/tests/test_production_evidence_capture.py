@@ -540,6 +540,31 @@ def test_recorder_refuses_frames_after_finalize(tmp_path):
         )
 
 
+def test_finalizer_reverifies_geometry_model_inputs_against_tamper(tmp_path):
+    # A recorded session's RGB/depth model inputs must not be modifiable after the
+    # fact without detection: the finalizer's re-verification re-hashes each
+    # ledger-referenced npy and fails closed on any tamper.
+    import importlib
+
+    scripts_dir = Path(__file__).resolve().parents[4] / "scripts"
+    sys.path.insert(0, str(scripts_dir))
+    finalizer = importlib.import_module("training_authenticity_finalizer")
+
+    recorder = _recorder(tmp_path)
+    _record_frames(recorder, 3)
+    recorder.finalize()
+
+    # Clean session re-verifies.
+    assert finalizer._reverify_geometry_model_inputs(tmp_path) == 3
+
+    # Tamper one persisted RGB model input; re-verification must now fail closed.
+    npys = sorted((tmp_path / "geometry" / "model_inputs").glob("*.npy"))
+    assert npys
+    npys[0].write_bytes(npys[0].read_bytes() + b"\x00")
+    with pytest.raises(Exception):
+        finalizer._reverify_geometry_model_inputs(tmp_path)
+
+
 def test_recorded_session_is_replayable_by_the_runner(tmp_path):
     # Closes the loop: what the write-side records is exactly what the Step 3c
     # replay runner reconstructs (ledger inputs matched to the recorded packets).

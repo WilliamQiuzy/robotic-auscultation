@@ -2804,7 +2804,7 @@ def verify_geometry_packet_component(
     # independently re-run on the exact persisted inputs and its outputs
     # reproduce the recorded packets.  Absent attestation -> stay diagnostic;
     # present-but-invalid attestation -> hard failure (never silently PASS).
-    return _apply_replay_attestation(
+    result = _apply_replay_attestation(
         session_dir,
         base,
         component="geometry",
@@ -2815,6 +2815,37 @@ def verify_geometry_packet_component(
         recorded_item_count=len(entries),
         trust_verifier=trust_verifier,
     )
+    if result.get("production_authorized") is True:
+        # The attestation binds the packet log + ledger, but the ledger only
+        # *references* the RGB/depth/mask model-input files by hash.  Re-verify
+        # each referenced array against the ledger so a post-attestation tamper of
+        # a model input can never survive: reload_for_inference re-hashes every
+        # file and raises on any mismatch.
+        try:
+            reverified = _reverify_geometry_model_inputs(session_dir)
+        except Exception as exc:
+            raise TrainingFinalizationError(
+                f"geometry model-input re-verification failed: {exc}"
+            ) from exc
+        result["model_inputs_reverified"] = reverified
+    return result
+
+
+def _reverify_geometry_model_inputs(session_dir: str | Path) -> int:
+    """Re-open and hash-verify every ledger-referenced geometry model input.
+
+    Returns the number of frames re-verified.  Raises if the ledger is malformed
+    or any referenced RGB/depth/mask array no longer matches its recorded hash.
+    """
+
+    from ausc.perception.tracking.production_evidence_capture import (
+        read_geometry_model_input_ledger,
+    )
+
+    records = read_geometry_model_input_ledger(Path(session_dir))
+    for record in records:
+        record.reload_for_inference()  # re-hashes rgb/depth/masks; raises on tamper
+    return len(records)
 
 
 def verify_quality_force_rows(
