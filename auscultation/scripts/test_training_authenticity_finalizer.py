@@ -1466,10 +1466,11 @@ def _mock_geometry_log(monkeypatch, *, model_sha: str, release_id: str) -> None:
     )
 
 
-def _geometry_attestation(session, packets, ledger, *, model_sha, release_id):
+def _geometry_attestation(session, packets, ledger, *, model_sha, release_id,
+                          component="geometry"):
     return {
         "schema_version": "wam_model_replay_attestation_v1",
-        "component": "geometry",
+        "component": component,
         "session_id": Path(session).name,
         "bound_artifacts": {
             "geometry_frame_packets.jsonl": hashlib.sha256(packets.read_bytes()).hexdigest(),
@@ -1490,15 +1491,26 @@ def _geometry_attestation(session, packets, ledger, *, model_sha, release_id):
     }
 
 
+def _write_both_geometry_attestations(session, packets, ledger, *, model_sha, release):
+    """Write both the perception and the independent geometry attestations."""
+    (session / "geometry" / "replay_attestation.json").write_text(json.dumps(
+        _geometry_attestation(session, packets, ledger, model_sha=model_sha, release_id=release)
+    ))
+    indep_sha = "c" * 64
+    indep_release = "independent-" + "c" * 20  # matches _mock_geometry_log
+    (session / "geometry" / "replay_attestation_independent.json").write_text(json.dumps(
+        _geometry_attestation(session, packets, ledger, model_sha=indep_sha,
+                              release_id=indep_release, component="geometry_independent")
+    ))
+
+
 def test_geometry_component_authorized_by_a_valid_attestation(tmp_path, monkeypatch):
     session, packets, ledger = _geometry_component_session(tmp_path)
     model_sha = "d" * 64
     release = "perception-" + model_sha[:20]
     _mock_geometry_log(monkeypatch, model_sha=model_sha, release_id=release)
-    attestation = _geometry_attestation(
-        session, packets, ledger, model_sha=model_sha, release_id=release
-    )
-    (session / "geometry" / "replay_attestation.json").write_text(json.dumps(attestation))
+    # BOTH channels must be replayed and attested.
+    _write_both_geometry_attestations(session, packets, ledger, model_sha=model_sha, release=release)
     # The mocked geometry log has no real model-input npys; the model-input
     # re-verification is covered separately with a real recorded session.
     monkeypatch.setattr(finalizer, "_reverify_geometry_model_inputs", lambda _s: 2)
@@ -1510,7 +1522,24 @@ def test_geometry_component_authorized_by_a_valid_attestation(tmp_path, monkeypa
     assert evidence["production_authorized"] is True
     assert "blocker" not in evidence
     assert evidence["replay_attestation"]["production_authorized"] is True
+    assert evidence["independent_replay_attestation"]["production_authorized"] is True
     assert evidence["model_inputs_reverified"] == 2
+
+
+def test_geometry_without_independent_channel_attestation_is_refused(tmp_path, monkeypatch):
+    # Perception attestation present + valid, but the independent channel was NOT
+    # replayed: promotion must fail closed.
+    session, packets, ledger = _geometry_component_session(tmp_path)
+    model_sha = "d" * 64
+    release = "perception-" + model_sha[:20]
+    _mock_geometry_log(monkeypatch, model_sha=model_sha, release_id=release)
+    (session / "geometry" / "replay_attestation.json").write_text(json.dumps(
+        _geometry_attestation(session, packets, ledger, model_sha=model_sha, release_id=release)
+    ))  # only perception; NO independent attestation
+    monkeypatch.setattr(finalizer, "_reverify_geometry_model_inputs", lambda _s: 2)
+
+    with pytest.raises(finalizer.TrainingFinalizationError, match="independent-channel replay"):
+        finalizer.verify_geometry_packet_component(session, trust_verifier=lambda _r: True)
 
 
 def test_geometry_component_rejects_an_invalid_attestation(tmp_path, monkeypatch):

@@ -2816,6 +2816,28 @@ def verify_geometry_packet_component(
         trust_verifier=trust_verifier,
     )
     if result.get("production_authorized") is True:
+        # The perception channel replayed.  The independent metric patient-pose
+        # channel must ALSO be independently replayed (its own attestation), or it
+        # is merely caller-self-reported — so promotion requires BOTH channels.
+        independent = _apply_replay_attestation(
+            session_dir,
+            {"production_authorized": False,
+             "blocker": "independent geometry channel replay still required"},
+            component="geometry_independent",
+            recorded_identity={
+                "release_id": receipt.independent_release_id,
+                "model_sha256": receipt.independent_model_sha256,
+            },
+            recorded_item_count=len(entries),
+            trust_verifier=trust_verifier,
+        )
+        if independent.get("production_authorized") is not True:
+            raise TrainingFinalizationError(
+                "geometry independent-channel replay attestation is missing; both "
+                "the perception and the independent channels must be replayed"
+            )
+        result["independent_replay_attestation"] = independent["replay_attestation"]
+    if result.get("production_authorized") is True:
         # The attestation binds the packet log + ledger, but the ledger only
         # *references* the RGB/depth/mask model-input files by hash.  Re-verify
         # each referenced array against the ledger so a post-attestation tamper of

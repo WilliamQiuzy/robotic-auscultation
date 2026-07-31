@@ -50,8 +50,16 @@ _COMPARISON_MODES = frozenset({COMPARISON_BIT_EXACT, COMPARISON_FROZEN_EPSILON})
 #: Every component must replay against these session artifacts, by relative path.
 #: The verifier rehashes each and refuses any attestation that does not bind the
 #: full required set (extra bound artifacts are allowed, missing ones are not).
+#: ``geometry`` covers the perception channel and ``geometry_independent`` the
+#: independent metric patient-pose channel; the finalizer requires BOTH so the
+#: independent channel is replayed, not merely caller-self-reported.  Both bind
+#: the same session artifacts.
 REQUIRED_BOUND_ARTIFACTS: dict[str, frozenset[str]] = {
     "geometry": frozenset({
+        "geometry_frame_packets.jsonl",
+        "geometry/model_input_ledger.jsonl",
+    }),
+    "geometry_independent": frozenset({
         "geometry_frame_packets.jsonl",
         "geometry/model_input_ledger.jsonl",
     }),
@@ -65,6 +73,7 @@ REQUIRED_BOUND_ARTIFACTS: dict[str, frozenset[str]] = {
 #: by the box-side runner and read by the framework-free finalizer.
 ATTESTATION_RELATIVE_PATHS: dict[str, str] = {
     "geometry": "geometry/replay_attestation.json",
+    "geometry_independent": "geometry/replay_attestation_independent.json",
     "quality": "quality/replay_attestation.json",
 }
 

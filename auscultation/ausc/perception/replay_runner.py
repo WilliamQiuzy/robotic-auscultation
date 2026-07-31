@@ -148,17 +148,29 @@ class GeometryReplayInput:
 
 def reconstruct_geometry_items(
     session_dir: "str | Path",
+    *,
+    channel: str = "perception",
 ) -> tuple[list[ReplayItem], dict[str, str]]:
-    """Rebuild the geometry replay items and the recorded model identity.
+    """Rebuild one geometry channel's replay items and its recorded identity.
 
     Every ledger frame is matched to its recorded packet by the packet's
     content-addressed input SHAs and by sequence/frame index, and the RGB/depth
     (and masks) are reopened through the ledger record's own verified reload — so
     a replay input can never silently diverge from what the session recorded.
-    The recorded outputs are the perception channel's ``points_m`` and
-    ``covariances_m2``; ``recorded_identity`` is the perception model the session
-    ran, which the attestation must reproduce.
+
+    ``channel`` selects which model's outputs are the target of the replay:
+
+    - ``"perception"`` — the landmark detector's ``points_m``/``covariances_m2``;
+    - ``"independent"`` — the independent metric patient-pose model's outputs.
+
+    Both channels are recorded per frame; replaying BOTH (each against its own
+    activated model) is what closes the independent channel from being merely
+    caller-self-reported.  ``recorded_identity`` is the corresponding model the
+    session ran, which the attestation must reproduce.
     """
+
+    if channel not in ("perception", "independent"):
+        raise ReplayRunnerError("geometry channel must be 'perception' or 'independent'")
 
     from ausc.perception.tracking.geometry_channel_packet import (
         verify_geometry_packet_log_files,
@@ -184,7 +196,11 @@ def reconstruct_geometry_items(
 
     items: list[ReplayItem] = []
     for entry, record in zip(entries, ledger):
-        packet = entry.perception_observation_packet
+        packet = (
+            entry.perception_observation_packet
+            if channel == "perception"
+            else entry.independent_model_packet
+        )
         if packet.sequence != record.sequence or packet.frame_index != record.frame_index:
             raise ReplayRunnerError(
                 "geometry packet and ledger frames are not aligned"
@@ -213,10 +229,16 @@ def reconstruct_geometry_items(
         }
         items.append(ReplayItem(model_input=model_input, recorded_outputs=recorded_outputs))
 
-    recorded_identity = {
-        "release_id": receipt.perception_release_id,
-        "model_sha256": receipt.perception_model_sha256,
-    }
+    if channel == "perception":
+        recorded_identity = {
+            "release_id": receipt.perception_release_id,
+            "model_sha256": receipt.perception_model_sha256,
+        }
+    else:
+        recorded_identity = {
+            "release_id": receipt.independent_release_id,
+            "model_sha256": receipt.independent_model_sha256,
+        }
     return items, recorded_identity
 
 

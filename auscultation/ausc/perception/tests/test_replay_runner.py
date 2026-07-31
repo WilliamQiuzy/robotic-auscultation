@@ -256,23 +256,41 @@ class _FakePacket:
         self.covariances_m2 = np.eye(3, dtype=np.float32) * (i + 1)
 
 
+_INDEP_SHA = "b" * 64
+_INDEP_RELEASE = "patient_pose-" + _INDEP_SHA[:20]
+
+
+def _independent_packet(i: int):
+    # Same frame/input identity, distinct model outputs (the independent channel).
+    packet = _FakePacket(i)
+    packet.points_m = np.full((2, 3), float(i) + 0.5, dtype=np.float32)
+    packet.covariances_m2 = np.eye(3, dtype=np.float32) * (i + 2)
+    return packet
+
+
 def _patch_geometry_sources(monkeypatch, n: int, *, release, model_sha, packet_mutator=None):
     from types import SimpleNamespace as NS
     records = tuple(_FakeRecord(i) for i in range(n))
-    packets = []
+    entries = []
     for i in range(n):
         packet = _FakePacket(i)
         if packet_mutator is not None:
             packet_mutator(packet, i)
-        packets.append(NS(perception_observation_packet=packet))
-    receipt = NS(perception_release_id=release, perception_model_sha256=model_sha)
+        entries.append(NS(
+            perception_observation_packet=packet,
+            independent_model_packet=_independent_packet(i),
+        ))
+    receipt = NS(
+        perception_release_id=release, perception_model_sha256=model_sha,
+        independent_release_id=_INDEP_RELEASE, independent_model_sha256=_INDEP_SHA,
+    )
     monkeypatch.setattr(
         "ausc.perception.tracking.production_evidence_capture.read_geometry_model_input_ledger",
         lambda _s: records,
     )
     monkeypatch.setattr(
         "ausc.perception.tracking.geometry_channel_packet.verify_geometry_packet_log_files",
-        lambda _s: (tuple(packets), receipt),
+        lambda _s: (tuple(entries), receipt),
     )
 
 
@@ -284,6 +302,24 @@ def test_reconstruct_geometry_items_builds_aligned_replay_items(tmp_path, monkey
     assert set(items[0].recorded_outputs) == {"points_m", "covariances_m2"}
     assert items[1].model_input.frame_index == 1
     assert items[1].model_input.rgb.shape == (4, 4, 3)
+
+
+def test_reconstruct_geometry_independent_channel_targets_the_independent_model(tmp_path, monkeypatch):
+    # The independent channel must be independently replayable: its recorded
+    # outputs are the independent model's, and its identity is the independent
+    # model (distinct from perception).
+    _patch_geometry_sources(monkeypatch, 3, release=_MODEL_RELEASE, model_sha=_MODEL_SHA)
+    items, identity = reconstruct_geometry_items(tmp_path, channel="independent")
+    assert len(items) == 3
+    assert identity == {"release_id": _INDEP_RELEASE, "model_sha256": _INDEP_SHA}
+    # distinct from the perception channel's recorded outputs
+    assert float(items[1].recorded_outputs["points_m"][0, 0]) == pytest.approx(1.5)
+
+
+def test_reconstruct_geometry_rejects_unknown_channel(tmp_path, monkeypatch):
+    _patch_geometry_sources(monkeypatch, 2, release=_MODEL_RELEASE, model_sha=_MODEL_SHA)
+    with pytest.raises(ReplayRunnerError, match="channel must be"):
+        reconstruct_geometry_items(tmp_path, channel="bogus")
 
 
 def test_reconstruct_geometry_rejects_input_sha_mismatch(tmp_path, monkeypatch):
