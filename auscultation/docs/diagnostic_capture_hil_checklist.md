@@ -27,34 +27,35 @@ clean HEAD containing the commits above, then the unit **rendered** (not
 installed). Do NOT activate the current `d7…` runtime — it embeds `b39…`, behind
 Mac HEAD.
 
-1. **DONE** — production semantic pin re-baselined for `collect_server.py`
-   (`1982cb28…`) + `perception_worker.py` (`d138b4cb…`); lock regenerated
-   (commit `da11316`). The clean-HEAD code release builds locally and passes the
-   v4 hardened-manifest verify (all 38 pinned files match; the new re-finalizer,
-   companion, their tests and the telemetry-publisher C++ are in the payload):
-   - `code_release` id: **`code_release-30ed853b4097c1ec095f`** (includes the
-     console arm bring-up / E-stop UI; supersedes the earlier `012dd9e6…`)
-   - `payload_sha256`: **`30ed853b4097c1ec095f585e3aeb9772db25487b7f595856ac281da5c8a166d2`**
-   - (recompute before deploy if HEAD advances: `select_code_release_sources(WS)` +
-     `build_manifest(..., artifact_kind="code_release", source_role="mac")`)
-2. `deploy_remote.py --source-role mac --target-role linbox --host linbox
-   --execute --production --confirm-release code_release-012dd9e6982c5fb598fb
-   --confirm-payload-sha256 012dd9e6982c5fb598fbd8a9c19dc8105ba35fd53a9bb8679322e1d213ed153e`
-   (must be `code_release`, not `code`; clear any `.deploy-canary/releases/*/__pycache__`).
-   Then `publish_perception_runtime.py build` on the box (rebind the runtime to
-   this code release; needs the box model + env) → new `perception_runtime` id.
-3. `publish_perception_runtime.py build` to re-bind the runtime to the new code
-   (same model + env; `--hardened-code-sha256` = a canonical-JSON file path).
-4. Add to the **hardened inventory**: `ausc/perception/activation_refinalizer.py`,
-   `ausc/perception/robot/trusted_controller_companion.py`, and the replay /
-   production-evidence / finalizer files.
-5. `collection_service_unit.py` **render** the DIAGNOSTIC unit (do not install):
-   remove `--commissioning-preview-only` + `--commissioning-hall-monitor-only` +
-   all `--commissioning-handeye-*`; add `--production-activation <new>/activation.json
-   --production-activation-sha256 <sha>` + `--sync-calibration … --sync-calibration-sha256 6b539d55…`.
-   Save the **unit SHA, full argv, the five ExecStartPre verify-\* commands, and
-   the rollback recipe** (`cp ~/.config/systemd/user/wam-collector.service.bak.preview.* back
-   + daemon-reload + restart`).
+1. **DONE (Mac)** — pin re-baselined + arm-UI robot-safety files pinned; the
+   clean-HEAD code release builds and passes the v4 hardened verify (40 files).
+2. **DONE (box, running service UNTOUCHED — still `56f7299`)** — deployed + rebound:
+   - **`code_release-b5cecd19e3c2af4dc8e4`** activated at
+     `.../.wam-releases/` (`.wam-current`: b39c616 → b5cecd19). Payload
+     `b5cecd19e3c2af4dc8e4d5946c08813ee37af8307da431b9a7d77a910fbf001b`.
+     Includes the console arm bring-up / E-stop UI.
+   - **`perception_runtime-5bd6bcebf804bf974e62`** built (same model
+     perc_lmh_v9_occ + gate + dino + env `8ea23197`; new code b5cecd19). NOT
+     activated. (If HEAD advances, recompute id via `select_code_release_sources`
+     + `build_manifest`, then `write_release` + `deploy_remote --production`.)
+   The new re-finalizer, controller companion, controller_launch, their tests, and
+   the telemetry-publisher C++ are all in the payload / pinned.
+3. **RENDER + hand-edit the DIAGNOSTIC unit — do NOT install here** (install is §3
+   with the operator). Render/derive the ExecStart for code b5cecd19 + runtime
+   5bd6bceb + the canonical activation
+   (`.../commissioning/activation_canonical/activation-...`, sha `71b063f6...`),
+   back up `~/.config/systemd/user/wam-collector.service.bak.preview.*`, then:
+   - remove `--commissioning-preview-only` + `--commissioning-hall-monitor-only` +
+     all `--commissioning-handeye-*`;
+   - add `--production-activation <act>/activation.json --production-activation-sha256 71b063f6...`
+     + `--sync-calibration ... --sync-calibration-sha256 6b539d55...`;
+   - to enable the **console arm bring-up / E-stop button**, add
+     `--teleop-launch-cmd "<stethoscope>/scripts/teleop.sh left"` +
+     `--controller-disable-cmd "<confirmed left-arm energy-isolation command>"`
+     (both required together);
+   - activate the runtime: `publish_perception_runtime.py activate` (CAS).
+   Save the unit SHA, full argv, the five ExecStartPre verify-\* commands, and the
+   rollback recipe (`cp .bak.preview.* back + daemon-reload + restart`).
 
 Deploy identity guards to enforce at every layer (planner / remote validator /
 activation / postverify): `artifact_kind == code_release`, `source_role == mac`,
