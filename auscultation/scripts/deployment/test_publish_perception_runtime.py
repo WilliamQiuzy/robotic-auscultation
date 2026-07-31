@@ -152,6 +152,7 @@ def _hardened_hashes(code_manifest: dict) -> dict[str, str]:
 def test_v4_is_the_build_default_with_an_independent_production_chain_contract() -> None:
     expected_new_files = {
         "auscultation/ausc/realtime_q.py",
+        "auscultation/ausc/perception/depth_codec.py",
         "auscultation/ausc/perception/production_runtime_activation.py",
         "auscultation/ausc/perception/robot/camera_exposure_evidence.py",
         "auscultation/ausc/perception/robot/controller_launch.py",

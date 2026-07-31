@@ -59,6 +59,7 @@ REQUIRED_RELEASE_PATHS = (
     "auscultation/ausc/health.py",
     "auscultation/ausc/models/iuv_model.py",
     "auscultation/ausc/perception/camera_stream.py",
+    "auscultation/ausc/perception/depth_codec.py",
     "auscultation/ausc/perception/production_runtime_activation.py",
     "auscultation/ausc/perception/robot/camera_exposure_evidence.py",
     "auscultation/ausc/perception/robot/controller_launch.py",
