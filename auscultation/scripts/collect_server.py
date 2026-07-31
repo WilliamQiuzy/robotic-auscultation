@@ -2592,6 +2592,20 @@ class Collector:
                             setter(self._recording_boundary)
 
                     def arm_start(_snapshot):
+                        # FINAL liveness gate, synchronously re-evaluated the instant
+                        # before capture ingress opens.  The earlier arm-time check
+                        # (before the camera boundary latch) leaves a window up to
+                        # here; a worker death anywhere in that window must still roll
+                        # the Start back rather than open ingress on a dead model.
+                        # Any raise here is caught below and fully rolled back.
+                        self._observe_runtime_health()
+                        if (
+                            self._device_start_rejection() is not None
+                            or self._health_generation != health_gen_before
+                        ):
+                            raise RuntimeError(
+                                "runtime health degraded before capture ingress open"
+                            )
                         self._end_boundary_closing = False
                         self._completion_proof_cache = None
                         ingress_health = self._ingress_worker.health()

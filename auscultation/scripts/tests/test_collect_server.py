@@ -5938,3 +5938,45 @@ def test_start_rolls_back_when_a_worker_dies_during_the_arm(tmp_path):
         assert collector.platform.state.value != "RECORDING"
     finally:
         collector.shutdown()
+
+
+def test_start_rolls_back_when_a_worker_dies_right_before_ingress_opens(tmp_path):
+    # Closes the residual window between the arm-time health check (before the
+    # camera boundary latch) and the ingress open: a death detected only at the
+    # FINAL arm_start re-evaluation must still roll the whole Start back rather
+    # than open capture ingress on a dead model.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+
+    class Capture:
+        def request_cancel(self): pass
+        def start(self): pass  # healthy at capture.start()
+        def record_event(self, _p): pass
+        def write_frame(self, _f, _t): pass
+        def finalize(self): return {"status": "diagnostic_complete",
+                                    "training_eligible": False}
+        def abort(self, _r): pass
+
+    collector.platform.capture_factory = lambda _p: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
+    collector._runtime_health_snapshot = (
+        lambda **_k: {"strict_ok": True, "blockers": []})
+
+    # The death is observable ONLY at the final arm_start re-evaluation: patch the
+    # synchronous observer so it advances the health epoch exactly when arm_start
+    # calls it, after the earlier arm check has already passed.
+    collector._observe_runtime_health = (
+        lambda: setattr(collector, "_health_generation",
+                        collector._health_generation + 1))
+
+    try:
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert collector.platform.state.value != "RECORDING"
+    finally:
+        collector.shutdown()
