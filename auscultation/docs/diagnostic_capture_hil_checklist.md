@@ -28,21 +28,21 @@ installed). Do NOT activate the current `d7…` runtime — it embeds `b39…`, 
 Mac HEAD.
 
 1. **DONE (Mac)** — pin re-baselined + arm-UI robot-safety files pinned; the
-   clean-HEAD code release builds and passes the v4 hardened verify (40 files).
+   clean-HEAD code release builds and passes the v4 hardened verify (41 files).
 2. **DONE (box, running service UNTOUCHED — still `56f7299`)** — deployed + rebound:
-   - **`code_release-b5cecd19e3c2af4dc8e4`** activated at
-     `.../.wam-releases/` (`.wam-current`: b39c616 → b5cecd19). Payload
-     `b5cecd19e3c2af4dc8e4d5946c08813ee37af8307da431b9a7d77a910fbf001b`.
+   - **`code_release-184dc800c289639fa35d`** activated at
+     `.../.wam-releases/` (`.wam-current` → 184dc800; adds lossless depth compression ~14x). Payload
+     `184dc800c289639fa35d596f5a075e7da2d097f96571628dd1ba929e8941acf7`.
      Includes the console arm bring-up / E-stop UI.
-   - **`perception_runtime-5bd6bcebf804bf974e62`** built (same model
-     perc_lmh_v9_occ + gate + dino + env `8ea23197`; new code b5cecd19). NOT
+   - **`perception_runtime-0ecdc2389f4c7fa01fc6`** built (same model
+     perc_lmh_v9_occ + gate + dino + env `8ea23197`; new code 184dc800). NOT
      activated. (If HEAD advances, recompute id via `select_code_release_sources`
      + `build_manifest`, then `write_release` + `deploy_remote --production`.)
    The new re-finalizer, controller companion, controller_launch, their tests, and
    the telemetry-publisher C++ are all in the payload / pinned.
 3. **RENDER + hand-edit the DIAGNOSTIC unit — do NOT install here** (install is §3
-   with the operator). Render/derive the ExecStart for code b5cecd19 + runtime
-   5bd6bceb + the canonical activation
+   with the operator). Render/derive the ExecStart for code 184dc800 + runtime
+   0ecdc2389 + the canonical activation
    (`.../commissioning/activation_canonical/activation-...`, sha `71b063f6...`),
    back up `~/.config/systemd/user/wam-collector.service.bak.preview.*`, then:
    - remove `--commissioning-preview-only` + `--commissioning-hall-monitor-only` +
