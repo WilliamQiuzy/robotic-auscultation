@@ -207,7 +207,15 @@ class _Capture(Protocol):
     def record_event(self, payload: dict) -> None: ...
     def write_frame(self, frame, tracker_output: dict) -> None: ...  # noqa: ANN001
     def finalize(self) -> dict: ...
+    #: ``abort`` MUST be a terminal compare-and-set: once ``finalize`` has
+    #: committed a completion seal, ``abort`` must raise rather than overwrite it,
+    #: so a session can never carry both an ABORTED lifecycle and a COMPLETE seal.
     def abort(self, reason: str) -> None: ...
+    #: Cooperative cancellation, MANDATORY: signals an in-flight ``finalize`` to
+    #: bail at its next checkpoint before publishing a seal.  The platform refuses
+    #: to record with a writer that does not implement it, so the abort-vs-complete
+    #: race cannot exist for any writer.
+    def request_cancel(self) -> None: ...
 
 
 _SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}\Z")
@@ -932,6 +940,17 @@ class CollectionPlatform:
                     "capture writer %r does not match contract writer %r"
                     % (_resolve_writer_identity(self.capture),
                        self.contract.writer_identity)
+                )
+            # Protocol-level terminal-CAS enforcement: a writer that cannot be
+            # cooperatively cancelled could race an Abort against its own
+            # finalize seal and leave a split ABORTED/COMPLETE terminal.  Refuse
+            # such a writer before a single frame is recorded — this makes the CAS
+            # a property of every writer, not just the diagnostic one.
+            if not callable(getattr(self.capture, "request_cancel", None)):
+                raise WriterIdentityMismatch(
+                    "capture writer %r does not implement request_cancel; a "
+                    "non-cancellable writer can leave a split ABORTED/COMPLETE "
+                    "terminal" % _resolve_writer_identity(self.capture)
                 )
             self._capture_writer_verified = True
             self.capture.start()

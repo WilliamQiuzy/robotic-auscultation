@@ -55,6 +55,11 @@ class _Capture:
     def abort(self, reason: str) -> None:
         self.aborted.append(reason)
 
+    def request_cancel(self) -> None:
+        # Cooperative cancellation is now a mandatory part of the _Capture
+        # protocol; the base fake supports it as a no-op unless a subclass wires it.
+        pass
+
 
 def _platform(tmp_path: Path, *, blockers=()) -> tuple[CollectionPlatform, list[_Capture]]:
     captures: list[_Capture] = []
@@ -75,6 +80,31 @@ def _platform(tmp_path: Path, *, blockers=()) -> tuple[CollectionPlatform, list[
         uuid_factory=lambda: UUID("12345678-1234-5678-1234-567812345678"),
     )
     return platform, captures
+
+
+def test_a_non_cancellable_writer_is_refused_before_recording(tmp_path):
+    # A writer without request_cancel could race Abort against its own seal;
+    # the platform must refuse it at Start (fail-closed), before any frame.
+    class _NoCancelCapture:
+        def __init__(self, session_dir):
+            self.session_dir = session_dir
+
+        def start(self): pass
+        def record_event(self, payload): pass
+        def write_frame(self, frame, tracker_output): pass
+        def finalize(self): return {"status": "diagnostic_complete", "training_eligible": False}
+        def abort(self, reason): pass
+        # deliberately no request_cancel
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=lambda session_dir: _NoCancelCapture(session_dir),
+        writer_types={DIAGNOSTIC_PERCEPTION_CONTRACT.writer_identity: _NoCancelCapture},
+    )
+    result = platform.control("start")
+    assert result["ok"] is False
+    assert platform.state is not CollectionState.RECORDING
 
 
 def test_production_teleop_contract_is_the_only_promotable_recording_contract():
