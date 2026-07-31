@@ -33,6 +33,8 @@ import wave
 
 import numpy as np
 
+from ausc.perception import depth_codec
+
 
 PROMOTION_CONTRACT_VERSION = "wam_promotion_v2"
 SESSION_SCHEMA_VERSION = "wam_session_v2"
@@ -2307,7 +2309,7 @@ def verify_depth_session_authenticity(
             maximum_bytes=512 * 1024 * 1024,
         )
         try:
-            depth = np.load(io.BytesIO(raw_npy), allow_pickle=False)
+            depth = depth_codec.decode_depth(raw_npy)
         except (OSError, ValueError, TypeError) as exc:
             raise TrainingFinalizationError(
                 f"depth frame {frame_index} is invalid NPY"

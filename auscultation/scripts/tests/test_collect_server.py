@@ -6112,9 +6112,12 @@ def test_storage_gate_estimate_and_rejection(tmp_path, monkeypatch):
     try:
         collector.camera_width, collector.camera_height, collector.depth_fps = 1920, 1080, 30
         collector.capture_rate_margin = 1.3
+        collector.depth_compression_ratio = 8.0
+        collector.non_depth_capture_bytes_per_s = 12_000_000
         collector.diagnostic_min_free_bytes = 0  # isolate the duration math
         rate = collector._estimated_capture_bytes_per_s()
-        assert rate == 1920 * 1080 * 2 * 30 * 1.3
+        # compressed depth + non-depth allowance, times the safety margin
+        assert rate == (1920 * 1080 * 2 * 30 / 8.0 + 12_000_000) * 1.3
         need = int(60 * rate)
 
         # Only ~59 s fits -> refuse a 60 s planned session.

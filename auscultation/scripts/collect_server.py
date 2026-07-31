@@ -918,6 +918,8 @@ class Collector:
         diagnostic_min_free_bytes=5 * 1024 ** 3,
         planned_session_duration_s=60.0,
         capture_rate_margin=1.3,
+        depth_compression_ratio=8.0,
+        non_depth_capture_bytes_per_s=12_000_000,
         max_tracking_age_s=0.25,
         capture_queue_frames=8,
         camera_delivery_frames=32,
@@ -1028,6 +1030,8 @@ class Collector:
         self.diagnostic_min_free_bytes = int(diagnostic_min_free_bytes)
         self.planned_session_duration_s = float(planned_session_duration_s)
         self.capture_rate_margin = max(1.0, float(capture_rate_margin))
+        self.depth_compression_ratio = max(1.0, float(depth_compression_ratio))
+        self.non_depth_capture_bytes_per_s = max(0.0, float(non_depth_capture_bytes_per_s))
         self.max_tracking_age_s = float(max_tracking_age_s)
         if not math.isfinite(self.max_tracking_age_s) or self.max_tracking_age_s <= 0:
             raise ValueError("max_tracking_age_s must be finite and positive")
@@ -5140,20 +5144,22 @@ class Collector:
     def _estimated_capture_bytes_per_s(self):
         """Conservative on-disk byte rate for a diagnostic session.
 
-        Aligned per-frame u16 depth (camera_width x camera_height) dominates; a
-        margin covers the RGB copy, audio, force, robot ledger and tracker
-        sidecars.  Returns 0.0 if the camera mode is not fully pinned.
+        Depth is stored losslessly zlib-compressed (~14x typical); a conservative
+        ratio is applied to the aligned raw u16 depth rate.  RGB is mp4 video, so a
+        conservative non-depth allowance covers RGB + audio + force + robot ledger +
+        tracker sidecars.  Returns 0.0 if the camera mode is not fully pinned.
         """
         try:
-            depth_rate = (
+            depth_raw = (
                 int(self.camera_width) * int(self.camera_height)
                 * np.dtype(np.uint16).itemsize * float(self.depth_fps)
             )
         except (TypeError, ValueError):
             return 0.0
-        if depth_rate <= 0:
+        if depth_raw <= 0:
             return 0.0
-        return depth_rate * float(self.capture_rate_margin)
+        depth = depth_raw / self.depth_compression_ratio
+        return (depth + self.non_depth_capture_bytes_per_s) * float(self.capture_rate_margin)
 
     def _storage_start_rejection(self, planned_duration_s):
         """Refuse Start unless the disk holds the whole planned session + reserve.
@@ -5871,6 +5877,10 @@ def build_parser():
     ap.add_argument("--diagnostic-min-free-gib", type=float, default=5.0)
     ap.add_argument("--planned-session-duration-s", type=float, default=60.0)
     ap.add_argument("--capture-rate-margin", type=float, default=1.3)
+    ap.add_argument("--depth-compression-ratio", type=float, default=8.0,
+                    help="conservative lossless depth compression ratio for the storage gate (real ~14x)")
+    ap.add_argument("--non-depth-capture-bytes-per-s", type=float, default=12_000_000,
+                    help="conservative RGB-video + audio + force + tracker byte rate for the storage gate")
     ap.add_argument("--teleop-launch-cmd", default=None,
                     help="shell command that launches the pinned left teleop controller "
                          "(can1 leader -> can3 follower); enables the console Bring-up-arm button")
@@ -6167,6 +6177,8 @@ def main(argv=None):
             diagnostic_min_free_bytes=int(a.diagnostic_min_free_gib * 1024 ** 3),
             planned_session_duration_s=a.planned_session_duration_s,
             capture_rate_margin=a.capture_rate_margin,
+            depth_compression_ratio=a.depth_compression_ratio,
+            non_depth_capture_bytes_per_s=a.non_depth_capture_bytes_per_s,
             max_tracking_age_s=a.max_tracking_age_ms / 1000.0,
             capture_queue_frames=a.capture_queue_frames,
             camera_delivery_frames=a.camera_delivery_frames,

@@ -24,6 +24,8 @@ from typing import Callable, Sequence
 
 import numpy as np
 
+from ausc.perception import depth_codec
+
 
 REQUIRED_SESSION_ARTIFACTS = (
     "audio.wav", "rgb.mp4", "robot.csv", "force.csv", "rgb_times.csv", "obs.csv",
@@ -847,7 +849,7 @@ def _validate_depth_artifacts(session: Path, camera, camera_meta: dict) -> dict:
         path = depth_dir / f"depth_{index:06d}.npy"
         if not path.is_file():
             raise FileNotFoundError(f"depth frame missing: {path}")
-        values = np.load(path, allow_pickle=False)
+        values = depth_codec.load_depth(path)
         if values.dtype != np.uint16:
             raise ValueError(f"depth frame {index} must be uint16")
         if values.shape != expected_shape or values.ndim != 2:
