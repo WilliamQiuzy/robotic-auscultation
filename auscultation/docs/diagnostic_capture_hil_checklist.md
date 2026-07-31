@@ -27,11 +27,21 @@ clean HEAD containing the commits above, then the unit **rendered** (not
 installed). Do NOT activate the current `d7…` runtime — it embeds `b39…`, behind
 Mac HEAD.
 
-1. Re-baseline the production semantic pin (recompute the ~38 pinned-file SHAs;
-   `collect_server.py` / `perception_worker.py` changed) → new `code_release` id.
+1. **DONE** — production semantic pin re-baselined for `collect_server.py`
+   (`1982cb28…`) + `perception_worker.py` (`d138b4cb…`); lock regenerated
+   (commit `da11316`). The clean-HEAD code release builds locally and passes the
+   v4 hardened-manifest verify (all 38 pinned files match; the new re-finalizer,
+   companion, their tests and the telemetry-publisher C++ are in the payload):
+   - `code_release` id: **`code_release-012dd9e6982c5fb598fb`**
+   - `payload_sha256`: **`012dd9e6982c5fb598fbd8a9c19dc8105ba35fd53a9bb8679322e1d213ed153e`**
+   - (recompute before deploy if HEAD advances: `select_code_release_sources(WS)` +
+     `build_manifest(..., artifact_kind="code_release", source_role="mac")`)
 2. `deploy_remote.py --source-role mac --target-role linbox --host linbox
-   --execute --production --confirm-release <id> --confirm-payload-sha256 <sha>`
+   --execute --production --confirm-release code_release-012dd9e6982c5fb598fb
+   --confirm-payload-sha256 012dd9e6982c5fb598fbd8a9c19dc8105ba35fd53a9bb8679322e1d213ed153e`
    (must be `code_release`, not `code`; clear any `.deploy-canary/releases/*/__pycache__`).
+   Then `publish_perception_runtime.py build` on the box (rebind the runtime to
+   this code release; needs the box model + env) → new `perception_runtime` id.
 3. `publish_perception_runtime.py build` to re-bind the runtime to the new code
    (same model + env; `--hardened-code-sha256` = a canonical-JSON file path).
 4. Add to the **hardened inventory**: `ausc/perception/activation_refinalizer.py`,
