@@ -32,8 +32,9 @@ Mac HEAD.
    (commit `da11316`). The clean-HEAD code release builds locally and passes the
    v4 hardened-manifest verify (all 38 pinned files match; the new re-finalizer,
    companion, their tests and the telemetry-publisher C++ are in the payload):
-   - `code_release` id: **`code_release-012dd9e6982c5fb598fb`**
-   - `payload_sha256`: **`012dd9e6982c5fb598fbd8a9c19dc8105ba35fd53a9bb8679322e1d213ed153e`**
+   - `code_release` id: **`code_release-30ed853b4097c1ec095f`** (includes the
+     console arm bring-up / E-stop UI; supersedes the earlier `012dd9e6…`)
+   - `payload_sha256`: **`30ed853b4097c1ec095f585e3aeb9772db25487b7f595856ac281da5c8a166d2`**
    - (recompute before deploy if HEAD advances: `select_code_release_sources(WS)` +
      `build_manifest(..., artifact_kind="code_release", source_role="mac")`)
 2. `deploy_remote.py --source-role mac --target-role linbox --host linbox
