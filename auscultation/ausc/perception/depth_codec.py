@@ -23,6 +23,7 @@ Legacy raw ``.npy`` sessions still decode unchanged.
 from __future__ import annotations
 
 import io
+import os
 import struct
 import zlib
 
@@ -33,6 +34,11 @@ _MAGIC = b"WAMZDPT1"                            # WAM zlib depth container, v1
 _HEADER = struct.Struct("<Q")                  # uncompressed length (little-endian u64)
 _ZLIB_LEVEL = 3                                # lossless; ~14x on real depth
 _MAX_DEPTH_RAW_BYTES = 64 * 1024 * 1024        # hard cap (8K*8K*u16 << this); anti-bomb
+# A compressed frame is magic+len+zlib(raw); zlib never inflates by more than a
+# fraction of a percent, so a legitimate file cannot exceed the raw cap by more
+# than a small margin.  Files above this are rejected by stat *before* being read
+# into memory, so a pathologically large input never produces a big RAM peak.
+_MAX_DEPTH_FILE_BYTES = _MAX_DEPTH_RAW_BYTES + 1024 * 1024
 
 DEPTH_SUFFIX = ".npy.zlib"                      # new, self-identifying
 LEGACY_DEPTH_SUFFIX = ".npy"
@@ -102,8 +108,20 @@ def decode_depth(data: bytes) -> np.ndarray:
 
 
 def load_depth(path) -> np.ndarray:
+    # Gate on file size first so an absurdly large file is rejected before it is
+    # ever read into memory; the bounded read then guards against a file that
+    # grows between the stat and the open (TOCTOU).
+    size = os.stat(path).st_size
+    if size <= 0 or size > _MAX_DEPTH_FILE_BYTES:
+        raise DepthCodecError(
+            f"depth file size {size} is empty or exceeds the "
+            f"{_MAX_DEPTH_FILE_BYTES}-byte cap"
+        )
     with open(path, "rb") as handle:
-        return decode_depth(handle.read())
+        data = handle.read(_MAX_DEPTH_FILE_BYTES + 1)
+    if len(data) > _MAX_DEPTH_FILE_BYTES:
+        raise DepthCodecError("depth file exceeds the maximum readable size")
+    return decode_depth(data)
 
 
 def verify_depth_file(path, *, expected_shape=None) -> "tuple[tuple, np.dtype]":

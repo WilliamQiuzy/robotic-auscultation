@@ -2815,6 +2815,7 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
             stack.callback(depth_timeline.close)
 
         video_recorder = None
+        previous_depth_device_t_ms: float | None = None
         capture_writer = None
         capture_pipeline_finalized = False
         camera_end_frame = None
@@ -2833,7 +2834,7 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
         t0 = None
 
         def persist_camera_frame(frame) -> None:  # noqa: ANN001
-            nonlocal video_recorder
+            nonlocal video_recorder, previous_depth_device_t_ms
             rgb = getattr(frame, "frame", None)
             if (
                 not isinstance(rgb, np.ndarray) or rgb.dtype != np.uint8
@@ -2875,6 +2876,18 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
                         f"camera frame {frame.index} lacks a finite device timestamp; "
                         "a compliant depth session needs a monotonic device clock"
                     )
+                # Fail on the FIRST frozen/regressing device clock (which the
+                # finalizer would otherwise only catch after the whole session is
+                # recorded), so a broken clock costs one frame, not hours.
+                if (
+                    previous_depth_device_t_ms is not None
+                    and float(device_t_ms) <= previous_depth_device_t_ms
+                ):
+                    raise RecordingAborted(
+                        f"camera frame {frame.index} device clock froze or regressed "
+                        f"({device_t_ms} <= {previous_depth_device_t_ms})"
+                    )
+                previous_depth_device_t_ms = float(device_t_ms)
                 depth_relative = depth_frame_relative_path(frame.index)
                 _atomic_save_depth(
                     Path(sdir) / depth_relative, depth,

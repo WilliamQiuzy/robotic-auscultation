@@ -1009,6 +1009,33 @@ def test_depth_validation_rejects_all_zero_payload(tmp_path):
         sup._validate_depth_artifacts(tmp_path, camera, camera_meta)
 
 
+def test_depth_validation_rejects_frozen_device_clock(tmp_path):
+    depth_dir = tmp_path / "depth"
+    depth_dir.mkdir()
+    rows = [_DEPTH_TIMES_HEADER]
+    # host clock advances but the device clock is frozen -> must fail fast here,
+    # not only at finalize after a whole session is recorded.
+    for i, (idx, host_t, dev) in enumerate([(0, 1.0, 1000.0), (1, 1.04, 1000.0)]):
+        _write_depth_frame(depth_dir, idx, np.full((6, 8), 700 + i, np.uint16))
+        rows.append(_depth_row(idx, host_t, dev, 1.0))
+    (depth_dir / "depth_times.csv").write_text("\n".join(rows) + "\n")
+    camera = type("Camera", (), {
+        "frame_index": np.asarray([0, 1], dtype=np.int64),
+        "host_arrival_t_s": np.asarray([1.0, 1.04], dtype=np.float64),
+    })()
+    camera_meta = {
+        "has_depth": True, "n_depth_frames": 2,
+        "timing": {"capture_mode": {
+            "width": 8, "height": 6,
+            "depth_mode": {"width": 8, "height": 6},
+            "align_mode": "software_depth_to_color",
+        }},
+    }
+
+    with pytest.raises(ValueError, match="device clock"):
+        sup._validate_depth_artifacts(tmp_path, camera, camera_meta)
+
+
 def test_finalizer_verifies_sync_files_instead_of_trusting_hash_shape(tmp_path):
     manifest = {
         "schema_version": "wam_session_v2", "status": "sensors_complete",

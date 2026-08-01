@@ -825,54 +825,72 @@ def _validate_depth_artifacts(session: Path, camera, camera_meta: dict) -> dict:
     index_path = depth_dir / "depth_times.csv"
     if not index_path.is_file():
         raise FileNotFoundError(f"depth timing index missing: {index_path}")
-    with index_path.open(newline="", encoding="utf-8") as fp:
-        reader = csv.DictReader(fp)
-        if reader.fieldnames != [
-            "frame_index", "host_arrival_t_s", "device_t_ms", "depth_scale", "path",
-        ]:
-            raise ValueError("depth_times.csv header is invalid")
-        rows = list(reader)
-    if len(rows) != expected_count:
-        raise ValueError("depth_times.csv row count does not match RGB frames")
     expected_shape = (
         (int(mode["height"]), int(mode["width"]))
         if mode.get("align_mode") == "software_depth_to_color"
         else (int(depth_mode["height"]), int(depth_mode["width"]))
     )
     minimum_valid_fraction = 1.0
-    for row, frame_index, host_t in zip(rows, camera.frame_index, camera.host_arrival_t_s):
+    previous_device_time_ms: float | None = None
+    # Stream the timeline instead of list(reader): a multi-hour session has
+    # hundreds of thousands of rows and must not be materialized in memory.
+    with index_path.open(newline="", encoding="utf-8") as fp:
+        reader = csv.DictReader(fp)
+        if reader.fieldnames != [
+            "frame_index", "host_arrival_t_s", "device_t_ms", "depth_scale", "path",
+        ]:
+            raise ValueError("depth_times.csv header is invalid")
+        for frame_index, host_t in zip(camera.frame_index, camera.host_arrival_t_s):
+            try:
+                row = next(reader)
+            except StopIteration:
+                raise ValueError("depth_times.csv row count does not match RGB frames")
+            try:
+                index = int(row["frame_index"])
+                timestamp = float(row["host_arrival_t_s"])
+                device_time_ms = float(row["device_t_ms"])
+                scale = float(row["depth_scale"])
+                relative = str(row["path"])
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("depth_times.csv contains invalid values") from exc
+            expected_relative = f"depth/depth_{index:06d}{depth_codec.DEPTH_SUFFIX}"
+            if (index != int(frame_index) or not np.isfinite(timestamp)
+                    or abs(timestamp - float(host_t)) > 0.001
+                    or not np.isfinite(device_time_ms)
+                    or relative != expected_relative
+                    or not np.isfinite(scale) or scale <= 0):
+                raise ValueError("depth timing/index/scale/path does not match RGB timeline")
+            # Fail fast on a frozen/regressing device clock (matches the writer and
+            # finalizer) rather than passing it through to a late finalize rejection.
+            if previous_device_time_ms is not None and device_time_ms <= previous_device_time_ms:
+                raise ValueError(
+                    f"depth session device clock froze or regressed at frame {index}"
+                )
+            previous_device_time_ms = device_time_ms
+            path = session / relative
+            if not path.is_file():
+                raise FileNotFoundError(f"depth frame missing: {path}")
+            values = depth_codec.load_depth(path)
+            if values.dtype != np.uint16:
+                raise ValueError(f"depth frame {index} must be uint16")
+            if values.shape != expected_shape or values.ndim != 2:
+                raise ValueError(f"depth frame {index} has invalid shape")
+            valid_pixels = int(np.count_nonzero(values))
+            if valid_pixels == 0:
+                raise ValueError(f"depth frame {index} has no valid depth pixels")
+            minimum_valid_fraction = min(
+                minimum_valid_fraction,
+                valid_pixels / float(values.size),
+            )
         try:
-            index = int(row["frame_index"])
-            timestamp = float(row["host_arrival_t_s"])
-            device_time_ms = float(row["device_t_ms"])
-            scale = float(row["depth_scale"])
-            relative = str(row["path"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ValueError("depth_times.csv contains invalid values") from exc
-        expected_relative = f"depth/depth_{index:06d}{depth_codec.DEPTH_SUFFIX}"
-        if (index != int(frame_index) or not np.isfinite(timestamp)
-                or abs(timestamp - float(host_t)) > 0.001
-                or not np.isfinite(device_time_ms)
-                or relative != expected_relative
-                or not np.isfinite(scale) or scale <= 0):
-            raise ValueError("depth timing/index/scale/path does not match RGB timeline")
-        path = session / relative
-        if not path.is_file():
-            raise FileNotFoundError(f"depth frame missing: {path}")
-        values = depth_codec.load_depth(path)
-        if values.dtype != np.uint16:
-            raise ValueError(f"depth frame {index} must be uint16")
-        if values.shape != expected_shape or values.ndim != 2:
-            raise ValueError(f"depth frame {index} has invalid shape")
-        valid_pixels = int(np.count_nonzero(values))
-        if valid_pixels == 0:
-            raise ValueError(f"depth frame {index} has no valid depth pixels")
-        minimum_valid_fraction = min(
-            minimum_valid_fraction,
-            valid_pixels / float(values.size),
-        )
-    files = list(depth_dir.glob(f"depth_*{depth_codec.DEPTH_SUFFIX}"))
-    if len(files) != expected_count:
+            next(reader)
+        except StopIteration:
+            pass
+        else:
+            raise ValueError("depth_times.csv row count does not match RGB frames")
+    # Count frames without building a list of hundreds of thousands of paths.
+    file_count = sum(1 for _ in depth_dir.glob(f"depth_*{depth_codec.DEPTH_SUFFIX}"))
+    if file_count != expected_count:
         raise ValueError("depth directory contains an unexpected number of frames")
     return {
         "n_frames": expected_count,

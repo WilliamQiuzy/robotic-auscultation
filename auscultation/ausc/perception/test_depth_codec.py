@@ -119,3 +119,20 @@ def test_verify_rejects_wrong_shape(tmp_path):
     p.write_bytes(depth_codec.encode_depth(a))
     with pytest.raises(DepthCodecError, match="shape"):
         depth_codec.verify_depth_file(p, expected_shape=(720, 1280))
+
+
+def test_load_depth_rejects_oversized_file_before_reading(tmp_path):
+    # A sparse file just over the cap: load_depth must reject it by stat, never
+    # reading tens of MiB into memory.  (truncate keeps it sparse -> instant.)
+    p = tmp_path / ("depth_000007" + depth_codec.DEPTH_SUFFIX)
+    with p.open("wb") as fp:
+        fp.truncate(depth_codec._MAX_DEPTH_FILE_BYTES + 1)
+    with pytest.raises(DepthCodecError, match="cap|maximum readable size"):
+        depth_codec.load_depth(p)
+
+
+def test_load_depth_rejects_empty_file(tmp_path):
+    p = tmp_path / ("depth_000008" + depth_codec.DEPTH_SUFFIX)
+    p.write_bytes(b"")
+    with pytest.raises(DepthCodecError, match="empty"):
+        depth_codec.load_depth(p)
