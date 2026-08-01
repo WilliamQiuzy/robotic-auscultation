@@ -130,7 +130,14 @@ def test_rgbd_storage_budget_uses_negotiated_mode_duration_and_deferred_writes()
         "depth_width": 1920, "depth_height": 1080,
         "depth_bytes_per_pixel": 2,
     }
-    assert short["streaming_bytes"] > 1920 * 1080 * 2 * 30 * 10
+    # Depth is budgeted at the conservative compression floor, not raw: the stream
+    # estimate must exceed rgb + compressed-depth yet stay below rgb + raw-depth.
+    rgb_bytes = 1920 * 1080 * 1 * 30 * 10
+    raw_depth_bytes = 1920 * 1080 * 2 * 30 * 10
+    compressed_depth_floor = raw_depth_bytes / rec.DEPTH_CONSERVATIVE_COMPRESSION_RATIO
+    assert short["streaming_bytes"] > rgb_bytes + compressed_depth_floor
+    assert short["streaming_bytes"] < rgb_bytes + raw_depth_bytes
+    assert short["depth_compression_ratio"] == rec.DEPTH_CONSERVATIVE_COMPRESSION_RATIO
     assert short["deferred_bytes"] >= 16_000 * 2 * 10
     assert short["estimated_capture_bytes"] == (
         short["streaming_bytes"] + short["deferred_bytes"]

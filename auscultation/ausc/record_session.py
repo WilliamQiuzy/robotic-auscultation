@@ -2216,16 +2216,26 @@ def _positive_number(value: object, *, label: str) -> float:
     return number
 
 
+# Aligned depth is stored losslessly compressed (depth_codec, ~10x on real
+# frames).  The pre-flight budget divides raw depth by a CONSERVATIVE floor well
+# below the measured ratio; the runtime free-space watermark (which always keeps
+# the full safety reserve) is the hard backstop, so an optimistic floor can only
+# cause a clean mid-session abort, never disk-full corruption.
+DEPTH_CONSERVATIVE_COMPRESSION_RATIO = 3.0
+
+
 def estimate_capture_storage(
     negotiated_mode: Mapping[str, object], *, backend: str, seconds: float,
     control_hz: float,
+    depth_compression_ratio: float = DEPTH_CONSERVATIVE_COMPRESSION_RATIO,
 ) -> dict:
     """Conservatively budget the artifacts produced by the current recorder.
 
-    Depth is stored as one uncompressed NPY per frameset, so its estimate is
-    derived directly from the negotiated/pinned RGB-D geometry.  MP4 size is
-    content dependent; one encoded byte per RGB pixel is intentionally used as
-    a conservative planning rate and the runtime watermark catches overruns.
+    Depth frames are lossless-compressed on disk, so the depth estimate is the
+    raw RGB-D geometry divided by ``depth_compression_ratio`` (a conservative
+    floor, default 3x vs the ~10x measured).  MP4 size is content dependent; one
+    encoded byte per RGB pixel is intentionally used as a conservative planning
+    rate and the runtime watermark catches overruns.
     """
     duration = _positive_number(seconds, label="capture duration")
     obs_hz = _positive_number(control_hz, label="control_hz")
@@ -2253,9 +2263,16 @@ def estimate_capture_storage(
         depth_fps = _positive_number(depth_mode.get("fps", fps), label="depth fps")
         depth_format = str(depth_mode.get("format", "")).upper()
         depth_bytes_per_pixel = 2 if depth_format in {"Y16", "Z16"} else 4
-        # np.save adds a small header to every file.
+        ratio = _positive_number(
+            depth_compression_ratio, label="depth compression ratio",
+        )
+        if ratio < 1.0:
+            raise RecordingAborted("depth compression ratio must be >= 1.0")
+        # Raw frame / conservative ratio, plus a generous per-frame container
+        # overhead floor (magic + length header + zlib framing).
+        raw_depth_frame_bytes = depth_width * depth_height * depth_bytes_per_pixel
         depth_rate = (
-            depth_width * depth_height * depth_bytes_per_pixel + 256
+            int(np.ceil(raw_depth_frame_bytes / ratio)) + 256
         ) * depth_fps
 
     rgb_mp4_rate = width * height * fps
@@ -2299,6 +2316,9 @@ def estimate_capture_storage(
         "deferred_bytes": deferred_bytes,
         "estimated_capture_bytes": streaming_bytes + deferred_bytes,
         "rgb_mp4_planning_bytes_per_pixel": 1.0,
+        "depth_compression_ratio": (
+            float(depth_compression_ratio) if backend == "orbbec" else None
+        ),
     }
 
 
