@@ -19,6 +19,38 @@ sys.path.insert(0, str(SCRIPTS))
 import collection_supervisor as sup  # noqa: E402
 import session_to_lerobot_v2 as conv  # noqa: E402
 
+_DEPTH_TIMES_HEADER = "frame_index,host_arrival_t_s,device_t_ms,depth_scale,path"
+
+
+def _encode_depth_container(array: np.ndarray) -> bytes:
+    """Frame a depth array in the WAMZDPT1 codec container (any dtype, for tests).
+
+    For well-formed uint16 frames this is byte-identical to
+    ``depth_codec.encode_depth``; the malformed-dtype cases exercise the decoder's
+    own dtype guard.
+    """
+    import io as _io
+    import struct as _struct
+    import zlib as _zlib
+
+    buffer = _io.BytesIO()
+    np.save(buffer, np.ascontiguousarray(array), allow_pickle=False)
+    raw = buffer.getvalue()
+    return b"WAMZDPT1" + _struct.pack("<Q", len(raw)) + _zlib.compress(raw, 3)
+
+
+def _write_depth_frame(depth_dir: Path, index: int, array: np.ndarray) -> None:
+    (depth_dir / f"depth_{index:06d}.npy.zlib").write_bytes(
+        _encode_depth_container(array)
+    )
+
+
+def _depth_row(index: int, host_t: float, device_t_ms: float, scale: float) -> str:
+    return (
+        f"{index},{host_t:.6f},{device_t_ms},{scale},"
+        f"depth/depth_{index:06d}.npy.zlib"
+    )
+
 
 def _release_provenance() -> dict:
     return {
@@ -933,9 +965,9 @@ def test_depth_validation_rejects_non_uint16_even_when_shape_and_count_match(tmp
     depth_dir = tmp_path / "depth"
     depth_dir.mkdir()
     (depth_dir / "depth_times.csv").write_text(
-        "frame_index,t,depth_scale\n2,1.000000,1.0\n"
+        f"{_DEPTH_TIMES_HEADER}\n{_depth_row(2, 1.0, 0.0, 1.0)}\n"
     )
-    np.save(depth_dir / "depth_000002.npy", np.ones((6, 8), dtype=np.float32))
+    _write_depth_frame(depth_dir, 2, np.ones((6, 8), dtype=np.float32))
     camera = type("Camera", (), {
         "frame_index": np.asarray([2], dtype=np.int64),
         "host_arrival_t_s": np.asarray([1.0], dtype=np.float64),
@@ -957,9 +989,9 @@ def test_depth_validation_rejects_all_zero_payload(tmp_path):
     depth_dir = tmp_path / "depth"
     depth_dir.mkdir()
     (depth_dir / "depth_times.csv").write_text(
-        "frame_index,t,depth_scale\n2,1.000000,1.0\n"
+        f"{_DEPTH_TIMES_HEADER}\n{_depth_row(2, 1.0, 0.0, 1.0)}\n"
     )
-    np.save(depth_dir / "depth_000002.npy", np.zeros((6, 8), dtype=np.uint16))
+    _write_depth_frame(depth_dir, 2, np.zeros((6, 8), dtype=np.uint16))
     camera = type("Camera", (), {
         "frame_index": np.asarray([2], dtype=np.int64),
         "host_arrival_t_s": np.asarray([1.0], dtype=np.float64),
@@ -1125,13 +1157,12 @@ def test_supervisor_validates_coverage_but_refuses_unobservable_robot_feedback(t
     host_arrival_times = exposure_times + 0.012
     camera_frame_indices = np.arange(2, 22, dtype=np.int64)
     depth_dir = session / "depth"; depth_dir.mkdir()
-    depth_rows = ["frame_index,t,depth_scale"]
+    depth_rows = [_DEPTH_TIMES_HEADER]
     for position, (frame_index, timestamp) in enumerate(zip(camera_frame_indices, host_arrival_times)):
-        np.save(
-            depth_dir / f"depth_{frame_index:06d}.npy",
-            np.full((24, 32), 500 + position, np.uint16),
+        _write_depth_frame(
+            depth_dir, int(frame_index), np.full((24, 32), 500 + position, np.uint16),
         )
-        depth_rows.append(f"{frame_index},{timestamp:.6f},1.0")
+        depth_rows.append(_depth_row(int(frame_index), float(timestamp), position * 110, 1.0))
     (depth_dir / "depth_times.csv").write_text("\n".join(depth_rows) + "\n")
     obs = ["t,force_n,force_status,audio_rms_db,audio_peak_db,cam_index,cam_t"]
     for i in range(104):

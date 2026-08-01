@@ -21,7 +21,7 @@ Layout:
     force.csv         host_t_s, raw, hall_v, displacement_mm, force_n, status, device_t_ms
     rgb.mp4           color video
     rgb_times.csv     frame_index, host_arrival_t_s, device_t_ms, time_source
-    depth/            depth_<index>.npy + depth_times.csv   (orbbec backend only)
+    depth/            depth_<index>.npy.zlib + depth_times.csv   (orbbec backend only)
     obs.csv           t, force_n, status, audio_rms_db, audio_peak_db, cam_index, cam_t  (50 Hz)
 """
 
@@ -30,7 +30,9 @@ from __future__ import annotations
 import argparse
 import glob
 import hashlib
+import io
 import json
+import math
 import os
 import queue
 import re
@@ -50,6 +52,7 @@ ROOT = os.path.dirname(HERE)  # auscultation/
 sys.path[:0] = [HERE, os.path.join(HERE, "audio"), os.path.join(HERE, "perception"),
                 os.path.join(ROOT, "mechanical_sensor", "force_feedback")]
 from health import audio_status, force_status, warn  # noqa: E402
+import depth_codec  # noqa: E402  # perception/ is on sys.path above
 
 SESSION_SCHEMA_VERSION = "wam_session_v2"
 CAPTURE_RELEASE_PROVENANCE_SCHEMA_VERSION = "wam_capture_release_provenance_v1"
@@ -2041,10 +2044,10 @@ def _write_wav(path: str, samples: np.ndarray, sr: int) -> None:
         w.writeframes(pcm.tobytes())
 
 
-def _atomic_save_npy(
-    path: str | Path, values: np.ndarray, *, expected_shape: tuple[int, int] | None = None,
-) -> None:
-    """Publish one depth frame only after its complete NPY reached stable storage."""
+def _validate_depth_frame(
+    values: np.ndarray, *, expected_shape: tuple[int, int] | None = None,
+) -> np.ndarray:
+    """Reject anything that is not a well-formed depth frame before it is published."""
     if not isinstance(values, np.ndarray) or values.dtype != np.uint16:
         raise RecordingAborted("depth frame must be a uint16 ndarray")
     if values.ndim != 2:
@@ -2054,7 +2057,11 @@ def _atomic_save_npy(
             f"depth frame shape {tuple(values.shape)!r} does not match RGB "
             f"shape {tuple(expected_shape)!r}"
         )
-    values = np.ascontiguousarray(values)
+    return np.ascontiguousarray(values)
+
+
+def _atomic_write_bytes(path: str | Path, payload: bytes) -> None:
+    """Publish a blob only after its complete bytes reached stable storage."""
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     tmp = destination.with_name(
@@ -2062,7 +2069,7 @@ def _atomic_save_npy(
     )
     try:
         with tmp.open("xb") as fp:
-            np.save(fp, values, allow_pickle=False)
+            fp.write(payload)
             fp.flush()
             os.fsync(fp.fileno())
         os.replace(tmp, destination)
@@ -2070,6 +2077,52 @@ def _atomic_save_npy(
     except BaseException:
         tmp.unlink(missing_ok=True)
         raise
+
+
+def _atomic_save_npy(
+    path: str | Path, values: np.ndarray, *, expected_shape: tuple[int, int] | None = None,
+) -> None:
+    """Publish one depth frame as raw NPY only after it reached stable storage."""
+    values = _validate_depth_frame(values, expected_shape=expected_shape)
+    buffer = io.BytesIO()
+    np.save(buffer, values, allow_pickle=False)
+    _atomic_write_bytes(path, buffer.getvalue())
+
+
+def _atomic_save_depth(
+    path: str | Path, values: np.ndarray, *, expected_shape: tuple[int, int] | None = None,
+) -> None:
+    """Publish one depth frame in the lossless self-identifying codec container.
+
+    Aligned depth is ~4 MiB raw per frame (~124 MB/s at 30 fps); the codec is
+    byte-exact yet ~14x smaller, which is what makes multi-hour capture fit on
+    disk.  The frame is only visible at its final path once its complete
+    ``.npy.zlib`` bytes are durable.
+    """
+    values = _validate_depth_frame(values, expected_shape=expected_shape)
+    _atomic_write_bytes(path, depth_codec.encode_depth(values))
+
+
+# Single source of truth for the depth timeline contract shared by the recorder,
+# collection_supervisor, and training_authenticity_finalizer.  Keeping these here
+# (and reusing them in persist_camera_frame) prevents the writer and the verifiers
+# from silently drifting apart.
+DEPTH_TIMES_HEADER = "frame_index,host_arrival_t_s,device_t_ms,depth_scale,path\n"
+
+
+def depth_frame_relative_path(index: int) -> str:
+    """Session-relative path of one compressed depth frame."""
+    return f"depth/depth_{int(index):06d}{depth_codec.DEPTH_SUFFIX}"
+
+
+def format_depth_timeline_row(
+    index: int, host_arrival_t_s: float, device_t_ms: float, depth_scale: float,
+) -> str:
+    """One ``depth_times.csv`` row in the exact production schema."""
+    return (
+        f"{int(index)},{float(host_arrival_t_s):.6f},{device_t_ms},"
+        f"{depth_scale},{depth_frame_relative_path(index)}\n"
+    )
 
 
 def streaming_audio_status(summary) -> dict:  # noqa: ANN001
@@ -2734,7 +2787,7 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
             depth_dir.mkdir(mode=0o750, exist_ok=False)
             _fsync_directory(Path(sdir))
             depth_timeline = DurableCsv(
-                depth_dir / "depth_times.csv", "frame_index,t,depth_scale\n",
+                depth_dir / "depth_times.csv", DEPTH_TIMES_HEADER,
             )
         stack.callback(rgb_timeline.close)
         stack.callback(obs_timeline.close)
@@ -2792,19 +2845,30 @@ def record_session(out_root: str, seconds: float, *, control_hz: float = 50.0,
             video_recorder.write(
                 cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR), frame_index=frame.index,
             )
+            index, host_t, device_t_ms, source = camera_time_row(frame)
             if depth_timeline is not None:
-                _atomic_save_npy(
-                    depth_dir / f"depth_{frame.index:06d}.npy", depth,
+                # The finalizer requires a finite, monotonic device clock for every
+                # depth frame; without one the session can never become compliant,
+                # so refuse to write it rather than seal an un-finalizable capture.
+                if device_t_ms is None or not math.isfinite(float(device_t_ms)):
+                    raise RecordingAborted(
+                        f"camera frame {frame.index} lacks a finite device timestamp; "
+                        "a compliant depth session needs a monotonic device clock"
+                    )
+                depth_relative = depth_frame_relative_path(frame.index)
+                _atomic_save_depth(
+                    Path(sdir) / depth_relative, depth,
                     expected_shape=expected_depth_frame_shape,
                 )
-            index, host_t, device_t_ms, source = camera_time_row(frame)
             rgb_timeline.append(
                 f"{index},{host_t:.6f},"
                 f"{'' if device_t_ms is None else device_t_ms},{source}\n"
             )
             if depth_timeline is not None:
                 depth_timeline.append(
-                    f"{frame.index},{frame.t:.4f},{frame.depth_scale}\n"
+                    format_depth_timeline_row(
+                        frame.index, host_t, device_t_ms, frame.depth_scale,
+                    )
                 )
 
         capture_writer = BoundedCaptureWriter(

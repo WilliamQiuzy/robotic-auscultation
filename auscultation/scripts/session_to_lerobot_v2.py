@@ -2179,8 +2179,11 @@ def _validated_artifact_hashes(manifest: Mapping) -> dict[str, str]:
         raise ValueError(
             "legacy robot.csv is forbidden in canonical exact-action promotion inventory"
         )
+    # depth frames use depth_codec.DEPTH_SUFFIX (".npy.zlib"); legacy raw ".npy"
+    # sessions stay convertible.
     if not any(
-        name.startswith("depth/depth_") and name.endswith(".npy") for name in expected
+        name.startswith("depth/depth_") and name.endswith((".npy.zlib", ".npy"))
+        for name in expected
     ):
         raise ValueError("manifest artifact hash inventory has no depth frames")
     return expected

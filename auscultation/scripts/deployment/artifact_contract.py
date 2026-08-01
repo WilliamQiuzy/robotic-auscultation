@@ -241,7 +241,9 @@ _TRAINING_COMPONENT_REQUIRED_RAW = {
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _CONTENT_RELEASE_ID = re.compile(r"^[a-z][a-z0-9_-]*-[0-9a-f]{20}$")
 _TRAINING_DYNAMIC_RAW_PATTERNS = {
-    "depth/depth_*.npy": re.compile(r"^depth/depth_[0-9]{6}\.npy$"),
+    # Capture depth is stored losslessly as ".npy.zlib" (depth_codec.DEPTH_SUFFIX);
+    # legacy raw ".npy" sessions stay contract-valid.
+    "depth/depth_*.npy": re.compile(r"^depth/depth_[0-9]{6}\.npy(?:\.zlib)?$"),
     "geometry/model_inputs/<sha256>.npy": re.compile(
         r"^geometry/model_inputs/[0-9a-f]{64}\.npy$"
     ),

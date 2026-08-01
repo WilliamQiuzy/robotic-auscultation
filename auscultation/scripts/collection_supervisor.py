@@ -82,7 +82,9 @@ def _artifact_hash_inventory(session_dir: str | Path) -> dict:
     depth_paths = sorted(path for path in depth_dir.rglob("*") if path.is_file())
     depth_names = {path.relative_to(session).as_posix() for path in depth_paths}
     if "depth/depth_times.csv" not in depth_names or not any(
-        name.startswith("depth/depth_") and name.endswith(".npy") for name in depth_names
+        name.startswith("depth/depth_")
+        and name.endswith((depth_codec.DEPTH_SUFFIX, depth_codec.LEGACY_DEPTH_SUFFIX))
+        for name in depth_names
     ):
         raise ValueError("session is missing the depth timeline or depth frame artifacts")
     paths.extend(depth_paths)
@@ -825,7 +827,9 @@ def _validate_depth_artifacts(session: Path, camera, camera_meta: dict) -> dict:
         raise FileNotFoundError(f"depth timing index missing: {index_path}")
     with index_path.open(newline="", encoding="utf-8") as fp:
         reader = csv.DictReader(fp)
-        if reader.fieldnames != ["frame_index", "t", "depth_scale"]:
+        if reader.fieldnames != [
+            "frame_index", "host_arrival_t_s", "device_t_ms", "depth_scale", "path",
+        ]:
             raise ValueError("depth_times.csv header is invalid")
         rows = list(reader)
     if len(rows) != expected_count:
@@ -839,14 +843,20 @@ def _validate_depth_artifacts(session: Path, camera, camera_meta: dict) -> dict:
     for row, frame_index, host_t in zip(rows, camera.frame_index, camera.host_arrival_t_s):
         try:
             index = int(row["frame_index"])
-            timestamp = float(row["t"])
+            timestamp = float(row["host_arrival_t_s"])
+            device_time_ms = float(row["device_t_ms"])
             scale = float(row["depth_scale"])
+            relative = str(row["path"])
         except (KeyError, TypeError, ValueError) as exc:
             raise ValueError("depth_times.csv contains invalid values") from exc
+        expected_relative = f"depth/depth_{index:06d}{depth_codec.DEPTH_SUFFIX}"
         if (index != int(frame_index) or not np.isfinite(timestamp)
-                or abs(timestamp - float(host_t)) > 0.001 or not np.isfinite(scale) or scale <= 0):
-            raise ValueError("depth timing/index/scale does not match RGB timeline")
-        path = depth_dir / f"depth_{index:06d}.npy"
+                or abs(timestamp - float(host_t)) > 0.001
+                or not np.isfinite(device_time_ms)
+                or relative != expected_relative
+                or not np.isfinite(scale) or scale <= 0):
+            raise ValueError("depth timing/index/scale/path does not match RGB timeline")
+        path = session / relative
         if not path.is_file():
             raise FileNotFoundError(f"depth frame missing: {path}")
         values = depth_codec.load_depth(path)
@@ -861,7 +871,7 @@ def _validate_depth_artifacts(session: Path, camera, camera_meta: dict) -> dict:
             minimum_valid_fraction,
             valid_pixels / float(values.size),
         )
-    files = list(depth_dir.glob("depth_*.npy"))
+    files = list(depth_dir.glob(f"depth_*{depth_codec.DEPTH_SUFFIX}"))
     if len(files) != expected_count:
         raise ValueError("depth directory contains an unexpected number of frames")
     return {

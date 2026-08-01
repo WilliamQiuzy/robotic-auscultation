@@ -1128,6 +1128,46 @@ def test_depth_authenticity_allows_static_scene_with_sensor_noise(tmp_path: Path
     assert evidence["minimum_valid_fraction"] == 1.0
 
 
+def test_recorder_depth_output_format_is_accepted_by_the_finalizer(tmp_path: Path) -> None:
+    """Prove record_session and the finalizer share ONE depth contract.
+
+    The session is written with the recorder's OWN codec + timeline helpers
+    (``_atomic_save_depth``, ``depth_frame_relative_path``,
+    ``format_depth_timeline_row``, ``DEPTH_TIMES_HEADER``), so a green result
+    means the compressed ``.npy.zlib`` frames + 5-column timeline the recorder
+    produces are exactly what the training gate accepts -- closing the earlier
+    3-column/raw-.npy vs 5-column/.npy.zlib mismatch.
+    """
+    from ausc import record_session as rec
+
+    depth_dir = tmp_path / "depth"
+    depth_dir.mkdir()
+    rows = [rec.DEPTH_TIMES_HEADER.rstrip("\n")]
+    for index in range(60):
+        frame = np.full((20, 20), 700, dtype=np.uint16)
+        frame[index % 20, (index * 3) % 20] += 1  # avoid bit-identical run
+        rec._atomic_save_depth(
+            tmp_path / rec.depth_frame_relative_path(index), frame,
+            expected_shape=(20, 20),
+        )
+        rows.append(
+            rec.format_depth_timeline_row(
+                index, 1.0 + index * 0.04, 1000.0 + index * 40.0, 1.0,
+            ).rstrip("\n")
+        )
+    (depth_dir / "depth_times.csv").write_text("\n".join(rows) + "\n")
+
+    # The recorder really emits the compressed container, not raw .npy.
+    assert (depth_dir / "depth_000000.npy.zlib").is_file()
+    assert not (depth_dir / "depth_000000.npy").exists()
+
+    evidence = finalizer.verify_depth_session_authenticity(
+        tmp_path, expected_depth_scale_mm=1.0,
+    )
+    assert evidence["status"] == "PASS"
+    assert evidence["frame_count"] == 60
+
+
 def _write_valid_production_depth_session(
     root: Path,
     *,
