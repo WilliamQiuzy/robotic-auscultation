@@ -1692,7 +1692,8 @@ def inspect_training_finalization_readiness(
             for relative in REQUIRED_BASE_RAW_ARTIFACTS
             if not _regular_nonempty(session / relative)
         )
-        depth_frames = sorted((session / "depth").glob("depth_*.npy"))
+        depth_frames = (sorted((session / "depth").glob(f"depth_*{depth_codec.DEPTH_SUFFIX}"))
+                        or sorted((session / "depth").glob("depth_*.npy")))
         valid_depth_paths = [
             path for path in depth_frames if _regular_nonempty(path)
         ]
@@ -2270,7 +2271,8 @@ def verify_depth_session_authenticity(
             raise TrainingFinalizationError(
                 f"depth session timeline row {row_number} is invalid"
             ) from exc
-        expected_relative = f"depth/depth_{frame_index:06d}.npy"
+        expected_relatives = (f"depth/depth_{frame_index:06d}{depth_codec.DEPTH_SUFFIX}",
+                              f"depth/depth_{frame_index:06d}.npy")
         if (
             frame_index < 0
             or (previous_index is not None and frame_index != previous_index + 1)
@@ -2279,7 +2281,7 @@ def verify_depth_session_authenticity(
             or not math.isfinite(device_time_ms)
             or not math.isfinite(depth_scale)
             or depth_scale <= 0.0
-            or relative != expected_relative
+            or relative not in expected_relatives
             or relative in observed_paths
         ):
             raise TrainingFinalizationError(
@@ -2438,7 +2440,9 @@ def verify_depth_session_authenticity(
 
     on_disk = {
         path.relative_to(session).as_posix()
-        for path in (session / "depth").glob("depth_*.npy")
+        for path in ((session / "depth").glob(f"depth_*{depth_codec.DEPTH_SUFFIX}")
+                     if any((session / "depth").glob(f"depth_*{depth_codec.DEPTH_SUFFIX}"))
+                     else (session / "depth").glob("depth_*.npy"))
         if _regular_nonempty(path)
     }
     if on_disk != observed_paths:

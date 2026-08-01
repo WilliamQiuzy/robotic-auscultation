@@ -21,6 +21,8 @@ from typing import Optional
 
 import numpy as np
 
+from ausc.perception import depth_codec
+
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -106,9 +108,11 @@ class Session:
         depth = None
         if self._depth:
             di = self._nearest_index(self._depth_t, t) or idx
-            dp = os.path.join(self.dir, "depth", f"depth_{di:06d}.npy")
-            if os.path.exists(dp):
-                depth = np.load(dp)
+            for suffix in (depth_codec.DEPTH_SUFFIX, depth_codec.LEGACY_DEPTH_SUFFIX):
+                dp = os.path.join(self.dir, "depth", f"depth_{di:06d}{suffix}")
+                if os.path.exists(dp):
+                    depth = depth_codec.load_depth(dp)   # new container or legacy raw .npy
+                    break
         return rgb, depth, (self._rgb_t[idx] - t) * 1000.0
 
     def audio_window(self, t: float, seconds: float = 8.0) -> Optional[np.ndarray]:

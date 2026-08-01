@@ -200,6 +200,7 @@ from ausc.perception.production_runtime_activation import (        # noqa: E402
     load_completed_handeye_release,
     load_production_runtime_assembly,
 )
+from ausc.perception import depth_codec                            # noqa: E402
 
 
 def validate_audio_hardware_descriptor(
@@ -918,7 +919,7 @@ class Collector:
         diagnostic_min_free_bytes=5 * 1024 ** 3,
         planned_session_duration_s=60.0,
         capture_rate_margin=1.3,
-        depth_compression_ratio=8.0,
+        depth_compression_ratio=1.0,
         non_depth_capture_bytes_per_s=12_000_000,
         max_tracking_age_s=0.25,
         capture_queue_frames=8,
@@ -5215,7 +5216,7 @@ class Collector:
         remaining = None if depth_rate <= 0 else usable / depth_rate
         return {
             "status": "OK" if usable > 0 else "RESERVE_EXHAUSTED",
-            "depth_format": "formal_per_frame_npy_v1",
+            "depth_format": depth_codec.DEPTH_STORAGE_ID,
             "free_bytes": free,
             "safety_watermark_bytes": self.diagnostic_min_free_bytes,
             "final_rgb_copy_reserve_bytes": 0,
@@ -5877,8 +5878,8 @@ def build_parser():
     ap.add_argument("--diagnostic-min-free-gib", type=float, default=5.0)
     ap.add_argument("--planned-session-duration-s", type=float, default=60.0)
     ap.add_argument("--capture-rate-margin", type=float, default=1.3)
-    ap.add_argument("--depth-compression-ratio", type=float, default=8.0,
-                    help="conservative lossless depth compression ratio for the storage gate (real ~14x)")
+    ap.add_argument("--depth-compression-ratio", type=float, default=1.0,
+                    help="storage-gate depth compression assumption; default 1.0 = raw worst-case (noisy depth can be ~1x). Raise only after validating the scene.")
     ap.add_argument("--non-depth-capture-bytes-per-s", type=float, default=12_000_000,
                     help="conservative RGB-video + audio + force + tracker byte rate for the storage gate")
     ap.add_argument("--teleop-launch-cmd", default=None,

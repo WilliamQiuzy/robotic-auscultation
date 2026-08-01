@@ -1710,8 +1710,8 @@ def test_finalize_reopens_video_and_seals_exact_diagnostic_artifacts(tmp_path):
     ]
     expected = {
         "rgb.mp4", "rgb_times.csv", "tracker.jsonl", "events.jsonl",
-        "depth/depth_times.csv", "depth/depth_000007.npy", "depth/depth_000008.npy",
-        "depth/depth_000009.npy",
+        "depth/depth_times.csv", "depth/depth_000007.npy.zlib", "depth/depth_000008.npy.zlib",
+        "depth/depth_000009.npy.zlib",
         "capture_checkpoint.json", "manifest.json", "DIAGNOSTIC_FINALIZATION.json",
     }
     assert expected.issubset(
@@ -1727,11 +1727,14 @@ def test_finalize_reopens_video_and_seals_exact_diagnostic_artifacts(tmp_path):
     assert [row["frame_index"] for row in tracker] == [7, 8, 9]
     assert tracker[0]["points"][0]["name"] == "R1"
 
+    from ausc.perception import depth_codec
     depth_indexes: list[int] = []
-    for path in sorted((tmp_path / "depth").glob("*.npy")):
-        depth = np.load(path, allow_pickle=False)
+    for path in sorted((tmp_path / "depth").glob("*.npy.zlib")):
+        depth = depth_codec.load_depth(path)
         assert depth.shape == (8, 12)
-        depth_indexes.append(int(path.stem.removeprefix("depth_")))
+        depth_indexes.append(
+            int(path.name.removeprefix("depth_").removesuffix(".npy.zlib"))
+        )
     assert depth_indexes == [7, 8, 9]
 
     manifest_raw = (tmp_path / "manifest.json").read_bytes()
@@ -2287,7 +2290,7 @@ def test_checkpoint_flushes_indexes_and_states_mp4_recovery_limit(tmp_path):
     with (tmp_path / "rgb_times.csv.inprogress").open(newline="") as fp:
         rows = list(csv.DictReader(fp))
     assert [int(row["frame_index"]) for row in rows] == [11]
-    assert (tmp_path / "depth" / "depth_000011.npy").is_file()
+    assert (tmp_path / "depth" / "depth_000011.npy.zlib").is_file()
     capture.abort("test cleanup")
 
 
@@ -2373,11 +2376,11 @@ def test_finalize_stitches_all_segments_and_inventory_comes_from_durable_files(t
     assert sorted(
         name for name in seal["artifacts"] if name.startswith("depth/")
     ) == [
-        "depth/depth_000030.npy",
-        "depth/depth_000031.npy",
-        "depth/depth_000032.npy",
-        "depth/depth_000033.npy",
-        "depth/depth_000034.npy",
+        "depth/depth_000030.npy.zlib",
+        "depth/depth_000031.npy.zlib",
+        "depth/depth_000032.npy.zlib",
+        "depth/depth_000033.npy.zlib",
+        "depth/depth_000034.npy.zlib",
         "depth/depth_times.csv",
     ]
     assert seal["depth_integrity"]["count"] == 5
@@ -2642,7 +2645,7 @@ def test_depth_identity_tamper_fails_finalization_without_completion_seal(tmp_pa
     for index in (1, 2):
         frame = _frame(index)
         capture.write_frame(frame, _tracking(frame))
-    with (tmp_path / "depth" / "depth_000001.npy").open("ab") as fp:
+    with (tmp_path / "depth" / "depth_000001.npy.zlib").open("ab") as fp:
         fp.write(b"tamper")
 
     with pytest.raises(RuntimeError, match="depth frame identity changed"):
@@ -2738,7 +2741,7 @@ def test_finalization_verifies_encoded_fps_shape_and_source_timeline(tmp_path):
     assert (proof["encoded_width"], proof["encoded_height"]) == (12, 8)
     seal = json.loads((tmp_path / "DIAGNOSTIC_FINALIZATION.json").read_text())
     assert seal["video_timebase"] == proof
-    assert seal["storage"]["depth_format"] == "formal_per_frame_npy_v1"
+    assert seal["storage"]["depth_format"] == "formal_per_frame_zlib_npy_v1"
     assert seal["storage"]["estimated_remaining_seconds"] > 0
 
 
@@ -2787,7 +2790,7 @@ def test_depth_dtype_is_uint16_before_space_budget_or_persistence(tmp_path):
     with pytest.raises(RuntimeError, match="invalid depth"):
         capture.write_frame(frame, _tracking(frame))
 
-    assert not list((tmp_path / "depth").glob("*.npy"))
+    assert not list((tmp_path / "depth").glob("*.npy.zlib"))
     assert not (tmp_path / "DIAGNOSTIC_FINALIZATION.json").exists()
 
 
@@ -2800,5 +2803,5 @@ def test_all_zero_depth_aborts_before_persistence(tmp_path):
     with pytest.raises(RuntimeError, match="no valid depth"):
         capture.write_frame(frame, _tracking(frame))
 
-    assert not list((tmp_path / "depth").glob("*.npy"))
+    assert not list((tmp_path / "depth").glob("*.npy.zlib"))
     assert not (tmp_path / "DIAGNOSTIC_FINALIZATION.json").exists()

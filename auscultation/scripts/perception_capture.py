@@ -1066,7 +1066,7 @@ class DiagnosticPerceptionCapture:
             "started_host_t": self._clock(),
             "started_utc_ns": self._wall_time_ns(),
             "requested_fps": self.fps,
-            "depth_storage": "formal_per_frame_npy_v1",
+            "depth_storage": depth_codec.DEPTH_STORAGE_ID,
             "depth_contract": {
                 "dtype": "uint16",
                 "bytes_per_pixel": int(np.dtype(np.uint16).itemsize),
@@ -2441,7 +2441,7 @@ class DiagnosticPerceptionCapture:
                     "insufficient live storage reserve for next aligned depth frame: "
                     f"{storage['usable_bytes_before_safety_reserve']} < {next_depth_bytes} bytes"
                 )
-            depth_name = f"depth_{index:06d}.npy"
+            depth_name = f"depth_{index:06d}{depth_codec.DEPTH_SUFFIX}"
             depth_path = self.session_dir / "depth" / depth_name
             if depth_path.exists():
                 raise FileExistsError(f"diagnostic depth frame already exists: {depth_path}")
@@ -3123,7 +3123,7 @@ class DiagnosticPerceptionCapture:
                     or len(identity) != 5
                     or len(digest) != 64
                     or any(ch not in "0123456789abcdef" for ch in digest)
-                    or rel != f"depth/depth_{index:06d}.npy"
+                    or rel != f"depth/depth_{index:06d}{depth_codec.DEPTH_SUFFIX}"
                     or (last_index is not None and index != last_index + 1)
                 ):
                     raise RuntimeError(
@@ -3227,7 +3227,7 @@ class DiagnosticPerceptionCapture:
         )
         return {
             "status": "OK" if usable > 0 else "RESERVE_EXHAUSTED",
-            "depth_format": "formal_per_frame_npy_v1",
+            "depth_format": depth_codec.DEPTH_STORAGE_ID,
             "free_bytes": free,
             "safety_watermark_bytes": self.min_free_bytes,
             "final_rgb_copy_reserve_bytes": int(final_copy_reserve),
@@ -3560,20 +3560,23 @@ class DiagnosticPerceptionCapture:
             previous_source = source
 
         def depth_file_indexes():
-            for path in sorted((self.session_dir / "depth").glob("depth_*.npy")):
+            for path in sorted(
+                (self.session_dir / "depth").glob(f"depth_*{depth_codec.DEPTH_SUFFIX}")
+            ):
+                # FULL strict decode -- an undecodable / truncated / corrupt depth
+                # frame must never be sealed diagnostic_complete (peeking only the
+                # header would let a one-byte-short frame pass as complete).
+                expected = (
+                    None if self._video_size is None
+                    else (self._video_size[1], self._video_size[0])
+                )
                 try:
-                    index = int(path.stem.removeprefix("depth_"))
-                    depth_shape, depth_dtype = depth_codec.peek_depth_meta(path)
+                    index = int(
+                        path.name.removeprefix("depth_").removesuffix(depth_codec.DEPTH_SUFFIX)
+                    )
+                    depth_codec.verify_depth_file(path, expected_shape=expected)
                 except (OSError, TypeError, ValueError) as exc:
                     raise RuntimeError(f"depth frame is invalid: {path}") from exc
-                if depth_dtype != np.uint16 or len(depth_shape) != 2 or not all(depth_shape):
-                    raise RuntimeError(f"depth frame has invalid array metadata: {path}")
-                if self._video_size is not None:
-                    width, height = self._video_size
-                    if tuple(depth_shape) != (height, width):
-                        raise RuntimeError(
-                            f"depth frame shape {depth_shape} != {(height, width)}: {path}"
-                        )
                 yield index
 
         for depth_index, file_index in itertools.zip_longest(
@@ -3596,7 +3599,7 @@ class DiagnosticPerceptionCapture:
                     raise RuntimeError(
                         f"depth_times.csv path is invalid at row {row_number}"
                     ) from exc
-                if rel != f"depth/depth_{index:06d}.npy":
+                if rel != f"depth/depth_{index:06d}{depth_codec.DEPTH_SUFFIX}":
                     raise RuntimeError(
                         f"depth_times.csv path is invalid at row {row_number}"
                     )
@@ -3620,7 +3623,7 @@ class DiagnosticPerceptionCapture:
             self._segment_validation_path,
         ]
         paths.extend(sorted(self._segment_dir.glob("segment_*.mp4")))
-        paths.extend(sorted(self._depth_dir.glob("depth_*.npy")))
+        paths.extend(sorted(self._depth_dir.glob(f"depth_*{depth_codec.DEPTH_SUFFIX}")))
         if self._audio_summary is not None:
             paths.extend(
                 self.session_dir / name
