@@ -62,6 +62,18 @@ def test_decompression_bomb_declared_length_capped():
         depth_codec.decode_depth(huge)
 
 
+def test_decompression_bomb_small_header_large_output_rejected():
+    # The dangerous case an unbounded flush() would miss: the header declares a
+    # LEGAL (small) length so it survives the header cap, but the zlib stream
+    # actually expands past _MAX_DEPTH_RAW_BYTES.  Decode must reject it WITHOUT
+    # fully materialising the oversized output.
+    over = b"\x00" * (depth_codec._MAX_DEPTH_RAW_BYTES + 4096)   # >64 MiB of zeros
+    body = zlib.compress(over, 3)                                # ~64 KiB compressed
+    payload = b"WAMZDPT1" + struct.pack("<Q", 4096) + body       # header lies: small len
+    with pytest.raises(DepthCodecError, match="maximum size"):
+        depth_codec.decode_depth(payload)
+
+
 def test_length_mismatch_rejected():
     a = _depth()
     buf = io.BytesIO(); np.save(buf, a, allow_pickle=False)

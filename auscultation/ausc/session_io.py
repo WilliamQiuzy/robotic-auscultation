@@ -107,7 +107,9 @@ class Session:
             rgb = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB) if ok and bgr is not None else None
         depth = None
         if self._depth:
-            di = self._nearest_index(self._depth_t, t) or idx
+            di = self._nearest_index(self._depth_t, t)
+            if di is None:                       # index 0 is legal; don't treat it as falsy
+                di = idx
             for suffix in (depth_codec.DEPTH_SUFFIX, depth_codec.LEGACY_DEPTH_SUFFIX):
                 dp = os.path.join(self.dir, "depth", f"depth_{di:06d}{suffix}")
                 if os.path.exists(dp):

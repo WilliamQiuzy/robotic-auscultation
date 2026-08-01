@@ -61,8 +61,10 @@ def _load_npy_fully_consumed(raw: bytes) -> np.ndarray:
     array = np.load(stream, allow_pickle=False)
     if stream.read(1):
         raise DepthCodecError("depth .npy stream has trailing bytes")
-    if array.ndim != 2 or array.dtype != np.uint16 or not array.size:
-        raise DepthCodecError("depth .npy has invalid array metadata")
+    if array.dtype != np.uint16:
+        raise DepthCodecError(f"depth frame array must be uint16, got {array.dtype}")
+    if array.ndim != 2 or not array.size:
+        raise DepthCodecError("depth frame array must be a non-empty 2-D array")
     return np.ascontiguousarray(array)
 
 
@@ -81,7 +83,12 @@ def decode_depth(data: bytes) -> np.ndarray:
     stream = body[_HEADER.size:]
     decompressor = zlib.decompressobj()
     try:
+        # Bound the OUTPUT at the cap.  If any compressed input remains after
+        # producing cap bytes, the decompressed size exceeds the cap -> reject
+        # BEFORE flush(), so an oversized/bomb payload is never fully expanded.
         raw = decompressor.decompress(stream, _MAX_DEPTH_RAW_BYTES)
+        if decompressor.unconsumed_tail:
+            raise DepthCodecError("depth decompressed output exceeds the maximum size")
         raw += decompressor.flush()
     except zlib.error as exc:
         raise DepthCodecError("depth zlib payload is corrupt") from exc
