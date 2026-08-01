@@ -2329,6 +2329,7 @@ class StorageGuard:
         self, session_dir: str | Path, *, budget: Mapping[str, object],
         duration_s: float, safety_reserve_bytes: int,
         disk_usage=None, check_interval_s: float = 1.0,
+        projection_warmup_s: float = 30.0,
     ) -> None:  # noqa: ANN001
         self.session_dir = Path(session_dir)
         self.duration_s = _positive_number(duration_s, label="capture duration")
@@ -2338,7 +2339,9 @@ class StorageGuard:
         self.safety_reserve_bytes = int(safety_reserve_bytes)
         self._disk_usage = disk_usage or shutil.disk_usage
         self.check_interval_s = max(0.0, float(check_interval_s))
+        self.projection_warmup_s = max(0.0, float(projection_warmup_s))
         self._last_check = float("-inf")
+        self._initial_free: int | None = None
         if (self.streaming_bytes < 0 or self.deferred_bytes < 0
                 or self.estimated_capture_bytes
                 != self.streaming_bytes + self.deferred_bytes
@@ -2378,6 +2381,7 @@ class StorageGuard:
                     f"{available} are available"
                 ),
             )
+        self._initial_free = available
         return {"required_free_bytes": required, "available_free_bytes": available}
 
     def check_runtime(self, *, elapsed_s: float, force: bool = False) -> dict | None:
@@ -2401,6 +2405,33 @@ class StorageGuard:
                     f"{available} are available"
                 ),
             )
+        # Predictive early abort: once a warmup of real bytes has landed,
+        # extrapolate the ACTUAL streaming rate to the full duration.  If streaming
+        # alone would eat into the safety reserve, the session cannot complete, so
+        # abort now (losing seconds) instead of near the end (losing hours) -- this
+        # is what makes an optimistic depth-compression estimate safe.  It projects
+        # streaming only (never the fictionally large deferred MP4 budget), so a
+        # normal session -- whose real bytes run well under budget -- never trips.
+        if (
+            self._initial_free is not None
+            and elapsed >= self.projection_warmup_s
+            and elapsed > 0.0
+        ):
+            used = max(0, self._initial_free - available)
+            projected_streaming_used = used * (self.duration_s / elapsed)
+            projected_free_at_end = self._initial_free - projected_streaming_used
+            if projected_free_at_end < self.safety_reserve_bytes:
+                self._abort(
+                    phase="recording_projection",
+                    required=int(projected_streaming_used + self.safety_reserve_bytes),
+                    available=available, elapsed_s=elapsed,
+                    message=(
+                        "projected capture rate would exhaust storage before End: "
+                        f"~{int(projected_streaming_used)} streaming bytes projected vs "
+                        f"{int(self._initial_free - self.safety_reserve_bytes)} usable "
+                        "(actual compression is worse than budgeted)"
+                    ),
+                )
         return {"required_free_bytes": required, "available_free_bytes": available}
 
 

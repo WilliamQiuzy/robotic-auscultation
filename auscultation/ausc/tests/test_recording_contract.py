@@ -200,6 +200,56 @@ def test_runtime_storage_watermark_aborts_and_manifest_stays_failed(tmp_path):
     assert failure["available_free_bytes"] == 700
 
 
+def test_runtime_projection_aborts_early_when_compression_worse_than_budget(tmp_path):
+    usage = namedtuple("usage", "total used free")
+    # start sees 2000 free (needs 1400 -> passes); at 50s of 100s only 1100 free
+    # remains (900 used).  The classic watermark still passes (needs 1000), but
+    # projecting 900 bytes/50s to the full 100s = 1800 would breach the 400 reserve.
+    free_values = iter([2_000, 1_100])
+    guard = rec.StorageGuard(
+        tmp_path,
+        budget={
+            "estimated_capture_bytes": 1_000,
+            "streaming_bytes": 800,
+            "deferred_bytes": 200,
+        },
+        duration_s=100.0,
+        safety_reserve_bytes=400,
+        disk_usage=lambda _path: usage(10_000, 8_000, next(free_values)),
+        check_interval_s=0.0,
+        projection_warmup_s=30.0,
+    )
+    guard.check_start()
+    with pytest.raises(rec.RecordingAborted, match="projected capture rate"):
+        guard.check_runtime(elapsed_s=50.0)
+    failure = json.loads((tmp_path / "STORAGE_ABORT.json").read_text())
+    assert failure["phase"] == "recording_projection"
+
+
+def test_runtime_projection_does_not_trip_a_normal_session(tmp_path):
+    usage = namedtuple("usage", "total used free")
+    # real capture runs well under budget (200 used in 50s -> projects to 400,
+    # leaving 1600 free): neither the watermark nor the projection may abort.
+    free_values = iter([2_000, 1_800])
+    guard = rec.StorageGuard(
+        tmp_path,
+        budget={
+            "estimated_capture_bytes": 1_000,
+            "streaming_bytes": 800,
+            "deferred_bytes": 200,
+        },
+        duration_s=100.0,
+        safety_reserve_bytes=400,
+        disk_usage=lambda _path: usage(10_000, 8_000, next(free_values)),
+        check_interval_s=0.0,
+        projection_warmup_s=30.0,
+    )
+    guard.check_start()
+    result = guard.check_runtime(elapsed_s=50.0)
+    assert result is not None
+    assert not (tmp_path / "STORAGE_ABORT.json").exists()
+
+
 def test_record_session_checks_actual_negotiated_mode_budget_before_ready(
     monkeypatch, tmp_path,
 ):
