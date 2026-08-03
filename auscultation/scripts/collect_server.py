@@ -52,6 +52,23 @@ _ROBOT_FEEDBACK_LIVENESS_REASON = (
 )
 
 
+def _finite_json(o):
+    """Recursively replace non-finite floats (Infinity/NaN) with None so the served
+    /state is strict JSON the browser can parse.
+
+    Python's json emits bare ``Infinity``/``NaN`` tokens (invalid JSON); e.g. a
+    ``tracking_age_s`` of ``inf`` before the first tracking result would break
+    ``JSON.parse`` in the browser and blank the console.
+    """
+    if isinstance(o, float):
+        return o if math.isfinite(o) else None
+    if isinstance(o, dict):
+        return {k: _finite_json(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_finite_json(v) for v in o]
+    return o
+
+
 def _robot_v3_tx_summary_valid(summary):
     """Return whether diagnostic v3 evidence proves all 7+1 TX writes per tick."""
 
@@ -947,6 +964,7 @@ class Collector:
         robot_capture_coordinator=None,
         controller_launcher=None,
         controller_disable=None,
+        controller_preflight=None,
         controller_attest=None,
         controller_readiness_timeout_s=15.0,
         robot_mask_provider=None,
@@ -1087,6 +1105,9 @@ class Collector:
         # when no launch/disable command is configured -> the arm UI is inert.
         self._controller_launcher = controller_launcher
         self._controller_disable = controller_disable
+        # P0-1: optional synchronous preflight (clear_faults + socket dir) run before the
+        # controller binary is launched directly, so its exe attestation is sound.
+        self._controller_preflight = controller_preflight
         self._controller_attest = controller_attest
         self._controller_readiness_timeout_s = float(controller_readiness_timeout_s)
         self._controller_companion = None
@@ -1820,6 +1841,7 @@ class Collector:
                 coordinator=self._robot_coordinator,
                 launch_controller=self._controller_launcher,
                 direct_disable=self._controller_disable,
+                preflight=self._controller_preflight,
                 attest_controller=self._controller_attest,
                 readiness_timeout_s=self._controller_readiness_timeout_s,
             )
@@ -5576,7 +5598,7 @@ def make_handler(col: Collector, page: bytes):
                 self._send(page, "text/html; charset=utf-8", no_store=True)
             elif path == "/state":
                 self._send(
-                    json.dumps(col.state_snapshot()).encode(), "application/json",
+                    json.dumps(_finite_json(col.state_snapshot())).encode(), "application/json",
                     no_store=True,
                 )
             elif path == "/healthz":
@@ -5925,6 +5947,10 @@ def build_parser():
                          "(can1 leader -> can3 follower); enables the console Bring-up-arm button")
     ap.add_argument("--controller-disable-cmd", default=None,
                     help="shell command that energy-isolates the left arm (direct-disable)")
+    ap.add_argument("--controller-preflight-cmd", default=None,
+                    help="optional shell command run synchronously BEFORE the controller "
+                         "is launched (clear_faults + telemetry-socket dir); lets the "
+                         "controller binary be launched directly for a sound exe attestation")
     ap.add_argument("--controller-readiness-timeout-s", type=float, default=15.0)
     ap.add_argument("--max-tracking-age-ms", type=float, default=250.0)
     ap.add_argument("--capture-queue-frames", type=int, default=8)
@@ -6166,12 +6192,14 @@ def main(argv=None):
     # bring-up can always be energy-isolated).
     controller_launcher = None
     controller_disable = None
+    controller_preflight = None
     if a.teleop_launch_cmd or a.controller_disable_cmd:
         if not (a.teleop_launch_cmd and a.controller_disable_cmd):
             parser.error("--teleop-launch-cmd and --controller-disable-cmd must be given together")
         from ausc.perception.robot.controller_launch import (
             make_subprocess_direct_disable,
             make_subprocess_launcher,
+            make_subprocess_preflight,
             parse_command,
         )
         controller_launcher = make_subprocess_launcher(
@@ -6180,6 +6208,12 @@ def main(argv=None):
         controller_disable = make_subprocess_direct_disable(
             parse_command(a.controller_disable_cmd, label="--controller-disable-cmd"),
         )
+        if a.controller_preflight_cmd:
+            controller_preflight = make_subprocess_preflight(
+                parse_command(
+                    a.controller_preflight_cmd, label="--controller-preflight-cmd"
+                ),
+            )
     col = None
     server = None
     try:
@@ -6252,6 +6286,7 @@ def main(argv=None):
             ),
             controller_launcher=controller_launcher,
             controller_disable=controller_disable,
+            controller_preflight=controller_preflight,
             controller_readiness_timeout_s=a.controller_readiness_timeout_s,
             robot_mask_provider=(
                 None

@@ -4,6 +4,7 @@ import importlib.util
 import http.client
 import hashlib
 import json
+import math
 import re
 import sys
 import threading
@@ -6096,6 +6097,29 @@ def _configure_arm(collector, coord, disable):
     collector._controller_readiness_timeout_s = 2.0
 
 
+def test_finite_json_sanitizes_infinity_and_nan_for_state():
+    # /state must be strict JSON the browser can parse: non-finite floats (e.g.
+    # tracking_age_s before the first tracking result) become null.
+    server = _load_collect_server()
+    raw = {
+        "tracking_age_s": math.inf,
+        "nested": {"x": math.nan, "ok": 1.5},
+        "list": [math.inf, 2.0],
+        "s": "keep",
+    }
+    cleaned = server._finite_json(raw)
+    assert cleaned["tracking_age_s"] is None
+    assert cleaned["nested"]["x"] is None
+    assert cleaned["nested"]["ok"] == 1.5
+    assert cleaned["list"] == [None, 2.0]
+    assert cleaned["s"] == "keep"
+
+    def _reject(_token):
+        raise ValueError("non-finite token in served /state")
+
+    json.loads(json.dumps(cleaned), parse_constant=_reject)  # browser-equivalent parse
+
+
 def test_arm_bringup_ready_then_disable(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
@@ -6138,6 +6162,26 @@ def test_disable_without_motor_readback_is_not_energy_isolated(tmp_path):
         assert p["disable_command_succeeded"] is True
         assert p["energy_isolated"] is False
         assert p["motor_disable_verified"] is False
+    finally:
+        c.shutdown()
+
+
+def test_arm_preflight_runs_before_launch(tmp_path):
+    # P0-1: a configured controller preflight (clear_faults + socket dir) runs
+    # synchronously BEFORE the controller is launched, so the launched process is the
+    # controller binary and its exe attestation is sound.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("READY", True)])
+    _configure_arm(c, coord, _ArmDisable())
+    order = []
+    c._controller_launcher = lambda: (order.append("launch"), _ArmCtrl())[1]
+    c._controller_preflight = lambda: order.append("preflight")
+    try:
+        r = c.bring_up_controller()
+        assert r["ok"] and r["code"] == "controller_ready"
+        assert order == ["preflight", "launch"]
     finally:
         c.shutdown()
 
