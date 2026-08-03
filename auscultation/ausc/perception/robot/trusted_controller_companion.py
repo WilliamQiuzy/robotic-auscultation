@@ -66,8 +66,38 @@ class ReceiverCoordinator(Protocol):
 
 @dataclass(frozen=True)
 class DisableOutcome:
+    """The result of a fault-disable, split into an honest state ladder.
+
+    ``command_succeeded`` means the disable *command* returned success; it is NOT
+    proof the motors are de-energized.  ``motor_verified`` requires an independent
+    readback that every motor is torque-off.  ``energy_isolated`` is derived and is
+    claimed ONLY when ``motor_verified`` -- never from a mere command success -- so
+    the safety surface can never falsely display "energy-isolated".
+    """
+
     reason: str
     outcome: str
+    command_succeeded: bool = False
+    motor_verified: bool = False
+    energy_isolated: bool = False
+
+
+def _disable_command_succeeded(result: object) -> bool:
+    """Whether a direct-disable result signals the command itself succeeded.
+
+    Prefers an explicit ``returncode``/``command_succeeded``; falls back to treating a
+    truthy legacy string outcome as success.  A command success is never, on its own,
+    energy isolation -- that requires an independent motor readback.
+    """
+    if result is None:
+        return False
+    returncode = getattr(result, "returncode", None)
+    if returncode is not None:
+        return int(returncode) == 0
+    command_succeeded = getattr(result, "command_succeeded", None)
+    if command_succeeded is not None:
+        return bool(command_succeeded)
+    return bool(result)
 
 
 def _default_attest_controller(pid: int, expected_uid: int) -> object:
@@ -93,6 +123,7 @@ class TrustedControllerCompanion:
         direct_disable: Callable[[str], object],
         expected_uid: Optional[int] = None,
         attest_controller: Optional[Callable[[int, int], object]] = None,
+        verify_motor_disable: Optional[Callable[[], bool]] = None,
         readiness_timeout_s: float = 10.0,
         poll_interval_s: float = 0.05,
         monotonic: Callable[[], float] = time.monotonic,
@@ -105,6 +136,10 @@ class TrustedControllerCompanion:
         self._direct_disable = direct_disable
         self._expected_uid = os.getuid() if expected_uid is None else int(expected_uid)
         self._attest = attest_controller or _default_attest_controller
+        # Optional independent readback: returns True only if every motor is confirmed
+        # torque-off after the disable command.  Absent (None) -> energy isolation is
+        # never claimed, only "disable command succeeded".
+        self._verify_motor_disable = verify_motor_disable
         self._readiness_timeout_s = float(readiness_timeout_s)
         self._poll_interval_s = float(poll_interval_s)
         self._monotonic = monotonic
@@ -186,7 +221,15 @@ class TrustedControllerCompanion:
         """
         if self._state != "ready":
             raise CompanionError(f"cannot supervise from state {self._state}")
-        self._assert_controller_alive()
+        try:
+            self._assert_controller_alive()
+        except CompanionError as exc:
+            # P0-3: a controller exit during capture is a safety fault. Energy-isolate
+            # first, then surface it as a CompanionFault (the same disable-first path as
+            # a telemetry fault) -- never a bare CompanionError that would leave the arm
+            # live because the collector only reacts to CompanionFault.
+            self._fault_disable(str(exc))
+            raise CompanionFault(str(exc)) from exc
         health = self._coordinator.receiver_health()
         status = str(getattr(health, "status", "FAULT"))
         if (
@@ -223,17 +266,47 @@ class TrustedControllerCompanion:
         return self._disable_outcome
 
     def _fault_disable(self, reason: str) -> None:
-        """Idempotent: direct-disable (energy isolation) FIRST, then stop/terminate."""
+        """Idempotent teardown: send the direct-disable command FIRST, then an
+        independent motor-disable readback, then stop the receiver and terminate.
+
+        Energy isolation (``energy_isolated``) is claimed ONLY when the readback
+        confirms every motor is torque-off.  A mere command success is
+        ``command_succeeded`` -- never ``energy_isolated`` -- so the safety surface can
+        never falsely report the arm as de-energized.
+        """
         if not self._disabled:
             self._disabled = True
+            command_succeeded = False
+            motor_verified = False
             outcome = "unknown"
             try:
                 result = self._direct_disable(reason)
-                outcome = str(getattr(result, "outcome", result) or "disabled")
+                command_succeeded = _disable_command_succeeded(result)
+                outcome = str(getattr(result, "outcome", result) or "disable_requested")
             except BaseException as exc:  # noqa: BLE001 - disable must never mask itself
                 outcome = f"direct_disable_error: {type(exc).__name__}: {exc}"
+            else:
+                # Independent readback while telemetry is still live.  Absent a verifier
+                # (or if it raises/returns False), isolation is not claimed.
+                if command_succeeded and self._verify_motor_disable is not None:
+                    try:
+                        motor_verified = bool(self._verify_motor_disable())
+                    except BaseException:  # noqa: BLE001 - unverified, not isolated
+                        motor_verified = False
             finally:
-                self._disable_outcome = DisableOutcome(reason=reason, outcome=outcome)
+                energy_isolated = bool(motor_verified)
+                summary = (
+                    "energy_isolated" if energy_isolated
+                    else "disable_command_succeeded_motor_unverified"
+                    if command_succeeded else outcome
+                )
+                self._disable_outcome = DisableOutcome(
+                    reason=reason,
+                    outcome=summary,
+                    command_succeeded=command_succeeded,
+                    motor_verified=motor_verified,
+                    energy_isolated=energy_isolated,
+                )
                 try:
                     self._coordinator.stop_receiver()
                 except Exception:

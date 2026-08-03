@@ -204,6 +204,21 @@ def test_poll_regression_after_ready_disables():
     assert disabler.calls and companion.disabled is True
 
 
+def test_controller_exit_during_poll_disables():
+    # P0-3: a controller crash AFTER ready (during supervision) must fault-close the
+    # arm disable-first, not leak a bare CompanionError that leaves the arm live.
+    controller = _FakeController()
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord, controller=controller)
+    companion.bring_up()
+    assert companion.poll().status == "READY"        # healthy while alive
+    controller.die(9)                                # controller crashes mid-capture
+    with pytest.raises(CompanionFault):
+        companion.poll()
+    assert disabler.calls and companion.disabled is True
+    assert companion.state == "faulted"
+
+
 def test_external_fault_disables():
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
@@ -219,8 +234,50 @@ def test_shutdown_always_direct_disables():
     companion.bring_up()
     outcome = companion.shutdown("operator_stop")
     assert disabler.calls == ["operator_stop"]
-    assert outcome.outcome == "energy_isolated"
+    assert outcome.command_succeeded is True     # the disable command ran
     assert controller.terminated is True
+
+
+def test_disable_command_success_is_not_energy_isolated_without_readback():
+    # P0-2: a successful disable COMMAND is not proof of energy isolation. With no
+    # independent motor-disable readback, energy_isolated MUST stay False (the UI may
+    # not claim "energy-isolated").
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, _d = _companion(coord)  # default disabler = command success, no readback
+    companion.bring_up()
+    outcome = companion.shutdown("operator_stop")
+    assert outcome.command_succeeded is True
+    assert outcome.motor_verified is False
+    assert outcome.energy_isolated is False
+
+
+def test_disable_with_verified_motor_readback_is_energy_isolated():
+    # P0-2: energy isolation is claimed ONLY when the independent readback confirms all
+    # motors are torque-off.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, _d = _companion(coord, verify_motor_disable=lambda: True)
+    companion.bring_up()
+    outcome = companion.shutdown("operator_stop")
+    assert outcome.command_succeeded is True
+    assert outcome.motor_verified is True
+    assert outcome.energy_isolated is True
+
+
+def test_disable_command_failure_is_not_command_succeeded():
+    # P0-2: if the disable command raises, command_succeeded and energy_isolated are
+    # both False and the error is captured verbatim, never masked as isolated.
+    coord = _FakeCoordinator([_Health("READY", True)])
+
+    def raising_disable(reason):
+        raise RuntimeError("CAN disable send failed")
+
+    companion, _c, _d = _companion(coord, disabler=raising_disable)
+    companion.bring_up()
+    outcome = companion.shutdown("operator_stop")
+    assert outcome.command_succeeded is False
+    assert outcome.motor_verified is False
+    assert outcome.energy_isolated is False
+    assert "direct_disable_error" in outcome.outcome
 
 
 def test_single_owner_refuses_second_bring_up():

@@ -65,7 +65,9 @@ def test_direct_disable_success():
     disable = make_subprocess_direct_disable(("disable.sh",), run=lambda argv, **k: _Done())
     result = disable("operator_estop")
     assert isinstance(result, DisableResult)
-    assert result.outcome == "energy_isolated" and result.returncode == 0
+    # P0-2: command success is reported as command_succeeded, NOT energy_isolated
+    # (which requires an independent motor-disable readback).
+    assert result.outcome == "disable_command_succeeded" and result.returncode == 0
 
 
 def test_direct_disable_nonzero_raises():

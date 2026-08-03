@@ -122,7 +122,10 @@ def make_subprocess_direct_disable(
         code = int(getattr(completed, "returncode", 1) or 0)
         if code != 0:
             raise ControllerLaunchError(f"direct-disable command exited {code}")
-        return DisableResult(outcome="energy_isolated", returncode=code)
+        # P0-2: the disable command running is NOT proof the motors are de-energized.
+        # Report only that the command succeeded; energy isolation is claimed elsewhere
+        # and only after an independent motor-disable readback.
+        return DisableResult(outcome="disable_command_succeeded", returncode=code)
 
     return direct_disable
 
