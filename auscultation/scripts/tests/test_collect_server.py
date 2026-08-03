@@ -2406,7 +2406,11 @@ def test_force_prearms_before_camera_and_uses_exact_shared_boundaries(tmp_path):
         collector.shutdown()
 
 
-def test_force_state_is_live_and_unsafe_event_aborts_recording(tmp_path):
+def test_force_unsafe_event_is_advisory_and_never_aborts_recording(tmp_path):
+    # P0-4: the Hall force reading is an advisory reference for physicians, NOT a
+    # safety interlock. An over-threshold reading updates the displayed status only;
+    # it must NEVER abort recording (contact-force safety is mechanical + human teleop
+    # + the controller E-stop path, not this reading).
     server = _load_collect_server()
     collector = server.Collector(
         [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
@@ -2455,9 +2459,64 @@ def test_force_state_is_live_and_unsafe_event_aborts_recording(tmp_path):
         collector._on_force_safety_event(server.SimpleNamespace(
             force_n=9.5, status="SCREENED_LIMIT", age_s=0.0,
         ))
-        assert collector.platform.state.value == "ABORTED"
-        assert force.aborted is True
-        assert "SCREENED_LIMIT" in collector.platform.last_error
+        # advisory: recording keeps going and the force stream is NOT aborted
+        assert collector.platform.state.value == "RECORDING"
+        assert force.aborted is False
+        # the over-threshold value is surfaced for the physician's reference only
+        assert collector._force_status == "SCREENED_LIMIT"
+    finally:
+        collector.shutdown()
+
+
+def test_force_capture_fault_is_advisory_and_never_aborts_recording(tmp_path):
+    # P0-4: a Hall sensor dropout degrades the advisory force channel but never aborts
+    # the session or touches the arm.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, require_force=True, start_thread=False,
+    )
+
+    class Force:
+        aborted = False
+
+        @staticmethod
+        def prepare_recording(_session_dir):
+            pass
+
+        @staticmethod
+        def begin_recording(*, t0):
+            assert t0 > 0
+
+        @staticmethod
+        def read():
+            return server.SimpleNamespace(
+                force_n=1.5, status="OK", age_s=0.01,
+                displacement_mm=0.5, raw=1, hall_v=1.0,
+                device_t_ms=50.0, t=time.monotonic(),
+            )
+
+        def abort_recording(self):
+            self.aborted = True
+            return True
+
+        @staticmethod
+        def stop():
+            pass
+
+    force = Force()
+    collector._force = force
+    collector._force_status = "RUNNING"
+    try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
+        collector._runtime_health_snapshot = (
+            lambda **_k: {"strict_ok": True, "blockers": []})
+        assert collector.control("start")["ok"] is True
+        collector._on_force_capture_fault(RuntimeError("serial dropout"))
+        assert collector.platform.state.value == "RECORDING"   # keeps recording
+        assert force.aborted is False
+        assert collector._force_status == "ERROR"              # channel marked degraded
     finally:
         collector.shutdown()
 
@@ -6060,6 +6119,29 @@ def test_arm_bringup_ready_then_disable(tmp_path):
         c.shutdown()
 
 
+def test_disable_without_motor_readback_is_not_energy_isolated(tmp_path):
+    # P0-2: with no independent motor-disable readback wired, a successful disable
+    # command must surface as command-succeeded/UNVERIFIED, never "energy-isolated".
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("READY", True)])
+    _configure_arm(c, coord, _ArmDisable())
+    try:
+        c.bring_up_controller()
+        d = c.disable_controller()
+        assert d["ok"] and d["code"] == "controller_disabled"
+        assert d["energy_isolated"] is False
+        assert d["motor_disable_verified"] is False
+        assert "UNVERIFIED" in d["message"]
+        p = c._controller_status_payload()
+        assert p["disable_command_succeeded"] is True
+        assert p["energy_isolated"] is False
+        assert p["motor_disable_verified"] is False
+    finally:
+        c.shutdown()
+
+
 def test_arm_bringup_fault_energy_isolates(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
@@ -6070,7 +6152,8 @@ def test_arm_bringup_fault_energy_isolates(tmp_path):
     try:
         r = c.bring_up_controller()
         assert r["ok"] is False and r["code"] == "controller_bring_up_faulted"
-        assert len(disable.calls) == 1                   # energy-isolated on failure
+        assert len(disable.calls) == 1                   # disable commanded on failure
+        assert r["energy_isolated"] is False             # P0-2: unverified w/o readback
         assert c._controller_ready() is False
     finally:
         c.shutdown()

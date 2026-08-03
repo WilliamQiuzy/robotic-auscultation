@@ -1827,9 +1827,19 @@ class Collector:
             try:
                 companion.bring_up()
             except CompanionFault as exc:
+                outcome = companion.disable_outcome
+                isolated = bool(outcome is not None and outcome.energy_isolated)
+                detail = (
+                    "energy-isolated" if isolated
+                    else "disable commanded, MOTOR-DISABLE UNVERIFIED"
+                )
                 return {
                     "ok": False, "code": "controller_bring_up_faulted",
-                    "message": f"arm bring-up failed and was energy-isolated: {exc}",
+                    "message": f"arm bring-up failed and was {detail}: {exc}",
+                    "energy_isolated": isolated,
+                    "motor_disable_verified": bool(
+                        outcome is not None and outcome.motor_verified
+                    ),
                 }
             except CompanionError as exc:
                 return {"ok": False, "code": "controller_bring_up_error", "message": str(exc)}
@@ -1849,7 +1859,17 @@ class Collector:
                 outcome = comp.shutdown(str(reason))
             except Exception as exc:  # noqa: BLE001 - disable path must report, never raise out
                 return {"ok": False, "code": "controller_disable_error", "message": f"{type(exc).__name__}: {exc}"}
-            return {"ok": True, "code": "controller_disabled", "message": f"left arm energy-isolated ({outcome.outcome})"}
+            # P0-2: never claim energy isolation without a verified motor-disable readback.
+            message = (
+                "left arm energy-isolated (motor disable verified)"
+                if outcome.energy_isolated
+                else f"left arm disable commanded — MOTOR-DISABLE UNVERIFIED ({outcome.outcome})"
+            )
+            return {
+                "ok": True, "code": "controller_disabled", "message": message,
+                "energy_isolated": bool(outcome.energy_isolated),
+                "motor_disable_verified": bool(outcome.motor_verified),
+            }
 
     def _supervise_controller(self):
         """Loop-thread tick: a telemetry fault after ready auto-energy-isolates."""
@@ -1867,10 +1887,22 @@ class Collector:
             return {"configured": False, "state": "unavailable"}
         if comp is None:
             return {"configured": True, "state": "idle"}
-        return {
+        payload = {
             "configured": True, "state": comp.state,
             "disabled": bool(comp.disabled), "controller_pid": comp.controller_pid,
         }
+        # P0-2: surface the honest disable ladder. "energy_isolated" is only ever True
+        # after an independent motor-disable readback; a mere command success shows as
+        # command_succeeded + motor_disable_verified=False so the UI never lies.
+        outcome = comp.disable_outcome
+        if outcome is not None:
+            payload.update({
+                "disable_command_succeeded": bool(outcome.command_succeeded),
+                "motor_disable_verified": bool(outcome.motor_verified),
+                "energy_isolated": bool(outcome.energy_isolated),
+                "disable_summary": str(outcome.outcome),
+            })
+        return payload
 
     def _start_robot_session(self, session_dir):
         if not self.require_robot:
@@ -2295,12 +2327,11 @@ class Collector:
                 "left OpenArm telemetry is not ready: "
                 + str(robot.get("error") or robot.get("status") or "unknown")
             )
+        # P0-4: the Hall-force channel is advisory-only and never gates Start. A missing
+        # or degraded force reading does not block recording; it is recorded when present
+        # and honestly marked absent/degraded otherwise. The snapshot is still surfaced
+        # for the physician's reference, it just contributes no blocker.
         force = self._force_snapshot()
-        if self.require_force and force.get("ready") is not True:
-            blockers.append(
-                "Hall-force is not ready: "
-                + str(force.get("error") or force.get("status") or "unknown")
-            )
         return {
             "strict_ok": not blockers,
             "blockers": tuple(dict.fromkeys(blockers)),
@@ -2585,6 +2616,9 @@ class Collector:
                 result = self.platform.control(action)
                 if result.get("ok"):
                     if self.require_force:
+                        # P0-4: force is an advisory reference channel, not a collection
+                        # gate. Arm it opportunistically; if it cannot arm, record
+                        # WITHOUT it (honestly marked degraded) rather than failing Start.
                         try:
                             session_dir = self.platform.session_dir
                             if session_dir is None:
@@ -2595,15 +2629,12 @@ class Collector:
                                 raise RuntimeError("live Hall-force owner is unavailable")
                             self._force.prepare_recording(session_dir)
                             self._force_recording_active = True
-                        except Exception as exc:  # noqa: BLE001 - camera remains unarmed
-                            reason = (
-                                "Hall-force Start preflight failed: "
-                                f"{type(exc).__name__}: {exc}"
-                            )
+                        except Exception as exc:  # noqa: BLE001 - advisory, never blocks
+                            self._force_recording_active = False
                             self._force_status = "ERROR"
-                            self._force_error = reason
-                            return self._fail_start_after_platform(
-                                reason, code="force_start_not_authorized",
+                            self._force_error = (
+                                "Hall-force channel unavailable at Start (advisory, "
+                                f"recording without it): {type(exc).__name__}: {exc}"
                             )
                     robot_camera_arm = None
                     try:
@@ -5055,19 +5086,26 @@ class Collector:
         return base
 
     def _on_force_safety_event(self, sample):
+        # P0-4: the Hall force reading is an advisory reference for physicians, NOT a
+        # safety interlock. An over-threshold reading updates the displayed status only
+        # -- it never aborts recording and never touches the arm. Contact-force safety
+        # is mechanical (passive-compliance mount) + human teleop + the controller
+        # E-stop/disable path, none of which depend on this reading.
         status = str(getattr(sample, "status", "UNSAFE"))
         force_n = float(getattr(sample, "force_n", 0.0))
-        reason = f"Hall-force {status} at {force_n:.3f} N"
         self._force_status = status
-        self._force_error = reason
-        self._abort_recording(reason)
+        self._force_error = f"Hall-force {status} at {force_n:.3f} N (advisory)"
 
     def _on_force_capture_fault(self, error, observed_t=None):
+        # P0-4: a Hall sensor dropout degrades the advisory force channel but never
+        # aborts the session or touches the arm; every other modality keeps recording
+        # and the force channel is honestly marked degraded.
         del observed_t
-        reason = f"Hall-force serial failed: {type(error).__name__}: {error}"
         self._force_status = "ERROR"
-        self._force_error = reason
-        self._abort_recording(reason)
+        self._force_error = (
+            "Hall-force serial failed (advisory channel degraded): "
+            f"{type(error).__name__}: {error}"
+        )
 
     def _force_snapshot(self):
         base = {
@@ -5791,7 +5829,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point;
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true;$('armstat').textContent='Arm '+(dis?'DISABLED (energy-isolated)':st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · energy-isolated':st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,disTxt=iso?'energy-isolated':'motor-disable UNVERIFIED';$('armstat').textContent='Arm '+(dis?'DISABLED · '+disTxt:st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Stop',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
