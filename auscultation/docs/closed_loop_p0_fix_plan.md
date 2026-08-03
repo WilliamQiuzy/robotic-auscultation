@@ -262,6 +262,30 @@ mapping exactly (confirm from the pair contract at implementation).
   authorization **plus** the session passing every gate. This is the real go-live gate;
   keep the finalizer fail-closed until both are present.
 
+**Scope reality (measured):** the `CollectionPlatform` is already
+contract-parameterized and production-capable (`PRODUCTION_TELEOP_CONTRACT` with
+`capture_kind="production_teleop_v4"`, `writer_identity="ProductionTeleopCapture"`
+already exists; training-eligibility is "realized, not declared"). The two concrete
+blockers are small: (1) the End path hardcodes `result["status"] ==
+"diagnostic_complete"` and `training_eligible is False`
+(`collection_platform.py:1049-1058`) — it should be **driven by `self.contract`**;
+(2) the finalizer's production-publish activation gate. **But** the writer itself,
+`DiagnosticPerceptionCapture` in `perception_capture.py`, is **~1800 lines** of
+training-data-integrity machinery (pinned-ffmpeg stitching, segment validation,
+durable JSONL, force authenticity, robot-summary gates, cancellation-checkpointed
+finalize), with `training_eligible=False` asserted at many points. A correct
+`ProductionTeleopCapture` is therefore a **large, high-risk subsystem** — not a
+single implementation pass — and it sits on the training-data-authenticity path
+where rushing would *weaken* the very fail-closed guarantees this whole plan exists
+to protect.
+
+**Recommended approach:** treat #6 as its own scoped effort with its own test suite,
+sequenced strictly after the safety work (which is done). A safe first increment is
+the contract-driven End path (make finalize validation read `self.contract`'s
+expected completion status + `training_intent` rather than hardcoding diagnostic) —
+but that is only meaningful once the production completion contract + writer are
+designed, so it should land *with* the writer, not before it.
+
 **Regression risk:** high — new capture path + platform End branching + finalizer
 activation. Do it last, behind the safety work, with its own test suite.
 
