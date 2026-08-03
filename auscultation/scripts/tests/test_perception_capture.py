@@ -34,6 +34,7 @@ import force_capture  # noqa: E402
 import force_sensor  # noqa: E402
 
 DiagnosticPerceptionCapture = perception_capture.DiagnosticPerceptionCapture
+ProductionTeleopCapture = perception_capture.ProductionTeleopCapture
 
 
 PROVENANCE = {
@@ -489,7 +490,8 @@ def _capture(
 
     require_robot = kwargs.pop("require_robot", False)
     require_force = kwargs.pop("require_force", False)
-    capture = DiagnosticPerceptionCapture(
+    capture_cls = kwargs.pop("capture_cls", None) or DiagnosticPerceptionCapture
+    capture = capture_cls(
         tmp_path,
         fps=30.0,
         provenance=PROVENANCE if provenance is None else provenance,
@@ -509,6 +511,54 @@ def _capture(
     )
     capture._test_validation_threads = validation_threads
     return capture, writers, validated
+
+
+def test_production_teleop_capture_completion_policy():
+    # #6: the production writer seals a promotable production_teleop_complete result and
+    # reuses the diagnostic machinery (it IS a DiagnosticPerceptionCapture subclass).
+    assert issubclass(ProductionTeleopCapture, DiagnosticPerceptionCapture)
+    assert ProductionTeleopCapture._COMPLETION_STATUS == "production_teleop_complete"
+    assert ProductionTeleopCapture._SEAL_FILENAME == "PRODUCTION_FINALIZATION.json"
+    assert ProductionTeleopCapture._SEAL_CAPTURE_MODE == "production_teleop_v4"
+    assert ProductionTeleopCapture._PRODUCTION_FINALIZATION_PERMITTED is True
+    assert ProductionTeleopCapture._FORBID_PRODUCTION_FINALIZATION_FILE is False
+
+
+def test_production_eligibility_realized_from_v4_robot_verdict(tmp_path):
+    # Eligibility is realized only from a certified v4 robot summary; a v3 (diagnostic)
+    # summary, a non-eligible v4 summary, or a missing summary are all fail-closed.
+    capture, _w, _v = _capture(
+        tmp_path, capture_cls=ProductionTeleopCapture, require_robot=True,
+    )
+
+    def call(robot_summary):
+        return capture._compute_training_eligible(
+            robot_summary=robot_summary,
+            force_summary=None, audio_summary=None, quality_summary=None,
+        )
+
+    v4_ok = {"schema": "wam_openarm_exact_control_capture_summary_v4",
+             "training_eligible": True}
+    v4_bad = {"schema": "wam_openarm_exact_control_capture_summary_v4",
+              "training_eligible": False}
+    v3 = {"schema": "wam_openarm_exact_control_capture_summary_v3",
+          "training_eligible": True}
+    assert call(v4_ok) is True
+    assert call(v4_bad) is False
+    assert call(v3) is False
+    assert call(None) is False
+
+
+def test_diagnostic_capture_policy_is_never_training_eligible(tmp_path):
+    # The base diagnostic writer's policy is structurally un-promotable, even fed a
+    # certified v4 summary.
+    capture, _w, _v = _capture(tmp_path, require_robot=True)
+    assert capture._COMPLETION_STATUS == "diagnostic_complete"
+    assert capture._compute_training_eligible(
+        robot_summary={"schema": "wam_openarm_exact_control_capture_summary_v4",
+                       "training_eligible": True},
+        force_summary=None, audio_summary=None, quality_summary=None,
+    ) is False
 
 
 def test_required_force_sidecar_is_fail_closed_when_missing(tmp_path):

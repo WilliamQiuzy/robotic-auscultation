@@ -842,6 +842,29 @@ class DiagnosticCaptureCancelled(RuntimeError):
 class DiagnosticPerceptionCapture:
     """Write and verify a short camera/model commissioning capture."""
 
+    # -- completion policy (overridden by ProductionTeleopCapture) --------------- #
+    # These defaults keep the diagnostic writer byte-identical; a production subclass
+    # overrides them to seal a promotable production result. Every diagnostic-vs-
+    # production difference in finalize is funnelled through these hooks so the two
+    # modes cannot drift apart.
+    _COMPLETION_STATUS = "diagnostic_complete"
+    _SEAL_FILENAME = "DIAGNOSTIC_FINALIZATION.json"
+    _SEAL_SCHEMA_VERSION = DIAGNOSTIC_FINALIZATION_SCHEMA_VERSION
+    _SEAL_CAPTURE_MODE = CAPTURE_MODE
+    _SEAL_RESULT_KEY = "diagnostic_seal"
+    _PRODUCTION_FINALIZATION_PERMITTED = False
+    _FORBID_PRODUCTION_FINALIZATION_FILE = True
+
+    def _compute_training_eligible(
+        self, *, robot_summary, force_summary, audio_summary, quality_summary,  # noqa: ANN001
+    ) -> bool:
+        """Realized training eligibility for the sealed session.
+
+        Diagnostic capture is structurally never promotable; the production subclass
+        overrides this to certify eligibility from the v4 robot receiver's verdict.
+        """
+        return False
+
     def __init__(
         self,
         session_dir: str | Path,
@@ -2680,7 +2703,10 @@ class DiagnosticPerceptionCapture:
             or self._quality_authenticity != quality_authenticity
         ):
             raise RuntimeError("diagnostic artifacts changed while finalization hashed them")
-        if (self.session_dir / "FINALIZATION.json").exists():
+        if (
+            self._FORBID_PRODUCTION_FINALIZATION_FILE
+            and (self.session_dir / "FINALIZATION.json").exists()
+        ):
             raise RuntimeError("production FINALIZATION.json is forbidden in diagnostic capture")
 
         # Terminal CAS: hold the terminal lock across the final cancel
@@ -2698,10 +2724,16 @@ class DiagnosticPerceptionCapture:
                 "first_frame_index": self._first_frame_index,
                 "last_frame_index": self._last_frame_index,
             }
+            training_eligible = bool(self._compute_training_eligible(
+                robot_summary=robot_summary,
+                force_summary=force_summary,
+                audio_summary=audio_summary,
+                quality_summary=quality_summary,
+            ))
             self._manifest.update(
-                status="diagnostic_complete",
-                training_eligible=False,
-                production_finalization_permitted=False,
+                status=self._COMPLETION_STATUS,
+                training_eligible=training_eligible,
+                production_finalization_permitted=self._PRODUCTION_FINALIZATION_PERMITTED,
                 ended_host_t=self._clock(),
                 ended_utc_ns=self._wall_time_ns(),
                 n_rgb_frames=self._n_rgb,
@@ -2728,8 +2760,8 @@ class DiagnosticPerceptionCapture:
             self._write_manifest()
             manifest_raw = (self.session_dir / "manifest.json").read_bytes()
             seal = {
-                "schema_version": DIAGNOSTIC_FINALIZATION_SCHEMA_VERSION,
-                "capture_mode": CAPTURE_MODE,
+                "schema_version": self._SEAL_SCHEMA_VERSION,
+                "capture_mode": self._SEAL_CAPTURE_MODE,
                 "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
                 "artifacts": first,
                 "sealed_utc_ns": self._wall_time_ns(),
@@ -2749,11 +2781,11 @@ class DiagnosticPerceptionCapture:
                 "quality": quality_summary,
                 "quality_authenticity": quality_authenticity,
             }
-            _atomic_json(self.session_dir / "DIAGNOSTIC_FINALIZATION.json", seal)
+            _atomic_json(self.session_dir / self._SEAL_FILENAME, seal)
             self._state = "complete"
         return {
-            "status": "diagnostic_complete",
-            "training_eligible": False,
+            "status": self._COMPLETION_STATUS,
+            "training_eligible": training_eligible,
             "session_dir": str(self.session_dir),
             "n_rgb_frames": self._n_rgb,
             "decoded_rgb_frames": decoded,
@@ -2773,9 +2805,9 @@ class DiagnosticPerceptionCapture:
             "quality_authenticity": quality_authenticity,
             "capture_boundary": self._finalization_context,
             "frame_index_range": frame_index_range,
-            "diagnostic_seal": {
-                "schema_version": DIAGNOSTIC_FINALIZATION_SCHEMA_VERSION,
-                "path": "DIAGNOSTIC_FINALIZATION.json",
+            self._SEAL_RESULT_KEY: {
+                "schema_version": self._SEAL_SCHEMA_VERSION,
+                "path": self._SEAL_FILENAME,
                 "manifest_sha256": seal["manifest_sha256"],
                 "artifact_count": len(first),
             },
@@ -3690,8 +3722,51 @@ class DiagnosticPerceptionCapture:
         return inventory
 
     def _write_manifest(self) -> None:
-        if self._manifest.get("training_eligible") is not False:
+        if (
+            not self._PRODUCTION_FINALIZATION_PERMITTED
+            and self._manifest.get("training_eligible") is not False
+        ):
             raise RuntimeError("diagnostic manifest must remain training_eligible=false")
-        if "promotion_contract_version" in self._manifest:
+        if (
+            not self._PRODUCTION_FINALIZATION_PERMITTED
+            and "promotion_contract_version" in self._manifest
+        ):
             raise RuntimeError("diagnostic manifest cannot declare a promotion contract")
         _atomic_json(self.session_dir / "manifest.json", self._manifest)
+
+
+class ProductionTeleopCapture(DiagnosticPerceptionCapture):
+    """Production teleoperation capture (promotable to training).
+
+    Reuses the diagnostic writer's synchronized-modality machinery (bounded video
+    stitching, durable JSONL, depth integrity, force/audio authenticity, robot
+    summary validation) but seals a ``production_teleop_complete`` result. A session
+    becomes training-eligible ONLY when the v4 OpenArm receiver certifies the teleop
+    trajectory: the finalize path already RAISES if a required v4 robot summary is not
+    training-eligible (non-degenerate trajectory, command-response consistent, no
+    eligibility blockers), so eligibility here is *realized* from the receiver's
+    verdict, never merely declared. Absent a certified v4 robot summary the session
+    is saved but NOT eligible (fail-closed).
+    """
+
+    _COMPLETION_STATUS = "production_teleop_complete"
+    _SEAL_FILENAME = "PRODUCTION_FINALIZATION.json"
+    _SEAL_SCHEMA_VERSION = "wam_production_teleop_finalization_v1"
+    _SEAL_CAPTURE_MODE = "production_teleop_v4"
+    _SEAL_RESULT_KEY = "production_seal"
+    _PRODUCTION_FINALIZATION_PERMITTED = True
+    _FORBID_PRODUCTION_FINALIZATION_FILE = False
+
+    def _compute_training_eligible(
+        self, *, robot_summary, force_summary, audio_summary, quality_summary,  # noqa: ANN001
+    ) -> bool:
+        del force_summary, audio_summary, quality_summary
+        # Realized from the v4 receiver's certification. The finalize path has already
+        # validated (and RAISED on) a non-eligible v4 robot summary, so reaching here
+        # with require_robot means the teleop trajectory passed the gates.
+        if not self.require_robot or not isinstance(robot_summary, Mapping):
+            return False
+        return (
+            robot_summary.get("schema") == _ROBOT_CAPTURE_SUMMARY_SCHEMA_V4
+            and robot_summary.get("training_eligible") is True
+        )
