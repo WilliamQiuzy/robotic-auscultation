@@ -130,6 +130,43 @@ def make_subprocess_direct_disable(
     return direct_disable
 
 
+def make_subprocess_preflight(
+    command: Sequence[str],
+    *,
+    timeout_s: float = 30.0,
+    run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+) -> Callable[[], None]:
+    """Return a preflight() that runs a synchronous setup command (e.g. clear_faults +
+    telemetry-socket-dir creation) BEFORE the controller is launched.
+
+    P0-1: doing clear_faults here rather than inside a shell wrapper lets the controller
+    binary be launched directly, so its ``/proc/pid/exe`` attestation is sound. Any
+    failure raises so bring-up refuses rather than launching onto an unprepared bus.
+    """
+    argv = _validate_command(command, label="controller preflight command")
+
+    def preflight() -> None:
+        try:
+            completed = run(
+                list(argv),
+                timeout=timeout_s,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ControllerLaunchError(
+                f"controller preflight timed out after {timeout_s:.1f}s"
+            ) from exc
+        except OSError as exc:
+            raise ControllerLaunchError(f"controller preflight failed: {exc}") from exc
+        code = int(getattr(completed, "returncode", 1) or 0)
+        if code != 0:
+            raise ControllerLaunchError(f"controller preflight exited {code}")
+
+    return preflight
+
+
 def parse_command(text: object, *, label: str) -> tuple:
     """Parse a shell-style command string into an argv tuple."""
     if isinstance(text, (list, tuple)):
@@ -145,5 +182,6 @@ __all__ = [
     "SubprocessLaunchedController",
     "make_subprocess_direct_disable",
     "make_subprocess_launcher",
+    "make_subprocess_preflight",
     "parse_command",
 ]

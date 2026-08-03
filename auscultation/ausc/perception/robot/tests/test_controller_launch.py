@@ -79,6 +79,29 @@ def test_direct_disable_nonzero_raises():
         disable("estop")
 
 
+def test_preflight_runs_command_and_nonzero_raises():
+    # P0-1: preflight runs the setup command; a nonzero exit refuses bring-up.
+    from ausc.perception.robot.controller_launch import make_subprocess_preflight
+
+    seen = {}
+
+    class _Ok:
+        returncode = 0
+
+    def run_ok(argv, **_k):
+        seen["argv"] = argv
+        return _Ok()
+
+    make_subprocess_preflight(("clear.sh", "can1", "can3"), run=run_ok)()
+    assert seen["argv"] == ["clear.sh", "can1", "can3"]
+
+    class _Bad:
+        returncode = 2
+
+    with pytest.raises(ControllerLaunchError):
+        make_subprocess_preflight(("clear.sh",), run=lambda _a, **_k: _Bad())()
+
+
 def test_direct_disable_timeout_raises():
     def timeout_run(argv, **k):
         raise subprocess.TimeoutExpired("disable.sh", 5)

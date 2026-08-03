@@ -280,6 +280,44 @@ def test_disable_command_failure_is_not_command_succeeded():
     assert "direct_disable_error" in outcome.outcome
 
 
+def test_preflight_runs_synchronously_before_launch():
+    # P0-1: clear_faults (etc.) runs as a synchronous preflight BEFORE the controller
+    # is launched, so the launched process is the controller binary from t=0 (its
+    # /proc/pid/exe attestation is sound -- a shell wrapper that clear_faults-then-execs
+    # would be attested as the shell).
+    coord = _FakeCoordinator([_Health("READY", True)])
+    order = []
+    controller = _FakeController()
+    companion, _c, _d = _companion(
+        coord,
+        preflight=lambda: order.append("preflight"),
+        launch_controller=lambda: (order.append("launch"), controller)[1],
+        controller=controller,
+    )
+    companion.bring_up()
+    assert order == ["preflight", "launch"]
+
+
+def test_preflight_failure_aborts_before_launch_without_disable():
+    # P0-1: if the preflight fails, nothing is launched and no disable is issued
+    # (there is no live controller to energy-isolate).
+    coord = _FakeCoordinator([_Health("READY", True)])
+    launched = []
+
+    def failing_preflight():
+        raise RuntimeError("clear_faults failed")
+
+    companion, _c, disabler = _companion(
+        coord,
+        preflight=failing_preflight,
+        launch_controller=lambda: launched.append("x") or _FakeController(),
+    )
+    with pytest.raises(CompanionError, match="preflight failed"):
+        companion.bring_up()
+    assert launched == []
+    assert disabler.calls == []
+
+
 def test_single_owner_refuses_second_bring_up():
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, _d = _companion(coord)

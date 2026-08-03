@@ -121,6 +121,7 @@ class TrustedControllerCompanion:
         coordinator: ReceiverCoordinator,
         launch_controller: Callable[[], LaunchedController],
         direct_disable: Callable[[str], object],
+        preflight: Optional[Callable[[], object]] = None,
         expected_uid: Optional[int] = None,
         attest_controller: Optional[Callable[[int, int], object]] = None,
         verify_motor_disable: Optional[Callable[[], bool]] = None,
@@ -134,6 +135,9 @@ class TrustedControllerCompanion:
         self._coordinator = coordinator
         self._launch_controller = launch_controller
         self._direct_disable = direct_disable
+        # P0-1: synchronous preflight (clear_faults + socket dir) run BEFORE launch so
+        # the launched process is the controller binary from t=0 (attestable exe).
+        self._preflight = preflight
         self._expected_uid = os.getuid() if expected_uid is None else int(expected_uid)
         self._attest = attest_controller or _default_attest_controller
         # Optional independent readback: returns True only if every motor is confirmed
@@ -175,6 +179,16 @@ class TrustedControllerCompanion:
         """
         if self._state != "idle":
             raise CompanionError(f"companion already {self._state}; single owner refuses re-entry")
+        if self._preflight is not None:
+            # Runs before anything is launched -- a failure means no controller exists,
+            # so there is nothing to energy-isolate; fail fast without a disable.
+            try:
+                self._preflight()
+            except BaseException as exc:  # noqa: BLE001 - surfaced as a bring-up refusal
+                self._state = "faulted"
+                raise CompanionError(
+                    f"controller preflight failed: {type(exc).__name__}: {exc}"
+                ) from exc
         try:
             self._coordinator.prepare_receiver_socket()
             self._controller = self._launch_controller()
