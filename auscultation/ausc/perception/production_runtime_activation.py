@@ -886,6 +886,15 @@ def _build_robot_contract(
         ),
         follower_config_sha256=pair.follower_config_sha256,
         openarm_sdk_sha256=pair.openarm_sdk_sha256,
+        # P0-5: pin the activated follower STATE RX motor-ID mapping so the runtime
+        # decode rejects any permuted/mis-mapped controller (defense in depth atop the
+        # binary attestation).
+        expected_arm_rx_motor_ids=(
+            pair.follower.expected_motor_ids.arm_receive_can_ids
+        ),
+        expected_gripper_rx_motor_id=(
+            pair.follower.expected_motor_ids.gripper_receive_can_id
+        ),
     )
 
 

@@ -278,6 +278,52 @@ def _v4_envelope(**kwargs) -> dict:
     return value
 
 
+def _fresh_v4() -> dict:
+    return _v4_envelope(
+        envelope_seq=1,
+        first_tick=100,
+        first_observation_ns=time.monotonic_ns() - 20_000_000,
+    )
+
+
+def _wire_v4(env: dict) -> bytes:
+    return json.dumps(env, separators=(",", ":")).encode("utf-8")
+
+
+def test_pinned_rx_ids_reject_permuted_and_wrong_gripper_accept_matching():
+    # P0-5: when the activated pair pins the follower STATE RX motor-ID mapping, the
+    # runtime decode must match it EXACTLY -- a permuted or mis-mapped controller is
+    # rejected (defense in depth atop the binary attestation).
+    from ausc.perception.robot.robot_state_stream import RobotTelemetryError
+
+    contract = _contract(
+        expected_arm_rx_motor_ids=(1, 2, 3, 4, 5, 6, 7),
+        expected_gripper_rx_motor_id=8,
+    )
+    # exact match -> accepted
+    ExactControlStateStream(contract).ingest_datagram(_wire_v4(_fresh_v4()))
+
+    # permuted arm IDs -> rejected
+    permuted = _fresh_v4()
+    permuted["records"][0]["follower_arm_state_rx_motor_ids"] = [2, 1, 3, 4, 5, 6, 7]
+    with pytest.raises(RobotTelemetryError, match="exactly match the activated"):
+        ExactControlStateStream(contract).ingest_datagram(_wire_v4(permuted))
+
+    # wrong gripper ID -> rejected
+    bad_gripper = _fresh_v4()
+    bad_gripper["records"][0]["follower_gripper_state_rx_motor_id"] = 9
+    bad_gripper["records"][0]["follower_gripper_state_rx_counter"] = 99
+    bad_gripper["records"][0]["follower_gripper_state_rx_generation"] = 99
+    with pytest.raises(RobotTelemetryError, match="gripper STATE RX motor ID"):
+        ExactControlStateStream(contract).ingest_datagram(_wire_v4(bad_gripper))
+
+
+def test_unpinned_contract_keeps_seven_unique_fallback():
+    # P0-5 backward-compat: a contract with no pinned mapping still accepts any
+    # seven-unique arm RX set (the legacy path used by lower-level fixtures).
+    ExactControlStateStream(_contract()).ingest_datagram(_wire_v4(_fresh_v4()))
+
+
 class _RecordingExactSink:
     telemetry_schema = CONTROL_ENVELOPE_SCHEMA
 

@@ -172,6 +172,12 @@ class RobotStateContract:
     controller_source_manifest_sha256: str = ""
     follower_config_sha256: str = ""
     openarm_sdk_sha256: str = ""
+    # P0-5: the activated follower STATE RX motor-ID mapping. When pinned (non-empty),
+    # the runtime decode must match these EXACTLY in joint order, so a permuted or
+    # mis-mapped controller cannot pass as valid. Empty = unpinned (legacy 7-unique
+    # fallback, used by lower-level tests that do not carry an activation).
+    expected_arm_rx_motor_ids: Tuple[int, ...] = ()
+    expected_gripper_rx_motor_id: int = 0
 
     def __post_init__(self) -> None:
         joint_names = tuple(self.joint_names)
@@ -277,6 +283,25 @@ class RobotStateContract:
         ):
             if digest and _SHA256_RE.fullmatch(digest) is None:
                 raise ValueError(f"{label} SHA-256 is invalid")
+
+        # P0-5: validate the pinned follower STATE RX motor-ID mapping when present.
+        arm_rx_ids = tuple(int(motor_id) for motor_id in self.expected_arm_rx_motor_ids)
+        object.__setattr__(self, "expected_arm_rx_motor_ids", arm_rx_ids)
+        if arm_rx_ids:
+            if (
+                len(arm_rx_ids) != 7
+                or len(set(arm_rx_ids)) != 7
+                or any(not (0 < motor_id < 2**32) for motor_id in arm_rx_ids)
+            ):
+                raise ValueError(
+                    "expected arm RX motor IDs must be seven unique positive uint32 values"
+                )
+            gripper_id = int(self.expected_gripper_rx_motor_id)
+            if not (0 < gripper_id < 2**32) or gripper_id in arm_rx_ids:
+                raise ValueError(
+                    "expected gripper RX motor ID must be a positive uint32 distinct "
+                    "from the arm IDs"
+                )
 
 
 @dataclass(frozen=True)
@@ -1530,7 +1555,15 @@ def _parse_exact_control_record(
             label="follower_arm_state_rx_motor_ids",
             positive=True,
         )
-        if len(set(arm_rx_motor_ids)) != 7 or any(
+        expected_arm_rx = contract.expected_arm_rx_motor_ids
+        if expected_arm_rx:
+            # P0-5: exact activated mapping in joint order -- rejects permutation/mis-map.
+            if tuple(arm_rx_motor_ids) != tuple(expected_arm_rx):
+                raise RobotTelemetryError(
+                    "v4 arm STATE RX motor IDs must exactly match the activated "
+                    f"mapping {tuple(expected_arm_rx)} (got {tuple(arm_rx_motor_ids)})"
+                )
+        elif len(set(arm_rx_motor_ids)) != 7 or any(
             motor_id >= 2**32 for motor_id in arm_rx_motor_ids
         ):
             raise RobotTelemetryError(
@@ -1603,6 +1636,15 @@ def _parse_exact_control_record(
             or not 0 <= gripper_rx_last_gap < 2**63
         ):
             raise RobotTelemetryError("v4 gripper STATE RX identity is invalid")
+        if (
+            contract.expected_gripper_rx_motor_id
+            and gripper_rx_motor_id != contract.expected_gripper_rx_motor_id
+        ):
+            # P0-5: the gripper STATE RX ID must match the activated mapping exactly.
+            raise RobotTelemetryError(
+                "v4 gripper STATE RX motor ID must match the activated gripper mapping "
+                f"{contract.expected_gripper_rx_motor_id} (got {gripper_rx_motor_id})"
+            )
         all_timestamps = arm_rx_timestamps + (gripper_rx_timestamp,)
         if any(
             timestamp > feedback_snapshot_ns
