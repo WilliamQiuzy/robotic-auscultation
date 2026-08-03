@@ -289,6 +289,34 @@ designed, so it should land *with* the writer, not before it.
 **Regression risk:** high — new capture path + platform End branching + finalizer
 activation. Do it last, behind the safety work, with its own test suite.
 
+### #6 implementation status (this branch)
+
+- **Step A — contract-driven End validation (DONE, committed, tested).** `CaptureContract`
+  gains a derived `completion_status`; the platform validates the writer's sealed status
+  + `training_eligible` against the contract instead of hardcoding diagnostic. Production
+  sessions complete to COMPLETE with realized eligibility; diagnostic/preview unchanged.
+- **Step B — `ProductionTeleopCapture` writer (DONE, committed, tested).** The ~1800-line
+  writer's completion policy is parameterized via hooks that DEFAULT to the diagnostic
+  values (the in-use diagnostic writer is byte-identical — 128 diagnostic tests
+  unchanged); a thin subclass reuses all machinery and seals `production_teleop_complete`.
+  Training eligibility is realized from the v4 OpenArm receiver's certification
+  (fail-closed: no certified v4 robot summary → saved but not eligible).
+- **Step C — console production wiring (DONE, committed, tested).** A `--production-teleop`
+  flag (gated on a real production activation, incompatible with fake/preview) makes the
+  console build the production contract + `ProductionTeleopCapture`. Default is
+  byte-identical diagnostic behavior.
+- **Step D — finalizer production-publish activation (INTENTIONALLY NOT ACTIVATED).**
+  `finalize_training_session` (`training_authenticity_finalizer.py:3074-3085`) hardcodes
+  `NOT_READY / production_publish_not_activated` even when every readiness gate passes —
+  by design. Activating it *mints* a training-eligible session (auto-promotes training
+  data); that is the owner's **go-live** decision requiring explicit authorization plus a
+  real promotion-publish implementation, not an autonomous code flip. Left fail-closed.
+
+**Net:** the production **recording** path is complete and tested end-to-end at the
+code level (record → `ProductionTeleopCapture` → `production_teleop_complete` → platform
+COMPLETE + training-eligible). The **promotion** of a recorded session into a training
+dataset stays deliberately gated on owner authorization + the real commissioning.
+
 ---
 
 ## Gate verification matrix
