@@ -190,9 +190,11 @@ sys.path[:0] = [ROOT, os.path.join(ROOT, "ausc", "perception"), os.path.join(ROO
 from ausc_targets import load_targets                               # noqa: E402
 from collection_platform import (DIAGNOSTIC_PERCEPTION_CONTRACT,      # noqa: E402
                                  PREVIEW_ONLY_CONTRACT,
+                                 PRODUCTION_TELEOP_CONTRACT,
                                  CollectionPlatform, CollectionState,
                                  reconcile_orphan_diagnostic_sessions)
 from perception_capture import (DiagnosticPerceptionCapture,        # noqa: E402
+                                ProductionTeleopCapture,
                                 recover_orphan_diagnostic_video)
 from perception_worker import (BoundedFifoWorker, LatestFrameWorker,  # noqa: E402
                                TrackerProcessor, verify_file_sha256)
@@ -977,6 +979,7 @@ class Collector:
         production_blockers=DEFAULT_PRODUCTION_BLOCKERS,
         commissioning_preview_only=False,
         commissioning_hall_monitor_only=False,
+        production_teleop=False,
         camera_factory=None,
         processor_factory=None,
         audio_factory=None,
@@ -994,6 +997,16 @@ class Collector:
         self.commissioning_hall_monitor_only = bool(
             commissioning_hall_monitor_only
         )
+        # #6: production teleoperation capture (promotable to training). Requires a real
+        # robot; mutually exclusive with preview/fake. When set, the console builds the
+        # production contract + ProductionTeleopCapture writer instead of the diagnostic
+        # pair. Activation is still gated by start_authorization + the finalizer.
+        self.production_teleop = bool(production_teleop)
+        if self.production_teleop and (self.commissioning_preview_only or self.fake):
+            raise ValueError(
+                "production teleop capture requires real hardware and a live robot; "
+                "it is incompatible with preview-only or fake data"
+            )
         if self.commissioning_preview_only and self.fake:
             raise ValueError(
                 "commissioning preview requires real hardware; fake data is forbidden"
@@ -1289,30 +1302,33 @@ class Collector:
                 "sync": None,
             },
         }
-        # The console is structurally a diagnostic/preview control plane: it
-        # only ever constructs a ``DiagnosticPerceptionCapture`` writer, so it
-        # can carry either the preview-only or the diagnostic contract, never a
-        # production one.  A production capture requires a real production
-        # writer and is refused by ``start_authorization`` before any session
-        # directory is allocated.
+        # The console carries a preview, diagnostic, or -- only with --production-teleop
+        # and a live robot -- a production contract. The writer_types binding is
+        # non-forgeable (identity string -> exact class object), so a session can only
+        # record with the exact writer its contract names.
         self.platform = CollectionPlatform(
             session_root=self.out_dir,
             point_names=self.point_names,
             capture_factory=self._capture_factory,
             contract=(
-                PREVIEW_ONLY_CONTRACT
+                PRODUCTION_TELEOP_CONTRACT
+                if self.production_teleop
+                else PREVIEW_ONLY_CONTRACT
                 if self.commissioning_preview_only
                 else DIAGNOSTIC_PERCEPTION_CONTRACT
             ),
-            # Non-forgeable writer binding: the console's only real writer is the
-            # diagnostic perception capture, bound here by class object so no
-            # other writer can record under the diagnostic contract.
             writer_types={
                 "DiagnosticPerceptionCapture": DiagnosticPerceptionCapture,
+                "ProductionTeleopCapture": ProductionTeleopCapture,
             },
             diagnostic_blockers=self._diagnostic_blockers,
             production_blockers=tuple(production_blockers),
-            completion_validator=self._validate_completion_result,
+            # The production platform's contract-driven End validation + the writer's own
+            # machinery are the gates for production; the diagnostic-seal completion
+            # validator applies only to diagnostic sessions.
+            completion_validator=(
+                None if self.production_teleop else self._validate_completion_result
+            ),
         )
         if start_thread:
             self.start()
@@ -1401,7 +1417,11 @@ class Collector:
         return blockers
 
     def _capture_factory(self, session_dir):
-        return DiagnosticPerceptionCapture(
+        capture_cls = (
+            ProductionTeleopCapture if self.production_teleop
+            else DiagnosticPerceptionCapture
+        )
+        return capture_cls(
             session_dir,
             fps=self._negotiated_camera_fps(),
             provenance=self._provenance,
@@ -5893,6 +5913,15 @@ def build_parser():
         ),
     )
     ap.add_argument(
+        "--production-teleop",
+        action="store_true",
+        help=(
+            "record promotable production teleoperation sessions "
+            "(ProductionTeleopCapture + production_teleop_v4 contract); requires a "
+            "production activation and a live left OpenArm"
+        ),
+    )
+    ap.add_argument(
         "--commissioning-hall-monitor-only",
         action="store_true",
         help=(
@@ -6120,6 +6149,16 @@ def main(argv=None):
             "real collection requires --production-activation and "
             "--production-activation-sha256"
         )
+    if a.production_teleop and (
+        a.fake
+        or a.commissioning_preview_only
+        or not a.production_activation
+        or not a.production_activation_sha256
+    ):
+        parser.error(
+            "--production-teleop requires a real production activation and is "
+            "incompatible with --fake / --commissioning-preview-only"
+        )
     if not a.fake and not a.commissioning_preview_only:
         force_fields = {
             "--hall-calibration": a.hall_calibration,
@@ -6315,6 +6354,7 @@ def main(argv=None):
             ),
             production_blockers=production_blockers,
             commissioning_preview_only=a.commissioning_preview_only,
+            production_teleop=a.production_teleop,
             commissioning_hall_monitor_only=(
                 a.commissioning_hall_monitor_only
             ),

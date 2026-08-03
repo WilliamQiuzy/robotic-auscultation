@@ -6097,6 +6097,32 @@ def _configure_arm(collector, coord, disable):
     collector._controller_readiness_timeout_s = 2.0
 
 
+def test_production_teleop_requires_real_hardware(tmp_path):
+    # #6 step C: production teleop capture is incompatible with fake/preview data.
+    server = _load_collect_server()
+    with pytest.raises(ValueError, match="production teleop"):
+        server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, production_teleop=True,
+                         start_thread=False)
+
+
+def test_capture_factory_selects_writer_by_mode(tmp_path):
+    # #6 step C: the capture factory builds ProductionTeleopCapture in production mode,
+    # DiagnosticPerceptionCapture otherwise (and production IS a diagnostic subclass, so
+    # it reuses all the machinery).
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    (tmp_path / "s1").mkdir()
+    cap = c._capture_factory(tmp_path / "s1")
+    assert type(cap).__name__ == "DiagnosticPerceptionCapture"
+    c.production_teleop = True  # flip mode (bypassing the ctor guard) and re-check
+    (tmp_path / "s2").mkdir()
+    cap2 = c._capture_factory(tmp_path / "s2")
+    assert type(cap2).__name__ == "ProductionTeleopCapture"
+    assert isinstance(cap2, type(cap))
+
+
 def test_finite_json_sanitizes_infinity_and_nan_for_state():
     # /state must be strict JSON the browser can parse: non-finite floats (e.g.
     # tracking_age_s before the first tracking result) become null.
