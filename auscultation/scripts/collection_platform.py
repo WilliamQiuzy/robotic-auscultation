@@ -164,6 +164,22 @@ class CaptureContract:
 
         return self.mode is CaptureMode.PRODUCTION_CAPTURE and self.training_intent
 
+    @property
+    def completion_status(self) -> str:
+        """The exact ``status`` a matching writer's ``finalize`` must seal.
+
+        Drives the platform's End validation so it is contract-derived rather than
+        hardcoded to the diagnostic writer.  A production writer seals
+        ``production_teleop_complete``; every non-production contract seals
+        ``diagnostic_complete``.
+        """
+
+        return (
+            "production_teleop_complete"
+            if self.mode is CaptureMode.PRODUCTION_CAPTURE
+            else "diagnostic_complete"
+        )
+
 
 #: The console's default: single-camera realtime perception writer, diagnostic
 #: only, structurally un-promotable.
@@ -1034,6 +1050,14 @@ class CollectionPlatform:
         thread.start()
         return self._success(ack=self.action_ack, accepted=True)
 
+    def _completion_ack(self) -> str:
+        """Contract-appropriate COMPLETE acknowledgement."""
+        if not self.contract.training_eligible:
+            return "Diagnostic recording saved and verified (not training eligible)"
+        if self._finalized_training_eligible:
+            return "Production recording saved and verified (training eligible)"
+        return "Production recording saved (NOT training eligible - a gate did not pass)"
+
     def _finalize_capture(
         self, *, generation: int, capture, session_dir, session_id,  # noqa: ANN001
     ) -> None:
@@ -1046,13 +1070,25 @@ class CollectionPlatform:
         try:
             result = capture.finalize()
             if not isinstance(result, dict):
-                raise RuntimeError("diagnostic finalize result is not a mapping")
-            if result.get("status") != "diagnostic_complete":
-                raise RuntimeError("diagnostic finalize result has no complete status")
-            if result.get("training_eligible") is not False:
-                raise RuntimeError("diagnostic capture attempted to become training eligible")
+                raise RuntimeError("finalize result is not a mapping")
+            # Contract-driven completion validation (not hardcoded to diagnostic): the
+            # writer must seal exactly the status this contract expects, and only a
+            # structurally-promotable contract may ever have its writer report
+            # eligibility.
+            expected_status = self.contract.completion_status
+            if result.get("status") != expected_status:
+                raise RuntimeError(
+                    f"finalize result status is not {expected_status!r}"
+                )
+            eligible = result.get("training_eligible")
+            if not isinstance(eligible, bool):
+                raise RuntimeError("finalize result training_eligible must be a bool")
+            if not self.contract.training_eligible and eligible:
+                raise RuntimeError(
+                    "non-training capture attempted to become training eligible"
+                )
             if session_dir is None:
-                raise RuntimeError("diagnostic session path disappeared before validation")
+                raise RuntimeError("session path disappeared before validation")
             if self.completion_validator is not None:
                 self.completion_validator(result, session_dir)
         except Exception as exc:  # background failures must become durable, visible state
@@ -1081,7 +1117,7 @@ class CollectionPlatform:
             self._finalized_training_eligible = bool(result.get("training_eligible"))
             self._finalization_active = False
             self.state = CollectionState.COMPLETE
-            self.action_ack = "Diagnostic recording saved and verified (not training eligible)"
+            self.action_ack = self._completion_ack()
             self.last_error = None
             self.revision += 1
             self._emit("capture_completed", finalization=result, mirror_capture=False)

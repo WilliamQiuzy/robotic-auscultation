@@ -82,6 +82,73 @@ def _platform(tmp_path: Path, *, blockers=()) -> tuple[CollectionPlatform, list[
     return platform, captures
 
 
+def _prod_platform(tmp_path: Path, capture_cls):
+    captures = []
+
+    def factory(session_dir: Path):
+        capture = capture_cls(session_dir)
+        captures.append(capture)
+        return capture
+
+    platform = CollectionPlatform(
+        session_root=tmp_path / "sessions",
+        point_names=["R1"],
+        capture_factory=factory,
+        contract=PRODUCTION_TELEOP_CONTRACT,
+        writer_types={PRODUCTION_TELEOP_CONTRACT.writer_identity: capture_cls},
+    )
+    return platform, captures
+
+
+def test_production_capture_finalizes_complete_and_training_eligible(tmp_path):
+    # #6: a production writer sealing production_teleop_complete + training_eligible
+    # drives the platform to COMPLETE with realized eligibility -- contract-driven End
+    # validation, not hardcoded diagnostic.
+    class _ProdCapture(_Capture):
+        def finalize(self):
+            self.finalized += 1
+            return {"status": "production_teleop_complete", "training_eligible": True}
+
+    platform, _c = _prod_platform(tmp_path, _ProdCapture)
+    assert platform.control("start")["ok"] is True
+    assert platform.control("end")["state"] == "FINALIZING"
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    assert terminal["state"] == "COMPLETE"
+    assert terminal["training_eligible"] is True
+    assert platform.state_snapshot()["capture_kind"] == "production_teleop_v4"
+
+
+def test_production_capture_gate_failure_completes_but_not_eligible(tmp_path):
+    # A production writer that could not certify eligibility (a gate did not pass) still
+    # COMPLETEs, but training_eligible is False.
+    class _ProdCaptureIneligible(_Capture):
+        def finalize(self):
+            self.finalized += 1
+            return {"status": "production_teleop_complete", "training_eligible": False}
+
+    platform, _c = _prod_platform(tmp_path, _ProdCaptureIneligible)
+    assert platform.control("start")["ok"] is True
+    platform.control("end")
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    assert terminal["state"] == "COMPLETE"
+    assert terminal["training_eligible"] is False
+
+
+def test_production_writer_returning_diagnostic_status_errors(tmp_path):
+    # A production contract requires the production seal; a diagnostic status is refused.
+    class _WrongStatus(_Capture):
+        def finalize(self):
+            self.finalized += 1
+            return {"status": "diagnostic_complete", "training_eligible": False}
+
+    platform, _c = _prod_platform(tmp_path, _WrongStatus)
+    assert platform.control("start")["ok"] is True
+    platform.control("end")
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    assert terminal["state"] == "ERROR"
+    assert "production_teleop_complete" in terminal["error"]
+
+
 def test_a_non_cancellable_writer_is_refused_before_recording(tmp_path):
     # A writer without request_cancel could race Abort against its own seal;
     # the platform must refuse it at Start (fail-closed), before any frame.
@@ -697,7 +764,7 @@ def test_finalize_mapping_cannot_report_complete_without_explicit_complete_statu
     terminal = platform.wait_for_terminal(timeout=2.0)
 
     assert terminal["state"] == "ERROR"
-    assert "no complete status" in terminal["error"]
+    assert "status is not 'diagnostic_complete'" in terminal["error"]
     lifecycle = json.loads((platform.session_dir / "lifecycle.json").read_text())
     assert lifecycle["state"] == "ERROR"
     assert lifecycle["finalization"] is None
