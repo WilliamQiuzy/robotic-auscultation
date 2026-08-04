@@ -47,16 +47,31 @@ class SubprocessLaunchedController:
     def poll(self) -> Optional[int]:
         return self._process.poll()
 
-    def terminate(self) -> None:
-        # Signal the whole process group; the companion has already run the
-        # independent direct-disable before calling this.
+    def terminate(self, *, sigterm_grace_s: float = 2.0) -> None:
+        # Robust kill: SIGTERM the process group, wait a bounded grace, then SIGKILL and
+        # wait again. A controller that ignores SIGTERM must NEVER survive teardown -- a
+        # surviving controller can keep driving the arm. Best-effort direct-disable is run
+        # by the caller; this guarantees the commanding process is actually gone.
         if self._process.poll() is not None:
             return
+        self._signal_group(signal.SIGTERM)
         try:
-            os.killpg(os.getpgid(self._process.pid), signal.SIGTERM)
+            self._process.wait(timeout=sigterm_grace_s)
+            return
+        except subprocess.TimeoutExpired:
+            pass
+        self._signal_group(signal.SIGKILL)
+        try:
+            self._process.wait(timeout=sigterm_grace_s)
+        except subprocess.TimeoutExpired:
+            pass
+
+    def _signal_group(self, sig) -> None:
+        try:
+            os.killpg(os.getpgid(self._process.pid), sig)
         except (ProcessLookupError, PermissionError, OSError):
             try:
-                self._process.terminate()
+                self._process.send_signal(sig)
             except OSError:
                 pass
 

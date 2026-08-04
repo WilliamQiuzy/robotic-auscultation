@@ -6524,6 +6524,85 @@ def test_production_blockers_are_add_only_never_cleared():
     assert "extra condition" in got and len(got) == len(default) + 1
 
 
+def test_estop_ui_button_is_not_gated_by_busy():
+    # Browser E-stop must be usable even while THIS page is busy waiting on a bring-up:
+    # a dedicated estop() that never checks/sets `busy`, and a button not disabled by busy.
+    server = _load_collect_server()
+    page = server.PAGE
+    if isinstance(page, bytes):
+        page = page.decode()
+    assert "async function estop(" in page                       # dedicated E-stop path
+    assert "$('btnestop').onclick=()=>estop()" in page           # bound to it
+    assert "$('btnestop').disabled=st==='idle';" in page         # NOT busy-gated anymore
+    assert "$('btnestop').disabled=busy||st==='idle'" not in page  # old gating removed
+
+
+def test_bring_up_refuses_and_disables_when_fatal_races_in(tmp_path):
+    # A collector-loop crash that races in DURING bring-up (after the top-of-method check)
+    # must turn the bring-up into a refusal AND energy-isolate the arm, never return a
+    # live-arm success onto a dead collector.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("READY", True)])
+    disable = _ArmDisable()
+    _configure_arm(c, coord, disable)
+    inner_launcher = c._controller_launcher
+
+    def racing_launcher():
+        c._fatal_error = "synthetic fatal during bring-up"   # after the top check
+        return inner_launcher()
+
+    c._controller_launcher = racing_launcher
+    try:
+        r = c.bring_up_controller()
+        assert r["ok"] is False
+        assert r["code"] == "controller_bring_up_refused_fatal"
+        assert disable.calls                       # arm energy-isolated, not left live
+        assert c._controller_ready() is False
+    finally:
+        c._fatal_error = None
+        c.shutdown()
+
+
+def test_bring_up_refused_after_shutdown(tmp_path):
+    # Once the collector is shutting down (_stop set), a fresh bring-up is refused -- never
+    # energize the arm onto a stopping collector.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), _ArmDisable())
+    c.shutdown()                                   # sets _stop
+    r = c.bring_up_controller()
+    assert r["ok"] is False
+    assert r["code"] == "controller_bring_up_refused_fatal"
+
+
+def test_shutdown_retries_failed_disable(tmp_path):
+    # The watchdog is stopped during shutdown, so shutdown itself must retry a failed
+    # disable rather than swallowing a single transient failure and leaving the arm live.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("READY", True)])
+    attempts = {"n": 0}
+
+    class _FlakyDisable:
+        def __init__(self): self.calls = []
+        def __call__(self, reason):
+            self.calls.append(reason)
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("first disable fails")
+            return type("O", (), {"outcome": "energy_isolated"})()
+
+    _configure_arm(c, coord, _FlakyDisable())
+    c.bring_up_controller()
+    c.shutdown()                                   # must retry the disable itself
+    assert c._controller_companion.disabled is True
+    assert attempts["n"] >= 2
+
+
 def test_start_robot_session_requires_arm_brought_up(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],

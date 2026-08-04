@@ -6,13 +6,64 @@ import subprocess
 
 import pytest
 
+import signal
+
+from ausc.perception.robot import controller_launch as controller_launch_module
 from ausc.perception.robot.controller_launch import (
     ControllerLaunchError,
     DisableResult,
+    SubprocessLaunchedController,
     make_subprocess_direct_disable,
     make_subprocess_launcher,
     parse_command,
 )
+
+
+def test_terminate_escalates_to_sigkill_when_sigterm_ignored(monkeypatch):
+    # A controller that ignores SIGTERM must NOT survive teardown -- it could keep driving
+    # the arm. terminate() escalates SIGTERM -> wait -> SIGKILL -> wait.
+    sent = []
+    # Force the send_signal fallback so we can observe which signals were delivered.
+    monkeypatch.setattr(controller_launch_module.os, "getpgid", lambda pid: pid)
+    monkeypatch.setattr(
+        controller_launch_module.os, "killpg",
+        lambda pgid, sig: (_ for _ in ()).throw(ProcessLookupError()),
+    )
+
+    class _StubbornProc:
+        pid = 4321
+
+        def __init__(self):
+            self._alive = True
+            self._waits = 0
+
+        def poll(self):
+            return None if self._alive else 0
+
+        def wait(self, timeout=None):
+            self._waits += 1
+            if self._waits == 1:
+                raise subprocess.TimeoutExpired(cmd="controller", timeout=timeout)
+            return 0
+
+        def send_signal(self, sig):
+            sent.append(sig)
+            if sig == signal.SIGKILL:
+                self._alive = False   # SIGKILL takes effect
+
+    SubprocessLaunchedController(_StubbornProc()).terminate(sigterm_grace_s=0.01)
+    assert sent == [signal.SIGTERM, signal.SIGKILL]   # escalated after SIGTERM ignored
+
+
+def test_terminate_is_a_noop_for_an_already_exited_controller():
+    class _DeadProc:
+        pid = 4321
+        def poll(self):
+            return 0                      # already exited
+        def send_signal(self, sig):      # must not be called
+            raise AssertionError("signalled an already-exited process")
+
+    SubprocessLaunchedController(_DeadProc()).terminate()   # no raise, no signal
 
 
 def test_parse_command():

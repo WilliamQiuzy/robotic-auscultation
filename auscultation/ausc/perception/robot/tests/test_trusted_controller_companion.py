@@ -280,6 +280,60 @@ def test_disable_command_failure_is_not_command_succeeded():
     assert "direct_disable_error" in outcome.outcome
 
 
+def test_command_success_with_failing_readback_does_not_latch_disabled():
+    # SAFETY: a disable command that SUCCEEDS but whose independent readback says the
+    # motors are STILL energized must NOT latch `_disabled` -- otherwise the watchdog
+    # stops retrying and a replacement/second controller is allowed onto a live arm.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, _d = _companion(coord, verify_motor_disable=lambda: False)
+    companion.bring_up()
+    outcome = companion.shutdown("estop")
+    assert outcome.command_succeeded is True     # the command itself was accepted
+    assert outcome.energy_isolated is False      # but motors are confirmed still on
+    assert companion.disabled is False           # so NOT latched -> keep retrying/refuse
+
+
+def test_verified_readback_latches_disabled():
+    # The positive of the above: a readback confirming torque-off latches disabled.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, _d = _companion(coord, verify_motor_disable=lambda: True)
+    companion.bring_up()
+    companion.shutdown("estop")
+    assert companion.disabled is True
+    assert companion.disable_outcome.energy_isolated is True
+
+
+def test_no_verifier_uses_command_success_as_operating_standard():
+    # With NO readback configured, command success remains the operating standard (energy
+    # isolation is displayed UNVERIFIED but the arm may be moved on from).
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, _d = _companion(coord)          # no verify_motor_disable
+    companion.bring_up()
+    companion.shutdown("estop")
+    assert companion.disabled is True
+    assert companion.disable_outcome.energy_isolated is False
+
+
+def test_late_controller_during_stop_is_terminated_and_re_disabled():
+    # If a stop races in during launch, the just-launched controller is robustly
+    # terminated AND the direct-disable is re-issued, so a late controller can never be
+    # left driving the arm and the last motor command is torque-off.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    controller = _FakeController()
+
+    def racing_launch():
+        companion._stop_requested = True   # E-stop begins exactly as the controller starts
+        return controller
+
+    companion, _c, disabler = _companion(
+        coord, controller=controller, launch_controller=racing_launch,
+    )
+    with pytest.raises(CompanionFault, match="terminated and re-disabled"):
+        companion.bring_up()
+    assert controller.terminated is True                        # process killed
+    assert any("late controller" in reason for reason in disabler.calls)  # re-disable issued
+
+
 def test_preflight_runs_synchronously_before_launch():
     # P0-1: clear_faults (etc.) runs as a synchronous preflight BEFORE the controller
     # is launched, so the launched process is the controller binary from t=0 (its

@@ -217,15 +217,23 @@ class TrustedControllerCompanion:
             self._coordinator.prepare_receiver_socket()
             controller = self._launch_controller()
             self._controller = controller
-            # If a fault raced in between launch and here, terminate the just-launched
-            # controller and stay disabled rather than leaving it live under a dead owner.
+            # If a fault raced in between launch and here, the just-launched controller may
+            # already be driving the arm even though the earlier disable ran BEFORE this
+            # controller existed. Kill it robustly FIRST (SIGTERM->SIGKILL->wait, so it can
+            # no longer issue motor commands), THEN re-issue the direct-disable so the LAST
+            # command the motors receive is torque-off. Never leave a live controller.
             if self._stop_requested or self._disabled or self._state == "faulted":
                 try:
                     controller.terminate()
                 except Exception:  # noqa: BLE001 - best-effort teardown
                     pass
+                try:
+                    self._direct_disable("late controller terminated during E-stop")
+                except BaseException:  # noqa: BLE001 - disable must never mask itself
+                    pass
+                self._state = "faulted"
                 raise CompanionFault(
-                    "companion was disabled during launch; controller terminated"
+                    "companion was disabled during launch; controller terminated and re-disabled"
                 )
             pid = int(controller.pid)
             if pid <= 0:
@@ -389,10 +397,17 @@ class TrustedControllerCompanion:
             motor_verified=motor_verified,
             energy_isolated=energy_isolated,
         )
-        # Mark disabled (block further retries) ONLY when the command succeeded, so a
-        # FAILED disable stays retryable -- a first failure must never latch the arm as
-        # "disabled" and silence subsequent E-stops.
-        if command_succeeded:
+        # Mark disabled (stop retries + let the arm be moved on from) ONLY when the arm is
+        # confirmed SAFE -- not merely when the disable COMMAND was accepted:
+        #   * a FAILED command stays retryable (never latch a live arm as "disabled");
+        #   * a command that SUCCEEDED but whose independent readback says the motors are
+        #     STILL energized (verifier present, energy_isolated False) ALSO stays
+        #     unlatched, so the watchdog keeps re-issuing the disable and no
+        #     replacement / second controller is ever allowed onto a still-live arm.
+        # When NO verifier is configured, command success is the operating standard (the
+        # UI shows energy isolation as UNVERIFIED, but the command is the best evidence).
+        verifier_configured = self._verify_motor_disable is not None
+        if command_succeeded and (energy_isolated or not verifier_configured):
             self._disabled = True
         try:
             self._coordinator.stop_receiver()

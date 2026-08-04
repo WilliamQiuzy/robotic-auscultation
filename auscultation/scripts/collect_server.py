@@ -1774,12 +1774,16 @@ class Collector:
         self._stop.set()
         if self.platform.state is CollectionState.RECORDING:
             self._abort_recording("service shutdown before End")
-        # Never leave the arm energized across a collector shutdown.
+        # Never leave the arm energized across a collector shutdown. The watchdog has just
+        # been stopped (_stop.set above), so it can no longer retry a failed disable --
+        # retry here, bounded, rather than swallowing a single transient failure.
         if self._controller_companion is not None and not self._controller_companion.disabled:
-            try:
-                self.disable_controller("service_shutdown")
-            except Exception:
-                pass
+            for _ in range(5):
+                try:
+                    if self.disable_controller("service_shutdown").get("ok"):
+                        break
+                except Exception:  # noqa: BLE001 - keep retrying the shutdown disable
+                    pass
         if self._model_worker is not None:
             self._model_worker.stop()
         if self._preview_worker is not None:
@@ -1947,14 +1951,18 @@ class Collector:
                 "ok": False, "code": "controller_not_configured",
                 "message": "arm controller launch/disable is not configured on this collector",
             }
-        # A fatal collector loop means the arm's supervisor is gone (and it was just
-        # energy-isolated). Refuse a fresh bring-up onto a dead supervisor.
-        if self._fatal_error is not None or self._loop_error is not None:
+        # A fatal collector loop (or a service shutdown in progress) means the arm's
+        # supervisor is gone / going. Refuse a fresh bring-up onto a dead/stopping owner.
+        if (
+            self._fatal_error is not None
+            or self._loop_error is not None
+            or self._stop.is_set()
+        ):
             return {
                 "ok": False, "code": "controller_bring_up_refused_fatal",
                 "message": (
-                    "collector is in a fatal state; arm bring-up refused: "
-                    f"{self._fatal_error or self._loop_error}"
+                    "collector is in a fatal/stopping state; arm bring-up refused: "
+                    f"{self._fatal_error or self._loop_error or 'service shutdown'}"
                 ),
             }
         with self._controller_lock:
@@ -2027,11 +2035,40 @@ class Collector:
         except CompanionError as exc:
             result = {"ok": False, "code": "controller_bring_up_error", "message": str(exc)}
         else:
-            result = {
-                "ok": True, "code": "controller_ready",
-                "message": "left arm controller ready (per-motor telemetry verified)",
-                "controller_pid": companion.controller_pid,
-            }
+            # A collector-loop crash or service shutdown that raced in DURING this bring-up
+            # leaves the arm's supervisor gone even though bring_up() reached READY. The
+            # top-of-method check cannot cover this window (it runs before launch), so
+            # re-check here and energy-isolate rather than returning a live-arm success onto
+            # a dead/stopping collector.
+            if (
+                self._fatal_error is not None
+                or self._loop_error is not None
+                or self._stop.is_set()
+            ):
+                try:
+                    companion.report_external_fault(
+                        "collector became fatal/stopping during bring-up"
+                    )
+                except Exception:  # noqa: BLE001 - disable must never be masked
+                    pass
+                outcome = companion.disable_outcome
+                result = {
+                    "ok": False, "code": "controller_bring_up_refused_fatal",
+                    "message": (
+                        "collector went fatal or is shutting down during bring-up; arm "
+                        "energy-isolated instead of brought up: "
+                        f"{self._fatal_error or self._loop_error or 'service shutdown'}"
+                    ),
+                    "energy_isolated": bool(
+                        outcome is not None and outcome.energy_isolated
+                    ),
+                }
+            else:
+                result = {
+                    "ok": True, "code": "controller_ready",
+                    "message": "left arm controller ready (per-motor telemetry verified)",
+                    "controller_pid": companion.controller_pid,
+                }
         finally:
             with self._controller_lock:
                 self._controller_bringup_active = False
@@ -6039,7 +6076,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point;
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled';$('armstat').textContent='Arm '+(dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled';$('armstat').textContent='Arm '+(dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=st==='idle';}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
@@ -6051,6 +6088,11 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
 function schedulePoll(delay){if(pageStopped)return;if(pollTimer)clearTimeout(pollTimer);pollTimer=setTimeout(poll,delay)}
 async function poll(){pollTimer=null;if(pageStopped||pollInFlight)return;pollInFlight=true;try{const response=await fetch('/state',{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);const state=await response.json();const recovered=transportDown;transportDown=false;render(state);if(recovered&&!state.error&&!state.fatal_error)action(shortText(state.action_ack||state.tracking_reason||state.state),state.action_ack?'good':'')}catch(error){transportDown=true;action('State disconnected: '+error.message,'bad')}finally{pollInFlight=false;schedulePoll(document.hidden?1000:250)}}
 async function ctl(name){if(busy)return;busy=true;if(latest)render(latest);try{const payload={action:name};if(name==='confirm_back'){if(!Number.isInteger(displayedPreviewFrameIndex)||typeof displayedPreviewFrameToken!=='string')throw new Error('No displayed camera frame');payload.preview_frame_index=displayedPreviewFrameIndex;payload.preview_frame_token=displayedPreviewFrameToken}const response=await fetch('/control',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const result=await response.json();action(shortText(result.ack||result.message||('HTTP '+response.status)),result.ok?'good':'bad')}catch(error){action('Action failed: '+error.message,'bad')}finally{busy=false;await poll()}}
+// E-STOP FAST PATH (UI): the disable MUST NOT be gated by `busy` or set it. A doctor has
+// to be able to E-stop the arm even while a bring-up/preflight is in flight on THIS same
+// page (which holds busy=true). It never touches `busy`, so it can never be blocked by an
+// in-flight control action; the backend routes arm_disable straight to disable_controller.
+async function estop(){try{const response=await fetch('/control',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'arm_disable'})});const result=await response.json();action(shortText(result.ack||result.message||('HTTP '+response.status)),result.ok?'good':'bad')}catch(error){action('E-stop failed: '+error.message,'bad')}finally{try{await poll()}catch(_e){}}}
 async function sha256Hex(buffer){const digest=await crypto.subtle.digest('SHA-256',buffer);return Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('')}
 function afterPaint(){return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))}
 function scheduleCamera(delay){if(pageStopped)return;if(cameraTimer)clearTimeout(cameraTimer);cameraTimer=setTimeout(refreshCamera,delay)}
@@ -6059,7 +6101,7 @@ function stopAudio(){listening=false;if(audioTimer)clearTimeout(audioTimer);audi
 async function pumpAudio(){if(!listening)return;try{const query=new URLSearchParams({samples:'4410'});if(audioCursor!==null)query.set('cursor',String(audioCursor));const response=await fetch('/audio/pcm?'+query,{cache:'no-store'});if(!response.ok)throw new Error('audio HTTP '+response.status);const audioStatus=response.headers.get('X-Audio-Status')||'NO_DATA';if(audioStatus!=='OK')throw new Error('Audio input '+audioStatus.toLowerCase());const rate=Number(response.headers.get('X-Audio-Sample-Rate'));const overrun=response.headers.get('X-Audio-Overrun')==='1';audioCursor=Number(response.headers.get('X-Audio-Next-Sample'));const raw=await response.arrayBuffer();if(raw.byteLength&&Number.isFinite(rate)&&rate>0){const pcm=new Int16Array(raw),buffer=audioContext.createBuffer(1,pcm.length,rate),channel=buffer.getChannelData(0);for(let i=0;i<pcm.length;i++)channel[i]=pcm[i]/32768;const lead=.08;if(overrun||audioNextAt<audioContext.currentTime||audioNextAt>audioContext.currentTime+.6)audioNextAt=audioContext.currentTime+lead;const source=audioContext.createBufferSource();source.buffer=buffer;source.connect(audioContext.destination);source.onended=()=>source.disconnect();source.start(audioNextAt);audioNextAt+=buffer.duration}audioTimer=setTimeout(pumpAudio,60)}catch(error){action('Audio monitoring stopped: '+error.message,'bad');stopAudio()}}
 async function toggleAudio(){if(listening){stopAudio();return}try{audioContext=audioContext||new AudioContext();await audioContext.resume();listening=true;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='■ Stop audio';$('btnaudio').className='listen on';pumpAudio()}catch(error){action('Browser audio unavailable: '+error.message,'bad');stopAudio()}}
 $('btnback').onclick=()=>ctl('confirm_back');$('btnstart').onclick=()=>ctl('start');$('btnend').onclick=()=>ctl('end');$('btnconfirm').onclick=()=>ctl('confirm');$('btnredo').onclick=()=>ctl('redo');$('btnprev').onclick=()=>ctl('prev');$('btnnext').onclick=()=>ctl('next');
-$('btnarm').onclick=()=>{if(confirm('Bring up the LEFT arm controller? The arm will energize and move.'))ctl('arm_bringup')};$('btnestop').onclick=()=>ctl('arm_disable');
+$('btnarm').onclick=()=>{if(confirm('Bring up the LEFT arm controller? The arm will energize and move.'))ctl('arm_bringup')};$('btnestop').onclick=()=>estop();
 $('btnaudio').onclick=toggleAudio;
 addEventListener('keydown',event=>{if(event.repeat||event.metaKey||event.ctrlKey||event.altKey)return;const key=event.key;if((key==='b'||key==='B')&&!$('btnback').disabled)ctl('confirm_back');else if(key===' '){event.preventDefault();if(!$('btnconfirm').disabled)ctl('confirm')}else if((key==='r'||key==='R')&&!$('btnredo').disabled)ctl('redo');else if(key==='ArrowLeft'&&!$('btnprev').disabled)ctl('prev');else if(key==='ArrowRight'&&!$('btnnext').disabled)ctl('next');else if(key==='s'||key==='S'){if(latest?.state==='RECORDING')ctl('end');else if(!$('btnstart').disabled)ctl('start')}else if(key==='f'||key==='F')$('feed').requestFullscreen?.()});
 addEventListener('visibilitychange',()=>{if(document.hidden){if(listening)stopAudio();return}schedulePoll(0);scheduleCamera(0)});
@@ -6493,6 +6535,16 @@ def main(argv=None):
             controller_launcher=controller_launcher,
             controller_disable=controller_disable,
             controller_preflight=controller_preflight,
+            # Independent motor-disable readback: injected from the production runtime when
+            # it provides one. It stays None until the STATE frame is decoded into per-motor
+            # torque-off flags (a go-live telemetry item); None keeps `energy_isolated`
+            # honestly UNVERIFIED and, with a verifier present-and-False, keeps the arm
+            # unlatched so the watchdog retries and no replacement is allowed.
+            controller_verify_motor_disable=(
+                None
+                if production_runtime is None
+                else getattr(production_runtime, "motor_disable_verifier", None)
+            ),
             controller_readiness_timeout_s=a.controller_readiness_timeout_s,
             robot_mask_provider=(
                 None
