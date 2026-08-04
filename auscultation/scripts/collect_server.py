@@ -6077,7 +6077,9 @@ def build_parser():
     )
     ap.add_argument(
         "--production-blocker", action="append", default=None,
-        help="repeatable commissioning blocker; defaults to the built-in fail-closed list",
+        help="repeatable commissioning blocker; defaults to the built-in fail-closed "
+             "list. Pass '--production-blocker none' to attest commissioning complete "
+             "and clear the set (the only way to express an empty blocker list).",
     )
     ap.add_argument(
         "--production-activation", default=None,
@@ -6244,11 +6246,16 @@ def main(argv=None):
                 "real Hall-force collection requires --require-audio and "
                 "--audio-pick-channel"
             )
-    production_blockers = (
-        DEFAULT_PRODUCTION_BLOCKERS
-        if a.production_blocker is None
-        else tuple(a.production_blocker)
-    )
+    # Default: the built-in fail-closed commissioning blockers. An explicit
+    # `--production-blocker none` is the commissioning-complete attestation that clears
+    # them (the only way to express the EMPTY set with action=append); any other values
+    # replace the list.
+    if a.production_blocker is None:
+        production_blockers = DEFAULT_PRODUCTION_BLOCKERS
+    elif [b.strip().lower() for b in a.production_blocker] == ["none"]:
+        production_blockers = ()
+    else:
+        production_blockers = tuple(a.production_blocker)
     targets = load_targets(a.targets)
     production_runtime = None
     commissioning_handeye = None

@@ -134,6 +134,36 @@ def test_writer_cannot_self_promote(tmp_path):
     assert "self-promote" in terminal["error"]
 
 
+def test_reconciler_preserves_a_sealed_production_session(tmp_path):
+    # #6 aligned + recovery: a production raw session uses the diagnostic-shape seal
+    # (DIAGNOSTIC_FINALIZATION.json), so the restart reconciler recognises it as sealed
+    # and NEVER rewrites it to diagnostic_aborted. (The old PRODUCTION_FINALIZATION.json
+    # went unrecognised and corrupted the sealed session.)
+    from collection_platform import reconcile_orphan_diagnostic_sessions
+
+    root = tmp_path / "sessions"
+    session = root / "diagnostic_perception_20260804T101112000000000Z_abcdef123456"
+    session.mkdir(parents=True)
+    manifest = {
+        "schema_version": "wam_session_v2",
+        "capture_kind": "production_teleop_v4",
+        "promotion_contract_version": "wam_promotion_v2",
+        "session_id": session.name,
+        "rehearsal_overrides": [],
+        "training_eligible": False,
+        "status": "diagnostic_complete",
+    }
+    (session / "manifest.json").write_text(json.dumps(manifest))
+    (session / "DIAGNOSTIC_FINALIZATION.json").write_text(json.dumps({"sealed": True}))
+
+    recovered = reconcile_orphan_diagnostic_sessions(root)
+    assert recovered == []                                   # sealed -> untouched
+    after = json.loads((session / "manifest.json").read_text())
+    assert after["status"] == "diagnostic_complete"          # NOT diagnostic_aborted
+    assert after["capture_kind"] == "production_teleop_v4"
+    assert after["training_eligible"] is False
+
+
 def test_a_non_cancellable_writer_is_refused_before_recording(tmp_path):
     # A writer without request_cancel could race Abort against its own seal;
     # the platform must refuse it at Start (fail-closed), before any frame.
