@@ -360,6 +360,47 @@ and genuinely part of the go-live activation, NOT a rushed code flip:
 promotion path is activated with owner authorization + real commissioning. 8801 remains
 a valid diagnostic-observation bench.
 
+## STOP-SHIP review response (round 3)
+
+A third review found real integration gaps my round-2 pass missed. Fixed + committed +
+tested this round (742 passed / 3 skipped across the touched suites):
+
+- **True disable-first on collector crash.** The crash path energy-isolates the arm
+  BEFORE data teardown; teardown is guarded so an `_abort_recording()` exception can no
+  longer skip the disable (previously `disable_calls=0` on abort failure). A fatal
+  collector loop now refuses a fresh Bring-up. The arm UI no longer shows "DISABLED"
+  when the disable **command** failed — it uses `disable_command_succeeded`.
+- **Production manifest schema.** `schema_version` corrected to `wam_session_v2` (was
+  `wam_production_teleop_v1`); the converter's `validate_manifest_for_conversion` and the
+  finalizer both require exactly `wam_session_v2`.
+- **Writer never fails a session on force.** A missing / degraded / low-authenticity /
+  over-threshold force channel now only sets `contact_force_valid=False` (in the manifest
+  + finalize result); it no longer ERRORs the session in background finalize or discards
+  the video/audio/robot data. Force raw values + status are preserved verbatim.
+
+Still open — coherent packages that must NOT be rushed (this is where round-1/2 broke):
+
+1. **Force → promotion decoupling (converter/finalizer).** `session_to_lerobot_v2`
+   (`:2374`, `:2977`) and the finalizer force-row check still reject a non-OK/WARN force
+   status. Correct decoupling is not "stop raising" — `contact_force_valid=False` must
+   EXCLUDE/mark the force channel in the training data (else unsafe readings would be
+   served as valid training signal). That is a training-data-format feature on the
+   go-live promotion path.
+2. **Trusted-chain seal format.** The writer seals `PRODUCTION_FINALIZATION.json` /
+   `production_teleop_complete`, but the trusted chain expects `FINALIZATION.json` +
+   `TRAINING_AUTHENTICITY.json` / `complete`; `completion_validator=None`, the evidence
+   sink has no runtime caller, and the finalizer stays `production_publish_not_activated`.
+   A recovery bug also exists: if the process exits after the writer seal but before the
+   platform lifecycle commit, the reconciler can rewrite a production manifest to
+   `diagnostic_aborted`, conflicting with the production seal.
+3. **Robot-safety concurrency hardening.** E-stop must not block on the Bring-up
+   `_controller_lock`; disable must be retryable after a first failure; a crash+preflight
+   race must not launch a new controller after disable; no motor-disable readback is
+   wired.
+
+These three are the remaining go-live / promotion-path + concurrency work. They need
+careful, cross-component-tested passes (like the reviewer's), not more piecemeal edits.
+
 ---
 
 ## Gate verification matrix
