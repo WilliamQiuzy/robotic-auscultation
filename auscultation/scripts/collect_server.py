@@ -1125,6 +1125,13 @@ class Collector:
         self._controller_readiness_timeout_s = float(controller_readiness_timeout_s)
         self._controller_companion = None
         self._controller_lock = threading.Lock()
+        # A bring-up runs OUTSIDE the lock (so a concurrent E-stop can interrupt it);
+        # this guards against a second concurrent bring-up.
+        self._controller_bringup_active = False
+        # Independent motor-disable readback hook wired into every companion. Absent
+        # (None) -> energy_isolated is NEVER claimed (the honest default); a real
+        # STATE-frame torque-off readback can be assigned at deployment to earn it.
+        self._controller_verify_motor_disable = None
         self._robot_mask_provider = robot_mask_provider
         self._handeye_activation = handeye_activation
         self._frame_evidence_bundle_factory = (
@@ -1883,39 +1890,54 @@ class Collector:
                     "message": "left arm controller already brought up",
                     "controller_pid": comp.controller_pid,
                 }
+            if self._controller_bringup_active:
+                return {
+                    "ok": False, "code": "controller_bring_up_in_progress",
+                    "message": "an arm bring-up is already in progress",
+                }
             companion = TrustedControllerCompanion(
                 coordinator=self._robot_coordinator,
                 launch_controller=self._controller_launcher,
                 direct_disable=self._controller_disable,
                 preflight=self._controller_preflight,
                 attest_controller=self._controller_attest,
+                verify_motor_disable=self._controller_verify_motor_disable,
                 readiness_timeout_s=self._controller_readiness_timeout_s,
             )
             self._controller_companion = companion
-            try:
-                companion.bring_up()
-            except CompanionFault as exc:
-                outcome = companion.disable_outcome
-                isolated = bool(outcome is not None and outcome.energy_isolated)
-                detail = (
-                    "energy-isolated" if isolated
-                    else "disable commanded, MOTOR-DISABLE UNVERIFIED"
-                )
-                return {
-                    "ok": False, "code": "controller_bring_up_faulted",
-                    "message": f"arm bring-up failed and was {detail}: {exc}",
-                    "energy_isolated": isolated,
-                    "motor_disable_verified": bool(
-                        outcome is not None and outcome.motor_verified
-                    ),
-                }
-            except CompanionError as exc:
-                return {"ok": False, "code": "controller_bring_up_error", "message": str(exc)}
-            return {
+            self._controller_bringup_active = True
+        # Run bring_up OUTSIDE the lock so a concurrent E-stop (disable_controller) can
+        # acquire the lock and interrupt it -- the companion aborts its readiness wait
+        # the moment it is disabled, and never launches onto a disabled owner.
+        try:
+            companion.bring_up()
+        except CompanionFault as exc:
+            outcome = companion.disable_outcome
+            isolated = bool(outcome is not None and outcome.energy_isolated)
+            detail = (
+                "energy-isolated" if isolated
+                else "disable commanded, MOTOR-DISABLE UNVERIFIED"
+            )
+            result = {
+                "ok": False, "code": "controller_bring_up_faulted",
+                "message": f"arm bring-up failed and was {detail}: {exc}",
+                "energy_isolated": isolated,
+                "motor_disable_verified": bool(
+                    outcome is not None and outcome.motor_verified
+                ),
+            }
+        except CompanionError as exc:
+            result = {"ok": False, "code": "controller_bring_up_error", "message": str(exc)}
+        else:
+            result = {
                 "ok": True, "code": "controller_ready",
                 "message": "left arm controller ready (per-motor telemetry verified)",
                 "controller_pid": companion.controller_pid,
             }
+        finally:
+            with self._controller_lock:
+                self._controller_bringup_active = False
+        return result
 
     def disable_controller(self, reason="operator_estop"):
         """Console E-stop: energy-isolate the arm (direct-disable first)."""

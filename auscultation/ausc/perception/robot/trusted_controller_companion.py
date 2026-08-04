@@ -189,10 +189,28 @@ class TrustedControllerCompanion:
                 raise CompanionError(
                     f"controller preflight failed: {type(exc).__name__}: {exc}"
                 ) from exc
+        # A concurrent fault (collector crash / E-stop) may have disabled this owner
+        # during the preflight. NEVER launch a controller onto an already-disabled or
+        # faulted owner -- that is the crash+preflight race that leaves a live controller.
+        if self._disabled or self._state == "faulted":
+            raise CompanionFault(
+                "companion was disabled during preflight; refusing to launch a controller"
+            )
         try:
             self._coordinator.prepare_receiver_socket()
-            self._controller = self._launch_controller()
-            pid = int(self._controller.pid)
+            controller = self._launch_controller()
+            self._controller = controller
+            # If a fault raced in between launch and here, terminate the just-launched
+            # controller and stay disabled rather than leaving it live under a dead owner.
+            if self._disabled or self._state == "faulted":
+                try:
+                    controller.terminate()
+                except Exception:  # noqa: BLE001 - best-effort teardown
+                    pass
+                raise CompanionFault(
+                    "companion was disabled during launch; controller terminated"
+                )
+            pid = int(controller.pid)
             if pid <= 0:
                 raise CompanionError("launched controller reported a non-positive pid")
             attestation = self._attest(pid, self._expected_uid)
@@ -210,6 +228,11 @@ class TrustedControllerCompanion:
     def _await_ready(self) -> object:
         deadline = self._monotonic() + self._readiness_timeout_s
         while True:
+            # A concurrent fault (collector crash / E-stop) that disabled this owner must
+            # interrupt the wait immediately -- never keep waiting for READY on a
+            # controller that is already being torn down.
+            if self._disabled:
+                raise CompanionFault("companion disabled while awaiting readiness")
             self._assert_controller_alive()
             health = self._coordinator.receiver_health()
             status = str(getattr(health, "status", "FAULT"))

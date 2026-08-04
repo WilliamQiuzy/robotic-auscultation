@@ -341,6 +341,45 @@ def test_failed_disable_is_retryable_and_never_latches_disabled():
     assert attempts["n"] == 2
 
 
+def test_bring_up_refuses_launch_if_disabled_during_preflight():
+    # Safety (crash+preflight race): a concurrent fault (collector crash / E-stop) that
+    # disables the owner during preflight must abort bring-up -- NEVER launch a controller
+    # onto an already-disabled owner (which would leave a live controller behind).
+    coord = _FakeCoordinator([_Health("READY", True)])
+    launched = []
+
+    def preflight():
+        companion._disabled = True  # simulate a concurrent disable during preflight
+
+    companion, _c, _d = _companion(
+        coord,
+        preflight=preflight,
+        launch_controller=lambda: launched.append("x") or _FakeController(),
+    )
+    with pytest.raises(CompanionFault, match="disabled during preflight"):
+        companion.bring_up()
+    assert launched == []            # never launched onto a disabled owner
+
+
+def test_await_ready_aborts_when_disabled_concurrently():
+    # A concurrent E-stop during the readiness wait interrupts it immediately, rather
+    # than blocking until the readiness timeout.
+    coord = _FakeCoordinator([_Health("WARMING")])
+    orig_health = coord.receiver_health
+    calls = {"n": 0}
+
+    def health(**k):
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            companion._disabled = True   # concurrent disable mid-wait
+        return orig_health(**k)
+
+    coord.receiver_health = health
+    companion, _c, _d = _companion(coord, readiness_timeout_s=5.0)
+    with pytest.raises(CompanionFault, match="disabled while awaiting"):
+        companion.bring_up()
+
+
 def test_single_owner_refuses_second_bring_up():
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, _d = _companion(coord)
