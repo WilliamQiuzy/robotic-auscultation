@@ -569,22 +569,25 @@ def test_serial_reader_error_fails_the_active_capture(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("unsafe_status", [fs.STATUS_SCREENED_LIMIT, fs.STATUS_HARD_LIMIT])
-def test_unsafe_force_status_latches_capture_failure_and_can_never_seal(
+def test_over_threshold_force_is_recorded_advisory_and_still_seals(
     tmp_path: Path, unsafe_status: str,
 ) -> None:
+    # P0-4: an over-threshold ("unsafe") reading is an advisory physician reference --
+    # it is recorded (never dropped) and the capture still seals; it never latches a
+    # failure, and the exact over-threshold datum is preserved in force.csv.
     recorder = _recorder(tmp_path)
     recorder.start()
     recorder.submit(_sample(10.0, 100.0, status=fs.STATUS_OK))
     recorder.submit(_sample(10.01, 110.0, status=unsafe_status))
     recorder.submit(_sample(10.02, 120.0, status=fs.STATUS_OK))
 
-    with pytest.raises(capture.ForceCaptureError, match="unsafe force status"):
-        recorder.finish(t_end=10.02)
+    summary = recorder.finish(t_end=10.02)
 
-    assert not (tmp_path / "force.csv").exists()
-    assert not (tmp_path / capture.COMPLETE_NAME).exists()
-    state = json.loads((tmp_path / "force_capture.json.inprogress").read_text())
-    assert state["status"] == "interrupted"
+    assert (tmp_path / "force.csv").exists()
+    assert (tmp_path / capture.COMPLETE_NAME).exists()
+    csv_text = (tmp_path / "force.csv").read_text(encoding="utf-8")
+    assert unsafe_status in csv_text
+    assert int(summary.n_samples) >= 3
 
 
 def test_provisional_calibration_cannot_start_a_formal_sidecar(tmp_path: Path) -> None:
@@ -876,7 +879,7 @@ def test_stream_reports_reader_fault_to_recorder_before_supervisor(tmp_path: Pat
     stream.stop()
 
 
-def test_stream_safety_callback_is_transition_only_exception_isolated_and_capture_fails(
+def test_stream_safety_callback_is_transition_only_and_over_threshold_is_recorded_advisory(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calibration_payload = json.loads(
@@ -931,9 +934,8 @@ def test_stream_safety_callback_is_transition_only_exception_isolated_and_captur
     safety_events: list[str] = []
 
     def safety_callback(sample: fs.ForceSample) -> None:
+        # Notification only -- force is advisory, so the callback never controls capture.
         safety_events.append(sample.status)
-        if len(safety_events) == 1:
-            raise RuntimeError("synthetic supervisor callback failure")
 
     stream = capture.ForceCaptureStream(
         "/dev/serial/by-id/usb-test-hall",
@@ -952,8 +954,9 @@ def test_stream_safety_callback_is_transition_only_exception_isolated_and_captur
     while len(safety_events) < 3 and time.monotonic() < deadline:
         time.sleep(0.005)
 
-    with pytest.raises(capture.ForceCaptureError, match="unsafe force status"):
-        stream.end_recording(t_end=time.monotonic())
+    # P0-4: an over-threshold ("unsafe") reading is an advisory physician reference --
+    # the recorder keeps recording, the reading is preserved, and the capture COMPLETES.
+    summary = stream.end_recording(t_end=time.monotonic())
     stream.stop()
 
     assert safety_events == [
@@ -961,7 +964,11 @@ def test_stream_safety_callback_is_transition_only_exception_isolated_and_captur
         fs.STATUS_HARD_LIMIT,
         fs.STATUS_SCREENED_LIMIT,
     ]
-    assert not (session / capture.COMPLETE_NAME).exists()
+    assert (session / capture.COMPLETE_NAME).exists()
+    # the over-threshold samples the physician needs are preserved in the CSV, not dropped
+    csv_text = (session / capture.CSV_NAME).read_text(encoding="utf-8")
+    assert str(hard_raw) in csv_text
+    assert int(summary.n_samples) >= 5
 
 
 def test_force_sensor_reports_each_native_sample_and_serial_error(

@@ -443,13 +443,15 @@ class ForceCaptureRecorder:
             if not self._accepting or self._overflow:
                 return
             sample_t = float(sample.t)
+            # P0-4: force is an advisory physician reference. An over-threshold
+            # ("unsafe") reading is exactly the datum the physician needs -- record it
+            # like any other sample: NEVER stop the recorder, NEVER drop it. The
+            # occurrence is noted only so the summary can honestly report it.
             if sample.status not in _SAFE_CAPTURE_STATUS:
                 if self.t0 is None:
                     self._last_prebind_unsafe = (sample.status, sample_t)
                 elif sample_t >= self.t0:
                     self._unsafe_failure = (sample.status, sample_t)
-                    self._accepting = False
-                    return
         try:
             self._queue.put_nowait(sample)
         except queue.Full:
@@ -482,12 +484,10 @@ class ForceCaptureRecorder:
             unsafe = self._last_prebind_unsafe
             reader_error = self._last_prebind_reader_error
             if unsafe is not None and unsafe[1] >= start:
+                # P0-4: an over-threshold reading at the Start boundary is advisory, not
+                # a Start failure -- keep recording (the sample is preserved in the CSV).
                 self._unsafe_failure = unsafe
-                self._accepting = False
-                failure = ForceCaptureError(
-                    f"unsafe force status {unsafe[0]} at Start boundary"
-                )
-            elif reader_error is not None and reader_error[1] >= start:
+            if reader_error is not None and reader_error[1] >= start:
                 self._first_reader_error = reader_error
                 self._accepting = False
                 failure = ForceCaptureError(
@@ -611,14 +611,10 @@ class ForceCaptureRecorder:
                 raise ForceCaptureError(
                     "Hall-force spool queue overflow; capture is incomplete"
                 )
-            if (
-                unsafe_failure is not None
-                and start <= unsafe_failure[1] <= end
-            ):
-                raise ForceCaptureError(
-                    f"unsafe force status {unsafe_failure[0]} at "
-                    f"{unsafe_failure[1]:.9f}"
-                )
+            # P0-4: an over-threshold ("unsafe") force reading is advisory -- it was
+            # recorded to the CSV like any other sample and NEVER fails the capture; the
+            # physician's over-threshold datum is preserved, not dropped.
+            del unsafe_failure
             if (
                 reader_error is not None
                 and start <= reader_error[1] <= end
@@ -782,10 +778,9 @@ def _copy_and_validate_csv(
         }
         if row["status"] not in _NATIVE_SAMPLE_STATUS:
             raise ForceCaptureError(f"force.csv row {row_number} status is invalid")
-        if row["status"] not in _SAFE_CAPTURE_STATUS:
-            raise ForceCaptureError(
-                f"force.csv row {row_number} has unsafe force status {row['status']}"
-            )
+        # P0-4: over-threshold ("unsafe") rows are advisory physician-reference data and
+        # are PRESERVED in force.csv, never rejected -- only a non-native status is
+        # invalid. The row's status is recorded verbatim for the physician.
         if not row["device_t_ms"]:
             raise ForceCaptureError(
                 f"force.csv row {row_number} is missing device_t_ms"

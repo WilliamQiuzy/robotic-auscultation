@@ -2799,13 +2799,15 @@ class Collector:
                                 "sync_calibration_sha256": self.sync_calibration_sha256,
                                 "sync": copy.deepcopy(self._force_sync_metadata),
                             }
-                        except Exception as exc:  # noqa: BLE001
-                            reason = (
-                                "Hall-force Start boundary failed: "
-                                f"{type(exc).__name__}: {exc}"
-                            )
-                            return self._fail_start_after_platform(
-                                reason, code="force_start_not_latched",
+                        except Exception as exc:  # noqa: BLE001 - advisory, never blocks
+                            # P0-4: force is advisory. If it cannot latch its Start
+                            # boundary, record WITHOUT it (marked degraded) rather than
+                            # failing Start.
+                            self._force_recording_active = False
+                            self._force_status = "ERROR"
+                            self._force_error = (
+                                "Hall-force Start boundary unavailable (advisory, "
+                                f"recording without it): {type(exc).__name__}: {exc}"
                             )
                     if self._audio is not None:
                         try:
@@ -3043,12 +3045,13 @@ class Collector:
                             float(camera_end_t)
                             if camera_end_t is not None else time.monotonic()
                         )
+                        # P0-4: force is advisory. Record whatever the Hall channel
+                        # captured -- INCLUDING over-threshold readings the physician
+                        # wants -- with its true status, and bind it if the writer
+                        # accepts it, but NEVER abort End: a degraded/missing force
+                        # channel does not lose the session or its promotion eligibility.
                         summary = self._force.end_recording(t_end=force_end_t)
                         self._force_recording_active = False
-                        if str(summary.status) != "OK":
-                            raise RuntimeError(
-                                f"Hall-force boundary coverage is {summary.status}"
-                            )
                         force_summary = {
                             "path": "force.csv",
                             "t_start": float(summary.t_start),
@@ -3066,11 +3069,8 @@ class Collector:
                         force_setter = getattr(
                             self.platform.capture, "set_force_summary", None,
                         )
-                        if not callable(force_setter):
-                            raise RuntimeError(
-                                "capture cannot bind finalized Hall-force data"
-                            )
-                        force_setter(force_summary)
+                        if callable(force_setter):
+                            force_setter(force_summary)
                         end_boundary["force"] = force_summary
                         end_boundary["force_sync"] = {
                             "calibration_sha256": self.hall_calibration_sha256,
@@ -3079,21 +3079,18 @@ class Collector:
                             "sync": copy.deepcopy(self._force_sync_metadata),
                         }
                         self._force_last_summary = dict(force_summary)
-                        self._force_status = "RUNNING"
-                        self._force_error = None
-                    except Exception as exc:  # noqa: BLE001
+                        self._force_status = str(summary.status)
+                        self._force_error = (
+                            None if str(summary.status) == "OK"
+                            else f"Hall-force {summary.status} (advisory)"
+                        )
+                    except Exception as exc:  # noqa: BLE001 - advisory, never aborts End
                         self._force_recording_active = False
-                        reason = (
-                            "Hall-force End verification failed: "
+                        self._force_status = "ERROR"
+                        self._force_error = (
+                            "Hall-force End readout unavailable (advisory): "
                             f"{type(exc).__name__}: {exc}"
                         )
-                        self._abort_recording(reason, boundary_closed=True)
-                        return {
-                            "ok": False,
-                            "code": "force_end_not_verified",
-                            "message": reason,
-                            "state": self.platform.state.value,
-                        }
                 if self.require_robot:
                     try:
                         robot_summary = self._finish_robot_session(
@@ -5199,14 +5196,19 @@ class Collector:
                 and self.platform.state is CollectionState.RECORDING
                 and not ready
             ):
+                # P0-4: the Hall force reading is a physician-facing advisory reference,
+                # NOT a safety interlock. A high/low/over-threshold reading during
+                # recording updates the displayed status only -- it NEVER aborts
+                # recording and never touches the arm.
                 self._force_status = status
-                self._force_error = f"Hall-force became {status} during recording"
-                self._abort_recording(self._force_error)
-        except Exception as exc:  # noqa: BLE001 - health failure is unsafe
+                self._force_error = f"Hall-force {status} during recording (advisory)"
+        except Exception as exc:  # noqa: BLE001 - advisory health readout
             base.update({
                 "status": "ERROR", "ready": False,
                 "error": f"{type(exc).__name__}: {exc}",
             })
+            # Advisory: a Hall read failure degrades the reference channel; it does not
+            # abort recording (_on_force_capture_fault is itself advisory now).
             if self.platform.state is CollectionState.RECORDING:
                 self._on_force_capture_fault(exc)
         return base
@@ -5839,7 +5841,7 @@ details.engineering{margin-top:10px;background:#0c1115;border:1px solid var(--li
 <aside class="rail"><section class="card railcard" id="taskcard"><div class="cardhead"><span class="label">Current point</span><span id="counter" class="label">—</span></div><div class="target" id="tname">—</div><div class="back" id="backgate">Waiting for back</div><div class="buttons backcontrol"><button class="wide" id="btnback">Confirm Back</button></div>
 <div class="taskpoints"><div class="cardhead"><span class="label">10 auscultation points</span><span id="pointslabel" class="label">0 / 10</span></div><div class="points" id="plist"></div></div><div class="keyline">Face away, stay alone in frame, then Confirm Back.</div></section>
 <section class="card railcard" id="sensorcard"><div class="sensorblock"><div class="cardhead"><span class="label">Lung audio</span><span class="pill" id="audiopill">—</span></div><div class="audio-row"><div class="audio-copy"><strong id="audiostatus">Checking input</strong><span id="audiodb">— dBFS</span></div><button class="listen" id="btnaudio">▶ Monitor</button></div><div class="audiolevel" aria-hidden="true"><i id="audiofill"></i></div><div class="keyline">Headphones required.</div></div>
-<div class="sensorblock"><div class="cardhead"><span class="label">Contact force</span><span class="pill" id="forcepill">—</span></div><div class="forcelevel" id="forcebar" role="progressbar" aria-label="Contact force level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Unavailable"><i id="forcefill"></i></div><div class="keyline">Stops if force is unsafe or stale.</div></div></section>
+<div class="sensorblock"><div class="cardhead"><span class="label">Contact force</span><span class="pill" id="forcepill">—</span></div><div class="forcelevel" id="forcebar" role="progressbar" aria-label="Contact force level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Unavailable"><i id="forcefill"></i></div><div class="keyline">Physician reference only — never stops recording or the arm.</div></div></section>
 <section class="card railcard" id="controlcard"><div class="cardhead"><span class="label">Controls</span></div><div class="buttons">
 <div class="armctl" id="armctl" hidden><div class="armstat" id="armstat">Arm —</div><div class="buttons"><button class="wide" id="btnarm">⬆ Bring up arm</button><button class="wide estop" id="btnestop">■ Disable (E-stop)</button></div></div>
 <button class="start wide" id="btnstart">● Start</button><button class="end wide" id="btnend">■ End &amp; Verify</button>
@@ -5873,7 +5875,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
  $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,disTxt=iso?'energy-isolated':'motor-disable UNVERIFIED';$('armstat').textContent='Arm '+(dis?'DISABLED · '+disTxt:st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
- const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Stop',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
+ const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
  $('live').className='live'+(recording?' on':'');$('recword').textContent=recording?'REC '+Number(s.elapsed).toFixed(1)+'s':finalizing?'Verifying':previewOnly?'Preview only':stateText[s.state]||s.state;
  $('btnstart').disabled=busy||s.start_authorized!==true;$('btnstart').title=s.start_authorized===true?'':(s.start_rejection||'');$('btnstart').textContent=previewOnly?'Recording disabled':(s.state==='COMPLETE'||s.state==='ABORTED'||s.state==='ERROR')?'● New capture':'● Start';$('btnend').disabled=busy||!recordingControls||!recording;
