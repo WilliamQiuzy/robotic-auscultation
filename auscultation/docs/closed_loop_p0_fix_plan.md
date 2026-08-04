@@ -401,6 +401,38 @@ Still open — coherent packages that must NOT be rushed (this is where round-1/
 These three are the remaining go-live / promotion-path + concurrency work. They need
 careful, cross-component-tested passes (like the reviewer's), not more piecemeal edits.
 
+## STOP-SHIP review response (round 4) — architecture correction
+
+Round 4 established the root cause: my #6 model was **inverted**. The writer/platform
+self-promoted (`training_eligible=true`, `production_teleop_complete`,
+`PRODUCTION_FINALIZATION.json`), but the trusted chain requires the RAW capture manifest
+to stay `training_eligible=false` and the **finalizer to be the sole promoter**
+(`_manifest_check` at `:746`).
+
+**Aligned + committed + cross-component verified (`04b9197`, `614585d`):**
+- `ProductionTeleopCapture` is now a thin subclass that seals the SAME raw
+  diagnostic-shape completion (`DIAGNOSTIC_FINALIZATION.json` / `diagnostic_complete` /
+  `training_eligible=false`, so the reconciler recognises it) and differs ONLY in the
+  manifest identity (`capture_kind=production_teleop_v4` + `promotion_contract_version` +
+  `schema_version=wam_session_v2` + `session_id` + `rehearsal_overrides=[]`) that lets
+  the finalizer promote it.
+- The writer NEVER self-promotes; the platform End **rejects any** writer claiming
+  eligibility.
+- **Cross-component check:** the production raw manifest now returns `[]` /
+  `PASS` from the finalizer's own `_manifest_check` (the exact check that returned
+  `manifest_template_invalid` / `rehearsal_override_present` /
+  `source_manifest_not_fail_closed`); a self-promoting manifest is still rejected.
+- A **failed disable is now retryable** — `_fault_disable` set `_disabled=True` before
+  running the command, so a first failure latched the arm "disabled" and silenced every
+  E-stop; now `_disabled` is set only on command success.
+
+**Still open (go-live promotion path + robot concurrency):** the finalizer's FULL
+readiness (streams/arm/camera/force/sync/hardware_activation canonical fields + replay
+attestations + evidence sink runtime + `finalize_training_session` activation +
+`completion_validator`), the force→promotion channel-exclusion, the reconciler's
+production-prefix recognition, and the remaining robot concurrency (E-stop lock,
+crash+preflight race, watchdog timeout, motor-disable readback).
+
 ---
 
 ## Gate verification matrix
