@@ -433,6 +433,32 @@ attestations + evidence sink runtime + `finalize_training_session` activation +
 production-prefix recognition, and the remaining robot concurrency (E-stop lock,
 crash+preflight race, watchdog timeout, motor-disable readback).
 
+### Round-4 continuation — robot concurrency + recovery closed
+
+Committed + tested (`cba2a2b`, `190731d`):
+- **E-stop no longer lock-blocked.** `bring_up_controller` runs the slow `bring_up()`
+  OUTSIDE `_controller_lock` (with a bring-up-in-progress guard), so a concurrent E-stop
+  acquires the lock and interrupts it; `_await_ready` aborts the moment it is disabled.
+- **crash+preflight race closed.** The companion refuses to launch if disabled during
+  preflight and terminates a controller if a fault raced in during launch.
+- **motor-disable readback hook** wired into every companion (default None → `energy_isolated`
+  stays honestly unclaimed).
+- **Recovery bug fixed by the alignment (proved).** A production raw session uses the
+  diagnostic-shape seal `DIAGNOSTIC_FINALIZATION.json`, which the restart reconciler
+  recognises, so a sealed production session is never rewritten to `diagnostic_aborted`.
+- **CLI can clear production blockers** via `--production-blocker none` (the empty-set
+  attestation `action=append` could not express).
+
+**Remaining are the LARGE go-live promotion-path items** (all behind the deliberately
+fail-closed finalizer): the writer emitting the full canonical manifest field set
+(streams/arm/camera/force/sync/hardware_activation) the finalizer's full readiness
+requires; the converter's `contact_force_valid`-driven force-channel exclusion (a
+training-data-format feature); the 2113-line deployment generator emitting the
+`--production-teleop` + controller args; the evidence-sink runtime caller +
+`finalize_training_session` activation; and the watchdog-timeout (bounded
+`receiver_health`). These need dedicated cross-component-tested passes WITH the real
+commissioning, not tail-end edits.
+
 ---
 
 ## Gate verification matrix
