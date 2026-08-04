@@ -317,6 +317,49 @@ code level (record → `ProductionTeleopCapture` → `production_teleop_complete
 COMPLETE + training-eligible). The **promotion** of a recorded session into a training
 dataset stays deliberately gated on owner authorization + the real commissioning.
 
+## STOP-SHIP review response (round 2)
+
+A read-only review correctly flagged NO-GO items my first P0-4/#6 passes left half-done.
+Fixed + committed + tested this round:
+
+- **Force is advisory end-to-end (P0-4 completed).** Removed every remaining force→
+  control-flow coupling: the `/state` polling path no longer `_abort_recording()` on
+  over-threshold; a force Start-boundary failure no longer rolls back Start; a non-OK
+  force End no longer aborts the session; and `force_capture.py` no longer stops +
+  DROPS the over-threshold sample (the physician's datum) — `submit` writes it,
+  `end_recording`/`bind_start` no longer fail on it, and `_copy_and_validate_csv`
+  preserves it. UI no longer says "Stops if force is unsafe"; `HARD_LIMIT` reads
+  "Very high". Old-policy force tests flipped.
+- **Robot-fault safety.** A dead collector loop now energy-isolates the arm
+  (disable-first), and `disable_controller` reports `ok:false` when the disable command
+  itself fails (never a false "controller_disabled").
+- **Production Start manifest identity.** `ProductionTeleopCapture` now emits
+  `capture_kind=production_teleop_v4` + `promotion_contract_version=wam_promotion_v2` +
+  `capture_mode=production_teleop_v4` (was a diagnostic manifest under a production
+  seal, which the converter/finalizer would reject).
+
+Still open — all on the **promotion path the finalizer keeps fail-closed by design**,
+and genuinely part of the go-live activation, NOT a rushed code flip:
+
+- **Force must not disqualify promotion.** The writer (`perception_capture` require-force
+  gates) and converter (`session_to_lerobot_v2` "force raw authenticity is not
+  training-signal eligible") still treat force as a hard training gate. Honoring the
+  contract requires splitting `require_force`'s two conflated meanings — *record force*
+  (advisory) vs *gate promotion on force* (never) — a careful training-authenticity
+  semantics change.
+- **CLI cannot clear `production_blockers`** (5 static blockers) — but those encode real
+  commissioning requirements; clearing them is the commissioning, not a CLI flag.
+- **Deployment generator** (`collection_service_unit`) does not emit the production
+  teleop/launch/disable/preflight ExecStart; the canary `hil_*.sh` are not in release
+  provenance.
+- **Production evidence sink** has no runtime caller; **finalizer** stays
+  `production_publish_not_activated`; **completion_validator=None** for production means
+  the authoritative finalizer is not yet run in the console path.
+
+**Verdict stands: NO-GO for production recording / training promotion** until the
+promotion path is activated with owner authorization + real commissioning. 8801 remains
+a valid diagnostic-observation bench.
+
 ---
 
 ## Gate verification matrix
