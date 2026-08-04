@@ -395,3 +395,59 @@ def test_disable_is_idempotent():
     companion.shutdown("first")
     companion.shutdown("second")  # already disabled
     assert disabler.calls == ["first"]  # direct-disable invoked exactly once
+
+
+def test_await_ready_aborts_on_stop_requested_before_disable_confirms():
+    # E-stop-vs-bring-up race: a SLOW/failing E-stop disable publishes stop intent
+    # (_stop_requested) BEFORE its command confirms (_disabled still False). A bring-up
+    # mid-readiness-wait must abort on the stop intent ALONE -- otherwise the arm could
+    # reach READY while an E-stop's disable is still in flight.
+    coord = _FakeCoordinator([_Health("WARMING")])
+    orig_health = coord.receiver_health
+    calls = {"n": 0}
+
+    def health(**k):
+        calls["n"] += 1
+        if calls["n"] >= 2:
+            companion._stop_requested = True   # E-stop begun; disable NOT yet confirmed
+        return orig_health(**k)
+
+    coord.receiver_health = health
+    companion, _c, _d = _companion(coord, readiness_timeout_s=5.0)
+    with pytest.raises(CompanionFault, match="disabled while awaiting"):
+        companion.bring_up()
+    assert companion.disabled is False   # command never confirmed, yet bring-up aborted
+
+
+def test_bring_up_refuses_launch_on_stop_requested_during_preflight():
+    # Same race at the preflight gate: an in-flight E-stop (stop intent published, disable
+    # not yet confirmed) during preflight must still refuse to launch a controller.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    launched = []
+
+    def preflight():
+        companion._stop_requested = True   # E-stop begun, command not confirmed
+
+    companion, _c, _d = _companion(
+        coord,
+        preflight=preflight,
+        launch_controller=lambda: launched.append("x") or _FakeController(),
+    )
+    with pytest.raises(CompanionFault, match="disabled during preflight"):
+        companion.bring_up()
+    assert launched == []                # never launched while an E-stop was in flight
+
+
+def test_shutdown_publishes_stop_requested_even_when_command_fails():
+    # The cancellation token must be published even when the disable command itself fails,
+    # so a concurrent bring-up still aborts (and the failed disable stays retryable).
+    coord = _FakeCoordinator([_Health("READY", True)])
+
+    def failing(reason):
+        raise RuntimeError("CAN disable send failed")
+
+    companion, _c, _d = _companion(coord, disabler=failing)
+    companion.bring_up()
+    companion.shutdown("estop")
+    assert companion.stop_requested is True   # intent published despite the failure
+    assert companion.disabled is False        # command failed -> not latched, retryable

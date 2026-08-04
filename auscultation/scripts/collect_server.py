@@ -900,6 +900,20 @@ DEFAULT_PRODUCTION_BLOCKERS = (
 )
 
 
+def _resolve_production_blockers(cli_blockers):
+    """Resolve the effective commissioning blocker set from the CLI.
+
+    The built-in fail-closed blockers are IMMUTABLE from the command line: an
+    unauthenticated string must never be able to attest commissioning complete.  Any
+    ``--production-blocker`` values are APPENDED (to declare additional known-bad
+    conditions); they can never clear or shrink the default set.  Clearing the
+    commissioning-complete set is derived solely from SHA-bound activation evidence
+    (the go-live activation path), never asserted by a bare CLI token.
+    """
+    extra = tuple(cli_blockers) if cli_blockers else ()
+    return DEFAULT_PRODUCTION_BLOCKERS + extra
+
+
 class Collector:
     """Single-camera preview, v9 inference, and diagnostic-only capture owner."""
 
@@ -968,6 +982,7 @@ class Collector:
         controller_disable=None,
         controller_preflight=None,
         controller_attest=None,
+        controller_verify_motor_disable=None,
         controller_readiness_timeout_s=15.0,
         robot_mask_provider=None,
         handeye_activation=None,
@@ -1130,8 +1145,12 @@ class Collector:
         self._controller_bringup_active = False
         # Independent motor-disable readback hook wired into every companion. Absent
         # (None) -> energy_isolated is NEVER claimed (the honest default); a real
-        # STATE-frame torque-off readback can be assigned at deployment to earn it.
-        self._controller_verify_motor_disable = None
+        # STATE-frame torque-off readback is injected here at deployment to earn it.
+        # It is a constructor parameter (not a hardcoded None) so a production assembly
+        # can wire a genuine per-motor torque-off decode without editing this class; the
+        # decode source itself is a go-live wiring item (the STATE frame is not yet
+        # decoded into per-motor torque flags).
+        self._controller_verify_motor_disable = controller_verify_motor_disable
         # Independent controller watchdog cadence: supervision runs on its OWN thread so
         # a hung/slow main loop can never stall the telemetry-fault -> disable path.
         self._controller_watchdog_interval_s = 0.1
@@ -1674,19 +1693,30 @@ class Collector:
         # neither hang nor be starved by main-loop work.
         while not self._stop.wait(self._controller_watchdog_interval_s):
             comp = self._controller_companion
-            if comp is None or comp.state != "ready" or comp.disabled:
+            if comp is None or comp.disabled:
                 continue
-            try:
-                comp.poll()
-            except CompanionFault:
-                pass  # poll() already disabled the arm; status reflects it
-            except Exception as exc:  # noqa: BLE001 - any watchdog error -> fail-safe disable
+            if comp.state == "ready":
                 try:
-                    if not comp.disabled:
-                        comp.report_external_fault(
-                            f"controller watchdog error: {type(exc).__name__}: {exc}"
-                        )
-                except Exception:
+                    comp.poll()
+                except CompanionFault:
+                    pass  # poll() already disabled the arm; status reflects it
+                except Exception as exc:  # noqa: BLE001 - any watchdog error -> fail-safe disable
+                    try:
+                        if not comp.disabled:
+                            comp.report_external_fault(
+                                f"controller watchdog error: {type(exc).__name__}: {exc}"
+                            )
+                    except Exception:
+                        pass
+            elif comp.state == "faulted" and comp.controller_pid is not None:
+                # Faulted with a launched controller but NO confirmed disable -> a prior
+                # disable command failed. Re-issue it every tick until it succeeds, so a
+                # single transient disable failure can never leave the arm energized.
+                # shutdown() is retryable (it latches _disabled only on command success)
+                # and a no-op once the command finally confirms.
+                try:
+                    comp.shutdown("watchdog_disable_retry")
+                except Exception:  # noqa: BLE001 - keep retrying on the next tick
                     pass
 
     def _loop_guarded(self):
@@ -5840,7 +5870,22 @@ def make_handler(col: Collector, page: bytes):
                                "application/json", status=400, no_store=True)
                     return
                 action = body.get("action")
-                if action == "confirm_back":
+                if action == "arm_disable":
+                    # E-STOP FAST PATH: the console disable MUST NOT queue behind an
+                    # in-flight bring-up/preflight/readiness-wait that holds _control_lock.
+                    # It bypasses _control_lock entirely and goes straight to the
+                    # controller companion (guarded only by the short-held _controller_lock,
+                    # which bring-up releases for the duration of its launch/await). Without
+                    # this, an E-stop pressed during a bring-up would not disable the arm
+                    # until the bring-up finished.
+                    if set(body) != {"action"}:
+                        self._send(
+                            b'{"ok":false,"message":"body requires only action"}',
+                            "application/json", status=400, no_store=True,
+                        )
+                        return
+                    result = col.disable_controller()
+                elif action == "confirm_back":
                     if (
                         set(body) != {
                             "action", "preview_frame_index", "preview_frame_token",
@@ -6111,9 +6156,10 @@ def build_parser():
     )
     ap.add_argument(
         "--production-blocker", action="append", default=None,
-        help="repeatable commissioning blocker; defaults to the built-in fail-closed "
-             "list. Pass '--production-blocker none' to attest commissioning complete "
-             "and clear the set (the only way to express an empty blocker list).",
+        help="repeatable ADDITIONAL commissioning blocker, appended to the built-in "
+             "fail-closed list. It can only ADD blockers, never clear them: the "
+             "commissioning-complete set is cleared solely by SHA-bound activation "
+             "evidence, never by an unauthenticated CLI string.",
     )
     ap.add_argument(
         "--production-activation", default=None,
@@ -6280,16 +6326,7 @@ def main(argv=None):
                 "real Hall-force collection requires --require-audio and "
                 "--audio-pick-channel"
             )
-    # Default: the built-in fail-closed commissioning blockers. An explicit
-    # `--production-blocker none` is the commissioning-complete attestation that clears
-    # them (the only way to express the EMPTY set with action=append); any other values
-    # replace the list.
-    if a.production_blocker is None:
-        production_blockers = DEFAULT_PRODUCTION_BLOCKERS
-    elif [b.strip().lower() for b in a.production_blocker] == ["none"]:
-        production_blockers = ()
-    else:
-        production_blockers = tuple(a.production_blocker)
+    production_blockers = _resolve_production_blockers(a.production_blocker)
     targets = load_targets(a.targets)
     production_runtime = None
     commissioning_handeye = None

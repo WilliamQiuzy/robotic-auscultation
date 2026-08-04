@@ -27,6 +27,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+import threading
 import time
 from typing import Callable, Optional, Protocol
 
@@ -152,6 +153,16 @@ class TrustedControllerCompanion:
         self._controller: Optional[LaunchedController] = None
         self._disabled = False
         self._disable_outcome: Optional[DisableOutcome] = None
+        # Cancellation token: set the INSTANT any disable/E-stop is requested, BEFORE the
+        # (possibly slow or failing) disable I/O runs.  ``_disabled`` is only set once the
+        # command CONFIRMS, so it cannot be used to interrupt a concurrent bring-up during
+        # the disable window.  ``_stop_requested`` closes that race: a bring-up in flight
+        # aborts the moment a stop is requested, so the arm can never reach READY after an
+        # E-stop has begun.  Monotonic (never cleared) -- a companion is single-use.
+        self._stop_requested = False
+        # Serializes the disable critical section so a watchdog-poll fault and a console
+        # E-stop cannot interleave their teardown of the SAME companion.
+        self._disable_lock = threading.Lock()
 
     # -- introspection ------------------------------------------------------ #
     @property
@@ -161,6 +172,10 @@ class TrustedControllerCompanion:
     @property
     def disabled(self) -> bool:
         return self._disabled
+
+    @property
+    def stop_requested(self) -> bool:
+        return self._stop_requested
 
     @property
     def controller_pid(self) -> Optional[int]:
@@ -192,7 +207,9 @@ class TrustedControllerCompanion:
         # A concurrent fault (collector crash / E-stop) may have disabled this owner
         # during the preflight. NEVER launch a controller onto an already-disabled or
         # faulted owner -- that is the crash+preflight race that leaves a live controller.
-        if self._disabled or self._state == "faulted":
+        # ``_stop_requested`` catches an E-stop whose disable I/O is still in flight
+        # (``_disabled`` not yet set), which ``_disabled``/``faulted`` alone would miss.
+        if self._stop_requested or self._disabled or self._state == "faulted":
             raise CompanionFault(
                 "companion was disabled during preflight; refusing to launch a controller"
             )
@@ -202,7 +219,7 @@ class TrustedControllerCompanion:
             self._controller = controller
             # If a fault raced in between launch and here, terminate the just-launched
             # controller and stay disabled rather than leaving it live under a dead owner.
-            if self._disabled or self._state == "faulted":
+            if self._stop_requested or self._disabled or self._state == "faulted":
                 try:
                     controller.terminate()
                 except Exception:  # noqa: BLE001 - best-effort teardown
@@ -230,8 +247,10 @@ class TrustedControllerCompanion:
         while True:
             # A concurrent fault (collector crash / E-stop) that disabled this owner must
             # interrupt the wait immediately -- never keep waiting for READY on a
-            # controller that is already being torn down.
-            if self._disabled:
+            # controller that is already being torn down.  ``_stop_requested`` fires the
+            # instant an E-stop begins, even before its (slow) disable command confirms,
+            # so a bring-up can never win the race and return READY after an E-stop.
+            if self._stop_requested or self._disabled:
                 raise CompanionFault("companion disabled while awaiting readiness")
             self._assert_controller_alive()
             health = self._coordinator.receiver_health()
@@ -311,6 +330,16 @@ class TrustedControllerCompanion:
         ``command_succeeded`` -- never ``energy_isolated`` -- so the safety surface can
         never falsely report the arm as de-energized.
         """
+        # Publish stop intent BEFORE any (slow/failing) I/O so a concurrent bring-up
+        # aborts immediately -- this is the cancellation token that closes the
+        # "arm reaches READY while an E-stop disable is still running" race.
+        self._stop_requested = True
+        # Serialize teardown: a watchdog-poll fault and a console E-stop must not
+        # interleave their disable of the SAME companion.
+        with self._disable_lock:
+            self._fault_disable_locked(reason)
+
+    def _fault_disable_locked(self, reason: str) -> None:
         if self._disabled:
             # Already SUCCESSFULLY disabled -> idempotent no-op (no double-disable).
             self._state = "faulted"

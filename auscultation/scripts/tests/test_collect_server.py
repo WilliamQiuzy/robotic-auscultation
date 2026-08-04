@@ -6321,6 +6321,115 @@ def test_watchdog_thread_disables_arm_on_telemetry_fault(tmp_path):
         c.shutdown()
 
 
+def test_http_estop_bypasses_control_path_during_bringup():
+    # HIGHEST-priority safety: an E-stop (arm_disable) POST must NOT queue behind an
+    # in-flight bring-up/preflight/readiness-wait that holds the control path. It routes
+    # straight to disable_controller, so it disarms the arm promptly even while control()
+    # is blocked. If it still routed through control(), this request would hang.
+    server = _load_collect_server()
+    blocked = threading.Event()          # never set: simulates bring-up holding _control_lock
+    disable_calls = []
+
+    class Col:
+        jpeg = b"jpeg"
+
+        def control(self, action):
+            blocked.wait(timeout=5.0)    # would hang the request if E-stop routed here
+            return {"ok": True}
+
+        def disable_controller(self):
+            disable_calls.append("estop")
+            return {
+                "ok": True, "code": "controller_disabled",
+                "message": "left arm energy-isolated",
+            }
+
+        def state_snapshot(self):
+            return {}
+
+    httpd = server.ThreadingHTTPServer(
+        ("127.0.0.1", 0), server.make_handler(Col(), b"page"),
+    )
+    worker = threading.Thread(target=httpd.serve_forever, daemon=True)
+    worker.start()
+    connection = http.client.HTTPConnection("127.0.0.1", httpd.server_port, timeout=2.0)
+    try:
+        started = time.monotonic()
+        body = json.dumps({"action": "arm_disable"})
+        connection.request(
+            "POST", "/control", body,
+            {"Content-Type": "application/json", "Content-Length": str(len(body))},
+        )
+        response = connection.getresponse()
+        result = json.loads(response.read())
+        elapsed = time.monotonic() - started
+        assert response.status == 200
+        assert result["code"] == "controller_disabled"
+        assert disable_calls == ["estop"]     # went straight to disable_controller
+        assert elapsed < 1.0                  # did NOT block on the held control path
+    finally:
+        blocked.set()
+        connection.close()
+        httpd.shutdown()
+        httpd.server_close()
+        worker.join(timeout=2.0)
+
+
+def test_watchdog_retries_failed_disable_until_confirmed(tmp_path):
+    # Safety: if the first automatic disable command FAILS (arm faulted but not confirmed
+    # disabled), the watchdog must keep re-issuing the disable until it succeeds -- one
+    # transient disable failure can never leave the arm energized.
+    import threading as _threading
+    import time as _time
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("READY", True)])
+    attempts = {"n": 0}
+
+    class _FlakyDisable:
+        def __init__(self): self.calls = []
+        def __call__(self, reason):
+            self.calls.append(reason)
+            attempts["n"] += 1
+            if attempts["n"] == 1:
+                raise RuntimeError("first disable send failed")   # command fails
+            return type("O", (), {"outcome": "energy_isolated"})()
+
+    disable = _FlakyDisable()
+    _configure_arm(c, coord, disable)
+    c._controller_watchdog_interval_s = 0.005
+    try:
+        c.bring_up_controller()
+        assert c._controller_ready() is True
+        wd = _threading.Thread(target=c._controller_watchdog_run, daemon=True)
+        wd.start()
+        coord._script = [_ArmHealth("STALE", False)]      # telemetry fault -> disable
+        deadline = _time.monotonic() + 2.0
+        while not c._controller_companion.disabled and _time.monotonic() < deadline:
+            _time.sleep(0.01)
+        assert c._controller_companion.disabled is True   # eventually confirmed disabled
+        assert attempts["n"] >= 2                          # retried after the first failure
+    finally:
+        c._stop.set()
+        wd.join(timeout=1.0)
+        c.shutdown()
+
+
+def test_production_blockers_are_add_only_never_cleared():
+    # Security: --production-blocker can only ADD to the fail-closed default set; no CLI
+    # string (formerly the magic 'none') can clear the commissioning blockers without
+    # SHA-bound activation evidence.
+    server = _load_collect_server()
+    default = server.DEFAULT_PRODUCTION_BLOCKERS
+    assert server._resolve_production_blockers(None) == default
+    # 'none' is no longer magic -- it is just appended as a literal, never a clear.
+    assert server._resolve_production_blockers(["none"]) == default + ("none",)
+    got = server._resolve_production_blockers(["extra condition"])
+    assert got[: len(default)] == default          # defaults preserved, never shrunk
+    assert "extra condition" in got and len(got) == len(default) + 1
+
+
 def test_start_robot_session_requires_arm_brought_up(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
