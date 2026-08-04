@@ -1132,6 +1132,10 @@ class Collector:
         # (None) -> energy_isolated is NEVER claimed (the honest default); a real
         # STATE-frame torque-off readback can be assigned at deployment to earn it.
         self._controller_verify_motor_disable = None
+        # Independent controller watchdog cadence: supervision runs on its OWN thread so
+        # a hung/slow main loop can never stall the telemetry-fault -> disable path.
+        self._controller_watchdog_interval_s = 0.1
+        self._controller_watchdog = None
         self._robot_mask_provider = robot_mask_provider
         self._handeye_activation = handeye_activation
         self._frame_evidence_bundle_factory = (
@@ -1653,7 +1657,37 @@ class Collector:
             daemon=True,
         )
         self._thread.start()
+        # Independent controller watchdog: supervises the arm on its OWN cadence so a
+        # hung/slow main loop can never stall the telemetry-fault -> disable path.
+        self._controller_watchdog = threading.Thread(
+            target=self._controller_watchdog_run,
+            name="wam-controller-watchdog",
+            daemon=True,
+        )
+        self._controller_watchdog.start()
         return self
+
+    def _controller_watchdog_run(self):
+        # Sole controller supervisor, independent of the main loop. A telemetry fault or
+        # a controller exit after ready energy-isolates the arm (poll() disable-firsts).
+        # receiver_health() is non-blocking (cached snapshot + staleness), so this can
+        # neither hang nor be starved by main-loop work.
+        while not self._stop.wait(self._controller_watchdog_interval_s):
+            comp = self._controller_companion
+            if comp is None or comp.state != "ready" or comp.disabled:
+                continue
+            try:
+                comp.poll()
+            except CompanionFault:
+                pass  # poll() already disabled the arm; status reflects it
+            except Exception as exc:  # noqa: BLE001 - any watchdog error -> fail-safe disable
+                try:
+                    if not comp.disabled:
+                        comp.report_external_fault(
+                            f"controller watchdog error: {type(exc).__name__}: {exc}"
+                        )
+                except Exception:
+                    pass
 
     def _loop_guarded(self):
         try:
@@ -4099,8 +4133,8 @@ class Collector:
             # Advance the health epoch on any liveness degradation so an
             # in-flight Start can detect a worker that died mid-arm.
             self._observe_runtime_health()
-            # A brought-up arm that loses per-motor telemetry auto-energy-isolates.
-            self._supervise_controller()
+            # Controller supervision (telemetry-fault -> disable) runs on the INDEPENDENT
+            # watchdog thread, not here, so a hung/slow main loop never stalls it.
             if self.require_force:
                 self._force_snapshot()
             self._consume_preview_result()

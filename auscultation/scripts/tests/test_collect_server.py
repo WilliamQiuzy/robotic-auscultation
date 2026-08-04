@@ -6292,6 +6292,35 @@ def test_bring_up_refused_when_collector_is_fatal(tmp_path):
         c.shutdown()
 
 
+def test_watchdog_thread_disables_arm_on_telemetry_fault(tmp_path):
+    # Safety: controller supervision runs on an INDEPENDENT watchdog thread, so a
+    # telemetry fault energy-isolates the arm even if the main loop is busy or hung.
+    import threading as _threading
+    import time as _time
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("READY", True)])
+    disable = _ArmDisable()
+    _configure_arm(c, coord, disable)
+    c._controller_watchdog_interval_s = 0.005
+    try:
+        c.bring_up_controller()
+        assert c._controller_ready() is True
+        wd = _threading.Thread(target=c._controller_watchdog_run, daemon=True)
+        wd.start()
+        coord._script = [_ArmHealth("STALE", False)]     # telemetry goes stale
+        deadline = _time.monotonic() + 2.0
+        while not c._controller_companion.disabled and _time.monotonic() < deadline:
+            _time.sleep(0.01)
+        assert c._controller_companion.disabled is True  # watchdog disabled the arm
+        assert disable.calls
+    finally:
+        c._stop.set()
+        wd.join(timeout=1.0)
+        c.shutdown()
+
+
 def test_start_robot_session_requires_arm_brought_up(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
