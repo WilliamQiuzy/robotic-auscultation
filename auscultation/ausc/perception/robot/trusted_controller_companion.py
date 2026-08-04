@@ -288,48 +288,54 @@ class TrustedControllerCompanion:
         ``command_succeeded`` -- never ``energy_isolated`` -- so the safety surface can
         never falsely report the arm as de-energized.
         """
-        if not self._disabled:
-            self._disabled = True
-            command_succeeded = False
-            motor_verified = False
-            outcome = "unknown"
-            try:
-                result = self._direct_disable(reason)
-                command_succeeded = _disable_command_succeeded(result)
-                outcome = str(getattr(result, "outcome", result) or "disable_requested")
-            except BaseException as exc:  # noqa: BLE001 - disable must never mask itself
-                outcome = f"direct_disable_error: {type(exc).__name__}: {exc}"
-            else:
-                # Independent readback while telemetry is still live.  Absent a verifier
-                # (or if it raises/returns False), isolation is not claimed.
-                if command_succeeded and self._verify_motor_disable is not None:
-                    try:
-                        motor_verified = bool(self._verify_motor_disable())
-                    except BaseException:  # noqa: BLE001 - unverified, not isolated
-                        motor_verified = False
-            finally:
-                energy_isolated = bool(motor_verified)
-                summary = (
-                    "energy_isolated" if energy_isolated
-                    else "disable_command_succeeded_motor_unverified"
-                    if command_succeeded else outcome
-                )
-                self._disable_outcome = DisableOutcome(
-                    reason=reason,
-                    outcome=summary,
-                    command_succeeded=command_succeeded,
-                    motor_verified=motor_verified,
-                    energy_isolated=energy_isolated,
-                )
+        if self._disabled:
+            # Already SUCCESSFULLY disabled -> idempotent no-op (no double-disable).
+            self._state = "faulted"
+            return
+        command_succeeded = False
+        motor_verified = False
+        outcome = "unknown"
+        try:
+            result = self._direct_disable(reason)
+            command_succeeded = _disable_command_succeeded(result)
+            outcome = str(getattr(result, "outcome", result) or "disable_requested")
+        except BaseException as exc:  # noqa: BLE001 - disable must never mask itself
+            outcome = f"direct_disable_error: {type(exc).__name__}: {exc}"
+        else:
+            # Independent readback while telemetry is still live.  Absent a verifier
+            # (or if it raises/returns False), isolation is not claimed.
+            if command_succeeded and self._verify_motor_disable is not None:
                 try:
-                    self._coordinator.stop_receiver()
-                except Exception:
-                    pass
-                if self._controller is not None:
-                    try:
-                        self._controller.terminate()
-                    except Exception:
-                        pass
+                    motor_verified = bool(self._verify_motor_disable())
+                except BaseException:  # noqa: BLE001 - unverified, not isolated
+                    motor_verified = False
+        energy_isolated = bool(motor_verified)
+        summary = (
+            "energy_isolated" if energy_isolated
+            else "disable_command_succeeded_motor_unverified"
+            if command_succeeded else outcome
+        )
+        self._disable_outcome = DisableOutcome(
+            reason=reason,
+            outcome=summary,
+            command_succeeded=command_succeeded,
+            motor_verified=motor_verified,
+            energy_isolated=energy_isolated,
+        )
+        # Mark disabled (block further retries) ONLY when the command succeeded, so a
+        # FAILED disable stays retryable -- a first failure must never latch the arm as
+        # "disabled" and silence subsequent E-stops.
+        if command_succeeded:
+            self._disabled = True
+        try:
+            self._coordinator.stop_receiver()
+        except Exception:
+            pass
+        if self._controller is not None:
+            try:
+                self._controller.terminate()
+            except Exception:
+                pass
         self._state = "faulted"
 
 

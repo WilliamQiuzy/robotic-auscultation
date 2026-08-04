@@ -318,6 +318,29 @@ def test_preflight_failure_aborts_before_launch_without_disable():
     assert disabler.calls == []
 
 
+def test_failed_disable_is_retryable_and_never_latches_disabled():
+    # Safety: a first disable-command FAILURE must not latch the arm as "disabled" and
+    # silence subsequent E-stops -- the disable stays retryable until it succeeds.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    attempts = {"n": 0}
+
+    def flaky_disable(reason):
+        attempts["n"] += 1
+        if attempts["n"] == 1:
+            raise RuntimeError("CAN disable send failed")
+        return "energy_isolated"
+
+    companion, _c, _d = _companion(coord, disabler=flaky_disable)
+    companion.bring_up()
+    companion.shutdown("estop-1")                    # command fails
+    assert companion.disable_outcome.command_succeeded is False
+    assert companion.disabled is False               # NOT latched
+    companion.shutdown("estop-2")                    # retry succeeds
+    assert companion.disable_outcome.command_succeeded is True
+    assert companion.disabled is True
+    assert attempts["n"] == 2
+
+
 def test_single_owner_refuses_second_bring_up():
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, _d = _companion(coord)
