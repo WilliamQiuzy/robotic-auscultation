@@ -485,6 +485,58 @@ production ExecStart. Each is deliberately fail-closed and requires the real
 commissioning + owner authorization + the live evidence pipeline -- it is the owner's
 go-live decision, not a code flip.
 
+### Round-5 — adversarial audit re-opened four "fixed" safety items + two trust gaps
+
+An external read-only audit (2026-08-04) proved several earlier fixes were **half-done**
+— the obvious layer was patched but a downstream path still left the arm reachable-live
+or the E-stop blocked. Every item below was reproduced against the code, fixed with a
+RED→GREEN test, and cross-checked; two adversarial hunter agents then swept the same
+files for NEW bugs. Commits `<R5>`/`<R5.2>`; **825 passed / 3 skipped**.
+
+Confirmed-real from the audit, now closed:
+- **E-stop queued behind `_control_lock`.** `arm_disable` was dispatched inside
+  `_control_locked`, so an E-stop pressed during an in-flight bring-up blocked on the
+  lock (disable calls = 0 until bring-up finished). Fixed: the HTTP handler routes
+  `arm_disable` STRAIGHT to `disable_controller`, bypassing `_control_lock` entirely.
+- **E-stop vs bring-up race (no cancellation token).** `_disabled` was set only on
+  disable-command *success*, so a slow/failing disable let `_await_ready` reach READY.
+  Fixed: a `_stop_requested` token published BEFORE the disable I/O, checked at both
+  bring-up gates and every `_await_ready` iteration; disable critical section serialized.
+- **Auto-stop tried once.** A first-failure disable left the arm `faulted` but not
+  disabled, and the watchdog only handled `ready`. Fixed: the watchdog re-issues the
+  disable every tick until it confirms.
+- **Evidence-free blocker clear.** `--production-blocker none` cleared all commissioning
+  blockers from an unauthenticated string. Removed: blockers are add-only; clearing is
+  derived solely from SHA-bound activation evidence (go-live path).
+- **Motor-disable readback** exposed as a wireable constructor param (honest `None`
+  default keeps `energy_isolated` unclaimed; the STATE-frame torque decode is go-live).
+
+NEW, found by the adversarial hunters (the watchdog-retry fix itself exposed the first):
+- **CRIT — orphaned live controller.** `bring_up_controller` would REPLACE a
+  launched-but-not-confirmed-disabled companion, abandoning the watchdog's retry loop
+  (it follows `_controller_companion`) and launching a 2nd controller onto a non-isolated
+  arm. Fixed: refuse with `controller_prior_not_isolated` until confirmed isolated.
+- **HIGH — READY clobbers faulted.** `bring_up` set `_state="ready"` after `_await_ready`
+  without re-checking the token, overwriting a concurrent E-stop's `faulted`. Fixed: the
+  READY commit is under `_disable_lock` with a final stop/disabled re-check.
+- **MED — sole supervisor could die silently** (dead `_supervise_controller` removed; the
+  watchdog tick is wrapped so no escaping `BaseException` kills it).
+- **LOW — E-stop response could report another command's outcome** (`shutdown` now
+  returns the outcome captured under the lock).
+- **TRUST — `_force_snapshot` computed `training_eligible` from a force reading** (the
+  only producer surface asserting eligibility, coupled to force). Now a constant `False`.
+- **TRUST — finalizer readiness PASSed with no on-disk manifest** (nothing SHA-bound the
+  template). Now hard-blocks with `source_manifest_absent`.
+
+**Still open and correctly fail-closed (go-live, needs real commissioning):** production
+writer emitting the full canonical manifest + evidence ledgers; `finalize_training_session`
+activation; the deployment generator emitting `--production-teleop` + controller args.
+And the operational reality the audit named first: **Linbox 8801 is a hand-started canary
+from `~/wam_canary/`, not a sealed systemd release** — it honestly reports
+`PREFLIGHT_FAILED` / `start_authorized=false` / 5 blockers, which is correct fail-closed
+behavior, not a bug. Making 8801 a trusted production service is the go-live deployment
+step, not a code change.
+
 ---
 
 ## Gate verification matrix
