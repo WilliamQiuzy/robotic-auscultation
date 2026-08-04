@@ -587,18 +587,13 @@ def test_diagnostic_manifest_has_no_promotion_identity(tmp_path):
     assert manifest["schema_version"] == "wam_diagnostic_perception_v1"
 
 
-def test_required_force_sidecar_is_fail_closed_when_missing(tmp_path):
+def test_missing_force_marks_channel_invalid_not_a_failure(tmp_path):
+    # P0-4: force is advisory -- a missing force channel is NOT a failure; it only marks
+    # contact_force_valid=False. The session still seals (video/other data preserved).
     capture, _, _ = _capture(tmp_path, require_force=True)
     capture.start()
-    frame = _frame(7)
-    capture.write_frame(frame, _tracking(frame))
-
-    with pytest.raises(RuntimeError, match="required Hall-force.*missing"):
-        capture.finalize()
-
-    manifest = json.loads((tmp_path / "manifest.json").read_text())
-    assert manifest["status"] == "diagnostic_aborted"
-    assert manifest["training_eligible"] is False
+    assert capture._validate_force_artifacts() is None   # no raise on missing force
+    assert capture._contact_force_valid is False
 
 
 def test_required_quality_packet_log_is_fail_closed_when_missing(tmp_path):
@@ -734,7 +729,7 @@ def test_force_sidecar_is_verified_and_sealed_in_diagnostic_inventory(tmp_path):
     assert result["training_eligible"] is False
 
 
-def test_required_force_rejects_short_nonzero_capture_as_insufficient(
+def test_short_force_capture_marks_channel_invalid_not_a_failure(
     tmp_path,
 ):
     capture, _, _ = _capture(tmp_path, require_force=True)
@@ -786,8 +781,10 @@ def test_required_force_rejects_short_nonzero_capture_as_insufficient(
         "device_identity_sha256": summary.device_identity_sha256,
     }
 
-    with pytest.raises(RuntimeError, match="minimum authenticity evidence"):
-        capture.set_force_summary(force_summary)
+    # P0-4: advisory -- low force authenticity (a short capture) marks the contact-force
+    # channel invalid; it does NOT fail the session.
+    capture.set_force_summary(force_summary)
+    assert capture._contact_force_valid is False
 
 
 def test_pinned_force_calibration_is_bound_into_manifest_and_seal(tmp_path):

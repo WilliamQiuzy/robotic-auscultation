@@ -945,6 +945,11 @@ class DiagnosticPerceptionCapture:
         self.require_robot = bool(require_robot)
         self.require_force = bool(require_force)
         self.require_quality = bool(require_quality)
+        # P0-4: force is an advisory physician reference and is NEVER required for the
+        # session to seal. A missing / degraded / low-authenticity force channel only
+        # sets contact_force_valid=False; it never fails finalize or discards the video,
+        # audio, or robot data. (Global promotion never depends on force.)
+        self._contact_force_valid = True
         self.recording_boundary = _validated_boundary(
             recording_boundary, label="recording boundary",
         )
@@ -1296,8 +1301,9 @@ class DiagnosticPerceptionCapture:
                     "unbound Hall-force artifacts are present: "
                     + ", ".join(present)
                 )
-            if self.require_force:
-                raise RuntimeError("required Hall-force capture sidecar is missing")
+            # P0-4: force is advisory. A missing force channel is NOT a failure -- it
+            # only makes the contact-force channel invalid; the session still seals.
+            self._contact_force_valid = False
             return None
         try:
             verified = verify_force_capture(self.session_dir)
@@ -1320,13 +1326,15 @@ class DiagnosticPerceptionCapture:
                 "Hall-force summary does not match the verified capture artifacts"
             )
         self._force_authenticity = dict(verified.signal_authenticity)
+        # P0-4: force is advisory. Low authenticity (dropout / frozen / verification
+        # failure) or an over-threshold status only marks the contact-force channel
+        # invalid; it NEVER fails the session or discards the other modalities. The raw
+        # values + status are preserved verbatim for the physician.
         if (
-            self.require_force
-            and self._force_authenticity.get("status") != "PASS"
+            self._force_authenticity.get("status") != "PASS"
+            or str(verified.status) not in ("OK", "WARN")
         ):
-            raise RuntimeError(
-                "required Hall-force capture lacks minimum authenticity evidence"
-            )
+            self._contact_force_valid = False
         return canonical
 
     def set_quality_summary(self, payload: Mapping[str, object]) -> None:
@@ -2768,6 +2776,7 @@ class DiagnosticPerceptionCapture:
                 robot=robot_summary,
                 force=force_summary,
                 force_authenticity=force_authenticity,
+                contact_force_valid=self._contact_force_valid,
                 quality=quality_summary,
                 quality_authenticity=quality_authenticity,
                 abort_reason=None,
@@ -2816,6 +2825,7 @@ class DiagnosticPerceptionCapture:
             "robot": robot_summary,
             "force": force_summary,
             "force_authenticity": force_authenticity,
+            "contact_force_valid": self._contact_force_valid,
             "quality": quality_summary,
             "quality_authenticity": quality_authenticity,
             "capture_boundary": self._finalization_context,
