@@ -854,6 +854,13 @@ class DiagnosticPerceptionCapture:
     _SEAL_RESULT_KEY = "diagnostic_seal"
     _PRODUCTION_FINALIZATION_PERMITTED = False
     _FORBID_PRODUCTION_FINALIZATION_FILE = True
+    # Start-manifest identity. Diagnostic defaults carry NO promotion fields (the
+    # converter/finalizer reject a diagnostic manifest); the production subclass emits
+    # the exact capture_kind + promotion_contract_version they require.
+    _MANIFEST_SCHEMA_VERSION = DIAGNOSTIC_SCHEMA_VERSION
+    _MANIFEST_CAPTURE_MODE = CAPTURE_MODE
+    _MANIFEST_CAPTURE_KIND = None
+    _MANIFEST_PROMOTION_CONTRACT_VERSION = None
 
     def _compute_training_eligible(
         self, *, robot_summary, force_summary, audio_summary, quality_summary,  # noqa: ANN001
@@ -1081,8 +1088,8 @@ class DiagnosticPerceptionCapture:
         )
         self._state = "recording"
         self._manifest = {
-            "schema_version": DIAGNOSTIC_SCHEMA_VERSION,
-            "capture_mode": CAPTURE_MODE,
+            "schema_version": self._MANIFEST_SCHEMA_VERSION,
+            "capture_mode": self._MANIFEST_CAPTURE_MODE,
             "status": "recording",
             "training_eligible": False,
             "production_finalization_permitted": False,
@@ -1113,6 +1120,14 @@ class DiagnosticPerceptionCapture:
             "recording_boundary": self.recording_boundary,
             "abort_reason": None,
         }
+        # Production sessions carry the promotion identity the converter/finalizer
+        # require; diagnostic sessions carry neither (and _write_manifest forbids them).
+        if self._MANIFEST_CAPTURE_KIND is not None:
+            self._manifest["capture_kind"] = self._MANIFEST_CAPTURE_KIND
+        if self._MANIFEST_PROMOTION_CONTRACT_VERSION is not None:
+            self._manifest["promotion_contract_version"] = (
+                self._MANIFEST_PROMOTION_CONTRACT_VERSION
+            )
         self._write_manifest()
 
     def record_event(self, payload: dict) -> None:
@@ -3756,6 +3771,13 @@ class ProductionTeleopCapture(DiagnosticPerceptionCapture):
     _SEAL_RESULT_KEY = "production_seal"
     _PRODUCTION_FINALIZATION_PERMITTED = True
     _FORBID_PRODUCTION_FINALIZATION_FILE = False
+    # Start-manifest identity the converter/finalizer require (capture_kind +
+    # promotion_contract_version), so a promoted session is never a diagnostic manifest
+    # wearing a production seal.
+    _MANIFEST_SCHEMA_VERSION = "wam_production_teleop_v1"
+    _MANIFEST_CAPTURE_MODE = "production_teleop_v4"
+    _MANIFEST_CAPTURE_KIND = "production_teleop_v4"
+    _MANIFEST_PROMOTION_CONTRACT_VERSION = "wam_promotion_v2"
 
     def _compute_training_eligible(
         self, *, robot_summary, force_summary, audio_summary, quality_summary,  # noqa: ANN001

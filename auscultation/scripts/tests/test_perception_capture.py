@@ -561,6 +561,31 @@ def test_diagnostic_capture_policy_is_never_training_eligible(tmp_path):
     ) is False
 
 
+def test_production_manifest_carries_promotion_identity(tmp_path):
+    # #6: a production session's Start manifest carries the capture_kind +
+    # promotion_contract_version the converter/finalizer require -- not a diagnostic
+    # manifest wearing a production seal.
+    capture, _w, _v = _capture(tmp_path, capture_cls=ProductionTeleopCapture)
+    capture.start()
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert manifest["capture_kind"] == "production_teleop_v4"
+    assert manifest["capture_mode"] == "production_teleop_v4"
+    assert manifest["promotion_contract_version"] == "wam_promotion_v2"
+    assert manifest["schema_version"] == "wam_production_teleop_v1"
+
+
+def test_diagnostic_manifest_has_no_promotion_identity(tmp_path):
+    # A diagnostic Start manifest carries NO promotion fields (converter/finalizer
+    # reject a diagnostic manifest, and _write_manifest forbids them).
+    capture, _w, _v = _capture(tmp_path)
+    capture.start()
+    manifest = json.loads((tmp_path / "manifest.json").read_text())
+    assert "capture_kind" not in manifest
+    assert "promotion_contract_version" not in manifest
+    assert manifest["capture_mode"] == "diagnostic_perception"
+    assert manifest["schema_version"] == "wam_diagnostic_perception_v1"
+
+
 def test_required_force_sidecar_is_fail_closed_when_missing(tmp_path):
     capture, _, _ = _capture(tmp_path, require_force=True)
     capture.start()
