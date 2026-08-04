@@ -528,9 +528,38 @@ NEW, found by the adversarial hunters (the watchdog-retry fix itself exposed the
 - **TRUST — finalizer readiness PASSed with no on-disk manifest** (nothing SHA-bound the
   template). Now hard-blocks with `source_manifest_absent`.
 
+### Round-5.3 — a third audit pass found five DEEPER lifecycle gaps
+
+The auditor kept going and found that even the R5 fixes had deeper layers. Every one
+reproduced with a deterministic injection, fixed with a test. Commit `<R5.3>`; **835
+passed / 3 skipped**.
+- **Browser E-stop still un-pressable.** The backend fast-path only helped a *second*
+  client — the web UI disabled the E-stop button on the shared `busy` flag and `ctl()`
+  early-returned when busy, so the SAME page waiting on a bring-up couldn't E-stop. Fixed:
+  a dedicated `estop()` that never checks/sets `busy`; the button is no longer busy-gated.
+- **"Command succeeded" ≠ "motors off".** A disable command that succeeded but whose
+  readback said motors are STILL energized (verifier present, `energy_isolated` False) was
+  latching `_disabled=True` — stopping the watchdog retry and allowing replacement. Fixed:
+  latch only when confirmed-isolated OR no verifier is configured; a failing readback keeps
+  the arm unlatched (retry + refuse replacement).
+- **Late controller during E-stop.** `terminate()` only sent SIGTERM (a controller that
+  ignores it survives and keeps driving the arm), and the launch-race branch didn't
+  re-disable. Fixed: SIGTERM→wait→SIGKILL→wait, and the launch-race re-issues the
+  direct-disable after the kill (last motor command = torque-off).
+- **fatal/shutdown vs bring-up race.** A collector crash or shutdown racing in *during* a
+  bring-up still returned `controller_ready` with no disable. Fixed: `bring_up_controller`
+  re-checks fatal/`_loop`/`_stop` AFTER bring-up and energy-isolates+refuses; refuses once
+  `_stop` is set; `shutdown` retries a failed disable (the watchdog is already stopped).
+- **Readback not wired in production.** `main()` now injects `controller_verify_motor_disable`
+  from the runtime; the genuine per-motor torque-off SOURCE (STATE-frame decode) is still a
+  go-live telemetry item, so production honestly shows MOTOR-DISABLE UNVERIFIED. With the
+  latch fix above, a present-and-False readback is now handled correctly.
+
 **Still open and correctly fail-closed (go-live, needs real commissioning):** production
 writer emitting the full canonical manifest + evidence ledgers; `finalize_training_session`
-activation; the deployment generator emitting `--production-teleop` + controller args.
+activation; the deployment generator emitting `--production-teleop` + controller args; and
+the real per-motor torque-off readback SOURCE (STATE-frame decode) so `energy_isolated` can
+be truthfully asserted in production.
 And the operational reality the audit named first: **Linbox 8801 is a hand-started canary
 from `~/wam_canary/`, not a sealed systemd release** — it honestly reports
 `PREFLIGHT_FAILED` / `start_authorized=false` / 5 blockers, which is correct fail-closed
