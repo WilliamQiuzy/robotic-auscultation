@@ -3771,10 +3771,11 @@ class ProductionTeleopCapture(DiagnosticPerceptionCapture):
     _SEAL_RESULT_KEY = "production_seal"
     _PRODUCTION_FINALIZATION_PERMITTED = True
     _FORBID_PRODUCTION_FINALIZATION_FILE = False
-    # Start-manifest identity the converter/finalizer require (capture_kind +
-    # promotion_contract_version), so a promoted session is never a diagnostic manifest
-    # wearing a production seal.
-    _MANIFEST_SCHEMA_VERSION = "wam_production_teleop_v1"
+    # Start-manifest identity the converter/finalizer require. schema_version MUST be
+    # exactly wam_session_v2 (validate_manifest_for_conversion + the finalizer both
+    # reject anything else); capture_kind + promotion_contract_version pin the promotable
+    # session so it is never a diagnostic manifest wearing a production seal.
+    _MANIFEST_SCHEMA_VERSION = "wam_session_v2"
     _MANIFEST_CAPTURE_MODE = "production_teleop_v4"
     _MANIFEST_CAPTURE_KIND = "production_teleop_v4"
     _MANIFEST_PROMOTION_CONTRACT_VERSION = "wam_promotion_v2"

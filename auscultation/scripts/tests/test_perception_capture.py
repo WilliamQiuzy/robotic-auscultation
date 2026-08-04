@@ -571,7 +571,8 @@ def test_production_manifest_carries_promotion_identity(tmp_path):
     assert manifest["capture_kind"] == "production_teleop_v4"
     assert manifest["capture_mode"] == "production_teleop_v4"
     assert manifest["promotion_contract_version"] == "wam_promotion_v2"
-    assert manifest["schema_version"] == "wam_production_teleop_v1"
+    # the converter + finalizer require exactly wam_session_v2
+    assert manifest["schema_version"] == "wam_session_v2"
 
 
 def test_diagnostic_manifest_has_no_promotion_identity(tmp_path):
