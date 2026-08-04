@@ -2920,10 +2920,13 @@ def verify_quality_force_rows(
             if (
                 parsed[1] < 0
                 or any(not math.isfinite(float(value)) for value in numeric)
-                or parsed[5] not in {"OK", "WARN"}
+                # P0-4: an over-threshold reading is a VALID physician-reference
+                # measurement, not a session-rejecting fault; only a non-native status
+                # is invalid (genuineness travels as per-frame contact_force_valid).
+                or parsed[5] not in {"OK", "WARN", "SCREENED_LIMIT", "HARD_LIMIT"}
             ):
                 raise TrainingFinalizationError(
-                    f"quality force.csv row {row_number} is unsafe"
+                    f"quality force.csv row {row_number} has a non-native status"
                 )
             available.add(parsed)
     except TrainingFinalizationError:

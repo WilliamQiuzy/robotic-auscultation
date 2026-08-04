@@ -1077,14 +1077,17 @@ def build_causal_frame(
         force.t_host_s, query_t, max_age_s=force_max_age_s, stream="force",
     )
     force_status = force.status[iff]
-    if force_status not in ("OK", "WARN", ""):
-        raise ValueError(f"unsafe force sample {force_status} at t={query_t:.6f}")
+    # P0-4: an over-threshold reading is a VALID physician-reference measurement, not a
+    # sensor fault -- it must NOT reject the session. contact_force_valid marks whether
+    # this is a genuine sensor reading (True for any native status, INCLUDING
+    # over-threshold); it is never gated on the force being "safe".
+    force_valid = force_status in ("OK", "WARN", "SCREENED_LIMIT", "HARD_LIMIT")
     frame = {
         "observation.state": robot.state[ir],
         "observation.robot_state_age_s": np.asarray([robot_age], np.float32),
         "observation.images.top": None,  # populated only after the corresponding video frame is decoded
         "observation.contact_force_n": np.asarray([force.force_n[iff]], np.float32),
-        "observation.contact_force_valid": np.asarray([True], bool),
+        "observation.contact_force_valid": np.asarray([force_valid], bool),
         "observation.contact_force_age_s": np.asarray([force_age], np.float32),
         "action": robot.action[ir],
         "next.reward": np.asarray([float(reward)], np.float32),
@@ -2371,8 +2374,9 @@ def prepare_exact_causal_records(
             stream="force",
         )
         force_status = force.status[force_index]
-        if force_status not in ("OK", "WARN", ""):
-            raise ValueError(f"unsafe force sample {force_status} at t={query_t:.6f}")
+        # P0-4: over-threshold is a VALID measurement, never a session-rejecting fault;
+        # contact_force_valid marks a genuine sensor reading, not "safe" force.
+        force_valid = force_status in ("OK", "WARN", "SCREENED_LIMIT", "HARD_LIMIT")
         frame = {
             "observation.state": robot.state[index],
             "observation.robot_state_age_s": np.asarray([0.0], np.float32),
@@ -2380,7 +2384,7 @@ def prepare_exact_causal_records(
             "observation.contact_force_n": np.asarray(
                 [force.force_n[force_index]], np.float32,
             ),
-            "observation.contact_force_valid": np.asarray([True], bool),
+            "observation.contact_force_valid": np.asarray([force_valid], bool),
             "observation.contact_force_age_s": np.asarray([force_age], np.float32),
             "action": robot.action[index],
             "next.reward": np.asarray([float(span.reward)], np.float32),
@@ -2974,8 +2978,12 @@ def build(
         corrected_force_t = (force_fit["host_intercept_s"]
                              + force_fit["host_s_per_device_ms"] * raw_force.device_t_ms)
         force = replace(raw_force, t_host_s=corrected_force_t)
-        if any(status not in ("OK", "WARN", "") for status in force.status):
-            raise ValueError("force.csv contains an unsafe status; session should have been aborted")
+        # P0-4: an over-threshold ("unsafe") force status is a VALID physician-reference
+        # measurement, not a session-rejecting fault. Only a non-native status is
+        # invalid; per-frame contact_force_valid conveys genuineness downstream.
+        _NATIVE_FORCE_STATUS = ("OK", "WARN", "SCREENED_LIMIT", "HARD_LIMIT", "")
+        if any(status not in _NATIVE_FORCE_STATUS for status in force.status):
+            raise ValueError("force.csv contains a non-native status")
         camera = read_camera_timeline(snapshot_dir, manifest)
         robot = read_exact_robot_frames(snapshot_dir, camera, manifest)
         # The currently audited OpenArm SDK returns void from mit_control_all.
