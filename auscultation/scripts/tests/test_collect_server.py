@@ -6268,9 +6268,26 @@ def test_collector_loop_crash_disables_arm(tmp_path):
             raise RuntimeError("synthetic loop crash")
 
         c._loop = _boom
+        # disable-first: even if data teardown throws, the arm is still disabled.
+        c._abort_recording = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("abort boom"))
         c._loop_guarded()
-        assert disable.calls                       # the arm was disabled
+        assert disable.calls                       # the arm was disabled FIRST
         assert c._controller_companion.disabled is True
+    finally:
+        c.shutdown()
+
+
+def test_bring_up_refused_when_collector_is_fatal(tmp_path):
+    # Safety: a fatal collector loop (arm supervisor gone) refuses a fresh bring-up.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), _ArmDisable())
+    try:
+        c._fatal_error = "camera open failed"
+        r = c.bring_up_controller()
+        assert r["ok"] is False
+        assert r["code"] == "controller_bring_up_refused_fatal"
     finally:
         c.shutdown()
 

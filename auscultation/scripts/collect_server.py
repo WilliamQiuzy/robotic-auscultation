@@ -1653,33 +1653,39 @@ class Collector:
             self._loop()
         except BaseException as exc:  # a dead orchestration loop is a P0 fault
             reason = f"collector loop failed: {type(exc).__name__}: {exc}"
-            self._loop_error = reason
-            self._fatal_error = reason
-            self._camera_status = "ERROR"
-            self._model_status = "ERROR"
-            failed = {
-                "frame_index": int(self._last_camera_index),
-                "back_present": False,
-                "initialized": False,
-                "constellation_valid": False,
-                "reason": "COLLECTOR_LOOP_ERROR",
-                "points": [],
-            }
-            with self._lock:
-                self._current_tracking = failed
-            self.platform.update_tracking(failed)
-            self._set_diagnostic_blockers([reason])
-            self._abort_recording(reason)
-            # Safety: a dead collector loop means the arm's supervisor is gone. The arm
-            # must be energy-isolated (disable-first), never left live under teleop while
-            # nothing is supervising it. This is a real software safety fault (distinct
-            # from an advisory force reading), so it DOES stop the arm.
+            # SAFETY FIRST (disable-first): a dead collector loop means the arm's
+            # supervisor is gone. Energy-isolate the arm BEFORE any data teardown, so a
+            # failure inside _abort_recording() (or anywhere below) can never leave the
+            # arm live under teleop. A real software safety fault DOES stop the arm
+            # (distinct from an advisory force reading).
             comp = self._controller_companion
             if comp is not None and not comp.disabled:
                 try:
                     comp.report_external_fault(reason)
-                except Exception:  # noqa: BLE001 - disable must never mask the loop fault
+                except Exception:  # noqa: BLE001 - disable must never be masked
                     pass
+            self._loop_error = reason
+            self._fatal_error = reason
+            self._camera_status = "ERROR"
+            self._model_status = "ERROR"
+            # Data teardown is guarded so it can neither undo the disable above nor
+            # re-raise out of the loop thread.
+            try:
+                failed = {
+                    "frame_index": int(self._last_camera_index),
+                    "back_present": False,
+                    "initialized": False,
+                    "constellation_valid": False,
+                    "reason": "COLLECTOR_LOOP_ERROR",
+                    "points": [],
+                }
+                with self._lock:
+                    self._current_tracking = failed
+                self.platform.update_tracking(failed)
+                self._set_diagnostic_blockers([reason])
+                self._abort_recording(reason)
+            except Exception:  # noqa: BLE001 - teardown must not undo the disable
+                pass
 
     def shutdown(self):
         self._clear_back_confirmation("SERVICE_SHUTDOWN")
@@ -1858,6 +1864,16 @@ class Collector:
             return {
                 "ok": False, "code": "controller_not_configured",
                 "message": "arm controller launch/disable is not configured on this collector",
+            }
+        # A fatal collector loop means the arm's supervisor is gone (and it was just
+        # energy-isolated). Refuse a fresh bring-up onto a dead supervisor.
+        if self._fatal_error is not None or self._loop_error is not None:
+            return {
+                "ok": False, "code": "controller_bring_up_refused_fatal",
+                "message": (
+                    "collector is in a fatal state; arm bring-up refused: "
+                    f"{self._fatal_error or self._loop_error}"
+                ),
             }
         with self._controller_lock:
             comp = self._controller_companion
@@ -5893,7 +5909,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point;
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,disTxt=iso?'energy-isolated':'motor-disable UNVERIFIED';$('armstat').textContent='Arm '+(dis?'DISABLED · '+disTxt:st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled';$('armstat').textContent='Arm '+(dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=busy||st==='idle';}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
