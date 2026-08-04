@@ -459,6 +459,32 @@ training-data-format feature); the 2113-line deployment generator emitting the
 `receiver_health`). These need dedicated cross-component-tested passes WITH the real
 commissioning, not tail-end edits.
 
+### Round-4 continuation part 2 — watchdog + force→promotion decoupling closed
+
+Committed + tested (`1a273ae`, `498f25e`; 863 passed / 3 skipped across the touched
+suites):
+- **Independent watchdog thread.** Controller supervision (telemetry-fault /
+  controller-exit → disable-first) moved off the main loop onto its OWN daemon thread,
+  so a hung or slow main loop can never stall the arm's fault→disable path.
+  `receiver_health()` is non-blocking (cached snapshot + staleness), so the watchdog can
+  neither hang nor be starved; any watchdog error itself fail-safe-disables. Proved by a
+  thread test.
+- **Force never disqualifies promotion.** The converter (both frame loops + the CSV
+  precheck) and the finalizer's quality-force-row check no longer REJECT an
+  over-threshold status -- it is a valid physician-reference measurement.
+  `observation.contact_force_valid` is now computed per-frame from whether the reading is
+  a genuine native status (True for over-threshold too), not hardcoded True. A degraded
+  force channel marks itself invalid and no longer discards the video/robot/audio data.
+
+**With that, ALL robot-safety concurrency and the ENTIRE force contract are closed** at
+the code level. The only work left is the **go-live promotion activation pipeline**: the
+evidence-sink runtime caller (writes geometry/quality replay attestations during a
+production recording), `finalize_training_session` activation, the full canonical
+manifest field set the finalizer's readiness binds, and the deployment generator's
+production ExecStart. Each is deliberately fail-closed and requires the real
+commissioning + owner authorization + the live evidence pipeline -- it is the owner's
+go-live decision, not a code flip.
+
 ---
 
 ## Gate verification matrix
