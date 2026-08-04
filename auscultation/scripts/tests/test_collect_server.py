@@ -6416,6 +6416,100 @@ def test_watchdog_retries_failed_disable_until_confirmed(tmp_path):
         c.shutdown()
 
 
+def test_bring_up_refuses_replacing_not_isolated_companion(tmp_path):
+    # Safety: a fresh bring-up must NOT replace a companion whose controller was launched
+    # but is not confirmed disabled (its disable command failed; the watchdog is
+    # retrying). Replacing it would orphan a possibly-live controller (unreachable by the
+    # watchdog AND the E-stop) and launch a second controller onto a non-isolated arm.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("READY", True)])
+
+    class _FailDisable:
+        def __init__(self): self.calls = []
+        def __call__(self, reason):
+            self.calls.append(reason)
+            raise RuntimeError("disable send failed")   # never confirms
+
+    _configure_arm(c, coord, _FailDisable())
+    try:
+        c.bring_up_controller()                          # arm comes up ready
+        with pytest.raises(Exception):                   # fault -> disable attempt FAILS
+            c._controller_companion.report_external_fault("telemetry fault")
+        comp1 = c._controller_companion
+        assert comp1.state == "faulted"
+        assert comp1.disabled is False                   # not confirmed isolated
+        assert comp1.controller_pid is not None          # a controller WAS launched
+        r = c.bring_up_controller()                      # second bring-up must refuse
+        assert r["ok"] is False
+        assert r["code"] == "controller_prior_not_isolated"
+        assert c._controller_companion is comp1          # companion NOT replaced/orphaned
+    finally:
+        c.shutdown()
+
+
+def test_watchdog_survives_base_exception_in_tick(tmp_path):
+    # The watchdog is the SOLE controller supervisor. A BaseException escaping poll() must
+    # NOT kill the thread and silently leave the arm unsupervised: the outer guard
+    # fail-safe-disables and the loop keeps running.
+    import threading as _threading
+    import time as _time
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("READY", True)])
+    disable = _ArmDisable()
+    _configure_arm(c, coord, disable)
+    c._controller_watchdog_interval_s = 0.005
+    wd = None
+    try:
+        c.bring_up_controller()
+
+        def boom():
+            raise BaseException("unexpected supervisor error")
+
+        c._controller_companion.poll = boom              # escapes the inner Exception guard
+        wd = _threading.Thread(target=c._controller_watchdog_run, daemon=True)
+        wd.start()
+        deadline = _time.monotonic() + 2.0
+        while not c._controller_companion.disabled and _time.monotonic() < deadline:
+            _time.sleep(0.01)
+        assert c._controller_companion.disabled is True  # fail-safe disabled despite BaseException
+        assert wd.is_alive()                             # supervisor survived, not killed
+    finally:
+        c._stop.set()
+        if wd is not None:
+            wd.join(timeout=1.0)
+        c.shutdown()
+
+
+def test_force_snapshot_never_reports_training_eligible(tmp_path):
+    # Force is advisory-only: _force_snapshot must NEVER emit training_eligible=true, for
+    # ANY force status -- including a valid over-threshold physician reading. Only the
+    # finalizer promotes; no producer surface may assert eligibility from a force reading.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    c.require_force = True
+
+    class _FakeForce:
+        def __init__(self, status): self._status = status
+        def read(self):
+            return server.SimpleNamespace(
+                status=self._status, force_n=3.0, age_s=0.0, displacement_mm=0.0,
+                raw=0, hall_v=0.0, device_t_ms=None,
+            )
+
+    try:
+        for status in ("OK", "WARN", "SCREENED_LIMIT", "HARD_LIMIT"):
+            c._force = _FakeForce(status)
+            snap = c._force_snapshot()
+            assert snap["training_eligible"] is False, status
+    finally:
+        c.shutdown()
+
+
 def test_production_blockers_are_add_only_never_cleared():
     # Security: --production-blocker can only ADD to the fail-closed default set; no CLI
     # string (formerly the magic 'none') can clear the commissioning blockers without

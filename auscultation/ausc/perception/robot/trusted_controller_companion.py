@@ -234,7 +234,17 @@ class TrustedControllerCompanion:
             self._coordinator.attach_controller_process(attestation)
             self._coordinator.start_receiver()
             health = self._await_ready()
-            self._state = "ready"
+            # Commit READY atomically with a FINAL stop-intent re-check, under the same
+            # lock the disable path holds. Without this, a concurrent E-stop that set
+            # _state="faulted" between _await_ready() returning and here would be
+            # clobbered back to "ready" -- letting the arm report READY *after* an E-stop
+            # began, defeating the _stop_requested cancellation token entirely.
+            with self._disable_lock:
+                if self._stop_requested or self._disabled:
+                    raise CompanionFault(
+                        "companion disabled before reaching ready"
+                    )
+                self._state = "ready"
             return health
         except CompanionFault:
             raise
@@ -317,11 +327,15 @@ class TrustedControllerCompanion:
 
     def shutdown(self, reason: str = "normal_shutdown") -> DisableOutcome:
         """Normal teardown: still energy-isolation first, then stop + terminate."""
-        self._fault_disable(str(reason))
-        assert self._disable_outcome is not None
-        return self._disable_outcome
+        # Capture THIS call's outcome from inside the locked section, never by re-reading
+        # the shared field afterwards -- a concurrent watchdog disable-retry could
+        # overwrite self._disable_outcome between the disable and the read, making the
+        # operator's E-stop response describe a different command's result.
+        outcome = self._fault_disable(str(reason))
+        assert outcome is not None
+        return outcome
 
-    def _fault_disable(self, reason: str) -> None:
+    def _fault_disable(self, reason: str) -> DisableOutcome:
         """Idempotent teardown: send the direct-disable command FIRST, then an
         independent motor-disable readback, then stop the receiver and terminate.
 
@@ -335,15 +349,16 @@ class TrustedControllerCompanion:
         # "arm reaches READY while an E-stop disable is still running" race.
         self._stop_requested = True
         # Serialize teardown: a watchdog-poll fault and a console E-stop must not
-        # interleave their disable of the SAME companion.
+        # interleave their disable of the SAME companion.  The outcome is captured and
+        # returned from INSIDE the lock so the caller reports its own command's result.
         with self._disable_lock:
-            self._fault_disable_locked(reason)
+            return self._fault_disable_locked(reason)
 
-    def _fault_disable_locked(self, reason: str) -> None:
+    def _fault_disable_locked(self, reason: str) -> DisableOutcome:
         if self._disabled:
             # Already SUCCESSFULLY disabled -> idempotent no-op (no double-disable).
             self._state = "faulted"
-            return
+            return self._disable_outcome
         command_succeeded = False
         motor_verified = False
         outcome = "unknown"
@@ -389,6 +404,7 @@ class TrustedControllerCompanion:
             except Exception:
                 pass
         self._state = "faulted"
+        return self._disable_outcome
 
 
 __all__ = [

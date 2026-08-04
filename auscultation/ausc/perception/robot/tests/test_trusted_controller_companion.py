@@ -451,3 +451,36 @@ def test_shutdown_publishes_stop_requested_even_when_command_fails():
     companion.shutdown("estop")
     assert companion.stop_requested is True   # intent published despite the failure
     assert companion.disabled is False        # command failed -> not latched, retryable
+
+
+def test_bring_up_ready_commit_rechecks_stop_before_committing():
+    # The FINAL READY commit must re-check the stop token under the disable lock: even if
+    # readiness is observed, a stop requested in that instant (E-stop begun, disable not
+    # yet confirmed) must abort the commit -- the arm can never report READY after an
+    # E-stop began, so bring_up() must not clobber a concurrent "faulted" back to "ready".
+    coord = _FakeCoordinator([_Health("READY", True)])
+    orig_health = coord.receiver_health
+
+    def health(**k):
+        h = orig_health(**k)
+        if h.status == "READY":
+            companion._stop_requested = True   # E-stop begins exactly as READY is seen
+        return h
+
+    coord.receiver_health = health
+    companion, _c, _d = _companion(coord)
+    with pytest.raises(CompanionFault, match="before reaching ready"):
+        companion.bring_up()
+    assert companion.state != "ready"          # never committed READY after the stop
+
+
+def test_shutdown_returns_its_own_disable_outcome():
+    # shutdown() returns the outcome captured INSIDE the lock for THIS call, so a
+    # concurrent watchdog retry cannot make it report a different command's result.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, _d = _companion(coord)
+    companion.bring_up()
+    outcome = companion.shutdown("estop-A")
+    assert outcome is not None
+    assert outcome.reason == "estop-A"
+    assert outcome.command_succeeded is True

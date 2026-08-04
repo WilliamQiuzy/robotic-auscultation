@@ -1668,9 +1668,19 @@ def inspect_training_finalization_readiness(
                         "source_manifest_controlled_replacement_not_activated"
                     )
         else:
+            # No on-disk source manifest means NOTHING binds the supplied
+            # manifest_template to real captured bytes by SHA -- the production
+            # capture_kind / schema gates above would then be decided purely from
+            # caller-supplied input. A trusted promotion REQUIRES a SHA-bound on-disk
+            # source manifest (every real captured session writes manifest.json at
+            # finalize), so its absence is a hard blocker, never a PASS.
+            blockers.append("source_manifest_absent")
             checks["source_manifest"] = {
-                "status": "PASS",
-                "transaction": "exclusive_initial_manifest_publish",
+                "status": "FAIL",
+                "reason": (
+                    "no on-disk source manifest to bind the capture template by SHA; "
+                    "promotion requires the original captured manifest.json"
+                ),
             }
 
         committed = [

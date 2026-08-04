@@ -307,6 +307,19 @@ def test_old_promotion_v1_is_not_ready_and_writes_no_pass_metadata(tmp_path: Pat
     assert not any(path.exists() for path in _final_metadata_paths(tmp_path))
 
 
+def test_absent_source_manifest_is_a_blocker(tmp_path: Path) -> None:
+    # A session with no on-disk manifest.json cannot bind the supplied capture template to
+    # real bytes by SHA, so the production capture_kind / schema gates would be decided
+    # purely from caller-supplied input. Readiness must hard-block that, never PASS.
+    report = finalizer.inspect_training_finalization_readiness(
+        tmp_path,
+        manifest_template=_manifest(),
+        finalizer_identity=_identity(),
+    )
+    assert "source_manifest_absent" in report["blockers"]
+    assert report["checks"]["source_manifest"]["status"] == "FAIL"
+
+
 def test_current_capture_depth_timing_layout_is_an_explicit_blocker(tmp_path: Path) -> None:
     (tmp_path / "depth_times.csv").write_text("frame_index,host_t,path\n", encoding="utf-8")
 

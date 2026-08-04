@@ -1692,32 +1692,43 @@ class Collector:
         # receiver_health() is non-blocking (cached snapshot + staleness), so this can
         # neither hang nor be starved by main-loop work.
         while not self._stop.wait(self._controller_watchdog_interval_s):
-            comp = self._controller_companion
-            if comp is None or comp.disabled:
-                continue
-            if comp.state == "ready":
+            # This is the SOLE controller supervisor. Its per-tick body is wrapped so that
+            # NOTHING -- not even a BaseException escaping poll()/shutdown() -- can kill the
+            # thread and silently leave the arm unsupervised. Any escape fail-safe-disables
+            # and the loop continues; clean shutdown is still driven only by self._stop.
+            try:
+                self._watchdog_tick()
+            except BaseException as exc:  # noqa: BLE001 - the supervisor must never die
+                comp = self._controller_companion
                 try:
-                    comp.poll()
-                except CompanionFault:
-                    pass  # poll() already disabled the arm; status reflects it
-                except Exception as exc:  # noqa: BLE001 - any watchdog error -> fail-safe disable
-                    try:
-                        if not comp.disabled:
-                            comp.report_external_fault(
-                                f"controller watchdog error: {type(exc).__name__}: {exc}"
-                            )
-                    except Exception:
-                        pass
-            elif comp.state == "faulted" and comp.controller_pid is not None:
-                # Faulted with a launched controller but NO confirmed disable -> a prior
-                # disable command failed. Re-issue it every tick until it succeeds, so a
-                # single transient disable failure can never leave the arm energized.
-                # shutdown() is retryable (it latches _disabled only on command success)
-                # and a no-op once the command finally confirms.
-                try:
-                    comp.shutdown("watchdog_disable_retry")
-                except Exception:  # noqa: BLE001 - keep retrying on the next tick
+                    if comp is not None and not comp.disabled:
+                        comp.report_external_fault(
+                            f"watchdog tick error: {type(exc).__name__}: {exc}"
+                        )
+                except Exception:
                     pass
+
+    def _watchdog_tick(self):
+        comp = self._controller_companion
+        if comp is None or comp.disabled:
+            return
+        if comp.state == "ready":
+            try:
+                comp.poll()
+            except CompanionFault:
+                pass  # poll() already disabled the arm; status reflects it
+            except Exception as exc:  # noqa: BLE001 - any watchdog error -> fail-safe disable
+                if not comp.disabled:
+                    comp.report_external_fault(
+                        f"controller watchdog error: {type(exc).__name__}: {exc}"
+                    )
+        elif comp.state == "faulted" and comp.controller_pid is not None:
+            # Faulted with a launched controller but NO confirmed disable -> a prior
+            # disable command failed. Re-issue it every tick until it succeeds, so a
+            # single transient disable failure can never leave the arm energized.
+            # shutdown() is retryable (it latches _disabled only on command success)
+            # and a no-op once the command finally confirms.
+            comp.shutdown("watchdog_disable_retry")
 
     def _loop_guarded(self):
         try:
@@ -1959,6 +1970,29 @@ class Collector:
                     "ok": False, "code": "controller_bring_up_in_progress",
                     "message": "an arm bring-up is already in progress",
                 }
+            # SAFETY: never replace an outgoing companion whose controller was launched
+            # but is NOT confirmed disabled (e.g. a prior disable command failed and the
+            # watchdog is still retrying it). Overwriting self._controller_companion here
+            # would ORPHAN that companion -- the watchdog and the E-stop both follow
+            # self._controller_companion, so #1's disable-retry loop would be abandoned and
+            # a SECOND controller would be launched onto a non-isolated arm. Refuse until
+            # the arm is confirmed energy-isolated (the watchdog is retrying) or E-stopped.
+            # A companion with no launched controller (controller_pid is None, e.g. a
+            # preflight failure) has nothing live to orphan, so it may be replaced.
+            if (
+                comp is not None
+                and not comp.disabled
+                and comp.controller_pid is not None
+            ):
+                return {
+                    "ok": False, "code": "controller_prior_not_isolated",
+                    "message": (
+                        "the previous arm controller is not confirmed disabled; wait for "
+                        "it to be energy-isolated (the watchdog is retrying) or press "
+                        "E-stop before bringing up again"
+                    ),
+                    "energy_isolated": False,
+                }
             companion = TrustedControllerCompanion(
                 coordinator=self._robot_coordinator,
                 launch_controller=self._controller_launcher,
@@ -2034,16 +2068,6 @@ class Collector:
                 "energy_isolated": bool(outcome.energy_isolated),
                 "motor_disable_verified": bool(outcome.motor_verified),
             }
-
-    def _supervise_controller(self):
-        """Loop-thread tick: a telemetry fault after ready auto-energy-isolates."""
-        comp = self._controller_companion
-        if comp is None or comp.state != "ready" or comp.disabled:
-            return
-        try:
-            comp.poll()
-        except CompanionFault:
-            pass  # the companion already direct-disabled; status reflects it
 
     def _controller_status_payload(self):
         comp = self._controller_companion
@@ -5311,7 +5335,12 @@ class Collector:
                 "hall_v": float(getattr(sample, "hall_v", 0.0)),
                 "device_t_ms": getattr(sample, "device_t_ms", None),
                 "error": None if ready else self._force_error,
-                "training_eligible": bool(self.require_force and ready),
+                # Force is ADVISORY only: it must never assert or influence training
+                # eligibility. Only the finalizer promotes, and no producer surface may
+                # emit training_eligible=true. A valid over-threshold physician reading is
+                # NOT a downgrade either -- keep this a constant False, decoupled from the
+                # force status entirely.
+                "training_eligible": False,
             })
             if (
                 self.require_force
