@@ -1095,6 +1095,11 @@ class DiagnosticPerceptionCapture:
         self._manifest = {
             "schema_version": self._MANIFEST_SCHEMA_VERSION,
             "capture_mode": self._MANIFEST_CAPTURE_MODE,
+            # The raw session identity the finalizer requires. A raw capture NEVER
+            # self-promotes: training_eligible stays False and the finalizer is the sole
+            # promoter (it reads capture_kind to decide promotability).
+            "session_id": self.session_dir.name,
+            "rehearsal_overrides": [],
             "status": "recording",
             "training_eligible": False,
             "production_finalization_permitted": False,
@@ -2747,16 +2752,15 @@ class DiagnosticPerceptionCapture:
                 "first_frame_index": self._first_frame_index,
                 "last_frame_index": self._last_frame_index,
             }
-            training_eligible = bool(self._compute_training_eligible(
-                robot_summary=robot_summary,
-                force_summary=force_summary,
-                audio_summary=audio_summary,
-                quality_summary=quality_summary,
-            ))
+            # The writer NEVER self-promotes. A raw capture (diagnostic or production)
+            # seals training_eligible=False; only the trusted finalizer may promote a
+            # session (reading capture_kind to decide). This keeps the raw manifest
+            # fail-closed exactly as the finalizer's _manifest_check requires.
+            training_eligible = False
             self._manifest.update(
                 status=self._COMPLETION_STATUS,
                 training_eligible=training_eligible,
-                production_finalization_permitted=self._PRODUCTION_FINALIZATION_PERMITTED,
+                production_finalization_permitted=False,
                 ended_host_t=self._clock(),
                 ended_utc_ns=self._wall_time_ns(),
                 n_rgb_frames=self._n_rgb,
@@ -3747,59 +3751,38 @@ class DiagnosticPerceptionCapture:
         return inventory
 
     def _write_manifest(self) -> None:
+        # The writer never self-promotes: the raw manifest is ALWAYS
+        # training_eligible=False (the trusted finalizer is the sole promoter).
+        if self._manifest.get("training_eligible") is not False:
+            raise RuntimeError("capture manifest must remain training_eligible=false")
+        # A promotion_contract_version is allowed ONLY for a promotable capture_kind (a
+        # raw production session the finalizer may later promote); a diagnostic manifest
+        # must never declare one.
         if (
-            not self._PRODUCTION_FINALIZATION_PERMITTED
-            and self._manifest.get("training_eligible") is not False
-        ):
-            raise RuntimeError("diagnostic manifest must remain training_eligible=false")
-        if (
-            not self._PRODUCTION_FINALIZATION_PERMITTED
-            and "promotion_contract_version" in self._manifest
+            "promotion_contract_version" in self._manifest
+            and self._MANIFEST_CAPTURE_KIND is None
         ):
             raise RuntimeError("diagnostic manifest cannot declare a promotion contract")
         _atomic_json(self.session_dir / "manifest.json", self._manifest)
 
 
 class ProductionTeleopCapture(DiagnosticPerceptionCapture):
-    """Production teleoperation capture (promotable to training).
+    """Production teleoperation capture -- a RAW, promotable session.
 
-    Reuses the diagnostic writer's synchronized-modality machinery (bounded video
-    stitching, durable JSONL, depth integrity, force/audio authenticity, robot
-    summary validation) but seals a ``production_teleop_complete`` result. A session
-    becomes training-eligible ONLY when the v4 OpenArm receiver certifies the teleop
-    trajectory: the finalize path already RAISES if a required v4 robot summary is not
-    training-eligible (non-degenerate trajectory, command-response consistent, no
-    eligibility blockers), so eligibility here is *realized* from the receiver's
-    verdict, never merely declared. Absent a certified v4 robot summary the session
-    is saved but NOT eligible (fail-closed).
+    Reuses the diagnostic writer's synchronized-modality machinery and seals the SAME
+    raw diagnostic-shape completion (``DIAGNOSTIC_FINALIZATION.json`` /
+    ``diagnostic_complete`` / ``training_eligible=False``). It differs ONLY in the
+    manifest identity: ``capture_kind=production_teleop_v4`` +
+    ``promotion_contract_version`` + ``schema_version=wam_session_v2``, so the trusted
+    finalizer -- the SOLE promoter -- can later verify every gate and mint the
+    ``FINALIZATION.json`` / ``TRAINING_AUTHENTICITY.json`` training artifacts.
+
+    The writer NEVER self-promotes: the raw capture stays fail-closed
+    (``training_eligible=False``) exactly as the finalizer's ``_manifest_check``
+    requires, and the reconciler sees a familiar diagnostic-shape seal.
     """
 
-    _COMPLETION_STATUS = "production_teleop_complete"
-    _SEAL_FILENAME = "PRODUCTION_FINALIZATION.json"
-    _SEAL_SCHEMA_VERSION = "wam_production_teleop_finalization_v1"
-    _SEAL_CAPTURE_MODE = "production_teleop_v4"
-    _SEAL_RESULT_KEY = "production_seal"
-    _PRODUCTION_FINALIZATION_PERMITTED = True
-    _FORBID_PRODUCTION_FINALIZATION_FILE = False
-    # Start-manifest identity the converter/finalizer require. schema_version MUST be
-    # exactly wam_session_v2 (validate_manifest_for_conversion + the finalizer both
-    # reject anything else); capture_kind + promotion_contract_version pin the promotable
-    # session so it is never a diagnostic manifest wearing a production seal.
     _MANIFEST_SCHEMA_VERSION = "wam_session_v2"
     _MANIFEST_CAPTURE_MODE = "production_teleop_v4"
     _MANIFEST_CAPTURE_KIND = "production_teleop_v4"
     _MANIFEST_PROMOTION_CONTRACT_VERSION = "wam_promotion_v2"
-
-    def _compute_training_eligible(
-        self, *, robot_summary, force_summary, audio_summary, quality_summary,  # noqa: ANN001
-    ) -> bool:
-        del force_summary, audio_summary, quality_summary
-        # Realized from the v4 receiver's certification. The finalize path has already
-        # validated (and RAISED on) a non-eligible v4 robot summary, so reaching here
-        # with require_robot means the teleop trajectory passed the gates.
-        if not self.require_robot or not isinstance(robot_summary, Mapping):
-            return False
-        return (
-            robot_summary.get("schema") == _ROBOT_CAPTURE_SUMMARY_SCHEMA_V4
-            and robot_summary.get("training_eligible") is True
-        )

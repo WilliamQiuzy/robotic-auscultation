@@ -513,66 +513,35 @@ def _capture(
     return capture, writers, validated
 
 
-def test_production_teleop_capture_completion_policy():
-    # #6: the production writer seals a promotable production_teleop_complete result and
-    # reuses the diagnostic machinery (it IS a DiagnosticPerceptionCapture subclass).
+def test_production_teleop_capture_is_raw_and_never_self_promotes():
+    # #6 aligned: the production writer is a thin subclass that reuses the diagnostic
+    # machinery and seals the SAME raw diagnostic-shape completion (so the reconciler
+    # recognises it). It differs ONLY in the manifest identity that marks it promotable;
+    # it NEVER self-promotes -- the trusted finalizer is the sole promoter.
     assert issubclass(ProductionTeleopCapture, DiagnosticPerceptionCapture)
-    assert ProductionTeleopCapture._COMPLETION_STATUS == "production_teleop_complete"
-    assert ProductionTeleopCapture._SEAL_FILENAME == "PRODUCTION_FINALIZATION.json"
-    assert ProductionTeleopCapture._SEAL_CAPTURE_MODE == "production_teleop_v4"
-    assert ProductionTeleopCapture._PRODUCTION_FINALIZATION_PERMITTED is True
-    assert ProductionTeleopCapture._FORBID_PRODUCTION_FINALIZATION_FILE is False
-
-
-def test_production_eligibility_realized_from_v4_robot_verdict(tmp_path):
-    # Eligibility is realized only from a certified v4 robot summary; a v3 (diagnostic)
-    # summary, a non-eligible v4 summary, or a missing summary are all fail-closed.
-    capture, _w, _v = _capture(
-        tmp_path, capture_cls=ProductionTeleopCapture, require_robot=True,
+    assert ProductionTeleopCapture._COMPLETION_STATUS == "diagnostic_complete"
+    assert ProductionTeleopCapture._SEAL_FILENAME == "DIAGNOSTIC_FINALIZATION.json"
+    assert ProductionTeleopCapture._MANIFEST_CAPTURE_KIND == "production_teleop_v4"
+    assert ProductionTeleopCapture._MANIFEST_SCHEMA_VERSION == "wam_session_v2"
+    assert (
+        ProductionTeleopCapture._MANIFEST_PROMOTION_CONTRACT_VERSION == "wam_promotion_v2"
     )
 
-    def call(robot_summary):
-        return capture._compute_training_eligible(
-            robot_summary=robot_summary,
-            force_summary=None, audio_summary=None, quality_summary=None,
-        )
 
-    v4_ok = {"schema": "wam_openarm_exact_control_capture_summary_v4",
-             "training_eligible": True}
-    v4_bad = {"schema": "wam_openarm_exact_control_capture_summary_v4",
-              "training_eligible": False}
-    v3 = {"schema": "wam_openarm_exact_control_capture_summary_v3",
-          "training_eligible": True}
-    assert call(v4_ok) is True
-    assert call(v4_bad) is False
-    assert call(v3) is False
-    assert call(None) is False
-
-
-def test_diagnostic_capture_policy_is_never_training_eligible(tmp_path):
-    # The base diagnostic writer's policy is structurally un-promotable, even fed a
-    # certified v4 summary.
-    capture, _w, _v = _capture(tmp_path, require_robot=True)
-    assert capture._COMPLETION_STATUS == "diagnostic_complete"
-    assert capture._compute_training_eligible(
-        robot_summary={"schema": "wam_openarm_exact_control_capture_summary_v4",
-                       "training_eligible": True},
-        force_summary=None, audio_summary=None, quality_summary=None,
-    ) is False
-
-
-def test_production_manifest_carries_promotion_identity(tmp_path):
-    # #6: a production session's Start manifest carries the capture_kind +
-    # promotion_contract_version the converter/finalizer require -- not a diagnostic
-    # manifest wearing a production seal.
+def test_production_manifest_is_a_raw_fail_closed_promotable_session(tmp_path):
+    # #6 aligned: a production Start manifest satisfies the finalizer's _manifest_check
+    # for a RAW promotable session -- schema_version=wam_session_v2, a valid session_id,
+    # rehearsal_overrides=[], the promotion identity, AND training_eligible=False (the
+    # writer never self-promotes; the finalizer is the sole promoter).
     capture, _w, _v = _capture(tmp_path, capture_cls=ProductionTeleopCapture)
     capture.start()
     manifest = json.loads((tmp_path / "manifest.json").read_text())
-    assert manifest["capture_kind"] == "production_teleop_v4"
-    assert manifest["capture_mode"] == "production_teleop_v4"
-    assert manifest["promotion_contract_version"] == "wam_promotion_v2"
-    # the converter + finalizer require exactly wam_session_v2
     assert manifest["schema_version"] == "wam_session_v2"
+    assert manifest["capture_kind"] == "production_teleop_v4"
+    assert manifest["promotion_contract_version"] == "wam_promotion_v2"
+    assert manifest["session_id"] == tmp_path.name
+    assert manifest["rehearsal_overrides"] == []
+    assert manifest["training_eligible"] is False   # raw -- finalizer promotes
 
 
 def test_diagnostic_manifest_has_no_promotion_identity(tmp_path):

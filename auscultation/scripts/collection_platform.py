@@ -166,19 +166,16 @@ class CaptureContract:
 
     @property
     def completion_status(self) -> str:
-        """The exact ``status`` a matching writer's ``finalize`` must seal.
+        """The ``status`` a matching writer's ``finalize`` must seal.
 
-        Drives the platform's End validation so it is contract-derived rather than
-        hardcoded to the diagnostic writer.  A production writer seals
-        ``production_teleop_complete``; every non-production contract seals
-        ``diagnostic_complete``.
+        A RAW capture -- diagnostic OR production -- seals ``diagnostic_complete`` with
+        ``training_eligible=False``. The writer never self-promotes; the trusted
+        finalizer is the sole promoter and decides promotability from the manifest's
+        ``capture_kind``, not from the seal status. So every raw capture shares one
+        completion status.
         """
 
-        return (
-            "production_teleop_complete"
-            if self.mode is CaptureMode.PRODUCTION_CAPTURE
-            else "diagnostic_complete"
-        )
+        return "diagnostic_complete"
 
 
 #: The console's default: single-camera realtime perception writer, diagnostic
@@ -1051,12 +1048,11 @@ class CollectionPlatform:
         return self._success(ack=self.action_ack, accepted=True)
 
     def _completion_ack(self) -> str:
-        """Contract-appropriate COMPLETE acknowledgement."""
-        if not self.contract.training_eligible:
-            return "Diagnostic recording saved and verified (not training eligible)"
-        if self._finalized_training_eligible:
-            return "Production recording saved and verified (training eligible)"
-        return "Production recording saved (NOT training eligible - a gate did not pass)"
+        """Contract-appropriate COMPLETE acknowledgement. A raw capture is never
+        training-eligible at this stage; the finalizer promotes later."""
+        if self.contract.training_eligible:
+            return "Production recording saved (raw; promotion is the finalizer's job)"
+        return "Diagnostic recording saved and verified (not training eligible)"
 
     def _finalize_capture(
         self, *, generation: int, capture, session_dir, session_id,  # noqa: ANN001
@@ -1071,21 +1067,21 @@ class CollectionPlatform:
             result = capture.finalize()
             if not isinstance(result, dict):
                 raise RuntimeError("finalize result is not a mapping")
-            # Contract-driven completion validation (not hardcoded to diagnostic): the
-            # writer must seal exactly the status this contract expects, and only a
-            # structurally-promotable contract may ever have its writer report
+            # Contract-driven completion validation: the writer must seal exactly the
+            # status this contract expects. The writer NEVER self-promotes -- a raw
+            # capture (diagnostic OR production) MUST seal training_eligible=False;
+            # promotion is the trusted finalizer's exclusive job (it reads the manifest
+            # capture_kind to decide). So the platform rejects ANY writer that claims
             # eligibility.
             expected_status = self.contract.completion_status
             if result.get("status") != expected_status:
                 raise RuntimeError(
                     f"finalize result status is not {expected_status!r}"
                 )
-            eligible = result.get("training_eligible")
-            if not isinstance(eligible, bool):
-                raise RuntimeError("finalize result training_eligible must be a bool")
-            if not self.contract.training_eligible and eligible:
+            if result.get("training_eligible") is not False:
                 raise RuntimeError(
-                    "non-training capture attempted to become training eligible"
+                    "capture must not self-promote; training_eligible must be False "
+                    "(the trusted finalizer is the sole promoter)"
                 )
             if session_dir is None:
                 raise RuntimeError("session path disappeared before validation")

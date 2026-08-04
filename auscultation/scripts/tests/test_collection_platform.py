@@ -100,53 +100,38 @@ def _prod_platform(tmp_path: Path, capture_cls):
     return platform, captures
 
 
-def test_production_capture_finalizes_complete_and_training_eligible(tmp_path):
-    # #6: a production writer sealing production_teleop_complete + training_eligible
-    # drives the platform to COMPLETE with realized eligibility -- contract-driven End
-    # validation, not hardcoded diagnostic.
-    class _ProdCapture(_Capture):
-        def finalize(self):
-            self.finalized += 1
-            return {"status": "production_teleop_complete", "training_eligible": True}
-
-    platform, _c = _prod_platform(tmp_path, _ProdCapture)
-    assert platform.control("start")["ok"] is True
-    assert platform.control("end")["state"] == "FINALIZING"
-    terminal = platform.wait_for_terminal(timeout=2.0)
-    assert terminal["state"] == "COMPLETE"
-    assert terminal["training_eligible"] is True
-    assert platform.state_snapshot()["capture_kind"] == "production_teleop_v4"
-
-
-def test_production_capture_gate_failure_completes_but_not_eligible(tmp_path):
-    # A production writer that could not certify eligibility (a gate did not pass) still
-    # COMPLETEs, but training_eligible is False.
-    class _ProdCaptureIneligible(_Capture):
-        def finalize(self):
-            self.finalized += 1
-            return {"status": "production_teleop_complete", "training_eligible": False}
-
-    platform, _c = _prod_platform(tmp_path, _ProdCaptureIneligible)
-    assert platform.control("start")["ok"] is True
-    platform.control("end")
-    terminal = platform.wait_for_terminal(timeout=2.0)
-    assert terminal["state"] == "COMPLETE"
-    assert terminal["training_eligible"] is False
-
-
-def test_production_writer_returning_diagnostic_status_errors(tmp_path):
-    # A production contract requires the production seal; a diagnostic status is refused.
-    class _WrongStatus(_Capture):
+def test_production_capture_finalizes_as_raw_never_self_promoting(tmp_path):
+    # #6 aligned: a production writer produces a RAW session (diagnostic_complete +
+    # training_eligible=False). The writer NEVER self-promotes; the trusted finalizer is
+    # the sole promoter. The platform completes it; capture_kind marks it promotable.
+    class _RawProd(_Capture):
         def finalize(self):
             self.finalized += 1
             return {"status": "diagnostic_complete", "training_eligible": False}
 
-    platform, _c = _prod_platform(tmp_path, _WrongStatus)
+    platform, _c = _prod_platform(tmp_path, _RawProd)
+    assert platform.control("start")["ok"] is True
+    assert platform.control("end")["state"] == "FINALIZING"
+    terminal = platform.wait_for_terminal(timeout=2.0)
+    assert terminal["state"] == "COMPLETE"
+    assert terminal["training_eligible"] is False   # raw -- finalizer promotes later
+    assert platform.state_snapshot()["capture_kind"] == "production_teleop_v4"
+
+
+def test_writer_cannot_self_promote(tmp_path):
+    # #6 aligned: the writer must NOT self-promote. A finalize claiming
+    # training_eligible=True is rejected -- promotion is the finalizer's exclusive job.
+    class _SelfPromoting(_Capture):
+        def finalize(self):
+            self.finalized += 1
+            return {"status": "diagnostic_complete", "training_eligible": True}
+
+    platform, _c = _prod_platform(tmp_path, _SelfPromoting)
     assert platform.control("start")["ok"] is True
     platform.control("end")
     terminal = platform.wait_for_terminal(timeout=2.0)
     assert terminal["state"] == "ERROR"
-    assert "production_teleop_complete" in terminal["error"]
+    assert "self-promote" in terminal["error"]
 
 
 def test_a_non_cancellable_writer_is_refused_before_recording(tmp_path):
