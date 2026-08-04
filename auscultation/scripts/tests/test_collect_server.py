@@ -6229,6 +6229,52 @@ def test_arm_bringup_fault_energy_isolates(tmp_path):
         c.shutdown()
 
 
+def test_disable_command_failure_reports_not_ok(tmp_path):
+    # Safety: if the disable COMMAND fails, the E-stop reports ok:false (arm NOT
+    # confirmed disabled), never success.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("READY", True)])
+
+    def raising_disable(reason):
+        raise RuntimeError("CAN disable send failed")
+
+    _configure_arm(c, coord, raising_disable)
+    try:
+        c.bring_up_controller()
+        d = c.disable_controller()
+        assert d["ok"] is False
+        assert d["code"] == "controller_disable_command_failed"
+        assert d["energy_isolated"] is False
+    finally:
+        c.shutdown()
+
+
+def test_collector_loop_crash_disables_arm(tmp_path):
+    # Safety: a dead collector loop energy-isolates the arm (disable-first) -- a real
+    # software safety fault DOES stop the arm (distinct from an advisory force reading).
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("READY", True)])
+    disable = _ArmDisable()
+    _configure_arm(c, coord, disable)
+    try:
+        c.bring_up_controller()
+        assert c._controller_ready() is True
+
+        def _boom():
+            raise RuntimeError("synthetic loop crash")
+
+        c._loop = _boom
+        c._loop_guarded()
+        assert disable.calls                       # the arm was disabled
+        assert c._controller_companion.disabled is True
+    finally:
+        c.shutdown()
+
+
 def test_start_robot_session_requires_arm_brought_up(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],

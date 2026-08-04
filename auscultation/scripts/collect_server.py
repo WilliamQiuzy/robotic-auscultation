@@ -1670,6 +1670,16 @@ class Collector:
             self.platform.update_tracking(failed)
             self._set_diagnostic_blockers([reason])
             self._abort_recording(reason)
+            # Safety: a dead collector loop means the arm's supervisor is gone. The arm
+            # must be energy-isolated (disable-first), never left live under teleop while
+            # nothing is supervising it. This is a real software safety fault (distinct
+            # from an advisory force reading), so it DOES stop the arm.
+            comp = self._controller_companion
+            if comp is not None and not comp.disabled:
+                try:
+                    comp.report_external_fault(reason)
+                except Exception:  # noqa: BLE001 - disable must never mask the loop fault
+                    pass
 
     def shutdown(self):
         self._clear_back_confirmation("SERVICE_SHUTDOWN")
@@ -1901,7 +1911,17 @@ class Collector:
                 outcome = comp.shutdown(str(reason))
             except Exception as exc:  # noqa: BLE001 - disable path must report, never raise out
                 return {"ok": False, "code": "controller_disable_error", "message": f"{type(exc).__name__}: {exc}"}
-            # P0-2: never claim energy isolation without a verified motor-disable readback.
+            # E-stop honesty: ok reflects whether the disable COMMAND actually succeeded.
+            # If it failed (command_succeeded False), the operator must be told the arm
+            # was NOT disabled -- never report success. Energy isolation is a further
+            # claim that requires a verified motor-disable readback.
+            if not outcome.command_succeeded:
+                return {
+                    "ok": False, "code": "controller_disable_command_failed",
+                    "message": f"left arm DISABLE COMMAND FAILED — arm NOT confirmed disabled ({outcome.outcome})",
+                    "energy_isolated": False,
+                    "motor_disable_verified": bool(outcome.motor_verified),
+                }
             message = (
                 "left arm energy-isolated (motor disable verified)"
                 if outcome.energy_isolated
