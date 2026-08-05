@@ -35,14 +35,14 @@
 
 ### 1A 感知轨道：用现成数据集 + 自动标注
 
-> **✅ 现行方案 = HuMMan（2026-05-30 已端到端验证）。以下 COCO 内容为过程记录，已废弃。**
+> **✅ 感知定位模型已投产(2026-06-14)。** 三数据集生成 + 训练 + 评测 + 部署全打通。生产模型 = `perc_lmh_v4`(landmark 热图头 + 结构化读出),对人手金标 **PCK@10 ≈ 96%**(旧 IUV-地址法仅 57%)。代码 [`ausc/models/`](../ausc/models)+[`ausc/training/`](../ausc/training),部署 [`scripts/deploy_landmark.py`](../scripts/deploy_landmark.py);现状/演化见 [`PERCEPTION_STATUS.md`](./PERCEPTION_STATUS.md)、[`landmark_head_and_eval.md`](./landmark_head_and_eval.md)。下面 HuMMan/COCO 内容为过程记录。
 >
 > **HuMMan**（HuggingFace `caizhongang/HuMMan`，非门控）：受控影棚 + 稠密 SMPL 真值 + RGB-D + 1000人。
-> 流水线 `scripts/humman_label.py`：SMPL参数→6890顶点→听诊点(模板按解剖比例选固定顶点)→相机投影→**精确 2D，不塌缩**。
+> 流水线 `ausc/humman_label.py`：SMPL参数→6890顶点→听诊点(模板按解剖比例选固定顶点)→相机投影→**精确 2D，不塌缩**。
 > 依赖 `data/smpl/SMPL_NEUTRAL.pkl`（注册下载；v1.1.0 含 chumpy 需清洗：`pip install --no-build-isolation chumpy` + numpy别名补丁 → 转纯numpy）。
-> **听诊点(严格对齐论文)**：前胸=**4 个心脏瓣膜点**(Tsumura:主动脉瓣/肺动脉瓣/三尖瓣/二尖瓣)；后背=**8 个肺点**(Lopes:L1-4/R1-4)。⚠️前胸点≠后背点(心 vs 肺,不同器官)。
-> **前胸/后背判别**：稠密IUV躯干块 part2=前胸/part1=后背,谁多算谁(`ausc_points.infer_side`,实测前87209:770/后544:45278,零歧义)；标注时用 `frame_filter.classify_frame` 路由。SMPL 标定：+x=患者左,-x=患者右,躯干核心|x|<0.16。
-> **下一步**：全量生成标签（907序列×帧，betas自适应体型）+导出 → 训定位模型 + 自采裸皮临床集 in-domain 微调。
+> **听诊点(当前标准, 2026-06)**：前胸=**5 个心脏点 APETM**(主动脉/肺动脉/Erb/三尖/二尖, Bates')；后背=**10 个肺点 V6A**(5 层双侧, 围肩胛骨, Lopes 谱系)。解剖定义在 `ausc/humman_label.define_ausc_vertices`,任务→点集 + landmark 通道顺序在 `ausc/tasks.py`。⚠️前胸点≠后背点(心 vs 肺,不同器官)。
+> **前胸/后背判别**：稠密IUV躯干块 part2=前胸/part1=后背,谁多算谁(`ausc.humman_label.infer_side`,实测前87209:770/后544:45278,零歧义)；标注时用 `frame_filter.classify_frame` 路由。SMPL 标定：+x=患者左,-x=患者右,躯干核心|x|<0.16。
+> **已做**：三数据集全量生成(~2.97万训练图,真实后背~6484,betas自适应体型) → landmark 头直接监督训练(纯人手标种子+自训练放量) → 金标评测 + 翻转一致性置信门部署。**后续**:更多人工多样真背破 96→98%;自采裸皮临床集 in-domain。
 
 ---
 

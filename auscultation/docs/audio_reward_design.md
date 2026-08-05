@@ -107,6 +107,25 @@ the clip, not who held the stethoscope — so this trains the reward model *with
 `reward_model.train_from_preferences(prefs, clip_dir)` closes the loop; validated end-to-end (server
 records rows; model trained from them ranks clips by quality, spearman 0.86).
 
+**Versioned annotation-pool contract (2026-07-12):** `build_sprsound_pool.py` acquires the pinned
+SPRSound source at commit `874eeb8736ddb78937c2fb5332fc7e7293d0f0ca` and tree
+`d414f930e98f3f6b4f7153489223e18c3173dd10`. Production materialization reads the commit's Git
+objects (not mutable worktree files), verifies the exact 2,683 BioCAS2022 WAV/JSON pairs and their
+blob identities, deduplicates by audio SHA-256, and builds an inactive content-addressed release.
+The production quota is exactly **400 unique clips**: Poor Quality 120;
+Normal, CAS, DAS, and CAS & DAS 70 each. Published filenames combine canonical stratum, a hash of
+the full source-relative identity, and the content hash, so repeated basenames cannot collide.
+`pool_manifest.jsonl` plus `POOL_SOURCE.json` and `POOL_COMPLETE.json` bind every source identity,
+clip hash/size, exact count, and quota. The immutable releases live at
+`~/wam_ausc/data/annotation_pools/sprsound/releases/<pool-release-id>`; `current` is switched only
+after exact post-verification. Mutable doctor rows live separately at
+`~/wam_ausc/data/preferences/<pool-release-id>/preferences.jsonl` and bind the pool release ID plus
+both clip hashes.
+
+The verified inactive H200 candidate is `sprsound_pool-27cbcf94aa5969d2847f`. That identity is not
+an activation signal: production `current` and the legacy compatibility path may change only through
+the locked, journaled migration API after exact post-verification and rollback testing.
+
 ---
 
 ## 5. Data design — store *ingredients*, never freeze the reward
@@ -145,8 +164,8 @@ Then the full `reward → filtered-BC / offline-RL` machinery runs end-to-end ag
 reward; the real audio Q model swaps in at deployment.
 
 ✅ **Phase-0 procedural dry-run done (2026-07-07):** [`../scripts/gen_synthetic_session.py`](../scripts/gen_synthetic_session.py)
-writes a record_session-format session with the three missing pieces filled in — 7-DOF OpenArm-left
-`robot.csv` (leader targets = action, follower = obs), a scripted contact-force profile (in-band 4 N
+writes a legacy record_session-format session with the three missing pieces filled in — 7-DOF
+OpenArm-left `robot.csv` (leader targets = action, follower = obs), a scripted contact-force profile (in-band 4 N
 during the hold, breathing-modulated), and **state-dependent audio** (a real lung clip degraded
 outside contact). Through `session_to_lerobot.py` it yields contact-aware segments (gate=True /
 reward>0 only in the good-contact window, gate=False gaps around it) and a `frames.parquet` with
@@ -154,6 +173,9 @@ reward>0 only in the good-contact window, gate=False gaps around it) and a `fram
 then trains a reward-weighted BC MLP on it — loss converges (~330×), confirming the data loads,
 weights apply, and the loop trains. This validates pipeline + structure + multimodality + trainability
 end-to-end with **no hardware**; MuJoCo physics (real contact/kinematics) is the Phase-1 upgrade.
+This is a plumbing-only legacy dry-run and is **not promotable training data**. Canonical hardware
+conversion requires the v2 exact-control sidecar and never treats follower observations, copied
+references, or interpolated values as actions.
 
 ✅ **Phase-1 MuJoCo physics done (2026-07-07):** [`../mechanical_sensor/sim/openarm_mjcf.py`](../mechanical_sensor/sim/openarm_mjcf.py)
 builds a **self-contained MJCF of the OpenArm left arm from the URDF's concrete kinematics + inertials**
@@ -195,7 +217,7 @@ sim-side robustness lever, not a replacement for real vision data.
    respiratory-cycle splitting → `segments.jsonl` (reward_schema) + `frames.parquet` with per-frame
    `segment_index` + `reward.weight`. Validated on a real session; it also **reports** the still-missing
    `observation.state`/`action` in `info.json` (teleop unwired) and uses a **proxy Q** until the real
-   AST Q head is plugged via `q_fn` on the 5090.
+   AST Q head is plugged via `q_fn` for linbox real-time scoring; heavy retraining remains on H200.
 3. Lock the data schema (segment boundaries / Q / doctor label / dense quality track / raw modalities)
    **before** large-scale collection — avoids rework. (This doc + `reward_schema.py`.)
 4. Q-as-reward → offline weighted BC; then swap Q for the learned preference reward model (68-set start).
@@ -246,7 +268,8 @@ Pieces: `gen_synthetic_session.py` / `gen_mujoco_session.py` (sessions) · `open
 We train **both** a VLA and a WAM, so the collected data is the **canonical LeRobot v2 dataset**
 (what ACT / π0 / OpenVLA-style tooling expects), produced via the real `LeRobotDataset` API — not a
 hand-rolled parquet. [`../scripts/session_to_lerobot_v2.py`](../scripts/session_to_lerobot_v2.py)
-(runs in linbox's `lerobot` conda env; LeRobot isn't on the Mac). The 4 modalities map as:
+(runs only through linbox's immutable `~/envs/lerobot-current` candidate, locked to
+`lerobot==0.3.3`; LeRobot conversion does not run on the Mac or H200). The 4 modalities map as:
 
 | modality | LeRobot feature | dtype |
 |---|---|---|
@@ -270,7 +293,8 @@ language, features include images+state+action+next.reward/done, stats present, 
 [--instruction ...]` writes `task` into `manifest.json` (one site per session → every demo carries its
 language); sim generators carry `task` too. **Recommended next collection upgrade:** add a **wrist
 camera** (VLAs benefit from wrist + third-person) → record `rgb_wrist.mp4` → `observation.images.wrist`
-(the format already supports N cameras). Keep the action space fixed (joint targets) across all data.
+(the format already supports N cameras). Canonical hardware action space is the exact arm/gripper
+MIT `(kp, kd, q, dq, tau)` vector from one real control tick; action interpolation is forbidden.
 
 ## 7d. Point-conditioned collection (2026-07-10) — the doctor is shown WHERE, the model learns per-point
 
@@ -282,7 +306,8 @@ this action" (and at deploy, perception supplies the point → the policy execut
 - [`../ausc/perception/ausc_targets.py`](../ausc/perception/ausc_targets.py): `TargetPoint`
   (id/name/uv/xyz), `load_targets` (default posterior grid LUL/LLL/RUL/RLL, or a perception-landmarks
   JSONL / config), `overlay()` (draw + highlight the active target for the doctor), `TargetLog` →
-  `targets.jsonl` (active target over time, `time.monotonic()`-stamped → aligns with robot.csv + sensors).
+  `targets.jsonl` (active target is bound to a camera frame index → aligns with the RGB-D exposure,
+  v2 exact-control frame index, and sensors).
 - `record_session.py --show-targets [--targets <file>]`: overlays the target on the live camera for
   the doctor (recorded `rgb.mp4` stays CLEAN — overlay only on the shown copy; headless-safe) and logs
   `targets.jsonl`. SPACE/n advance the target, so one recording can sweep multiple points.

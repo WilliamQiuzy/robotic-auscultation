@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -1009,6 +1010,34 @@ def test_depth_validation_rejects_all_zero_payload(tmp_path):
         sup._validate_depth_artifacts(tmp_path, camera, camera_meta)
 
 
+def test_depth_validation_rejects_mixed_current_and_legacy_frame_formats(tmp_path):
+    depth_dir = tmp_path / "depth"
+    depth_dir.mkdir()
+    (depth_dir / "depth_times.csv").write_text(
+        f"{_DEPTH_TIMES_HEADER}\n{_depth_row(2, 1.0, 0.0, 1.0)}\n"
+    )
+    _write_depth_frame(depth_dir, 2, np.full((6, 8), 700, dtype=np.uint16))
+    # A stale pre-compression frame must not be ignored merely because the
+    # current-format file is present.  Exact-set validation is part of the
+    # lossless replay contract and prevents ambiguous duplicate frame payloads.
+    (depth_dir / "depth_000002.npy").write_bytes(b"stale-legacy-depth")
+    camera = type("Camera", (), {
+        "frame_index": np.asarray([2], dtype=np.int64),
+        "host_arrival_t_s": np.asarray([1.0], dtype=np.float64),
+    })()
+    camera_meta = {
+        "has_depth": True, "n_depth_frames": 1,
+        "timing": {"capture_mode": {
+            "width": 8, "height": 6,
+            "depth_mode": {"width": 8, "height": 6},
+            "align_mode": "software_depth_to_color",
+        }},
+    }
+
+    with pytest.raises(ValueError, match="unexpected|legacy|ambiguous"):
+        sup._validate_depth_artifacts(tmp_path, camera, camera_meta)
+
+
 def test_depth_validation_rejects_frozen_device_clock(tmp_path):
     depth_dir = tmp_path / "depth"
     depth_dir.mkdir()
@@ -1092,6 +1121,120 @@ def test_shell_launcher_is_thin_fail_closed_supervisor_wrapper():
     assert '--code-release-id "$CODE_RELEASE_ID"' in script
     assert '--runtime-release-id "$RUNTIME_RELEASE_ID"' in script
     assert '--runtime-lock-sha256 "$RUNTIME_LOCK_SHA256"' in script
+
+
+def _run_record_launcher_fixture(
+    tmp_path, *, side, mock_teleop=False, ambient_gripper=None,
+):
+    fixture_ausc = tmp_path / "fixture" / "auscultation"
+    fixture_scripts = fixture_ausc / "scripts"
+    fixture_scripts.mkdir(parents=True)
+    launcher = fixture_scripts / "record_teleop_session.sh"
+    launcher.write_text((SCRIPTS / "record_teleop_session.sh").read_text())
+    (fixture_ausc / "ausc").mkdir()
+    (fixture_ausc / "ausc" / "record_session.py").write_text("")
+
+    capture = tmp_path / "launch.json"
+    (fixture_scripts / "collection_supervisor.py").write_text(
+        """import json, os, subprocess, sys
+
+index = sys.argv.index("--teleop-cmd-json")
+subprocess.run(json.loads(sys.argv[index + 1]), check=True, env=dict(os.environ))
+"""
+    )
+
+    stethoscope = tmp_path / "stethoscope"
+    (stethoscope / "scripts").mkdir(parents=True)
+    (stethoscope / "bin").mkdir()
+    (stethoscope / "scripts" / "_common.sh").write_text(
+        f'ROOT="{stethoscope}"\n'
+        f'BIN="{stethoscope / "bin"}"\n'
+        f'URDF="{stethoscope / "leader.urdf"}"\n'
+        f'URDF_FOLLOWER="{stethoscope / "follower.urdf"}"\n'
+        'left_leader=can1; left_follower=can3\n'
+        'right_leader=can0; right_follower=can2\n'
+    )
+    teleop = stethoscope / "bin" / ("mock_teleop.py" if mock_teleop else "unilateral_control")
+    teleop.write_text(
+        """#!/usr/bin/env python3
+import json, os, sys
+from pathlib import Path
+
+Path(os.environ["WAM_LAUNCH_CAPTURE"]).write_text(json.dumps({
+    "environment": {
+        key: os.environ.get(key)
+        for key in ("GRIPPER_DECOUPLE", "GRIPPER_HOLD_POS")
+        if key in os.environ
+    },
+    "teleop_argv": sys.argv[1:],
+}))
+"""
+    )
+    teleop.chmod(0o755)
+
+    required = {}
+    for name in ("sync", "camera_latency", "targets", "hall"):
+        path = tmp_path / f"{name}.json"
+        path.write_text("{}")
+        required[name] = path
+
+    env = dict(os.environ)
+    env.pop("GRIPPER_DECOUPLE", None)
+    env.pop("GRIPPER_HOLD_POS", None)
+    env.update(ambient_gripper or {})
+    env.update({
+        "STETHO_DIR": str(stethoscope),
+        "WAM_PY": sys.executable,
+        "TELEOP_BIN": str(teleop),
+        "WAM_SESSIONS": str(tmp_path / "sessions"),
+        "SYNC_CAL": str(required["sync"]),
+        "CAMERA_LATENCY_CAL": str(required["camera_latency"]),
+        "CAMERA_ID": "fixture-camera",
+        "TARGETS_FILE": str(required["targets"]),
+        "WAM_HALL_CALIBRATION": str(required["hall"]),
+        "TELEOP_STOP_CMD_JSON": '["/fixture/direct-disable"]',
+        "WAM_CODE_RELEASE_ID": "code_release-" + "a" * 20,
+        "WAM_PERCEPTION_RUNTIME_RELEASE_ID": "perception_runtime-" + "b" * 20,
+        "WAM_PERCEPTION_RUNTIME_LOCK_SHA256": "c" * 64,
+        "WAM_LAUNCH_CAPTURE": str(capture),
+    })
+    subprocess.run(
+        ["bash", str(launcher), side, "1", "posterior", f"fixture-{side}"],
+        check=True,
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+    return json.loads(capture.read_text())
+
+
+def test_record_launcher_pins_real_left_gripper_to_hold_open(tmp_path):
+    launch = _run_record_launcher_fixture(
+        tmp_path,
+        side="left",
+        ambient_gripper={
+            "GRIPPER_DECOUPLE": "0",
+            "GRIPPER_HOLD_POS": "-1.0",
+        },
+    )
+
+    assert launch["environment"] == {
+        "GRIPPER_DECOUPLE": "1",
+        "GRIPPER_HOLD_POS": "0.0",
+    }
+    assert launch["teleop_argv"][-3:] == ["left_arm", "can1", "can3"]
+
+
+def test_record_launcher_does_not_change_right_gripper_environment(tmp_path):
+    launch = _run_record_launcher_fixture(tmp_path, side="right")
+
+    assert launch["environment"] == {}
+
+
+def test_record_launcher_does_not_apply_hardware_gripper_defaults_to_mock(tmp_path):
+    launch = _run_record_launcher_fixture(tmp_path, side="left", mock_teleop=True)
+
+    assert launch["environment"] == {}
 
 
 def test_mock_teleop_uses_the_same_start_barrier_as_recorder():

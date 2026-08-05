@@ -27,6 +27,12 @@ V4_HARDENED_CODE_LOCK = (
     / "perception_runtime"
     / "hardened-code-sha256-v4.json"
 )
+V5_HARDENED_CODE_LOCK = (
+    AUSC_ROOT
+    / "configs"
+    / "perception_runtime"
+    / "hardened-code-sha256-v5.json"
+)
 RELEASE_PROFILE = Path(__file__).resolve().parent / "release_profile.json"
 POSTERIOR_GATE_PROFILE = (
     AUSC_ROOT / "configs" / "perception_runtime" / "posterior-gate-profile.json"
@@ -54,6 +60,7 @@ def _write_canonical(path: Path, value: dict) -> None:
 
 def _code_release(
     root: Path, *, complete: bool = True, reviewed_semantics: bool = True,
+    tampered_relative: str = "",
 ) -> tuple[Path, dict]:
     source = root / "code-source"
     relatives = ["auscultation/ausc/perception/tracking/runtime.py"]
@@ -62,7 +69,9 @@ def _code_release(
     for relative in relatives:
         worker = source / relative
         worker.parent.mkdir(parents=True, exist_ok=True)
-        if reviewed_semantics:
+        if relative == tampered_relative:
+            worker.write_text("SELF_CONSISTENT_TAMPER = True\n", encoding="utf-8")
+        elif reviewed_semantics:
             worker.write_bytes((AUSC_ROOT.parent / relative).read_bytes())
         else:
             worker.write_text("ENTRYPOINT = 'hardened'\n", encoding="utf-8")
@@ -149,8 +158,8 @@ def _hardened_hashes(code_manifest: dict) -> dict[str, str]:
     }
 
 
-def test_v4_is_the_build_default_with_an_independent_production_chain_contract() -> None:
-    expected_new_files = {
+def test_v5_is_the_build_default_without_reinterpreting_frozen_v4() -> None:
+    expected_v4_files_beyond_v3 = {
         "auscultation/ausc/realtime_q.py",
         "auscultation/ausc/perception/depth_codec.py",
         "auscultation/ausc/perception/production_runtime_activation.py",
@@ -180,18 +189,51 @@ def test_v4_is_the_build_default_with_an_independent_production_chain_contract()
         "auscultation/scripts/perception/activate_handeye.py",
     }
 
-    assert runtime.RUNTIME_MANIFEST_SCHEMA == "wam_perception_runtime_v4"
+    assert runtime.RUNTIME_MANIFEST_SCHEMA == "wam_perception_runtime_v5"
+    assert runtime.V4_RUNTIME_MANIFEST_SCHEMA == "wam_perception_runtime_v4"
     assert runtime.V3_RUNTIME_MANIFEST_SCHEMA == "wam_perception_runtime_v3"
     assert runtime.V3_REQUIRED_HARDENED_CODE_FILES < (
-        runtime.REQUIRED_HARDENED_CODE_FILES
+        runtime.V4_REQUIRED_HARDENED_CODE_FILES
     )
     assert (
-        runtime.REQUIRED_HARDENED_CODE_FILES
+        runtime.V4_REQUIRED_HARDENED_CODE_FILES
         - runtime.V3_REQUIRED_HARDENED_CODE_FILES
-    ) == expected_new_files
-    assert set(runtime.REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256) == (
+    ) == expected_v4_files_beyond_v3
+    assert (
+        runtime.REQUIRED_HARDENED_CODE_FILES
+        - runtime.V4_REQUIRED_HARDENED_CODE_FILES
+    ) == {
+        "auscultation/ausc/perception/robot/controller_launch_activation.py",
+        "auscultation/scripts/deployment/artifact_contract.py",
+        "auscultation/scripts/deployment/collection_service_unit.py",
+        "auscultation/scripts/deployment/perception_environment_manifest.py",
+        "auscultation/scripts/deployment/verify_perception_environment.py",
+    }
+    assert len(runtime.REQUIRED_HARDENED_CODE_FILES) == 46
+    assert (
+        "auscultation/scripts/deployment/publish_perception_runtime.py"
+        not in runtime.REQUIRED_HARDENED_CODE_FILES
+    )
+    assert set(runtime.V4_REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256) == (
+        runtime.V4_REQUIRED_HARDENED_CODE_FILES
+    )
+    assert set(runtime.REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256) == (
         runtime.REQUIRED_HARDENED_CODE_FILES
     )
+
+
+def test_v4_hardened_contract_remains_frozen_and_schema_specific() -> None:
+    expected = dict(runtime.V4_REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256)
+    rows = [
+        {"path": relative, "sha256": digest}
+        for relative, digest in sorted(expected.items())
+    ]
+
+    assert runtime._verify_hardened_code_manifest(
+        {"payload": {"files": rows}},
+        expected,
+        runtime_schema=runtime.V4_RUNTIME_MANIFEST_SCHEMA,
+    ) == expected
 
 
 def test_v3_hardened_contract_remains_frozen_and_schema_specific() -> None:
@@ -347,6 +389,7 @@ def test_only_an_exactly_allowlisted_v2_runtime_can_be_verified(
     semantic_path = source / runtime.RUNTIME_MANIFEST_NAME
     semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
     semantic["schema"] = runtime.LEGACY_RUNTIME_MANIFEST_SCHEMA
+    semantic.pop("capabilities")
     semantic["code"]["hardened_file_sha256"] = {
         relative: semantic["code"]["hardened_file_sha256"][relative]
         for relative in sorted(runtime.V3_REQUIRED_HARDENED_CODE_FILES)
@@ -422,6 +465,11 @@ def test_builds_complete_content_addressed_perception_runtime(tmp_path: Path) ->
     assert envelope["release_id"].startswith("perception_runtime-")
     assert release.name == envelope["release_id"]
     assert semantic["schema"] == runtime.RUNTIME_MANIFEST_SCHEMA
+    assert semantic["capabilities"] == {
+        "arm_control_authority": False,
+        "controller_launch_state": "DORMANT_HIL_PENDING",
+        "training_promotion": "NOT_ACTIVATED",
+    }
     assert semantic["model"] == {
         "architecture": "NormalsDetector",
         "checkpoint_path": "model/perc_lmh_v9_occ/best.pt",
@@ -459,6 +507,36 @@ def test_builds_complete_content_addressed_perception_runtime(tmp_path: Path) ->
     }
     assert (release / "code" / contract.MANIFEST_NAME).is_file()
     assert contract.verify_release(release)["release_id"] == envelope["release_id"]
+
+
+def test_v5_refuses_a_self_consistent_arm_authority_capability_tamper(
+    tmp_path: Path,
+) -> None:
+    inputs = _inputs(tmp_path)
+    release = _build_fixture_runtime(inputs, tmp_path / "runtime-releases")
+    source = tmp_path / "tampered-source"
+    shutil.copytree(release, source)
+    (source / contract.MANIFEST_NAME).unlink()
+    (source / contract.COMPLETE_NAME).unlink()
+
+    semantic_path = source / runtime.RUNTIME_MANIFEST_NAME
+    semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
+    semantic["capabilities"]["arm_control_authority"] = True
+    _write_canonical(semantic_path, semantic)
+    manifest = contract.build_manifest(
+        source,
+        runtime._regular_files(source),
+        artifact_kind=runtime.RUNTIME_ARTIFACT_KIND,
+        source_role="mac",
+    )
+    tampered_release = tmp_path / "tampered-releases" / manifest["release_id"]
+    tampered_release.parent.mkdir()
+    contract.write_release(
+        source, manifest, tampered_release, target_role="mac",
+    )
+
+    with pytest.raises(runtime.PerceptionRuntimeError, match="capability boundary"):
+        runtime.verify_perception_runtime_release(tampered_release)
 
 
 def test_checked_in_environment_lock_matches_the_read_only_linbox_probe() -> None:
@@ -616,13 +694,25 @@ def test_checked_in_v3_hardened_code_lock_is_frozen_for_rollback() -> None:
     } == runtime.V3_REQUIRED_BACK_GATE_SEMANTIC_CODE_SHA256
 
 
-def test_checked_in_v4_hardened_code_lock_matches_the_reviewed_files() -> None:
+def test_checked_in_v4_hardened_code_lock_is_frozen_for_rollback() -> None:
     raw = V4_HARDENED_CODE_LOCK.read_bytes()
+    value = json.loads(raw.decode("utf-8"))
+
+    assert _sha256(V4_HARDENED_CODE_LOCK) == (
+        "af9009a98db57fd8419929d8a67b3168551208fccb06e8d4355f5efd900d108c"
+    )
+    assert raw == contract.canonical_json_bytes(value)
+    assert set(value) == runtime.V4_REQUIRED_HARDENED_CODE_FILES
+    assert value == runtime.V4_REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256
+
+
+def test_checked_in_v5_hardened_code_lock_matches_the_reviewed_files() -> None:
+    raw = V5_HARDENED_CODE_LOCK.read_bytes()
     value = json.loads(raw.decode("utf-8"))
 
     assert raw == contract.canonical_json_bytes(value)
     assert set(value) == runtime.REQUIRED_HARDENED_CODE_FILES
-    assert value == runtime.REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256
+    assert value == runtime.REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256
     for relative, expected_sha256 in value.items():
         assert _sha256(AUSC_ROOT.parent / relative) == expected_sha256
 
@@ -772,7 +862,7 @@ def test_builder_rejects_unconfirmed_hardened_code_file_hash(tmp_path: Path) -> 
         )
 
 
-def test_v4_rejects_unreviewed_production_code_even_when_hashes_are_self_consistent(
+def test_v5_rejects_unreviewed_collection_code_even_when_hashes_are_self_consistent(
     tmp_path: Path,
 ) -> None:
     release, manifest = _code_release(
@@ -783,11 +873,69 @@ def test_v4_rejects_unreviewed_production_code_even_when_hashes_are_self_consist
 
     with pytest.raises(
         runtime.PerceptionRuntimeError,
-        match="production chain semantic code",
+        match="raw collection runtime semantic code",
     ):
         runtime._verify_hardened_code_manifest(
             envelope,
             self_consistent_hashes,
+            runtime_schema=runtime.RUNTIME_MANIFEST_SCHEMA,
+        )
+
+
+def test_v5_rejects_a_manifest_missing_the_dormant_controller_activation() -> None:
+    expected = dict(runtime.REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256)
+    missing = "auscultation/ausc/perception/robot/controller_launch_activation.py"
+    expected.pop(missing)
+    rows = [
+        {"path": relative, "sha256": digest}
+        for relative, digest in sorted(expected.items())
+    ]
+
+    with pytest.raises(runtime.PerceptionRuntimeError, match="required hardened files"):
+        runtime._verify_hardened_code_manifest(
+            {"payload": {"files": rows}},
+            expected,
+            runtime_schema=runtime.RUNTIME_MANIFEST_SCHEMA,
+        )
+
+
+@pytest.mark.parametrize(
+    "tampered_relative",
+    [
+        "auscultation/scripts/deployment/artifact_contract.py",
+        "auscultation/scripts/deployment/perception_environment_manifest.py",
+        "auscultation/scripts/deployment/verify_perception_environment.py",
+    ],
+)
+def test_v5_rejects_self_consistent_runtime_trust_closure_tamper(
+    tmp_path: Path, tampered_relative: str,
+) -> None:
+    assert tampered_relative in runtime.REQUIRED_HARDENED_CODE_FILES
+    release, manifest = _code_release(
+        tmp_path / tampered_relative.rsplit("/", 1)[-1],
+        tampered_relative=tampered_relative,
+    )
+    envelope = contract.verify_release(release)
+    actual = _hardened_hashes(manifest)
+    reviewed = runtime.REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256
+    assert actual[tampered_relative] != reviewed[tampered_relative]
+    assert {
+        relative: digest
+        for relative, digest in actual.items()
+        if relative != tampered_relative
+    } == {
+        relative: digest
+        for relative, digest in reviewed.items()
+        if relative != tampered_relative
+    }
+
+    with pytest.raises(
+        runtime.PerceptionRuntimeError,
+        match="raw collection runtime semantic code",
+    ):
+        runtime._verify_hardened_code_manifest(
+            envelope,
+            actual,
             runtime_schema=runtime.RUNTIME_MANIFEST_SCHEMA,
         )
 

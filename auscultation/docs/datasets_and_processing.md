@@ -71,14 +71,14 @@
 ### 5. 转正（内联于 `ausc/datasets/humman._base_sample`）
 - 按 SMPL 脊柱方向(pelvis→neck)把图像/IUV/点旋转到躯干竖直，并裁到躯干 bbox。
 
-### 6. 数据增强（算子库 `ausc/augment.py` + 编排 `ausc/datasets/common.augment_once`）—— 针对第三人称固定相机 + 实验室 WidowX/Trossen 桌面侧装臂
+### 6. 数据增强（算子库 `ausc/augment.py` + 编排 `ausc/datasets/common.augment_once`）—— 针对第三人称固定相机 + 实验室 OpenArm 桌面侧装臂
 
 > 原则：增强必须匹配**部署分布**，盲目堆砌（如大角度旋转）反而有害。**训练时随机组合这 5 种**生成每张，不枚举。
 
 | 手段 | 模拟部署变化 | 要点 |
 |---|---|---|
 | ① 光照/对比/色调/轻噪声 | 临床灯光、肤色、相机差异 | 抗光照 |
-| ② **手臂+听诊器遮挡** | Trossen 臂+听诊器必然遮住躯干 | **最关键**；灰杆+听诊器圆头，标签保留 |
+| ② **手臂+听诊器遮挡** | OpenArm 臂+听诊器必然遮住躯干 | **最关键**；灰杆+听诊器圆头，标签保留 |
 | ③ 水平翻转 + 换 L/R 标签 | 人体近似双侧对称→数据翻倍 | `LR_SWAP` + IUV 对称 |
 | ④ **小角度旋转（严格 ±θ 对称）** | 病人轻微侧倾/相机轻微 roll | **仅 ±8/±15，左右成对**；固定机位不放大角度 |
 | ⑤ **取景 F1远/F2中/F3近**（定死，非随机） | 第三人称相机的取景尺度（部署核心） | 见下「取景分类」；以听诊区居中 |
@@ -114,7 +114,7 @@
  "side_conf":0.0-1.0, "points":{"name":{"xy":[x,y],"visible":true}}}
 ```
 - `iuv` PNG：R=part(0..24)，G=U×255，B=V×255。
-- 正样本：front(4 点)/back(8 点)。负样本：region=none，空点。
+- 正样本：front(5 点 APETM)/back(10 点 V6A)。负样本：region=none，空点。
 
 ---
 
@@ -132,7 +132,8 @@
 | `ausc/datasets/humman.py` | HuMMan → 稠密IUV + 前胸/后背点 + 负样本 |
 | `ausc/datasets/scoliosis.py` | 裸背 → 后背肺点 + 稠密IUV（用重拟合 `scol_refit.pkl`） |
 | `ausc/datasets/synthetic.py` | **pyrender 纯仿真**：平滑Phong + 连续程序化皮肤(多人种) + 坐/站 + F1/F2/F3取景 + 稠密IUV。⚠️ 需 GPU+EGL(`PYOPENGL_PLATFORM=egl`) |
-| `ausc/models/`, `ausc/training/` | ☐ 感知模型 / 训练循环（占位, 见各自 README） |
+| `ausc/models/iuv_model.py` | ★ 已实现:DINOv2+LoRA 骨干 + IUV 头 + **Landmark 热图头**(生产读点) |
+| `ausc/training/` | ★ 已实现:`train.py`(IUV/landmark 训练循环) + `dataset.py` + `eval*.py`(见 README) |
 
 **入口与工具 `scripts/`**
 | 脚本 | 作用 |

@@ -1,5 +1,16 @@
 """Monitor calibrated force feedback for the ThinkLabs passive mount.
 
+⚠️  LEGACY (v7A DISPLACEMENT model). This reads a DISPLACEMENT stream (``disp_mm``)
+and computes force = spring_rate * compression. It does NOT match the as-built
+VEO6 hardware, whose RP2040 firmware streams raw Hall ADC (``t_ms,raw``), nor the
+VEO6 hall_v->force calibration. Pointing it at the live VEO6 sensor will read raw
+ADC counts AS millimetres and produce nonsense. For the current sensor use
+``force_sensor.py`` instead:
+
+    python force_sensor.py --port <tty> --calibration ..._veo6_tared.json
+
+Keep this script only for replaying old displacement CSV traces (``--replay-csv``).
+
 Examples:
 
     python auscultation/mechanical_sensor/force_feedback/force_feedback_monitor.py \

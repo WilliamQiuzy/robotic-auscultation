@@ -888,6 +888,12 @@ def _validate_depth_artifacts(session: Path, camera, camera_meta: dict) -> dict:
             pass
         else:
             raise ValueError("depth_times.csv row count does not match RGB frames")
+    # Do not allow a stale legacy payload to coexist with the current container
+    # for the same (or any) frame.  The timeline names only the current suffix,
+    # so silently ignoring old ``.npy`` files would make the replay input set
+    # ambiguous even though the current-file count still looks correct.
+    if any(depth_dir.glob("depth_*.npy")):
+        raise ValueError("depth directory contains unexpected legacy frame payloads")
     # Count frames without building a list of hundreds of thousands of paths.
     file_count = sum(1 for _ in depth_dir.glob(f"depth_*{depth_codec.DEPTH_SUFFIX}"))
     if file_count != expected_count:

@@ -12,16 +12,21 @@ inference**, and **imitation-learning data collection + annotation**.
 
 ## 0. Hardware topology — everything on one host, one clock
 
-All sensors and the robot connect to **one machine: the local RTX 5090 Linux box** (the GPU
-inference host). Single host ⇒ a single monotonic clock ⇒ synchronization is a software
+All sensors and the robot connect to **one machine: linbox (the local RTX 5090 Linux hardware and
+real-time-inference host)**. Single host ⇒ a single monotonic clock ⇒ synchronization is a software
 problem, not a network one. OPERA-CT on a 5090 is <10 ms/window, so real-time Q is trivial.
 
 ```
 ThinkLabs One ──3.5mm analog──> Scarlett Solo (sound card) ──USB──>┐
-SS49E Hall (GP28) ──> RP2040 (MicroPython, ~94 Hz "t_ms,raw") ──USB──>┤   RTX 5090
+SS49E Hall (GP28) ──> RP2040 (MicroPython, ~94 Hz "t_ms,raw") ──USB──>┤   linbox / RTX 5090
 OpenArm follower (joint states) ───────────────────────────USB/EtherCAT──>┤   Linux host
 OpenArm leader (teleop targets) ──────────────────────────USB/EtherCAT──>┘   (one clock)
 ```
+
+Heavy training and offline evaluation never run on linbox; completed immutable LeRobot releases
+are transferred to H200 for those jobs. The commissioned Hall calibration is persistent linbox data
+at `~/wam_data/config/calibration/force_feedback_calibration_veo6_tared.json` (or the explicit
+`WAM_HALL_CALIBRATION` override), and its SHA-256 is recorded in each session.
 
 - **Audio:** continuous, 48 kHz in → resampled to 16 kHz for the model.
 - **Force:** `force_feedback/force_sensor.py` already gives a **non-blocking, host-timestamped**
@@ -42,9 +47,54 @@ streams co-registered to sub-window accuracy:
 
 1. **Serial drift fit (force).** RP2040 sends its own `t_ms`. Fit a line `host_recv ≈ a·t_ms + b`
    over a rolling buffer ⇒ convert device time → host time, removing per-sample jitter.
-2. **Fixed audio↔force offset, calibrated by a tap.** At session start, **tap the diaphragm**:
+2. **Fixed audio↔force offset, calibrated by taps.** Before collection, **tap the diaphragm**:
    it produces a sharp transient in audio **and** a force impulse in Hall. Cross-correlate the
-   two envelopes ⇒ a constant `Δ_audio↔force` (sound-card buffering + serial latency). Subtract it.
+   two envelopes ⇒ a constant `Δ_audio↔force = force_t - audio_t` (sound-card buffering + serial
+   latency). Apply it exactly once as `audio_aligned = audio_host + Δ_audio↔force`.
+3. **Camera exposure latency, measured by LED flash.** Fit camera-device drift to host receipt time,
+   then subtract the measured `host_arrival - exposure` latency. Receipt time alone is not exposure
+   time and is never accepted as a training timestamp.
+
+The persisted quality gates are intentionally strict:
+
+```bash
+# Requires >=4 one-to-one diaphragm-tap matches and offset std <=5 ms.
+python ausc/sync_calib.py --seconds 10 \
+  --audio-device "Scarlett Solo USB" --audio-channel 1 \
+  --hall-port /dev/ttyACM0 --hall-cal /path/force_calibration.json \
+  --out wam_sync_v1.json
+
+# Supply >=20 repeated hardware LED-flash measurements; std must be <=5 ms.
+python ausc/camera_latency_calib.py --samples-ms 12.1 11.8 12.4 ... \
+  --backend orbbec --camera-id FEMTO_BOLT_SERIAL \
+  --width 640 --height 480 --fps 30 --color-format RGB \
+  --depth-width 640 --depth-height 576 --depth-fps 30 --depth-format Y16 \
+  --align-mode software_depth_to_color --frame-aggregate-mode full_frame_require \
+  --out wam_camera_latency_v1.json
+```
+
+Both JSON files carry the measurement method, sample count, uncertainty, and an exact
+`capture_mode`. Sync keeps the requested audio name and Hall path only as diagnostics. Its actual
+output is immutable: `--out` must not already exist, publication uses atomic no-replace semantics,
+and device/tap/uncertainty failure exits nonzero even when no output path was requested. The identity
+contract binds the selected PortAudio index, host-API name, resolved device name, maximum
+input channels, audio channel, Hall USB serial/VID/PID, and force-calibration hash. On Linux ALSA it
+also maps the PortAudio device through sysfs to the audio interface's USB serial/VID/PID and USB
+topology path. A serialless integrated Linux audio device is eligible only when VID/PID and the
+fixed sysfs USB topology all match; moving it to another USB path fails closed. A changed ALSA card
+or PortAudio index is accepted only when the stable serial identity still matches. Hall always
+requires a stable USB serial. Therefore run tap
+calibration on the acquisition host, with the exact sound-card mode used for collection;
+the calibration CLI enforces this by default. `--allow-unstable-audio-identity` exists only for
+non-arm rehearsal and writes an artifact that arm collection will reject. With matching audio USB
+serial/VID/PID, ALSA `hw:N,M` name and PortAudio-index remapping are treated as diagnostics rather
+than a hardware change. With serialless topology identity, the USB path is part of the immutable
+identity. In both cases host API, input-channel capacity, and selected channel must match;
+camera latency is bound to backend, stable camera ID, color/depth profiles, pixel formats,
+alignment, frame aggregation, FPS, and timestamp semantics. The recorder verifies the live RGB-D
+frame shape/time source and the backend's negotiated pipeline. A
+hand-entered zero, reused tap, high-jitter result, mismatched device/mode, missing file, or
+post-capture modification makes the session ineligible.
 
 After this, any time `t` maps to an aligned `(audio_sample, force_sample, robot_state)`.
 
@@ -63,41 +113,48 @@ consumers. Capture is **never blocked** by inference (else audio drops).
       win = audio.latest_window(seconds=8)   # -> (samples_16k, t_start, t_end), non-blocking
   ```
 - **ForceSensor** (existing): `force.read()` → latest `ForceSample`. Background thread already.
-- **Robot**: `robot.get_observation()` (joint pos/vel, EE pose) and the leader's commanded
-  `action` at the control rate.
+- **Robot**: the left unilateral OpenArm controller publishes exact 1 kHz follower observations
+  and the exact MIT parameters consumed at each control tick; the hardware mapping is
+  `can1` leader → `can3` follower.
 
 ---
 
 ## 3. Multi-rate fusion — don't put 16 kHz into every frame
 
-Three native rates: **robot/control 50 Hz**, **force ~94 Hz**, **audio 16 kHz**. Rule:
+Three native rates: **robot/control 1 kHz**, **force ~94 Hz**, **audio 16 kHz**. Rule:
 **audio is a continuous side-stream**, not per-frame samples.
 
 | Stream | Native rate | How it enters the pipeline |
 |---|---|---|
-| Robot state / action | 50 Hz | one LeRobot frame per step |
-| Contact force | 94 Hz | logged raw to `force.parquet`; **latest value** sampled into each 50 Hz frame |
-| Audio | 16 kHz | continuous `episode_XXX.wav` + `t0`; per frame stores only a **timestamp pointer** + the latest `q_usable` |
-| Q score | ~1–5 Hz | sliding-window output, **held** between updates in the frame |
+| Robot state / action | 1 kHz | canonical v2 exact-control sidecars; observation alone may be interpolated at exposure nominal, while action is the last real tick whose full arm+gripper call completed by nominal and is never interpolated |
+| Contact force | 94 Hz | raw `force.csv`; past-only value plus validity and age at each exposure |
+| RGB camera | device FPS | one canonical LeRobot row per corrected exposure timestamp |
+| Audio | 16 kHz | immutable continuous `audio.wav` sidecar; never duplicated into every frame |
+| Q score / contact gate | segment rate | label/reward in `segments.jsonl` and `next.reward`, never an observation |
 
-Per-frame observation (LeRobot `add_frame`):
+Canonical per-camera frame (LeRobot 0.3.3 uses a separate `task=` argument):
 
 ```python
 obs = {
-  "observation.state":          robot_joint_pos,        # OpenArm follower
-  "observation.contact_force_n": force.read().force_n,   # 94 Hz -> latest
-  "observation.q_usable":        q_stream.latest,        # ~1-5 Hz -> held
-  "observation.resp_phase":      resp.phase,             # insp/exp (§6)
-  "observation.audio_t":         audio.now_t,            # pointer into episode wav
-  # "observation.images.cam":    frame,                  # if cameras present
+  "observation.state":                 follower_joint_pos_at_exposure_nominal,
+  "observation.robot_state_age_s":     0.0,
+  "observation.contact_force_n":       past_force_n,
+  "observation.contact_force_valid":   True,
+  "observation.contact_force_age_s":   force_age_s,
+  "observation.images.top":            rgb_at_exposure,
+  "observation.target_point_2d":        target_uv,
+  "observation.target_point_3d":        target_xyz_robot_base,
 }
-action = leader_joint_targets                            # §7
-dataset.add_frame(obs, action)
+frame = {**obs, "action": exact_40_parameter_arm_and_gripper_MIT_action,
+         "next.reward": segment_reward, "next.done": target_interval_done}
+dataset.add_frame(frame, task="auscultate the R1")
 ```
 
-**Control loop = 50 Hz** (ALOHA/ACT/LeRobot convention; captures force dynamics; 94 Hz force
-decimates cleanly). **Format = LeRobot** (`LeRobotDataset`); audio as a per-episode sidecar WAV
-aligned by `t0` + `observation.audio_t`, because tabular per-frame storage can't hold raw audio.
+The live control loop remains 1 kHz, but the canonical dataset FPS is the camera FPS. Every force
+and target join is past-only and bounded (force 50 ms, target 250 ms); missing data is rejected,
+never replaced with zero. **Format = LeRobot** (`LeRobotDataset`); audio remains a session sidecar WAV
+with `audio.t0_monotonic` plus the hashed sync calibration. The converter maps an exposure query back
+to raw WAV time; no per-frame future-looking audio-quality feature is required.
 
 ---
 
@@ -115,11 +172,17 @@ P_usable = gate · Q_audio   (or a small learned fusion head)
 
 - **Sliding window:** 8 s window, **hop 1 s** ⇒ a `P(usable)` update ~1 Hz; mean-pool the last
   2–3 windows (matches training's window-mean), then EMA/median-smooth to de-flicker.
-- **Targets:** `F_min..F_max` from the force calibration (target 4 N, hard limit 8 N).
+- **Targets:** derive every threshold from the active force calibration. The current mount targets
+  4.0 N, enters `SCREENED_LIMIT` at 4.6 N, and reserves 5.5 N for the physical hard limit.
 - **Latency:** on the 5090, OPERA forward <10 ms ⇒ end-to-end well under the 1 s hop. Real-time
   is not a constraint here; we can even hop faster (e.g., 0.5 s) if desired.
-- **Safety:** force `HARD_LIMIT` (>8 N) trips the robot e-stop independently of the model
-  (already in `ForceSensor(on_hard_limit=...)`).
+- **Safety:** the autonomous `AuscultationController` can command a bounded retract because it owns
+  motion history and records a validated base-frame approach direction. The leader–follower
+  **collection** path has no verified retract/ack interface: `SCREENED_LIMIT`, `STALE`, and `NO_DATA`
+  request teleop shutdown and start the independently commissioned direct-disable command
+  immediately; `HARD_LIMIT` uses the same immediate energy-isolation path. Every such demo is
+  aborted, and the operator retracts only after isolation is confirmed. This is not proof of passive
+  force relief; phantom/HIL testing across arm poses remains mandatory before patient-adjacent use.
 
 ---
 
@@ -127,7 +190,8 @@ P_usable = gate · Q_audio   (or a small learned fusion head)
 
 A streaming view + log, updated every hop:
 
-- **Force** trace with the 4 N target band shaded; `STATUS` (OK / adjust force / hard-limit).
+- **Force** trace with the 4 N target band shaded; `STATUS` (OK / adjust force / screened-limit /
+  hard-limit).
 - **Rolling mel-spectrogram** of the bandpassed audio.
 - **`P(usable)`** gauge + history; **gate** state.
 - **Respiratory phase** (insp/exp) and **heart-beat markers** (§6).
@@ -179,20 +243,62 @@ A respiratory cycle (inspiration + expiration) ≈ **3–5 s** (12–20 breaths/
 
 **Leader–follower teleop (confirmed).** The **stethoscope is mounted on the follower** OpenArm;
 a human moves the **leader** OpenArm and the follower mirrors it to perform the auscultation.
-Recorded per 50 Hz step: **follower joint states → `observation.state`**, **leader joint targets
-→ `action`**.
+Recorded per control tick: **follower joint states → observation stream**, and the exact follower
+arm/gripper MIT `(kp, kd, q, dq, tau)` parameters consumed by the controller → action stream.
+The converter emits one camera-rate action by selecting a single real tick; copied follower
+observations and interpolated actions are explicitly forbidden.
 
 **Per-session multimodal container**, all host-clock aligned:
 
 ```
 session_YYYYMMDD_HHMMSS/
-  meta.json          # subject, site (e.g. LLL/RUL), device settings, gains, calib, t0
-  audio.wav          # continuous 16 kHz + t0 in meta
-  force.parquet      # t, raw, hall_v, displacement_mm, force_n, status   (~94 Hz)
-  robot.parquet      # t, follower joint pos/vel, EE pose, leader targets (50 Hz)
-  events.jsonl       # contact on/off, probe-move, tap-sync, operator marks
-  cycles.jsonl       # respiratory-cycle boundaries + insp/exp labels
-  lerobot/           # LeRobotDataset frames (obs+action), audio referenced by audio_t
+  manifest.json      # lifecycle + wam_promotion_v1 contract, identities and calibration/raw hashes
+  FINALIZATION.json  # external SHA-256 seal for the exact promoted manifest bytes
+  calibrations/      # immutable force calibration snapshot
+  audio.wav          # continuous 16 kHz; ADC clock mapped to host monotonic
+  force.csv          # host/device clocks, raw Hall values, calibrated force and status (~94 Hz)
+  robot_control_envelopes.jsonl # canonical publisher bytes; 100 Hz envelopes of 1 kHz ticks
+  robot_exact_control.csv       # every exact observation/action tick once
+  robot_frame_index.jsonl       # RGB-D exposure bracket and exact action-range hashes
+  robot_capture_summary.json    # commit marker, counts/hashes/source closure/blockers
+  rgb.mp4            # clean RGB frames
+  rgb_times.csv      # frame index, host arrival, device timestamp and explicit time source
+  depth/              # one depth array per RGB-D frameset plus depth_times.csv
+  obs.csv            # live fused monitoring rows (not the canonical training join)
+  targets.jsonl      # camera-bound target, robot_base xyz and target identity
+```
+
+Promotion decodes and validates the payloads, hashes every raw file before and after that validation,
+writes `artifact_hashes` plus `promotion_contract_version: wam_promotion_v1`, and externally seals the
+exact manifest bytes in `FINALIZATION.json`. Conversion verifies the seal, binds the same manifest
+bytes through discovery and snapshot, and checks every expected raw hash while freezing inputs. Any
+manifest or raw file changed after promotion is rejected before a dataset is published.
+
+`session_to_lerobot_v2.py` canonical-replays all four robot artifacts, requires one robot frame row
+for every RGB-D frame, and writes `robot_frame_action_selection.jsonl`. Its fixed selection rule is
+`latest_exact_control_tick_completed_at_or_before_exposure_nominal_ns`; completion means the full
+arm+gripper control call ended before the exposure nominal. Each row stores the selected tick ID,
+tick time, action hash, source action-range hash, and the full-sidecar hashes used by WorldAction
+training. Tick IDs/timestamps remain audit metadata rather than policy observations, preventing
+absolute session-position leakage. The original 1 kHz files remain in the immutable dataset snapshot.
+
+**Current training gate:** the audited OpenArm SDK's `mit_control_all` returns `void`, so consumed
+action send status is not observable. Current v2 summaries therefore keep
+`training_eligible=false` with `robot_action_send_status_unobservable`; the converter preserves the
+evidence for commissioning but refuses to publish it as VLA/WAM training data. This blocker must be
+resolved in the controller/SDK and represented by a newly validated sidecar contract—it must not be
+bypassed in conversion.
+
+Arm-connected collection is launched only through the fail-closed supervisor. It requires the
+exact commissioning artifacts and a direct motor-disable command:
+
+```bash
+export SYNC_CAL=/path/wam_sync_v1.json
+export CAMERA_LATENCY_CAL=/path/wam_camera_latency_v1.json
+export CAMERA_ID=FEMTO_BOLT_SERIAL
+export TARGETS_FILE=/path/robot_base_targets.jsonl
+export TELEOP_STOP_CMD_JSON='["/path/direct_disable"]'
+scripts/record_teleop_session.sh left 15 posterior-lung demo_001
 ```
 
 **Smart collection** using the real-time `Q + contact gate`:
@@ -227,7 +333,12 @@ Send clinicians the **cycle-aligned 2–3-cycle clips**:
 **Status / follow-ups:**
 - ✅ `AudioStream` built — `ausc/audio/audio_stream.py` (Scarlett stethoscope on `pick_channel=1`).
 - ✅ `CameraStream` built — `ausc/perception/camera_stream.py` (Orbbec Femto Bolt RGB, avfoundation idx 1, 1920×1080).
-- ✅ **All three streams verified co-running** on one host-monotonic clock (force + audio + camera, 3/3 live).
+- ✅ The software path is fail-closed: device/mode-bound calibration, sensor-first start barrier,
+  concurrent safety supervision, hash-bound artifact validation, causal conversion and provenance.
 - ✅ Teleop = leader–follower, stethoscope on the follower arm.
 - ✅ **Trossen → OpenArm rename** done across `mechanical_sensor/` CAD, generated files, and tests.
-- ⏳ Depth from the Femto Bolt (Orbbec SDK) — RGB-only via avfoundation for now.
+- ⏳ Hardware commissioning remains: bench-scale force calibration, exact-device sync/camera
+  calibrations, measured direct-disable latency plus phantom validation that torque-off cannot increase
+  patient-directed force in any collection pose, robot-base targets, and a real LeRobot 0.3.3 reopen
+  smoke. Until then, direct disable is an energy-isolation fallback—not a proven passive unload or
+  automatic retract.

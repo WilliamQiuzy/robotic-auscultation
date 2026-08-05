@@ -48,6 +48,7 @@ def test_release_anchors_cover_every_hardened_perception_runtime_file() -> None:
 def test_release_anchors_cover_left_robot_and_occlusion_runtime() -> None:
     assert {
         "auscultation/ausc/perception/robot/camera_exposure_evidence.py",
+        "auscultation/ausc/perception/robot/controller_launch_activation.py",
         "auscultation/ausc/perception/robot/frame_evidence_bundle.py",
         "auscultation/ausc/perception/robot/openarm_pair_activation.py",
         "auscultation/ausc/perception/robot/robot_capture_coordinator.py",
@@ -68,6 +69,7 @@ def test_release_anchors_cover_left_robot_and_occlusion_runtime() -> None:
         "auscultation/ausc/perception/tracking/production_evidence_capture.py",
         "auscultation/ausc/perception/tracking/production_geometry_gate.py",
         "auscultation/configs/perception_runtime/hardened-code-sha256-v4.json",
+        "auscultation/configs/perception_runtime/hardened-code-sha256-v5.json",
         "auscultation/mechanical_sensor/force_feedback/force_capture.py",
         "auscultation/mechanical_sensor/force_feedback/force_sensor.py",
     } <= set(release_source.REQUIRED_RELEASE_PATHS)

@@ -82,6 +82,14 @@ recorder_cmd=(
 if [[ "$TELEOP_BIN" == *.py ]]; then
     teleop_cmd=("$PY" "$TELEOP_BIN" "$secs")
 else
+    if [[ "$side" == "left" ]]; then
+        # The auscultation follower carries the stethoscope mount.  Keep its
+        # gripper decoupled from the leader and target the controller's bare-
+        # gripper open position; the controller's lead cap prevents forcing
+        # through the mount's earlier physical stop.
+        export GRIPPER_DECOUPLE=1
+        export GRIPPER_HOLD_POS=0.0
+    fi
     teleop_cmd=("$TELEOP_BIN" "$URDF" "$URDF_FOLLOWER" "$arm" "$leader" "$follower")
 fi
 

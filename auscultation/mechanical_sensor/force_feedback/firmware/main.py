@@ -8,6 +8,13 @@
 # read by force_sensor.ForceSensor on the host. Wiring (validated 2026-06-22):
 #     SS49E VCC -> 3V3 ,  GND -> GND ,  OUT -> GP28
 #
+# This firmware is direction-AGNOSTIC: it just streams the raw ADC. Whether the
+# number RISES or FALLS as contact force increases depends on the magnet
+# orientation; the host calibration (force_sensor.ForceCalibration) carries the
+# sign. The as-built unit is INVERTED (force lowers raw): rest ~31577, hard stop
+# ~16355. Healthy rest is steady to ~+/-30 counts -- a value flickering to ~0 is
+# almost always a host-side partial-line read bug, NOT the wiring (use readline).
+#
 # To get the REPL back (e.g. to reflash), connect and send Ctrl-C to stop this
 # loop, or replug while holding BOOTSEL.
 

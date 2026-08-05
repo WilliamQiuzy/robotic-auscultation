@@ -32,7 +32,9 @@ from typing import Protocol
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from force_sensor import ForceCalibration, ForceSensor, STATUS_NO_DATA  # noqa: E402
+from force_sensor import (  # noqa: E402
+    DEFAULT_CALIBRATION_PATH, ForceCalibration, ForceSensor, STATUS_NO_DATA,
+)
 
 # --- observation / action shapes (edit to match the OpenArm rig) -------------
 CAM_KEYS = ["observation.images.cam_high"]
@@ -143,7 +145,7 @@ def parse_args() -> argparse.Namespace:
     ap.add_argument("--fps", type=int, default=20)
     ap.add_argument("--task", default="auscultate the chest")
     ap.add_argument("--port", help="force sensor serial port; omit to mock the force channel")
-    ap.add_argument("--calibration", default=str(Path(__file__).with_name("force_feedback_calibration_veo6.json")))
+    ap.add_argument("--calibration", default=str(DEFAULT_CALIBRATION_PATH))
     return ap.parse_args()
 
 

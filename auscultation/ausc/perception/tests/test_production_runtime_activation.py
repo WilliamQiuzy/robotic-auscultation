@@ -718,6 +718,8 @@ def test_loads_complete_left_runtime_into_real_validated_components(
     assert (contract.side, contract.leader_can_interface, contract.follower_can_interface) == (
         "left", "can1", "can3",
     )
+    assert contract.expected_arm_rx_motor_ids == tuple(range(17, 24))
+    assert contract.expected_gripper_rx_motor_id == 24
     assert runtime.occlusion_runtime.point_names == POINT_NAMES
     assert runtime.activation_sha256 == fixture["activation_sha256"]
     assert runtime.robot_capture_coordinator.receiver_health().status == "STOPPED"

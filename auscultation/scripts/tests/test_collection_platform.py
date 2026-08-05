@@ -214,6 +214,22 @@ def test_production_contract_cannot_be_fronted_by_a_diagnostic_writer():
         )
 
 
+@pytest.mark.parametrize(
+    "capture_kind",
+    ("production_future_v99", "production_teleop_v4_extra", "production_"),
+)
+def test_production_contract_accepts_only_the_exact_promotable_kind(capture_kind):
+    with pytest.raises(ValueError, match="production_teleop_v4"):
+        CaptureContract(
+            mode=CaptureMode.PRODUCTION_CAPTURE,
+            capture_kind=capture_kind,
+            training_intent=True,
+            writer_identity="ProductionTeleopCapture",
+            manifest_schema="wam_session_v2",
+            finalization_schema="wam_promotion_v2",
+        )
+
+
 def test_session_directory_is_contained_and_never_reuses_an_existing_path(tmp_path):
     root = tmp_path / "sessions"
     with pytest.raises(ValueError, match="session id"):
