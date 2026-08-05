@@ -6510,6 +6510,27 @@ def test_force_snapshot_never_reports_training_eligible(tmp_path):
         c.shutdown()
 
 
+def test_state_exposes_anatomical_site_instructions(tmp_path):
+    # The platform surfaces the VLA "L" grounding (each point code -> anatomical instruction)
+    # so the operator sees the goal and the collection binds to the SAME shared source of
+    # truth as the converter, not an opaque code.
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2)),
+         server.SimpleNamespace(name="L5", uv=(0.4, 0.6))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    try:
+        snap = c.state_snapshot()
+        si = snap["site_instructions"]
+        assert si["R1"] == "auscultate the right upper posterior lung field"
+        assert si["L5"] == "auscultate the left lower posterior lung field"
+        assert snap["site"] == si[snap["point"]]      # current site tracks the active point
+        assert "R1" not in snap["site"]               # anatomy, not the opaque code
+    finally:
+        c.shutdown()
+
+
 def test_production_blockers_are_add_only_never_cleared():
     # Security: --production-blocker can only ADD to the fail-closed default set; no CLI
     # string (formerly the magic 'none') can clear the commissioning blockers without

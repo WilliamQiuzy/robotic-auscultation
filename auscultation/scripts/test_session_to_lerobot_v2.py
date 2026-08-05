@@ -845,7 +845,10 @@ def test_causal_frame_uses_only_past_samples_and_no_future_labels_as_observation
     assert frame["observation.robot_state_age_s"].item() == pytest.approx(0.08)
     assert frame["observation.contact_force_age_s"].item() == pytest.approx(0.01)
     assert built.target_name == "R1"
-    assert built.task == "auscultate the R1"
+    # The VLA "L" is anatomy-grounded, not the opaque code (phrasing augmentation is applied
+    # later at the call site, seeded per session/site).
+    assert built.task == "auscultate the right upper posterior lung field"
+    assert "R1" not in built.task
     assert "observation.q_usable" not in frame
     assert "observation.contact_gate" not in frame
     assert frame["next.reward"].item() == pytest.approx(0.75)

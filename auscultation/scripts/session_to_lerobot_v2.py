@@ -44,7 +44,12 @@ from typing import Optional
 
 import numpy as np
 
-DEFAULT_TASK = "auscultate the posterior lung"
+# Shared source of truth for the point-code -> anatomical instruction (the VLA "L"). Kept in
+# scripts/ next to this converter and the collection server so BOTH fill the task identically.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from auscultation_sites import phrase_site_instruction, site_instruction  # noqa: E402
+
+DEFAULT_TASK = "auscultate the posterior lung field"
 CAMERA_TIME_SOURCE_BY_BACKEND = {
     "orbbec": "orbbec_device_and_host_arrival",
     "avfoundation": "opencv_host_arrival",
@@ -1100,7 +1105,10 @@ def build_causal_frame(
             targets.t_s, query_t, max_age_s=target_max_age_s, stream="target",
         )
         target_name = targets.names[it]
-        task = f"auscultate the {target_name}"
+        # The VLA "L": ground the opaque code (R1..L5) in its anatomical meaning so the
+        # policy can reuse a language model's anatomy understanding. Phrasing augmentation is
+        # applied once, later, seeded per (session, site).
+        task = site_instruction(target_name)
         frame["observation.target_point_2d"] = targets.uv[it]
         frame["observation.target_age_s"] = np.asarray([target_age], np.float32)
         if targets.xyz[it] is not None:
@@ -2400,7 +2408,8 @@ def prepare_exact_causal_records(
                 stream="target",
             )
             target_name = targets.names[target_index]
-            task = f"auscultate the {target_name}"
+            # VLA "L": anatomical grounding of the code (phrasing augmentation applied later).
+            task = site_instruction(target_name)
             frame["observation.target_point_2d"] = targets.uv[target_index]
             frame["observation.target_age_s"] = np.asarray(
                 [target_age], np.float32,
@@ -3003,10 +3012,19 @@ def build(
             camera, robot, force, targets, reward_spans,
             force_max_age_s=0.050, target_max_age_s=0.250,
         )
-        if task:
-            records = [
-                replace(record, task=f"{task}: {record.target_name}") for record in records
-            ]
+        # Fill the VLA "L" with an anatomy-grounded, phrasing-augmented instruction. Phrasing
+        # is sampled from the fixed pool deterministically per (session, site) -- reproducible,
+        # yet varied across sites/sessions so the policy does not overfit to one phrasing. Zero
+        # per-segment human cost. An optional --task prefix is preserved for datamix labels.
+        def _augmented_task(record):
+            if record.target_name is None:
+                return f"{task}: {DEFAULT_TASK}" if task else DEFAULT_TASK
+            phrased = phrase_site_instruction(
+                record.target_name, seed=f"{source_session_id}:{record.target_name}",
+            )
+            return f"{task}: {phrased}" if task else phrased
+
+        records = [replace(record, task=_augmented_task(record)) for record in records]
 
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "ausc" / "audio"))

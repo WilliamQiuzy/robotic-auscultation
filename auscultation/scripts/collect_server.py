@@ -188,6 +188,8 @@ ROOT = os.path.dirname(HERE)
 import sys
 sys.path[:0] = [ROOT, os.path.join(ROOT, "ausc", "perception"), os.path.join(ROOT, "ausc")]
 from ausc_targets import load_targets                               # noqa: E402
+from auscultation_sites import (instruction_map, site_instruction,   # noqa: E402
+                                unmapped_codes)
 from collection_platform import (DIAGNOSTIC_PERCEPTION_CONTRACT,      # noqa: E402
                                  PREVIEW_ONLY_CONTRACT,
                                  PRODUCTION_TELEOP_CONTRACT,
@@ -1007,6 +1009,16 @@ class Collector:
     ):
         self.targets = list(targets)
         self.point_names = tuple(target.name for target in self.targets)
+        # The point-conditioned targets are the VLA "L": each must map to an anatomical site
+        # (shared with the converter). Warn loudly if any code is unmapped so the operator
+        # knows those segments would fall back to a generic, ungeneralizable instruction.
+        _unmapped_sites = unmapped_codes(self.point_names)
+        if _unmapped_sites:
+            print(
+                "[collect] WARNING: auscultation sites not clinician-mapped, generic "
+                f"instruction fallback for: {_unmapped_sites}",
+                file=sys.stderr,
+            )
         self.fake = bool(fake)
         self.commissioning_preview_only = bool(commissioning_preview_only)
         self.commissioning_hall_monitor_only = bool(
@@ -5690,6 +5702,14 @@ class Collector:
             "idx": snapshot["point_index"],
             "n": len(self.point_names),
             "names": list(self.point_names),
+            # The auscultation-site semantics (the VLA "L" grounding) the converter will use,
+            # surfaced here so the operator sees the anatomical goal, not the opaque code, and
+            # so the platform binds to the exact same shared source of truth as training.
+            "site_instructions": instruction_map(self.point_names),
+            "site": (
+                site_instruction(snapshot["point"])
+                if snapshot.get("point") is not None else None
+            ),
             "recording": snapshot["state"] == CollectionState.RECORDING.value,
             "elapsed": round(elapsed, 1),
             "status": snapshot["error"] or snapshot["action_ack"] or current_tracking.get("reason"),
@@ -6073,7 +6093,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('elapsed').textContent=Number(s.elapsed||0).toFixed(1)+' s';$('framecount').textContent=Number(s.session_recorded_frames||0)+' frames';$('attempt').textContent=(s.idx+1)+' / '+s.n+' · attempt '+s.attempt;$('sessionpath').textContent=s.session_dir||'No session';
  const storage=s.capture_storage;$('storage').textContent=storage?(fmtBytes(storage.usable_bytes_before_safety_reserve)+' · '+fmtRemaining(storage.estimated_remaining_seconds)):'Estimating';
  const proof=s.finalization_summary,tb=proof?.video_timebase;const timebase=tb?.verified?(' · '+Number(tb.encoded_fps).toFixed(2)+' FPS'):'';const audioProof=proof?.audio?.status==='OK'?(' · '+Number(proof.audio.n_samples).toLocaleString()+' audio samples'):'';$('videoresult').textContent=s.state==='COMPLETE'&&proof?.complete?('Verified · '+proof.n_rgb_frames+' video frames'+timebase+audioProof):'Verified on end';
- $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point;
+ $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point?(s.point+(s.site?' · '+String(s.site).replace(/^auscultate the /,''):'')):'—';
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
  $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled';$('armstat').textContent='Arm '+(dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=st==='idle';}
