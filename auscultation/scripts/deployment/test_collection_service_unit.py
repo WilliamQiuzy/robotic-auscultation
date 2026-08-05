@@ -232,7 +232,7 @@ def deployment(tmp_path: Path) -> dict:
         hall_calibration_sha256=_sha256(hall_calibration),
         hall_port=(
             "/dev/serial/by-id/"
-            "usb-MicroPython_Board_in_FS_mode_53032847188a2e1c-if00"
+            "usb-MicroPython_Board_in_FS_mode_5303284738b7539c-if00"
         ),
         sync_calibration=sync_calibration,
         sync_calibration_sha256=_sha256(sync_calibration),
@@ -292,21 +292,249 @@ def test_renders_reproducible_unit_from_real_cli_contract(deployment: dict) -> N
     assert args.audio_expected_usb_port_path is None
     assert args.require_audio is True
     assert args.require_force is True
+    assert args.production_teleop is True
+    assert args.commissioning_preview_only is False
     assert args.hall_calibration == str(bound.spec.hall_calibration)
     assert args.hall_calibration_sha256 == bound.spec.hall_calibration_sha256
     assert args.hall_port == (
         "/dev/serial/by-id/"
-        "usb-MicroPython_Board_in_FS_mode_53032847188a2e1c-if00"
+        "usb-MicroPython_Board_in_FS_mode_5303284738b7539c-if00"
     )
     assert args.hall_expected_usb_vid == 0x2E8A
     assert args.hall_expected_usb_pid == 0x0005
-    assert args.hall_expected_usb_serial == "53032847188a2e1c"
+    assert args.hall_expected_usb_serial == "5303284738b7539c"
     assert args.sync_calibration == str(bound.spec.sync_calibration)
     assert args.sync_calibration_sha256 == bound.spec.sync_calibration_sha256
     assert args.production_activation == str(bound.spec.production_activation)
     assert args.production_activation_sha256 == (
         bound.spec.production_activation_sha256
     )
+
+
+def test_v2_unit_refuses_a_self_consistent_legacy_runtime_contract(
+    deployment: dict, monkeypatch,
+) -> None:
+    runtime_release = deployment["spec"].runtime_release
+    semantic_path = runtime_release / publisher.RUNTIME_MANIFEST_NAME
+    semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
+    semantic["schema"] = publisher.V4_RUNTIME_MANIFEST_SCHEMA
+    semantic.pop("capabilities")
+    semantic_path.chmod(0o644)
+    semantic_path.write_bytes(contract.canonical_json_bytes(semantic))
+    semantic_path.chmod(0o444)
+
+    # Model a byte-consistent, independently verified v4 rollback release.  A
+    # v2 service must still reject it instead of reinterpreting old runtime
+    # semantics as the new dormant-arm/non-promotion capability boundary.
+    monkeypatch.setattr(
+        service.publisher,
+        "verify_perception_runtime_release",
+        lambda _path: deployment["runtime_envelope"],
+    )
+
+    with pytest.raises(service.UnitContractError, match="runtime schema v5"):
+        service.bind_releases(deployment["spec"])
+
+
+def test_v2_unit_runtime_boundary_is_not_reinterpreted_by_publisher_constants(
+    deployment: dict, monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        service.publisher,
+        "verify_perception_runtime_release",
+        lambda _path: deployment["runtime_envelope"],
+    )
+    monkeypatch.setattr(
+        service.publisher,
+        "RUNTIME_MANIFEST_SCHEMA",
+        "wam_perception_runtime_v6",
+    )
+    monkeypatch.setattr(
+        service.publisher,
+        "RUNTIME_MANIFEST_NAME",
+        "REINTERPRETED_RUNTIME.json",
+    )
+    monkeypatch.setattr(
+        service.publisher,
+        "RUNTIME_CAPABILITIES",
+        {
+            "arm_control_authority": True,
+            "controller_launch_state": "ACTIVE",
+            "training_promotion": "ACTIVATED",
+        },
+    )
+
+    bound = service.bind_releases(deployment["spec"])
+
+    assert bound.spec.runtime_release_id == deployment["spec"].runtime_release_id
+
+
+def _verify_runtime_preflight(deployment: dict) -> dict:
+    spec = deployment["spec"]
+    return service.verify_runtime_release(
+        runtime_release=spec.runtime_release,
+        runtime_release_id=spec.runtime_release_id,
+        code_release_id=spec.code_release_id,
+        code_payload_sha256=deployment["code_manifest"]["payload_sha256"],
+        environment_id=spec.environment_id,
+        environment_lock_sha256=_sha256(
+            spec.runtime_release / publisher.ENVIRONMENT_LOCK_PATH
+        ),
+    )
+
+
+def test_runtime_boot_preflight_refuses_self_consistent_v4_rollback(
+    deployment: dict, monkeypatch,
+) -> None:
+    runtime_release = deployment["spec"].runtime_release
+    semantic_path = runtime_release / service.REQUIRED_RUNTIME_MANIFEST_V2
+    semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
+    semantic["schema"] = publisher.V4_RUNTIME_MANIFEST_SCHEMA
+    semantic.pop("capabilities")
+    semantic_path.chmod(0o644)
+    semantic_path.write_bytes(contract.canonical_json_bytes(semantic))
+    semantic_path.chmod(0o444)
+
+    # The generic runtime verifier intentionally supports older schemas.  The
+    # unit's boot preflight must enforce its own v2->v5 capability boundary.
+    monkeypatch.setattr(
+        service.publisher,
+        "verify_perception_runtime_release",
+        lambda _path: deployment["runtime_envelope"],
+    )
+
+    with pytest.raises(service.UnitContractError, match="runtime schema v5"):
+        _verify_runtime_preflight(deployment)
+
+
+def test_runtime_boot_preflight_uses_local_v5_contract_not_publisher_constants(
+    deployment: dict, monkeypatch,
+) -> None:
+    monkeypatch.setattr(
+        service.publisher,
+        "verify_perception_runtime_release",
+        lambda _path: deployment["runtime_envelope"],
+    )
+    monkeypatch.setattr(
+        service.publisher,
+        "RUNTIME_MANIFEST_SCHEMA",
+        "wam_perception_runtime_v6",
+    )
+    monkeypatch.setattr(
+        service.publisher,
+        "RUNTIME_MANIFEST_NAME",
+        "REINTERPRETED_RUNTIME.json",
+    )
+    monkeypatch.setattr(
+        service.publisher,
+        "RUNTIME_CAPABILITIES",
+        {
+            "arm_control_authority": True,
+            "controller_launch_state": "ACTIVE",
+            "training_promotion": "ACTIVATED",
+        },
+    )
+
+    report = _verify_runtime_preflight(deployment)
+
+    assert report["status"] == "VERIFIED"
+
+
+def _with_dormant_controller_launch(deployment: dict, tmp_path: Path):
+    contract_sha256 = "d" * 64
+    trusted_root = tmp_path / "controller-launch-releases"
+    release = trusted_root / ("controller_launch_v1-" + contract_sha256)
+    release.mkdir(parents=True)
+    release.chmod(0o555)
+    trusted_root.chmod(0o555)
+    return service.replace_spec(
+        deployment["spec"],
+        controller_launch_release=release,
+        controller_launch_trusted_root=trusted_root,
+        controller_launch_contract_sha256=contract_sha256,
+    )
+
+
+def test_dormant_controller_launch_is_pinned_in_argv_but_never_executed(
+    deployment: dict, tmp_path: Path,
+) -> None:
+    spec = _with_dormant_controller_launch(deployment, tmp_path)
+    bound = service.bind_releases(spec)
+
+    argv = service.collector_argv(bound)
+    unit = service.render_unit(bound).decode("utf-8")
+
+    assert argv[argv.index("--controller-launch-release") + 1] == str(
+        spec.controller_launch_release
+    )
+    assert argv[argv.index("--controller-launch-trusted-root") + 1] == str(
+        spec.controller_launch_trusted_root
+    )
+    assert argv[argv.index("--controller-launch-contract-sha256") + 1] == (
+        spec.controller_launch_contract_sha256
+    )
+    assert service.UNIT_SCHEMA == "wam_linbox_collector_unit_v2"
+    assert "GRIPPER_" not in unit
+    assert "/controller/unilateral_control" not in unit
+    assert "/tools/preflight" not in unit
+    assert "stop_tool" not in unit
+    assert "ExecStop=" not in unit
+    assert "ExecStopPost=" not in unit
+    assert "--teleop-launch-cmd" not in unit
+    assert "--controller-disable-cmd" not in unit
+    assert "--controller-preflight-cmd" not in unit
+
+
+@pytest.mark.parametrize(
+    "missing",
+    (
+        "controller_launch_release",
+        "controller_launch_trusted_root",
+        "controller_launch_contract_sha256",
+    ),
+)
+def test_dormant_controller_launch_binding_is_all_or_none_and_exact(
+    deployment: dict, tmp_path: Path, missing: str,
+) -> None:
+    spec = _with_dormant_controller_launch(deployment, tmp_path)
+    values = {
+        "controller_launch_release": spec.controller_launch_release,
+        "controller_launch_trusted_root": spec.controller_launch_trusted_root,
+        "controller_launch_contract_sha256": (
+            spec.controller_launch_contract_sha256
+        ),
+    }
+    values[missing] = None
+    with pytest.raises(service.UnitContractError, match="controller launch"):
+        service.bind_releases(service.replace_spec(spec, **values))
+
+    wrong_release = spec.controller_launch_trusted_root / (
+        "controller_launch_v1-" + "e" * 64
+    )
+    with pytest.raises(service.UnitContractError, match="controller launch"):
+        service.bind_releases(
+            service.replace_spec(spec, controller_launch_release=wrong_release)
+        )
+
+
+def test_preview_forbids_dormant_controller_launch_binding(
+    deployment: dict, tmp_path: Path,
+) -> None:
+    spec = _with_dormant_controller_launch(deployment, tmp_path)
+    preview = service.replace_spec(
+        spec,
+        commissioning_preview_only=True,
+        production_activation=None,
+        production_activation_sha256=None,
+        hall_calibration=None,
+        hall_calibration_sha256=None,
+        hall_port=None,
+        sync_calibration=None,
+        sync_calibration_sha256=None,
+    )
+
+    with pytest.raises(service.UnitContractError, match="preview"):
+        service.bind_releases(preview)
 
 
 def test_commissioning_preview_unit_omits_activation_force_and_recording_argv(
@@ -394,6 +622,38 @@ def test_commissioning_preview_deployment_cli_does_not_require_production_inputs
     assert spec.production_activation is None
     assert spec.hall_calibration is None
     assert spec.sync_calibration is None
+
+
+def test_deployment_cli_rejects_partial_or_preview_controller_launch_binding():
+    common = [
+        "--code-release", "/releases/code_release-" + "a" * 20,
+        "--code-release-id", "code_release-" + "a" * 20,
+        "--environment-release", "/releases/linbox-perception-" + "b" * 20,
+        "--environment-id", "linbox-perception-" + "b" * 20,
+        "--runtime-release", "/releases/perception_runtime-" + "c" * 20,
+        "--runtime-release-id", "perception_runtime-" + "c" * 20,
+        "--camera-id", "CL8326300A0",
+        "--sessions-root", "/data/sessions",
+        "--unit-path", "/home/robot/.config/systemd/user/wam.service",
+        "--verifier-python", "/releases/env/bin/python",
+    ]
+    parser = service.build_deployment_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args([
+            "--render", "--commissioning-preview-only",
+            "--controller-launch-release",
+            "/releases/controller_launch_v1-" + "d" * 64,
+            *common,
+        ])
+    with pytest.raises(SystemExit):
+        parser.parse_args([
+            "--render", "--commissioning-preview-only",
+            "--controller-launch-release",
+            "/releases/controller_launch_v1-" + "d" * 64,
+            "--controller-launch-trusted-root", "/releases",
+            "--controller-launch-contract-sha256", "d" * 64,
+            *common,
+        ])
 
 
 def test_commissioning_preview_handoff_never_claims_production(monkeypatch):
@@ -839,6 +1099,10 @@ def test_deployment_cli_exposes_check_and_fail_closed_install_expectation(
         "--audio-expected-usb-vid", "0x1235",
         "--audio-expected-usb-pid", "0x8211",
         "--audio-expected-usb-serial", "Y77BQVG17CD6E1",
+        "--controller-launch-release",
+        "/releases/controller_launch_v1-" + "d" * 64,
+        "--controller-launch-trusted-root", "/releases",
+        "--controller-launch-contract-sha256", "d" * 64,
         *common,
     ])
     configured_spec = service._service_spec_from_args(configured)
@@ -854,6 +1118,11 @@ def test_deployment_cli_exposes_check_and_fail_closed_install_expectation(
     assert configured_spec.production_activation_sha256 == (
         spec.production_activation_sha256
     )
+    assert configured_spec.controller_launch_release == Path(
+        "/releases/controller_launch_v1-" + "d" * 64
+    )
+    assert configured_spec.controller_launch_trusted_root == Path("/releases")
+    assert configured_spec.controller_launch_contract_sha256 == "d" * 64
 
     without_verifier = common[:-2]
     with pytest.raises(SystemExit):

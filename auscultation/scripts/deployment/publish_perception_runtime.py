@@ -224,7 +224,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",
-    "auscultation/scripts/deployment/collection_service_unit.py": "d595832d1b80fb228616ea8b024347bd067d3dfe3af1c5ce70b3e526f9b0b2fb",
+    "auscultation/scripts/deployment/collection_service_unit.py": "b03372e568fadf0df5cc38eabe8767b5f9e067e4a22dbcebbb24e2580c488076",
     "auscultation/scripts/deployment/perception_environment_manifest.py": "dc526e1190502a38ebd3015b246e12b9e3640a7c2fc2861c8456b9c3f870ec6b",
     "auscultation/scripts/deployment/verify_perception_environment.py": "cae1a043fcdafc5252a2f476791bdabb87c6f7e19affb228b3fcd22e4f82bf97",
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",

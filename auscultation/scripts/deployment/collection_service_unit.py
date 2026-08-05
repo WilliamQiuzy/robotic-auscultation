@@ -115,7 +115,7 @@ class ServiceSpec:
     audio_expected_usb_port_path: Optional[str] = None
     hall_expected_usb_vid: int = 0x2E8A
     hall_expected_usb_pid: int = 0x0005
-    hall_expected_usb_serial: str = "53032847188a2e1c"
+    hall_expected_usb_serial: str = "5303284738b7539c"
     commissioning_preview_only: bool = False
 
 
@@ -449,7 +449,7 @@ def _verify_hall_binding(spec: ServiceSpec) -> dict:
     if (
         spec.hall_expected_usb_vid != 0x2E8A
         or spec.hall_expected_usb_pid != 0x0005
-        or spec.hall_expected_usb_serial != "53032847188a2e1c"
+        or spec.hall_expected_usb_serial != "5303284738b7539c"
     ):
         raise UnitContractError(
             "Hall RP2040 USB identity must match commissioned VID/PID/serial"
@@ -2081,7 +2081,7 @@ def build_deployment_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hall-port")
     parser.add_argument("--hall-expected-usb-vid", type=lambda value: int(value, 0), default=0x2E8A)
     parser.add_argument("--hall-expected-usb-pid", type=lambda value: int(value, 0), default=0x0005)
-    parser.add_argument("--hall-expected-usb-serial", default="53032847188a2e1c")
+    parser.add_argument("--hall-expected-usb-serial", default="5303284738b7539c")
     parser.add_argument("--sync-calibration")
     parser.add_argument("--sync-calibration-sha256")
     parser.add_argument("--controller-launch-release")
