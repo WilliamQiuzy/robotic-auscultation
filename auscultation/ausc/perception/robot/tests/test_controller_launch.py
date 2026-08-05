@@ -109,6 +109,63 @@ def test_launcher_wraps_os_error():
         launch()
 
 
+def test_launcher_runs_preflight_validation_before_popen_and_stops_on_failure():
+    events = []
+
+    class _Proc:
+        pid = 4321
+
+        def poll(self):
+            return None
+
+    launch = make_subprocess_launcher(
+        ("/immutable/controller",),
+        popen=lambda _argv, **_kwargs: events.append("popen") or _Proc(),
+        pre_launch_validate=lambda: events.append("validate"),
+    )
+    launch()
+    assert events == ["validate", "popen"]
+
+    def refuse():
+        events.append("refuse")
+        raise ControllerLaunchError("mutated")
+
+    refused = make_subprocess_launcher(
+        ("/immutable/controller",),
+        popen=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("Popen must not run after validation failure")
+        ),
+        pre_launch_validate=refuse,
+    )
+    with pytest.raises(ControllerLaunchError, match="mutated"):
+        refused()
+    assert events[-1] == "refuse"
+
+
+def test_launcher_freezes_cwd_and_environment_at_construction():
+    seen = {}
+    source_env = {"ONLY_PINNED": "1"}
+
+    class _Proc:
+        pid = 4321
+
+        def poll(self):
+            return None
+
+    launch = make_subprocess_launcher(
+        ("/immutable/controller",),
+        cwd="/immutable/release",
+        env=source_env,
+        popen=lambda argv, **kwargs: seen.update(argv=argv, kwargs=kwargs) or _Proc(),
+    )
+    source_env["ONLY_PINNED"] = "mutated"
+    source_env["LD_PRELOAD"] = "/tmp/hostile.so"
+    launch()
+
+    assert seen["kwargs"]["cwd"] == "/immutable/release"
+    assert seen["kwargs"]["env"] == {"ONLY_PINNED": "1"}
+
+
 def test_direct_disable_success():
     class _Done:
         returncode = 0
@@ -151,6 +208,61 @@ def test_preflight_runs_command_and_nonzero_raises():
 
     with pytest.raises(ControllerLaunchError):
         make_subprocess_preflight(("clear.sh",), run=lambda _a, **_k: _Bad())()
+
+
+def test_build_launch_from_activation_binds_sealed_controller_and_candidate_disable():
+    class _Act:
+        argv = ("controller/unilateral_control", "urdf/leader.urdf",
+                "urdf/follower.urdf", "left_arm", "can1", "can3")
+        cwd = "/rel/dir"
+        environment = {"WAM_OPENARM_X": "1"}
+        controller_path = "/rel/dir/controller/unilateral_control"
+        preflight_path = "/rel/dir/tools/preflight"
+
+    seen = {}
+
+    class _Proc:
+        pid = 4321
+        def poll(self):
+            return None
+
+    def fake_popen(argv, **kw):
+        seen["launch_argv"] = argv
+        seen["launch_kw"] = kw
+        return _Proc()
+
+    runs = []
+
+    class _Done:
+        returncode = 0
+
+    def fake_run(argv, **_kw):
+        runs.append(list(argv))
+        return _Done()
+
+    launcher, preflight, disable = controller_launch_module.build_launch_from_activation(
+        _Act(),
+        disable_command=("bash", "/home/robot/wam_canary/hil_disable.sh"),
+        popen=fake_popen,
+        run=fake_run,
+    )
+    controller = launcher()
+    assert controller.pid == 4321
+    # argv[0] is bound to the sealed ABSOLUTE controller ELF (attestation binds the exact
+    # sealed binary); the rest of the sealed argv and the sealed cwd/env are preserved.
+    assert seen["launch_argv"][0] == "/rel/dir/controller/unilateral_control"
+    assert seen["launch_argv"][1:] == [
+        "urdf/leader.urdf", "urdf/follower.urdf", "left_arm", "can1", "can3",
+    ]
+    assert seen["launch_kw"]["cwd"] == "/rel/dir"
+    assert seen["launch_kw"]["env"] == {"WAM_OPENARM_X": "1"}
+    # preflight defaults to the sealed preflight binary
+    preflight()
+    assert runs[0] == ["/rel/dir/tools/preflight"]
+    # disable runs the CANDIDATE stop-tool (only validated later by operator witness)
+    result = disable("safe_stop_test")
+    assert runs[1] == ["bash", "/home/robot/wam_canary/hil_disable.sh"]
+    assert result.outcome == "disable_command_succeeded"
 
 
 def test_direct_disable_timeout_raises():

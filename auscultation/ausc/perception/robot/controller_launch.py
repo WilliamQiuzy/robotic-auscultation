@@ -82,17 +82,22 @@ def make_subprocess_launcher(
     cwd: Optional[str] = None,
     env: Optional[dict] = None,
     popen: Callable[..., subprocess.Popen] = subprocess.Popen,
+    pre_launch_validate: Optional[Callable[[], None]] = None,
 ) -> Callable[[], SubprocessLaunchedController]:
     """Return a launch_controller() that starts ``command`` in a new session."""
 
     argv = _validate_command(command, label="teleop launch command")
+    frozen_cwd = None if cwd is None else os.fspath(cwd)
+    frozen_env = None if env is None else dict(env)
 
     def launch() -> SubprocessLaunchedController:
+        if pre_launch_validate is not None:
+            pre_launch_validate()
         try:
             process = popen(
                 list(argv),
-                cwd=cwd,
-                env=env,
+                cwd=frozen_cwd,
+                env=None if frozen_env is None else dict(frozen_env),
                 start_new_session=True,  # own process group -> group-signalable
                 stdin=subprocess.DEVNULL,
             )
@@ -191,10 +196,57 @@ def parse_command(text: object, *, label: str) -> tuple:
     return _validate_command(shlex.split(text), label=label)
 
 
+def build_launch_from_activation(
+    activation,
+    *,
+    disable_command,
+    preflight_command=None,
+    disable_timeout_s: float = 5.0,
+    preflight_timeout_s: float = 30.0,
+    popen: Callable[..., subprocess.Popen] = subprocess.Popen,
+    run: Callable[..., subprocess.CompletedProcess] = subprocess.run,
+):
+    """Construct the trusted (launcher, preflight, disable) from a validated dormant
+    ``ControllerLaunchActivation`` for a safe-stop HIL.
+
+    The controller is the SEALED release binary: ``argv[0]`` (a release-relative path) is
+    resolved to the release's attested absolute ELF, and it runs with the sealed cwd and
+    environment -- so the companion's exe attestation binds the exact sealed controller.
+    The preflight defaults to the sealed preflight binary. The stop-tool (disable) is held
+    at ``HIL_PENDING`` in the release, so ``disable_command`` is the CANDIDATE the safe-stop
+    HIL validates by operator witness (never trusted as energy isolation on its own).
+    """
+    argv = [str(part) for part in activation.argv]
+    if not argv:
+        raise ControllerLaunchError("controller launch activation has empty argv")
+    # argv[0] is the release-relative controller path; bind it to the attested absolute ELF.
+    argv[0] = os.fspath(activation.controller_path)
+    launcher = make_subprocess_launcher(
+        tuple(argv),
+        cwd=os.fspath(activation.cwd),
+        env=dict(activation.environment),
+        popen=popen,
+    )
+    if preflight_command is None:
+        preflight_command = (os.fspath(activation.preflight_path),)
+    preflight = make_subprocess_preflight(
+        tuple(str(part) for part in preflight_command),
+        timeout_s=preflight_timeout_s,
+        run=run,
+    )
+    disable = make_subprocess_direct_disable(
+        tuple(str(part) for part in disable_command),
+        timeout_s=disable_timeout_s,
+        run=run,
+    )
+    return launcher, preflight, disable
+
+
 __all__ = [
     "ControllerLaunchError",
     "DisableResult",
     "SubprocessLaunchedController",
+    "build_launch_from_activation",
     "make_subprocess_direct_disable",
     "make_subprocess_launcher",
     "make_subprocess_preflight",
