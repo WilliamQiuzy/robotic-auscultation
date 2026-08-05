@@ -1105,3 +1105,30 @@ def test_fault_latches_once_and_stop_does_not_unlink_replaced_path(tmp_path: Pat
 
     assert socket_path.is_symlink()
     assert target.read_text(encoding="utf-8") == "keep"
+
+
+def test_open_pidfd_uses_syscall_fallback_when_cpython_lacks_wrapper(monkeypatch):
+    # A CPython build without os.pidfd_open must still attest via the raw pidfd
+    # syscall (a genuine pidfd), never degrade to a non-pidfd path or hard-fail.
+    real_fd = os.open(os.devnull, os.O_RDONLY)
+    seen: dict = {}
+
+    def fake_syscall(pid):
+        seen["pid"] = pid
+        return real_fd
+
+    monkeypatch.delattr(os, "pidfd_open", raising=False)
+    monkeypatch.setattr(receiver_module, "_SYSCALL_PIDFD_OPEN", fake_syscall)
+    inspector = LinuxControllerProcessInspector()
+    guard = inspector.open_pidfd(4321)
+    assert guard == real_fd and seen["pid"] == 4321
+    inspector.close_pidfd(guard)
+
+
+def test_open_pidfd_fails_closed_when_no_pidfd_available(monkeypatch):
+    # No CPython wrapper AND no usable syscall fallback -> hard error, never a
+    # silent skip of controller attestation.
+    monkeypatch.delattr(os, "pidfd_open", raising=False)
+    monkeypatch.setattr(receiver_module, "_SYSCALL_PIDFD_OPEN", None)
+    with pytest.raises(receiver_module.RobotSocketReceiverError):
+        LinuxControllerProcessInspector().open_pidfd(4321)

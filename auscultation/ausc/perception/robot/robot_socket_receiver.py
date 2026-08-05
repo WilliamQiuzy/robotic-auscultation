@@ -190,6 +190,48 @@ class ControllerProcessAttestation:
             process_inspector.close_pidfd(guard)
 
 
+def _make_syscall_pidfd_open() -> Optional[Callable[[int], int]]:
+    """Fallback ``pidfd_open`` via the raw Linux syscall.
+
+    Some CPython builds ship without ``os.pidfd_open`` even though the running
+    kernel provides the ``pidfd_open`` syscall (Linux >= 5.3).  The syscall yields
+    a genuine pidfd with identical identity/liveness semantics, so controller
+    attestation keeps its no-TOCTOU guarantee -- this is not a procfs downgrade.
+    Returns ``None`` when a real pidfd cannot be obtained (non-Linux, unknown ABI,
+    or no ctypes) so ``open_pidfd`` fails closed to its hard error rather than
+    degrading silently.
+    """
+    if not sys.platform.startswith("linux"):
+        return None
+    import platform
+
+    # pidfd_open is syscall 434 on every Linux ABI that defines it.
+    if platform.machine() not in {"x86_64", "AMD64", "aarch64", "arm64"}:
+        return None
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL(None, use_errno=True)
+        libc.syscall.restype = ctypes.c_long
+        libc.syscall.argtypes = [ctypes.c_long, ctypes.c_long, ctypes.c_ulong]
+    except Exception:
+        return None
+
+    _SYS_PIDFD_OPEN = 434
+
+    def _pidfd_open(pid: int) -> int:
+        fd = libc.syscall(_SYS_PIDFD_OPEN, int(pid), 0)
+        if fd < 0:
+            err = ctypes.get_errno()
+            raise OSError(err, os.strerror(err))
+        return int(fd)
+
+    return _pidfd_open
+
+
+_SYSCALL_PIDFD_OPEN = _make_syscall_pidfd_open()
+
+
 class LinuxControllerProcessInspector:
     """Linux procfs + pidfd identity inspector with injectable test hooks."""
 
@@ -215,9 +257,13 @@ class LinuxControllerProcessInspector:
         if hook is None:
             hook = getattr(os, "pidfd_open", None)
             if not sys.platform.startswith("linux") or not callable(hook):
-                raise RobotSocketReceiverError(
-                    "Linux pidfd_open is required for controller process attestation"
-                )
+                # CPython built without os.pidfd_open: fall back to the raw syscall,
+                # which returns a genuine pidfd (same no-TOCTOU guarantee).
+                hook = _SYSCALL_PIDFD_OPEN
+                if hook is None:
+                    raise RobotSocketReceiverError(
+                        "Linux pidfd_open is required for controller process attestation"
+                    )
         try:
             guard = hook(pid)
         except OSError as exc:
