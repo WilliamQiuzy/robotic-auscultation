@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import http.client
 import hashlib
+import io
 import json
 import math
 import re
@@ -879,6 +880,60 @@ def test_healthz_is_503_when_model_label_is_running_but_result_is_stale():
         worker.join(timeout=2.0)
 
 
+def test_healthz_stays_ready_when_only_advisory_force_is_unavailable(tmp_path):
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_force=True,
+        start_thread=False,
+    )
+    force = {
+        "enabled": False,
+        "required": True,
+        "status": "ERROR",
+        "ready": False,
+        "recording": False,
+        "force_n": None,
+        "hard_limit_force_n": 5.5,
+        "error": "sensor unavailable",
+        "training_eligible": False,
+    }
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
+    collector._runtime_health_snapshot = lambda **_kwargs: {
+        "strict_ok": True,
+        "blockers": (),
+        "force": force,
+        "robot": {"ready": True},
+    }
+    handler_type = server.make_handler(collector, b"page")
+    try:
+        state = collector.state_snapshot()
+        assert state["force_sensor"]["status"] == "ERROR"
+        assert state["diagnostic_ready"] is True
+
+        handler = object.__new__(handler_type)
+        handler.path = "/healthz"
+        sent = {}
+
+        def capture_send(body, content_type, *, status=200, no_store=False):
+            sent.update(
+                body=body,
+                content_type=content_type,
+                status=status,
+                no_store=no_store,
+            )
+
+        handler._send = capture_send
+        handler.do_GET()
+        assert sent["status"] == 200
+        assert json.loads(sent["body"])["ok"] is True
+    finally:
+        collector.shutdown()
+
+
 def test_live_audio_endpoint_streams_bounded_pcm_with_explicit_cursor_headers():
     server = _load_collect_server()
 
@@ -955,6 +1010,10 @@ def test_cli_accepts_all_pinned_runtime_and_model_identities():
         "--production-blocker", "commissioning missing",
         "--production-activation", "/releases/production_activation-a/activation.json",
         "--production-activation-sha256", "e" * 64,
+        "--controller-launch-release",
+        "/releases/controller_launch_v1-" + "f" * 64,
+        "--controller-launch-trusted-root", "/releases",
+        "--controller-launch-contract-sha256", "f" * 64,
     ])
     assert values.camera_id == "CL8326300A0"
     assert values.posterior_gate_checkpoint == "/models/yolo11x-pose.pt"
@@ -967,6 +1026,88 @@ def test_cli_accepts_all_pinned_runtime_and_model_identities():
     assert values.production_blocker == ["commissioning missing"]
     assert values.production_activation.endswith("/activation.json")
     assert values.production_activation_sha256 == "e" * 64
+    assert values.controller_launch_release.endswith("f" * 64)
+    assert values.controller_launch_trusted_root == "/releases"
+    assert values.controller_launch_contract_sha256 == "f" * 64
+
+
+def test_dormant_controller_launch_cli_load_is_all_or_none_and_non_executing():
+    server = _load_collect_server()
+    parser = server.build_parser()
+    digest = "a" * 64
+    args = parser.parse_args([
+        "--controller-launch-release",
+        "/immutable/controller_launch_v1-" + digest,
+        "--controller-launch-trusted-root", "/immutable",
+        "--controller-launch-contract-sha256", digest,
+    ])
+    pair = object()
+    loaded = server.SimpleNamespace(
+        release_id="controller_launch_v1-" + digest,
+        contract_sha256=digest,
+        open_target_status="HIL_PENDING",
+    )
+    calls = []
+
+    def loader(release, *, trusted_root, expected_contract_sha256, openarm_pair):
+        calls.append((release, trusted_root, expected_contract_sha256, openarm_pair))
+        return loaded
+
+    result = server._load_dormant_controller_launch(
+        args,
+        production_runtime=server.SimpleNamespace(openarm_pair=pair),
+        loader=loader,
+    )
+
+    assert result is loaded
+    assert calls == [(
+        args.controller_launch_release,
+        args.controller_launch_trusted_root,
+        digest,
+        pair,
+    )]
+
+    for missing in (
+        "controller_launch_release",
+        "controller_launch_trusted_root",
+        "controller_launch_contract_sha256",
+    ):
+        partial = parser.parse_args([])
+        for field in (
+            "controller_launch_release",
+            "controller_launch_trusted_root",
+            "controller_launch_contract_sha256",
+        ):
+            setattr(partial, field, getattr(args, field))
+        setattr(partial, missing, None)
+        with pytest.raises(ValueError, match="controller launch"):
+            server._load_dormant_controller_launch(
+                partial,
+                production_runtime=server.SimpleNamespace(openarm_pair=pair),
+                loader=loader,
+            )
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("mode", ("fake", "commissioning_preview_only"))
+def test_dormant_controller_launch_cli_is_forbidden_outside_real_mode(mode):
+    server = _load_collect_server()
+    args = server.build_parser().parse_args([
+        "--controller-launch-release", "/immutable/controller_launch_v1-" + "b" * 64,
+        "--controller-launch-trusted-root", "/immutable",
+        "--controller-launch-contract-sha256", "b" * 64,
+    ])
+    setattr(args, mode, True)
+    calls = []
+
+    with pytest.raises(ValueError, match="real production"):
+        server._load_dormant_controller_launch(
+            args,
+            production_runtime=server.SimpleNamespace(openarm_pair=object()),
+            loader=lambda *_args, **_kwargs: calls.append("called"),
+        )
+
+    assert calls == []
 
 
 def test_commissioning_preview_cli_is_explicit_and_cannot_use_fake_data():
@@ -1278,17 +1419,6 @@ def test_real_main_assembles_and_injects_complete_left_runtime(monkeypatch, tmp_
         "--audio-device", "Scarlett Solo USB: Audio",
         "--audio-pick-channel", "1",
         "--require-audio",
-        "--hall-calibration", str(tmp_path / "hall-calibration.json"),
-        "--hall-calibration-sha256", "1" * 64,
-        "--hall-port", (
-            "/dev/serial/by-id/"
-            "usb-MicroPython_Board_in_FS_mode_53032847188a2e1c-if00"
-        ),
-        "--hall-expected-usb-vid", "0x2e8a",
-        "--hall-expected-usb-pid", "0x0005",
-        "--hall-expected-usb-serial", "53032847188a2e1c",
-        "--sync-calibration", str(tmp_path / "sync-calibration.json"),
-        "--sync-calibration-sha256", "2" * 64,
         "--production-activation", str(activation),
         "--production-activation-sha256", "e" * 64,
         "--out", str(tmp_path / "sessions"),
@@ -1315,6 +1445,8 @@ def test_real_main_assembles_and_injects_complete_left_runtime(monkeypatch, tmp_
     }
     injected = observed["collector_kwargs"]
     assert injected["require_force"] is True
+    assert injected["hall_calibration"] is None
+    assert injected["sync_calibration"] is None
     assert injected["require_robot"] is True
     assert injected["handeye_activation"] is component
     assert injected["robot_capture_coordinator"] is component
@@ -1526,6 +1658,11 @@ def test_required_left_robot_session_starts_before_camera_is_armed(tmp_path):
     collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
     collector._cam = Camera()
     collector._last_camera_index = 40
+    # Production-equivalent Start now requires a controller which has already
+    # reached READY; the recording path must never be the arm bring-up path.
+    collector._controller_companion = server.SimpleNamespace(
+        state="ready", disabled=False,
+    )
     preview_episode_id = collector._occlusion_episode_id
     try:
         collector._camera_status = "OK"
@@ -1546,6 +1683,7 @@ def test_required_left_robot_session_starts_before_camera_is_armed(tmp_path):
     finally:
         collector._abort_recording("test cleanup")
         assert collector._occlusion_episode_id.startswith("preview-")
+        collector._controller_companion.disabled = True
         collector.shutdown()
 
 
@@ -1861,7 +1999,11 @@ def test_page_makes_diagnostic_scope_end_state_and_action_feedback_unambiguous()
 
     assert '<html lang="en">' in page
     assert "<h1>Auscultation Capture</h1>" in page
-    assert "<strong>COMMISSIONING</strong><span>NOT TRAINING-READY</span>" in page
+    assert "<strong>CAPTURE MODE</strong><span>Checking authorization" in page
+    assert "scopeTitle.textContent='DIAGNOSTIC CAPTURE'" in page
+    assert "scopeNote.textContent='Not training data'" in page
+    assert "scopeTitle.textContent='PRODUCTION CAPTURE'" in page
+    assert "scopeNote.textContent='Raw session · promotion checked after End'" in page
     assert "End &amp; Verify" in page
     assert 'id="actionmsg"' in page
     assert 'id="btnredo"' in page and 'id="btnconfirm"' in page
@@ -2407,6 +2549,236 @@ def test_force_prearms_before_camera_and_uses_exact_shared_boundaries(tmp_path):
         collector.shutdown()
 
 
+@pytest.mark.parametrize("failure_phase", ["prepare", "begin", "end", "bind"])
+def test_force_lifecycle_failures_are_advisory_and_end_still_completes(
+    tmp_path, failure_phase,
+):
+    server = _load_collect_server()
+    server.validate_capture_boundary_closure = lambda *_args, **_kwargs: {
+        "verified": True,
+    }
+    calls = {"begin": 0, "abort": 0}
+    captures = []
+
+    class Force:
+        session_dir = None
+
+        def prepare_recording(self, session_dir):
+            self.session_dir = Path(session_dir)
+            (self.session_dir / "force.csv.inprogress").write_bytes(
+                b"host_t_s,force_n,status\n123.0,1.5,OK\n"
+            )
+            (self.session_dir / "force_capture.json.inprogress").write_text(
+                '{"status":"recording"}\n'
+            )
+            if failure_phase == "prepare":
+                raise RuntimeError("prepare failed")
+
+        def begin_recording(self, *, t0):
+            calls["begin"] += 1
+            if failure_phase == "prepare":
+                raise AssertionError("begin called after failed prepare")
+            if failure_phase == "begin":
+                raise RuntimeError("begin failed")
+            assert t0 == 123.0
+
+        def end_recording(self, *, t_end):
+            assert self.session_dir is not None
+            if failure_phase == "end":
+                raise RuntimeError("end failed")
+            csv_path = self.session_dir / "force.csv"
+            metadata_path = self.session_dir / "force_capture.json"
+            (self.session_dir / "force.csv.inprogress").replace(csv_path)
+            (self.session_dir / "force_capture.json.inprogress").replace(
+                metadata_path
+            )
+            (self.session_dir / "FORCE_CAPTURE_COMPLETE.json").write_text(
+                '{"status":"complete"}\n'
+            )
+            (self.session_dir / "force_calibration.json").write_text(
+                '{"calibrated":true}\n'
+            )
+            return server.SimpleNamespace(
+                path=str(csv_path),
+                t_start=123.0,
+                t_end=t_end,
+                n_samples=1,
+                status="OK",
+                sha256=hashlib.sha256(csv_path.read_bytes()).hexdigest(),
+                device_t_start_ms=100.0,
+                device_t_end_ms=110.0,
+                calibration_sha256="b" * 64,
+                device_identity_sha256="c" * 64,
+            )
+
+        def abort_recording(self):
+            calls["abort"] += 1
+            return True
+
+        @staticmethod
+        def read():
+            return server.SimpleNamespace(
+                force_n=1.5,
+                status="OK",
+                age_s=0.01,
+                displacement_mm=0.5,
+                raw=1,
+                hall_v=1.0,
+                device_t_ms=100.0,
+                t=123.0,
+            )
+
+    class Capture:
+        def __init__(self):
+            self.recording_boundary = None
+            self.finalization_context = None
+            captures.append(self)
+
+        def request_cancel(self):
+            pass
+
+        def start(self):
+            pass
+
+        def record_event(self, _payload):
+            pass
+
+        def set_recording_boundary(self, payload):
+            self.recording_boundary = json.loads(json.dumps(payload))
+
+        def set_force_summary(self, _payload):
+            if failure_phase == "bind":
+                raise RuntimeError("bind failed")
+
+        def set_finalization_context(self, payload):
+            self.finalization_context = json.loads(json.dumps(payload))
+
+        def finalize(self):
+            session_dir = Path(collector.platform.session_dir)
+            forbidden = {
+                "force.csv",
+                "force_capture.json",
+                "FORCE_CAPTURE_COMPLETE.json",
+                "force_calibration.json",
+                "force.csv.inprogress",
+                "force_capture.json.inprogress",
+            }
+            assert not any((session_dir / name).exists() for name in forbidden)
+            return {
+                "status": "diagnostic_complete",
+                "training_eligible": False,
+                "contact_force_valid": False,
+                "force": None,
+                "force_authenticity": None,
+                "capture_boundary": self.finalization_context,
+            }
+
+        def abort(self, _reason):
+            pass
+
+    class Camera:
+        active = False
+
+        @classmethod
+        def begin_delivery_interval(cls, timeout_s=0):
+            del timeout_s
+            cls.active = True
+            return server.SimpleNamespace(
+                t_start=123.0,
+                frame=server.SimpleNamespace(index=10, t=123.0),
+                interval_id=1,
+                proof={
+                    "boundary_latched_atomically": True,
+                    "start_boundary_frame_index": 10,
+                    "start_boundary_host_t": 123.0,
+                    "interval_id": 1,
+                },
+            )
+
+        @classmethod
+        def latch_end_boundary(cls, timeout_s=0, interval_id=None):
+            del timeout_s
+            assert interval_id == 1
+            cls.active = False
+            return server.SimpleNamespace(
+                t_end=125.0,
+                proof={
+                    "boundary_latched_atomically": True,
+                    "post_boundary_overwrite_prevented": True,
+                },
+            )
+
+        @staticmethod
+        def drain_delivery(max_frames=1):
+            del max_frames
+            return ()
+
+        @classmethod
+        def delivery_health(cls):
+            return {
+                "status": "OK",
+                "interval_active": cls.active,
+                "accepting": cls.active,
+                "queue_depth": 0,
+                "overflow_frames": 0,
+                "interval_overflow_frames": 0,
+                "interval_enqueued_frames": 0,
+                "interval_delivered_frames": 0,
+            }
+
+        @staticmethod
+        def abort_delivery_interval():
+            Camera.active = False
+
+        @staticmethod
+        def stop():
+            pass
+
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_force=True,
+        start_thread=False,
+    )
+    collector._ingress_worker.stop()
+    collector._ingress_worker = _IngressStub()
+    collector._force = Force()
+    collector._cam = Camera()
+    collector.platform.capture_factory = lambda _path: Capture()
+    collector.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
+    collector.platform.completion_validator = None
+    collector._storage_start_rejection = lambda _duration: None
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
+    collector._runtime_health_snapshot = lambda **_kwargs: {
+        "strict_ok": True,
+        "blockers": [],
+    }
+    try:
+        assert collector.control("start")["ok"] is True
+        assert collector.control("end")["ok"] is True
+        terminal = collector.platform.wait_for_terminal(timeout=2.0)
+        assert terminal["state"] == "COMPLETE", terminal.get("error")
+        assert calls["abort"] >= 1
+        if failure_phase == "prepare":
+            assert calls["begin"] == 0
+        boundary = captures[0].finalization_context
+        assert boundary["force_advisory"]
+        event = boundary["force_advisory"][-1]
+        assert event["status"] == "DEGRADED"
+        assert event["contact_force_valid"] is False
+        preserved = event["preserved_artifacts"]
+        assert preserved
+        for artifact in preserved:
+            path = Path(collector.platform.session_dir) / artifact["path"]
+            assert path.is_file()
+            assert artifact["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
+            assert artifact["bytes"] == path.stat().st_size
+    finally:
+        collector.shutdown()
+
+
 def test_force_unsafe_event_is_advisory_and_never_aborts_recording(tmp_path):
     # P0-4: the Hall force reading is an advisory reference for physicians, NOT a
     # safety interlock. An over-threshold reading updates the displayed status only;
@@ -2556,6 +2928,29 @@ def test_page_uses_compact_three_card_rail_and_moves_capture_below_video():
     assert ">Before training<" not in page
 
 
+def test_page_labels_raw_production_capture_without_claiming_promotion(tmp_path):
+    server = _load_collect_server()
+    page = server.PAGE.decode("utf-8")
+    assert '<div class="scope"><strong>CAPTURE MODE</strong>' in page
+    assert "PRODUCTION CAPTURE" in page
+    assert "Raw session · promotion checked after End" in page
+    assert "Raw session · training-ready" not in page
+    assert '<span class="label blockerhead">Start gate</span>' in page
+    assert "gateReasons.unshift(s.start_rejection)" in page
+
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    try:
+        collector.production_teleop = True
+        assert collector.state_snapshot()["capture_mode"] == "PRODUCTION_TELEOP_V4"
+    finally:
+        collector.shutdown()
+
+
 def test_disabled_force_snapshot_never_claims_zero_or_ready(tmp_path):
     server = _load_collect_server()
     collector = server.Collector(
@@ -2572,7 +2967,7 @@ def test_disabled_force_snapshot_never_claims_zero_or_ready(tmp_path):
         collector.shutdown()
 
 
-def test_required_force_implies_commissioned_audio_and_pinned_channel(tmp_path):
+def test_advisory_force_configuration_never_enters_start_blockers(tmp_path):
     server = _load_collect_server()
     collector = server.Collector(
         [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
@@ -2584,11 +2979,47 @@ def test_required_force_implies_commissioned_audio_and_pinned_channel(tmp_path):
     )
     try:
         blockers = collector._configuration_blockers()
-        assert (
-            "Hall-force synchronization requires commissioned stethoscope audio"
-            in blockers
+        assert not any("Hall-force" in blocker for blocker in blockers)
+        assert not any("force calibration" in blocker for blocker in blockers)
+    finally:
+        collector.shutdown()
+
+
+def test_force_initialization_failure_is_visible_but_never_blocks_capture(tmp_path):
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_force=True,
+        start_thread=False,
+    )
+    try:
+        blocker_updates = []
+        original_set_blockers = collector._set_diagnostic_blockers
+
+        def observe_blockers(blockers):
+            blocker_updates.append(tuple(blockers))
+            return original_set_blockers(blockers)
+
+        collector._set_diagnostic_blockers = observe_blockers
+        collector.start()
+        state = collector.platform.state_snapshot()
+        force = collector._provenance["force"]
+        assert collector._force_status == "ERROR"
+        assert not any(
+            "force" in blocker.lower()
+            for update in blocker_updates
+            for blocker in update
         )
-        assert "Hall-force synchronization requires a pinned audio channel" in blockers
+        assert not any(
+            "force" in blocker.lower()
+            for blocker in state["diagnostic_blockers"]
+        )
+        assert force["advisory"] is True
+        assert force["available"] is False
+        assert force["status"] == "ERROR"
+        assert isinstance(force["error"], str) and force["error"]
     finally:
         collector.shutdown()
 
@@ -2883,7 +3314,7 @@ def test_page_uses_short_english_controls_and_blocker_labels():
 
     for text in (
         "Start", "End &amp; Verify", "Confirm", "Redo", "Previous", "Next",
-        "Training gates", "Audio-force sync", "Camera latency", "Motor stop",
+        "Start gate", "Camera latency", "Motor stop",
         "DISABLED:'Off'", "WAITING:'Waiting'", "No signal",
     ):
         assert text in page
@@ -3291,6 +3722,130 @@ def test_complete_state_exposes_read_only_verified_video_evidence(tmp_path):
                 "audio": None,
                 "robot": None,
             }
+    finally:
+        collector.shutdown()
+
+
+def test_complete_proof_accepts_missing_advisory_force_with_invalidity_flag(
+    tmp_path,
+):
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_force=True,
+        start_thread=False,
+    )
+    session = tmp_path / "completed-without-force"
+    session.mkdir()
+    video_raw = b"sealed video"
+    (session / "rgb.mp4").write_bytes(video_raw)
+    video_artifact = {
+        "sha256": hashlib.sha256(video_raw).hexdigest(),
+        "bytes": len(video_raw),
+    }
+    manifest_raw = b'{"status":"diagnostic_complete"}\n'
+    (session / "manifest.json").write_bytes(manifest_raw)
+    seal = {
+        "schema_version": "wam_diagnostic_finalization_v1",
+        "capture_mode": "diagnostic_perception_only",
+        "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
+        "artifacts": {"rgb.mp4": video_artifact},
+        "force": None,
+        "force_authenticity": None,
+        "sealed_utc_ns": 1,
+        "capture_boundary": {"force_advisory": [{"status": "DEGRADED"}]},
+    }
+    (session / "DIAGNOSTIC_FINALIZATION.json").write_text(
+        json.dumps(seal, sort_keys=True, separators=(",", ":")) + "\n"
+    )
+    finalization = {
+        "n_rgb_frames": 1,
+        "decoded_rgb_frames": 1,
+        "force": None,
+        "force_authenticity": None,
+        "contact_force_valid": False,
+        "capture_boundary": seal["capture_boundary"],
+        "diagnostic_finalization": seal,
+    }
+    try:
+        proof = collector._verified_finalization_summary(
+            {"session_dir": str(session)}, finalization,
+        )
+        assert proof["complete"] is True
+        assert proof["force"] is None
+        assert proof["force_authenticity"] is None
+        assert proof["contact_force_valid"] is False
+    finally:
+        collector.shutdown()
+
+
+def test_completion_validator_accepts_missing_advisory_force(tmp_path):
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_force=True,
+        start_thread=False,
+    )
+    session = tmp_path / "validated-without-force"
+    session.mkdir()
+    depth_raw = b'{"frame_index":10}\n'
+    (session / "depth_integrity.jsonl").write_bytes(depth_raw)
+    ffmpeg = tmp_path / "ffmpeg"
+    ffmpeg.write_bytes(b"binary")
+    collector.ffmpeg_path = str(ffmpeg)
+    collector.ffmpeg_sha256 = hashlib.sha256(ffmpeg.read_bytes()).hexdigest()
+    boundary = _closed_boundary_fixture()
+    boundary["camera_delivery_start_proof"] = {
+        "boundary_latched_atomically": True,
+    }
+    frame_range = {"first_frame_index": 10, "last_frame_index": 12}
+    boundary["index_closure"] = server.validate_capture_boundary_closure(
+        boundary,
+        n_rgb_frames=3,
+        expected_fps=collector._negotiated_camera_fps(),
+        final_frame_range=frame_range,
+    )
+    result = {
+        "session_dir": str(session),
+        "n_rgb_frames": 3,
+        "decoded_rgb_frames": 3,
+        "n_depth_frames": 3,
+        "video_timebase": {"verified": True},
+        "depth_integrity": {
+            "path": "depth_integrity.jsonl",
+            "count": 3,
+            "dtype": "uint16",
+            "index_sha256": hashlib.sha256(depth_raw).hexdigest(),
+        },
+        "force": None,
+        "force_authenticity": None,
+        "contact_force_valid": False,
+        "video_stitch": {
+            "provenance": {
+                "method": "ffmpeg_concat_demuxer_stream_copy",
+                "sha256": collector.ffmpeg_sha256,
+                "resolved_path": str(ffmpeg.resolve()),
+                "shell": False,
+            },
+            "packet_validation": {
+                "verified": True,
+                "method": "ffmpeg_decode_null_muxer",
+                "decoded_frame_count": 3,
+                "expected_frame_count": 3,
+            },
+        },
+        "capture_boundary": boundary,
+        "frame_index_range": frame_range,
+    }
+    collector._verified_finalization_summary = (
+        lambda _snapshot, _result: {"complete": True}
+    )
+    try:
+        collector._validate_completion_result(result, session)
     finally:
         collector.shutdown()
 
@@ -6088,13 +6643,541 @@ class _ArmDisable:
 
 
 def _configure_arm(collector, coord, disable):
+    # Production cannot obtain this capability.  It is accepted only by a fake
+    # Collector and keeps all legacy lifecycle tests synthetic.
+    collector._install_test_only_fake_arm_capability()
     collector.require_robot = True
     collector.commissioning_preview_only = False
     collector._robot_coordinator = coord
     collector._controller_launcher = lambda: _ArmCtrl()
     collector._controller_disable = disable
     collector._controller_attest = lambda pid, uid: f"attest{pid}"
+    collector._controller_verify_motor_disable = lambda: True
     collector._controller_readiness_timeout_s = 2.0
+
+
+def test_arm_authority_rejects_all_pre_hil_entry_points_without_callbacks(tmp_path):
+    server = _load_collect_server()
+    calls = {name: 0 for name in ("launch", "disable", "preflight", "attest", "verify")}
+
+    def counted(name, result=None):
+        def callback(*_args, **_kwargs):
+            calls[name] += 1
+            return result
+        return callback
+
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=False,
+        out_dir=tmp_path,
+        require_robot=True,
+        robot_capture_coordinator=_ArmCoord([_ArmHealth("IDLE")]),
+        controller_launcher=counted("launch", _ArmCtrl()),
+        controller_disable=counted("disable"),
+        controller_preflight=counted("preflight"),
+        controller_attest=counted("attest", "attestation"),
+        controller_verify_motor_disable=counted("verify", False),
+        controller_launch_release_id="controller_launch_v1-" + "1" * 64,
+        controller_launch_contract_sha256="1" * 64,
+        controller_open_target_status="HIL_PENDING",
+        start_thread=False,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="only in fake mode"):
+            c._install_test_only_fake_arm_capability()
+        authority = c.arm_control_authorization()
+        assert authority.arm_bringup_authorized is False
+        assert authority.arm_stop_authorized is False
+        assert authority.arm_bringup_rejection == "Safe-stop HIL required"
+        assert authority.arm_stop_rejection == "Safe-stop HIL required"
+        with pytest.raises((AttributeError, TypeError)):
+            authority.arm_bringup_authorized = True
+
+        state = c.state_snapshot()
+        controller = state["controller"]
+        assert controller["bringup_active"] is False
+        assert controller["arm_bringup_authorized"] is False
+        assert controller["arm_stop_authorized"] is False
+        assert controller["arm_bringup_rejection"] == "Safe-stop HIL required"
+        assert controller["arm_stop_rejection"] == "Safe-stop HIL required"
+
+        results = (
+            c.bring_up_controller(),
+            c.disable_controller(),
+            c.control("arm_bringup"),
+            c.control("arm_disable"),
+            c.control(" ARM_DISABLE "),
+        )
+        assert all(result["ok"] is False for result in results)
+        assert {result["message"] for result in results} == {
+            "Safe-stop HIL required"
+        }
+        assert calls == {name: 0 for name in calls}
+        assert c._controller_companion is None
+    finally:
+        c.shutdown()
+    assert calls == {name: 0 for name in calls}
+
+
+def test_raw_http_arm_actions_match_state_rejection_and_call_nothing(tmp_path):
+    server = _load_collect_server()
+    calls = []
+
+    def forbidden(*_args, **_kwargs):
+        calls.append("called")
+        raise AssertionError("pre-HIL callback must not execute")
+
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=False,
+        out_dir=tmp_path,
+        require_robot=True,
+        robot_capture_coordinator=_ArmCoord([_ArmHealth("IDLE")]),
+        controller_launcher=forbidden,
+        controller_disable=forbidden,
+        controller_preflight=forbidden,
+        controller_attest=forbidden,
+        controller_verify_motor_disable=forbidden,
+        start_thread=False,
+    )
+    state_reason = c.state_snapshot()["controller"]["arm_bringup_rejection"]
+    handler_type = server.make_handler(c, b"page")
+    try:
+        for action in ("arm_bringup", "arm_disable", " ARM_DISABLE "):
+            raw = json.dumps({"action": action}).encode()
+            handler = object.__new__(handler_type)
+            handler.path = "/control"
+            handler.headers = {"Content-Length": str(len(raw))}
+            handler.rfile = io.BytesIO(raw)
+            sent = {}
+
+            def capture_send(body, content_type, *, status=200, no_store=False):
+                sent.update(
+                    body=body,
+                    content_type=content_type,
+                    status=status,
+                    no_store=no_store,
+                )
+
+            handler._send = capture_send
+            handler.do_POST()
+            result = json.loads(sent["body"])
+            assert sent["status"] == 409
+            assert result["ok"] is False
+            assert result["message"] == state_reason == "Safe-stop HIL required"
+        assert calls == []
+    finally:
+        c.shutdown()
+
+
+def test_dormant_launch_metadata_is_visible_but_never_authorizes_arm(tmp_path):
+    server = _load_collect_server()
+    release_id = "controller_launch_v1-" + "2" * 64
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=False,
+        out_dir=tmp_path,
+        require_robot=False,
+        controller_launch_release_id=release_id,
+        controller_launch_contract_sha256="2" * 64,
+        controller_open_target_status="HIL_PENDING",
+        start_thread=False,
+    )
+    try:
+        payload = c._controller_status_payload()
+        assert payload["visible"] is True
+        assert payload["configured"] is False
+        assert payload["launch_release_id"] == release_id
+        assert payload["launch_contract_sha256"] == "2" * 64
+        assert payload["open_target_status"] == "HIL_PENDING"
+        assert payload["arm_bringup_authorized"] is False
+        assert payload["arm_stop_authorized"] is False
+        assert payload["arm_bringup_rejection"] == "Safe-stop HIL required"
+    finally:
+        c.shutdown()
+
+
+def test_nonfake_cli_rejects_all_raw_controller_commands(capsys):
+    server = _load_collect_server()
+    for argv in (
+        ["--teleop-launch-cmd", "/tmp/controller"],
+        ["--controller-disable-cmd", "/tmp/disable"],
+        ["--controller-preflight-cmd", "/tmp/preflight"],
+    ):
+        with pytest.raises(SystemExit):
+            server.main(argv)
+        assert "raw controller command flags are forbidden in real mode" in capsys.readouterr().err
+
+
+def test_bringup_rechecks_arm_authority_before_companion_creation(tmp_path):
+    server = _load_collect_server()
+    launch_calls = []
+
+    def launcher():
+        launch_calls.append("launch")
+        return _ArmCtrl()
+
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), _ArmDisable())
+    c._controller_launcher = launcher
+    derive = c.arm_control_authorization
+    derivations = 0
+
+    def expiring_authority():
+        nonlocal derivations
+        derivations += 1
+        if derivations == 2:
+            c._arm_control_capability = None
+        return derive()
+
+    c.arm_control_authorization = expiring_authority
+    try:
+        result = c.bring_up_controller()
+        assert result["ok"] is False
+        assert result["message"] == "Safe-stop HIL required"
+        assert derivations == 2
+        assert launch_calls == []
+        assert c._controller_companion is None
+    finally:
+        c.shutdown()
+
+
+def test_normalized_arm_disable_control_bypasses_control_lock(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    disable = _ArmDisable()
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), disable)
+    result = {}
+    done = threading.Event()
+    worker = None
+    try:
+        assert c.bring_up_controller()["ok"] is True
+
+        def stop_from_another_request():
+            result.update(c.control(" ARM_DISABLE "))
+            done.set()
+
+        c._control_lock.acquire()
+        try:
+            worker = threading.Thread(target=stop_from_another_request)
+            worker.start()
+            completed_while_locked = done.wait(0.25)
+        finally:
+            c._control_lock.release()
+        worker.join(timeout=1.0)
+
+        assert completed_while_locked is True
+        assert worker.is_alive() is False
+        assert result["ok"] is True
+        assert result["code"] == "controller_disabled"
+        assert disable.calls == ["operator_estop"]
+    finally:
+        if worker is not None:
+            worker.join(timeout=1.0)
+        c.shutdown()
+
+
+def test_authorized_idle_stop_runs_independent_disable_and_verifier(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    events = []
+
+    def disable(reason):
+        events.append(("disable", reason))
+        return "disable_sent"
+
+    def verify():
+        events.append(("verify", None))
+        return True
+
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), disable)
+    c._controller_verify_motor_disable = verify
+    try:
+        result = c.disable_controller("idle_operator_stop")
+        assert result["ok"] is True
+        assert result["code"] == "controller_disabled"
+        assert result["energy_isolated"] is True
+        assert result["motor_disable_verified"] is True
+        assert events == [
+            ("disable", "idle_operator_stop"),
+            ("verify", None),
+        ]
+        assert c._controller_companion is None
+    finally:
+        # Remove the accepted capability so cleanup does not intentionally issue
+        # a second independent idle-stop command.
+        c._arm_control_capability = None
+        c.shutdown()
+
+
+def test_fake_hil_capability_without_motor_verifier_authorizes_nothing(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    disable = _ArmDisable()
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), disable)
+    c._controller_verify_motor_disable = None
+    assert c._controller_verify_motor_disable is None
+    try:
+        authority = c.arm_control_authorization()
+        assert authority.arm_bringup_authorized is False
+        assert authority.arm_stop_authorized is False
+        result = c.disable_controller("idle_operator_stop")
+        assert result["ok"] is False
+        assert result["message"] == "Safe-stop HIL required"
+        assert disable.calls == []
+    finally:
+        c.shutdown()
+    assert disable.calls == []
+
+
+def test_shutdown_stops_authorized_idle_arm_before_any_teardown(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    events = []
+
+    def disable(reason):
+        events.append(("disable", reason))
+        return "disable_sent"
+
+    def verify():
+        events.append(("verify", None))
+        return True
+
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), disable)
+    c._controller_verify_motor_disable = verify
+    clear_back = c._clear_back_confirmation
+
+    def observed_teardown(reason):
+        events.append(("teardown", reason))
+        return clear_back(reason)
+
+    c._clear_back_confirmation = observed_teardown
+    c.shutdown()
+
+    assert events[:3] == [
+        ("disable", "service_shutdown"),
+        ("verify", None),
+        ("teardown", "SERVICE_SHUTDOWN"),
+    ]
+
+
+def test_shutdown_disables_before_a_blocked_recording_abort(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    events = []
+    abort_entered = threading.Event()
+    release_abort = threading.Event()
+
+    def disable(reason):
+        events.append(("disable", reason))
+        return "disable_sent"
+
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), disable)
+    c._controller_verify_motor_disable = lambda: (
+        events.append(("verify", None)) or True
+    )
+    c.platform.state = server.CollectionState.RECORDING
+
+    def blocked_abort(reason):
+        events.append(("abort", reason))
+        abort_entered.set()
+        assert release_abort.wait(2.0)
+
+    c._abort_recording = blocked_abort
+    worker = threading.Thread(target=c.shutdown)
+    try:
+        worker.start()
+        assert abort_entered.wait(1.0)
+        assert events[:3] == [
+            ("disable", "service_shutdown"),
+            ("verify", None),
+            ("abort", "service shutdown before End"),
+        ]
+    finally:
+        release_abort.set()
+    worker.join(timeout=2.0)
+    assert worker.is_alive() is False
+
+
+def test_shutdown_continues_teardown_when_recording_abort_raises(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    events = []
+
+    def disable(reason):
+        events.append(("disable", reason))
+        return "disable_sent"
+
+    class Camera:
+        def stop(self):
+            events.append(("camera_stop", None))
+
+    _configure_arm(c, _ArmCoord([_ArmHealth("IDLE")]), disable)
+    c._controller_verify_motor_disable = lambda: (
+        events.append(("verify", None)) or True
+    )
+    c.platform.state = server.CollectionState.RECORDING
+    c._cam = Camera()
+
+    def raising_abort(reason):
+        events.append(("abort", reason))
+        raise RuntimeError("synthetic abort failure")
+
+    c._abort_recording = raising_abort
+    c.shutdown()
+
+    assert events[:3] == [
+        ("disable", "service_shutdown"),
+        ("verify", None),
+        ("abort", "service shutdown before End"),
+    ]
+    assert ("camera_stop", None) in events
+
+
+def test_same_page_stop_during_preflight_prevents_controller_launch(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    preflight_entered = threading.Event()
+    release_preflight = threading.Event()
+    launch_calls = []
+
+    def preflight():
+        preflight_entered.set()
+        assert release_preflight.wait(2.0)
+
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), _ArmDisable())
+    c._controller_preflight = preflight
+    c._controller_launcher = lambda: (
+        launch_calls.append("launch"), _ArmCtrl(),
+    )[1]
+    c._controller_verify_motor_disable = lambda: True
+    bringup_result = {}
+    worker = threading.Thread(
+        target=lambda: bringup_result.update(c.control("arm_bringup")),
+    )
+    try:
+        worker.start()
+        assert preflight_entered.wait(1.0)
+        stop_result = c.control(" ARM_DISABLE ")
+        assert stop_result["ok"] is True
+        assert stop_result["energy_isolated"] is True
+    finally:
+        release_preflight.set()
+    worker.join(timeout=2.0)
+
+    assert worker.is_alive() is False
+    assert bringup_result["ok"] is False
+    assert launch_calls == []
+    assert c._controller_companion.stop_requested is True
+    c.shutdown()
+
+
+def test_estop_during_blocking_launch_stays_pending_until_fresh_disable(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    launch_entered = threading.Event()
+    release_launch = threading.Event()
+    controller = _ArmCtrl()
+    disable_reasons = []
+    verify_calls = []
+
+    def launcher():
+        launch_entered.set()
+        assert release_launch.wait(2.0)
+        return controller
+
+    def disable(reason):
+        disable_reasons.append(reason)
+        return "disable_sent"
+
+    def verify():
+        verify_calls.append("verified")
+        return True
+
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), disable)
+    c._controller_launcher = launcher
+    c._controller_verify_motor_disable = verify
+    bringup_result = {}
+    worker = threading.Thread(
+        target=lambda: bringup_result.update(c.control("arm_bringup")),
+    )
+    try:
+        worker.start()
+        assert launch_entered.wait(1.0)
+
+        immediate = c.control("arm_disable")
+        assert immediate["ok"] is True
+        assert immediate["code"] == "controller_disable_pending"
+        assert immediate["isolation_pending"] is True
+        assert immediate["energy_isolated"] is False
+        assert immediate["motor_disable_verified"] is False
+        pending = c._controller_status_payload()
+        assert pending["isolation_pending"] is True
+        assert pending["energy_isolated"] is False
+
+        release_launch.set()
+        worker.join(timeout=2.0)
+        assert worker.is_alive() is False
+        assert bringup_result["ok"] is False
+        assert controller.terminated is True
+        assert disable_reasons == [
+            "operator_estop",
+            "late controller terminated during E-stop",
+        ]
+        assert verify_calls == ["verified", "verified"]
+        final = c._controller_status_payload()
+        assert final["isolation_pending"] is False
+        assert final["energy_isolated"] is True
+        assert final["motor_disable_verified"] is True
+    finally:
+        release_launch.set()
+        worker.join(timeout=2.0)
+        c.shutdown()
 
 
 def test_production_teleop_requires_real_hardware(tmp_path):
@@ -6169,14 +7252,15 @@ def test_arm_bringup_ready_then_disable(tmp_path):
         c.shutdown()
 
 
-def test_disable_without_motor_readback_is_not_energy_isolated(tmp_path):
-    # P0-2: with no independent motor-disable readback wired, a successful disable
-    # command must surface as command-succeeded/UNVERIFIED, never "energy-isolated".
+def test_failed_motor_readback_is_not_energy_isolated(tmp_path):
+    # A verifier that explicitly fails must surface command-succeeded/UNVERIFIED,
+    # never "energy-isolated".
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
                          fake=True, out_dir=tmp_path, start_thread=False)
     coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("READY", True)])
     _configure_arm(c, coord, _ArmDisable())
+    c._controller_verify_motor_disable = lambda: False
     try:
         c.bring_up_controller()
         d = c.disable_controller()
@@ -6219,11 +7303,12 @@ def test_arm_bringup_fault_energy_isolates(tmp_path):
     coord = _ArmCoord([_ArmHealth("WARMING"), _ArmHealth("FAULT")])
     disable = _ArmDisable()
     _configure_arm(c, coord, disable)
+    c._controller_verify_motor_disable = lambda: False
     try:
         r = c.bring_up_controller()
         assert r["ok"] is False and r["code"] == "controller_bring_up_faulted"
         assert len(disable.calls) == 1                   # disable commanded on failure
-        assert r["energy_isolated"] is False             # P0-2: unverified w/o readback
+        assert r["energy_isolated"] is False             # explicit readback failure
         assert c._controller_ready() is False
     finally:
         c.shutdown()
@@ -6290,6 +7375,121 @@ def test_bring_up_refused_when_collector_is_fatal(tmp_path):
         assert r["code"] == "controller_bring_up_refused_fatal"
     finally:
         c.shutdown()
+
+
+def test_shutdown_between_outer_check_and_controller_lock_prevents_bringup(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), _ArmDisable())
+    launch_calls = []
+    c._controller_launcher = lambda: (launch_calls.append("launch"), _ArmCtrl())[1]
+    first_authority_derived = threading.Event()
+    derive = c.arm_control_authorization
+
+    def observed_authority():
+        authority = derive()
+        first_authority_derived.set()
+        return authority
+
+    c.arm_control_authorization = observed_authority
+    bringup_result = {}
+    bringup = threading.Thread(
+        target=lambda: bringup_result.update(c.bring_up_controller()),
+    )
+    shutdown = threading.Thread(target=c.shutdown)
+
+    c._controller_lock.acquire()
+    try:
+        bringup.start()
+        assert first_authority_derived.wait(1.0)
+        shutdown.start()
+        assert c._stop.wait(1.0)
+    finally:
+        c._controller_lock.release()
+    bringup.join(timeout=2.0)
+    shutdown.join(timeout=2.0)
+
+    assert bringup.is_alive() is False
+    assert shutdown.is_alive() is False
+    assert bringup_result["ok"] is False
+    assert bringup_result["code"] == "controller_bring_up_refused_fatal"
+    assert launch_calls == []
+    assert c._controller_companion is None
+
+
+def test_shutdown_observes_and_stops_companion_assigned_first(
+    tmp_path, monkeypatch,
+):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+
+    class ObservedDisable(_ArmDisable):
+        def __init__(self):
+            super().__init__()
+            self.called = threading.Event()
+
+        def __call__(self, reason):
+            outcome = super().__call__(reason)
+            self.called.set()
+            return outcome
+
+    disable = ObservedDisable()
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), disable)
+    constructor_entered = threading.Event()
+    release_constructor = threading.Event()
+    preflight_entered = threading.Event()
+    release_preflight = threading.Event()
+    companion_type = server.TrustedControllerCompanion
+
+    def blocking_constructor(**kwargs):
+        constructor_entered.set()
+        assert release_constructor.wait(2.0)
+        return companion_type(**kwargs)
+
+    monkeypatch.setattr(server, "TrustedControllerCompanion", blocking_constructor)
+
+    def blocking_preflight():
+        preflight_entered.set()
+        assert release_preflight.wait(2.0)
+
+    c._controller_preflight = blocking_preflight
+    bringup_result = {}
+    bringup = threading.Thread(
+        target=lambda: bringup_result.update(c.bring_up_controller()),
+    )
+    shutdown = threading.Thread(target=c.shutdown)
+    try:
+        bringup.start()
+        # Constructor is inside _controller_lock.  Shutdown sets _stop and then
+        # waits on that lock; once construction is released, assignment happens
+        # before shutdown can observe the companion.
+        assert constructor_entered.wait(1.0)
+        shutdown.start()
+        assert c._stop.wait(1.0)
+        release_constructor.set()
+        assert preflight_entered.wait(1.0)
+        assert disable.called.wait(1.0)
+    finally:
+        release_constructor.set()
+        release_preflight.set()
+    bringup.join(timeout=2.0)
+    shutdown.join(timeout=2.0)
+
+    assert bringup.is_alive() is False
+    assert shutdown.is_alive() is False
+    assert bringup_result["ok"] is False
+    assert c._controller_companion.disabled is True
+    assert disable.calls[0] == "service_shutdown"
 
 
 def test_watchdog_thread_disables_arm_on_telemetry_fault(tmp_path):
@@ -6537,6 +7737,8 @@ def test_production_blockers_are_add_only_never_cleared():
     # SHA-bound activation evidence.
     server = _load_collect_server()
     default = server.DEFAULT_PRODUCTION_BLOCKERS
+    assert not any("force" in blocker.lower() for blocker in default)
+    assert not any("Hall" in blocker for blocker in default)
     assert server._resolve_production_blockers(None) == default
     # 'none' is no longer magic -- it is just appended as a literal, never a clear.
     assert server._resolve_production_blockers(["none"]) == default + ("none",)
@@ -6545,17 +7747,111 @@ def test_production_blockers_are_add_only_never_cleared():
     assert "extra condition" in got and len(got) == len(default) + 1
 
 
+def _typed_production_runtime_evidence(server):
+    """Build type-correct inert evidence without opening hardware in a unit test."""
+
+    return server.ProductionRuntimeAssembly(
+        activation_path="/immutable/activation.json",
+        activation_sha256="a" * 64,
+        openarm_pair=object.__new__(server.OpenArmPairActivation),
+        camera_exposure_contract=object.__new__(server.CameraExposureContract),
+        handeye=object.__new__(server.ActivatedHandEye),
+        activated_identity=object.__new__(server.ActivatedOcclusionIdentity),
+        robot_capture_coordinator=object.__new__(
+            server.ProductionRobotCaptureCoordinator
+        ),
+        robot_mask_provider=object.__new__(server.ProductionRobotMaskProvider),
+        back_mask_provider=object.__new__(
+            server.IndependentPosteriorBackMaskProvider
+        ),
+        patient_pose_provider=object.__new__(server.MetricPatientPoseProvider),
+        occlusion_runtime=object.__new__(server.OcclusionRuntime),
+    )
+
+
+def test_complete_typed_activation_evidence_clears_only_static_blockers():
+    server = _load_collect_server()
+    runtime = _typed_production_runtime_evidence(server)
+
+    assert server._resolve_production_blockers(
+        None, production_runtime=runtime,
+    ) == ()
+    assert server._resolve_production_blockers(
+        ["operator-declared blocker"], production_runtime=runtime,
+    ) == ("operator-declared blocker",)
+
+
+def test_missing_any_typed_activation_component_keeps_all_static_blockers():
+    server = _load_collect_server()
+    runtime = _typed_production_runtime_evidence(server)
+    values = dict(runtime.__dict__)
+    component_names = (
+        "openarm_pair",
+        "camera_exposure_contract",
+        "handeye",
+        "activated_identity",
+        "robot_capture_coordinator",
+        "robot_mask_provider",
+        "back_mask_provider",
+        "patient_pose_provider",
+        "occlusion_runtime",
+    )
+
+    for missing in component_names:
+        broken = server.ProductionRuntimeAssembly(
+            **{**values, missing: None},
+        )
+        assert server._resolve_production_blockers(
+            None, production_runtime=broken,
+        ) == server.DEFAULT_PRODUCTION_BLOCKERS, missing
+
+    assert server._resolve_production_blockers(
+        None, production_runtime=None,
+    ) == server.DEFAULT_PRODUCTION_BLOCKERS
+
+
+def test_static_activation_evidence_does_not_bypass_pre_hil_robot_gate(tmp_path):
+    server = _load_collect_server()
+    runtime = _typed_production_runtime_evidence(server)
+    static_blockers = server._resolve_production_blockers(
+        None, production_runtime=runtime,
+    )
+    assert static_blockers == ()
+
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_robot=True,
+        production_blockers=static_blockers,
+        start_thread=False,
+    )
+    try:
+        assert collector._controller_ready() is False
+        assert collector._device_start_rejection(
+            runtime={"strict_ok": True, "blockers": []},
+        ) == server._CONTROLLER_NOT_READY
+    finally:
+        collector.shutdown()
+
+
 def test_estop_ui_button_is_not_gated_by_busy():
-    # Browser E-stop must be usable even while THIS page is busy waiting on a bring-up:
-    # a dedicated estop() that never checks/sets `busy`, and a button not disabled by busy.
+    # Browser buttons consume the one server-side authority.  A future accepted live
+    # companion keeps stop_authorized true during bring-up; pre-HIL both remain disabled.
     server = _load_collect_server()
     page = server.PAGE
     if isinstance(page, bytes):
         page = page.decode()
     assert "async function estop(" in page                       # dedicated E-stop path
     assert "$('btnestop').onclick=()=>estop()" in page           # bound to it
-    assert "$('btnestop').disabled=st==='idle';" in page         # NOT busy-gated anymore
-    assert "$('btnestop').disabled=busy||st==='idle'" not in page  # old gating removed
+    assert "ct.arm_bringup_authorized===true" in page
+    assert "ct.arm_stop_authorized===true" in page
+    assert "bringActive=ct.bringup_active===true" in page
+    assert "$('btnarm').disabled=busy||bringActive||!bringAllowed" in page
+    assert "$('btnestop').disabled=!stopAllowed" in page
+    assert "hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled')" in page
+    assert "$('armstat').textContent=hasComp?" in page
+    assert "Safe-stop HIL required" in page
 
 
 def test_bring_up_refuses_and_disables_when_fatal_races_in(tmp_path):
@@ -6624,6 +7920,90 @@ def test_shutdown_retries_failed_disable(tmp_path):
     assert attempts["n"] >= 2
 
 
+def _configure_safe_stop_arm(server, c, coord, disable):
+    # Deliberately does NOT install the fake capability: we isolate the safe-stop path so the
+    # ONLY route to real bring-up authorization is a passed operator-witnessed safe-stop HIL.
+    c.require_robot = True
+    c.commissioning_preview_only = False
+    c._robot_coordinator = coord
+    c._controller_launcher = lambda: _ArmCtrl()
+    c._controller_disable = disable
+    c._controller_attest = lambda pid, uid: f"attest{pid}"
+    c._controller_readiness_timeout_s = 2.0
+    c._controller_launch_activation = server.SimpleNamespace()   # dormant activation present
+    c._safe_stop_disable_command = ("bash", "hil_disable.sh")     # candidate CAN disable (a)
+    from ausc.perception.robot.safe_stop_hil import SafeStopHilGate
+    c._safe_stop_gate = SafeStopHilGate(
+        release_id="controller_launch_v1-" + "a" * 64,
+        contract_sha256="b" * 64, session_id="test-sess",
+    )
+
+
+def test_real_bringup_refused_until_safe_stop_hil_passes(tmp_path):
+    # Safety gate: with a production (dormant) launch activation, real bring-up is refused
+    # ("Safe-stop HIL required") until the operator-witnessed safe-stop passes this session.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    _configure_safe_stop_arm(server, c, _ArmCoord([_ArmHealth("READY", True)]), _ArmDisable())
+    try:
+        assert c.arm_control_authorization().arm_bringup_authorized is False
+        r = c.bring_up_controller()
+        assert r["ok"] is False and "Safe-stop HIL" in r["message"]
+        # simulate a witnessed safe-stop test (test energized, disable succeeded)
+        c._safe_stop_gate.begin_test()
+        c._safe_stop_gate.record_disable(command_succeeded=True, outcome="ok", controller_pid=1)
+        passed = c.confirm_safe_stop(deenergized=True)
+        assert passed["ok"] is True and passed["code"] == "safe_stop_hil_passed"
+        assert c.arm_control_authorization().arm_bringup_authorized is True   # now authorized
+    finally:
+        c.shutdown()
+
+
+def test_not_deenergized_witness_keeps_bringup_refused(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    _configure_safe_stop_arm(server, c, _ArmCoord([_ArmHealth("READY", True)]), _ArmDisable())
+    try:
+        c._safe_stop_gate.begin_test()
+        c._safe_stop_gate.record_disable(command_succeeded=True, outcome="ok", controller_pid=1)
+        r = c.confirm_safe_stop(deenergized=False)   # operator: arm did NOT go limp
+        assert r["ok"] is False and r["code"] == "safe_stop_hil_failed"
+        assert c.arm_control_authorization().arm_bringup_authorized is False
+    finally:
+        c.shutdown()
+
+
+def test_full_safe_stop_test_flow_authorizes_real_bringup(tmp_path, monkeypatch):
+    # End-to-end: operator starts the safe-stop test (energize), commands disable (recorded),
+    # confirms de-energize -> passed -> real bring-up authorized. The trusted launch build is
+    # stubbed to the fake arm so no real controller launches.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    disable = _ArmDisable()
+    _configure_safe_stop_arm(server, c, _ArmCoord([_ArmHealth("READY", True)]), disable)
+
+    def fake_build(activation, *, disable_command, **_k):
+        return (lambda: _ArmCtrl()), (lambda: None), disable
+
+    monkeypatch.setattr(server, "build_launch_from_activation", fake_build)
+    try:
+        assert c.arm_control_authorization().arm_bringup_authorized is False
+        r = c.begin_safe_stop_test()                       # 1) energize (fake)
+        assert r["ok"] is True and r["safe_stop_test"] is True
+        assert c._safe_stop_gate.state == "HIL_TESTING"
+        d = c.disable_controller()                         # 2) disable during test
+        assert d["ok"] is True
+        assert c._safe_stop_gate.state == "HIL_AWAITING_WITNESS"
+        p = c.confirm_safe_stop(deenergized=True)          # 3) witness de-energize
+        assert p["ok"] is True and p["code"] == "safe_stop_hil_passed"
+        assert c.arm_control_authorization().arm_bringup_authorized is True
+    finally:
+        c.shutdown()
+
+
 def test_start_robot_session_requires_arm_brought_up(tmp_path):
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
@@ -6632,6 +8012,202 @@ def test_start_robot_session_requires_arm_brought_up(tmp_path):
     try:
         with pytest.raises(RuntimeError, match="not brought up"):
             c._start_robot_session(str(tmp_path))
+    finally:
+        c.shutdown()
+
+
+def test_start_robot_session_requires_ready_controller_even_without_callbacks(tmp_path):
+    server = _load_collect_server()
+
+    class Coordinator:
+        def __init__(self):
+            self.start_calls = 0
+
+        def start_session(self, _session_dir):
+            self.start_calls += 1
+
+    coordinator = Coordinator()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_robot=True,
+        robot_capture_coordinator=coordinator,
+        start_thread=False,
+    )
+    try:
+        with pytest.raises(RuntimeError, match="not brought up"):
+            c._start_robot_session(str(tmp_path))
+        assert coordinator.start_calls == 0
+    finally:
+        c.shutdown()
+
+
+def test_state_and_start_share_exact_controller_not_ready_rejection(tmp_path):
+    server = _load_collect_server()
+
+    class Capture:
+        def request_cancel(self): pass
+        def start(self): pass
+        def record_event(self, _payload): pass
+        def abort(self, _reason): pass
+
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        require_robot=True,
+        robot_capture_coordinator=object(),
+        start_thread=False,
+    )
+    c.platform.capture_factory = lambda _path: Capture()
+    c.platform._writer_types = {"DiagnosticPerceptionCapture": Capture}
+    c._runtime_health_snapshot = lambda **_kwargs: {
+        "strict_ok": True,
+        "blockers": [],
+        "robot": {"ready": True},
+    }
+    expected = "left OpenArm controller is not brought up; use Bring up arm first"
+    try:
+        snapshot = c.state_snapshot()
+        assert snapshot["start_authorized"] is False
+        assert snapshot["start_rejection"] == expected
+
+        result = c.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "start_not_authorized"
+        assert result["message"] == expected
+    finally:
+        c.shutdown()
+
+
+def test_state_and_post_share_back_before_audio_start_rejection(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        audio_device="synthetic-audio",
+        require_audio=True,
+        start_thread=False,
+    )
+    back = {
+        "required": True,
+        "confirmed": False,
+        "active": False,
+        "confirmable": True,
+        "reason": "BACK_CONFIRMATION_REQUIRED",
+    }
+    c._device_start_rejection = lambda **_kwargs: None
+    c._storage_start_rejection = lambda _duration: None
+    c._back_confirmation_snapshot = lambda: dict(back)
+    c._audio_snapshot = lambda: {
+        "status": "ERROR",
+        "signal_present": False,
+    }
+    try:
+        snapshot = c.state_snapshot()
+        result = c.control("start")
+
+        assert snapshot["start_authorized"] is False
+        assert snapshot["start_rejection_code"] == "back_confirmation_required"
+        assert snapshot["start_rejection"] == (
+            "Face away, stay alone in frame, then Confirm Back"
+        )
+        assert result["ok"] is False
+        assert result["code"] == snapshot["start_rejection_code"]
+        assert result["message"] == snapshot["start_rejection"]
+    finally:
+        c.shutdown()
+
+
+def test_state_and_post_share_insufficient_storage_rejection(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    expected = "insufficient storage for the pinned session duration"
+    c._device_start_rejection = lambda **_kwargs: None
+    c._storage_start_rejection = lambda _duration: expected
+    try:
+        snapshot = c.state_snapshot()
+        result = c.control("start")
+
+        assert snapshot["start_authorized"] is False
+        assert snapshot["start_rejection_code"] == (
+            "insufficient_storage_for_planned_session"
+        )
+        assert snapshot["start_rejection"] == expected
+        assert result["ok"] is False
+        assert result["code"] == snapshot["start_rejection_code"]
+        assert result["message"] == snapshot["start_rejection"]
+    finally:
+        c.shutdown()
+
+
+def test_tail_start_storage_oserror_is_a_structured_rejection(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    calls = {"storage": 0, "capture": 0}
+
+    def changing_storage(_duration):
+        calls["storage"] += 1
+        if calls["storage"] == 1:
+            return None
+        raise OSError("storage disappeared")
+
+    def forbidden_capture(_path):
+        calls["capture"] += 1
+        raise AssertionError("capture must not be allocated after storage failure")
+
+    c._device_start_rejection = lambda **_kwargs: None
+    c._storage_start_rejection = changing_storage
+    c.platform.capture_factory = forbidden_capture
+    try:
+        initial_state = c.platform.state.value
+        result = c.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "storage_preflight_failed"
+        assert "OSError: storage disappeared" in result["message"]
+        assert result["state"] == initial_state
+        assert calls == {"storage": 2, "capture": 0}
+    finally:
+        c.shutdown()
+
+
+def test_live_companion_keeps_stop_access_if_fake_capability_is_removed(tmp_path):
+    server = _load_collect_server()
+    c = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    disable = _ArmDisable()
+    _configure_arm(c, _ArmCoord([_ArmHealth("READY", True)]), disable)
+    try:
+        assert c.bring_up_controller()["ok"] is True
+        c._arm_control_capability = None
+        authority = c.arm_control_authorization()
+        assert authority.arm_bringup_authorized is False
+        assert authority.arm_stop_authorized is True
+        assert c.disable_controller()["ok"] is True
+        assert disable.calls == ["operator_estop"]
+        status = c._controller_status_payload()
+        assert status["arm_bringup_authorized"] is False
+        assert status["arm_stop_authorized"] is False
+        assert status["disabled"] is True
+        assert status["disable_command_succeeded"] is True
+        assert status["energy_isolated"] is True
+        assert status["disable_summary"] == "energy_isolated"
     finally:
         c.shutdown()
 
@@ -6645,7 +8221,8 @@ def test_arm_actions_inert_when_not_configured(tmp_path):
         r = c.bring_up_controller()
         assert r["ok"] is False and r["code"] == "controller_not_configured"
         d = c.disable_controller()
-        assert d["ok"] and d["code"] == "controller_not_running"
+        assert d["ok"] is False and d["code"] == "arm_stop_not_authorized"
+        assert d["message"] == "Safe-stop HIL required"
         assert c._controller_status_payload()["configured"] is False
     finally:
         c.shutdown()

@@ -35,6 +35,7 @@ from collections.abc import Mapping
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
+from typing import NamedTuple
 from urllib.parse import parse_qs, urlsplit
 
 _ROBOT_SUMMARY_SCHEMA_V3 = "wam_openarm_exact_control_capture_summary_v3"
@@ -49,6 +50,14 @@ _ROBOT_MOTOR_ACK_REASON = (
 )
 _ROBOT_FEEDBACK_LIVENESS_REASON = (
     "v3_has_no_per_motor_feedback_rx_counters_or_timestamps"
+)
+_FORCE_SESSION_ARTIFACT_NAMES = (
+    "force.csv",
+    "force_capture.json",
+    "FORCE_CAPTURE_COMPLETE.json",
+    "force_calibration.json",
+    "force.csv.inprogress",
+    "force_capture.json.inprogress",
 )
 
 
@@ -208,15 +217,47 @@ from ausc.perception.robot.frame_evidence_bundle import (          # noqa: E402
     FrameEvidenceBundle,
 )
 from ausc.perception.robot.robot_capture_coordinator import (       # noqa: E402
+    ProductionRobotCaptureCoordinator,
     RobotCaptureCoordinatorError,
     RobotCaptureNotReady,
+)
+from ausc.perception.robot.camera_exposure_evidence import (        # noqa: E402
+    CameraExposureContract,
+)
+from ausc.perception.robot.openarm_pair_activation import (         # noqa: E402
+    OpenArmPairActivation,
+)
+from ausc.perception.robot.robot_mask_provider import (             # noqa: E402
+    ActivatedHandEye,
+    ProvisionalRobotMaskHandEye,
+    ProductionRobotMaskProvider,
+)
+from ausc.perception.tracking.occlusion_runtime import (            # noqa: E402
+    ActivatedOcclusionIdentity,
+    OcclusionRuntime,
+)
+from ausc.perception.tracking.patient_pose_provider import (        # noqa: E402
+    MetricPatientPoseProvider,
+)
+from ausc.perception.tracking.posterior_back_mask_provider import (  # noqa: E402
+    IndependentPosteriorBackMaskProvider,
 )
 from ausc.perception.robot.trusted_controller_companion import (    # noqa: E402
     CompanionError,
     CompanionFault,
     TrustedControllerCompanion,
+    execute_independent_stop,
+)
+from ausc.perception.robot import safe_stop_hil                     # noqa: E402
+from ausc.perception.robot.safe_stop_hil import (                   # noqa: E402
+    SafeStopHilError,
+    SafeStopHilGate,
+)
+from ausc.perception.robot.controller_launch import (               # noqa: E402
+    build_launch_from_activation,
 )
 from ausc.perception.production_runtime_activation import (        # noqa: E402
+    ProductionRuntimeAssembly,
     ProductionRuntimeActivationError,
     load_completed_handeye_release,
     load_production_runtime_assembly,
@@ -894,26 +935,102 @@ def encode_jpeg(bgr):
 
 
 DEFAULT_PRODUCTION_BLOCKERS = (
-    "physical audio-force sync calibration is missing",
     "Orbbec mode-bound hardware LED latency calibration is missing",
     "complete robot-mask and robot-base runtime activation is missing",
     "confirmed direct motor-disable command is missing",
-    "live robot/action, Hall force, and stethoscope audio identities are not commissioned",
+    "live robot/action and stethoscope audio identities are not commissioned",
 )
 
 
-def _resolve_production_blockers(cli_blockers):
+def _production_runtime_evidence_complete(production_runtime):
+    """Return whether the trusted activation loader produced every concrete part.
+
+    This is deliberately stricter than structural/duck typing: a mapping or a
+    partial test double cannot clear commissioning blockers.  The caller in
+    ``main`` only obtains this value from ``load_production_runtime_assembly``;
+    these concrete checks defend against a future partial assembly silently
+    weakening that boundary.
+    """
+
+    if type(production_runtime) is not ProductionRuntimeAssembly:
+        return False
+    if not (
+        isinstance(production_runtime.activation_path, str)
+        and os.path.isabs(production_runtime.activation_path)
+        and isinstance(production_runtime.activation_sha256, str)
+        and re.fullmatch(r"[0-9a-f]{64}", production_runtime.activation_sha256)
+    ):
+        return False
+    expected_types = (
+        ("openarm_pair", (OpenArmPairActivation,)),
+        ("camera_exposure_contract", (CameraExposureContract,)),
+        (
+            "handeye",
+            (ActivatedHandEye, ProvisionalRobotMaskHandEye),
+        ),
+        ("activated_identity", (ActivatedOcclusionIdentity,)),
+        (
+            "robot_capture_coordinator",
+            (ProductionRobotCaptureCoordinator,),
+        ),
+        ("robot_mask_provider", (ProductionRobotMaskProvider,)),
+        ("back_mask_provider", (IndependentPosteriorBackMaskProvider,)),
+        ("patient_pose_provider", (MetricPatientPoseProvider,)),
+        ("occlusion_runtime", (OcclusionRuntime,)),
+    )
+    return all(
+        type(getattr(production_runtime, name, None)) in allowed_types
+        for name, allowed_types in expected_types
+    )
+
+
+def _resolve_production_blockers(cli_blockers, *, production_runtime=None):
     """Resolve the effective commissioning blocker set from the CLI.
 
     The built-in fail-closed blockers are IMMUTABLE from the command line: an
     unauthenticated string must never be able to attest commissioning complete.  Any
     ``--production-blocker`` values are APPENDED (to declare additional known-bad
     conditions); they can never clear or shrink the default set.  Clearing the
-    commissioning-complete set is derived solely from SHA-bound activation evidence
-    (the go-live activation path), never asserted by a bare CLI token.
+    commissioning-complete set is derived solely from a complete typed assembly
+    returned by the SHA-bound activation loader (the go-live activation path),
+    never asserted by a bare CLI token.  Runtime controller/audio liveness remains
+    an independent Start gate after these static commissioning blockers clear.
     """
     extra = tuple(cli_blockers) if cli_blockers else ()
-    return DEFAULT_PRODUCTION_BLOCKERS + extra
+    defaults = (
+        ()
+        if _production_runtime_evidence_complete(production_runtime)
+        else DEFAULT_PRODUCTION_BLOCKERS
+    )
+    return defaults + extra
+
+
+_SAFE_STOP_HIL_REQUIRED = "Safe-stop HIL required"
+_CONTROLLER_NOT_READY = (
+    "left OpenArm controller is not brought up; use Bring up arm first"
+)
+_TEST_ONLY_FAKE_ARM_CAPABILITY = object()
+
+
+class ArmControlAuthorization(NamedTuple):
+    """One immutable decision shared by state, UI, and every arm action path."""
+
+    visible: bool
+    arm_bringup_authorized: bool
+    arm_stop_authorized: bool
+    arm_bringup_rejection: str | None
+    arm_stop_rejection: str | None
+
+
+class StartPreflightRejection(NamedTuple):
+    """One read-only Start refusal shared by state rendering and POST."""
+
+    code: str
+    message: str
+
+
+def _normalize_control_action(action):
+    return action.strip().lower() if isinstance(action, str) else ""
 
 
 class Collector:
@@ -985,6 +1102,11 @@ class Collector:
         controller_preflight=None,
         controller_attest=None,
         controller_verify_motor_disable=None,
+        controller_launch_release_id=None,
+        controller_launch_contract_sha256=None,
+        controller_open_target_status=None,
+        controller_launch_activation=None,
+        safe_stop_disable_command=None,
         controller_readiness_timeout_s=15.0,
         robot_mask_provider=None,
         handeye_activation=None,
@@ -1149,12 +1271,41 @@ class Collector:
         # controller binary is launched directly, so its exe attestation is sound.
         self._controller_preflight = controller_preflight
         self._controller_attest = controller_attest
+        # Dormant controller-launch identity is display/provenance metadata only.
+        # It is deliberately excluded from arm authorization until a later HIL
+        # capability cross-binds it to independently verified stop/readback evidence.
+        self._controller_launch_release_id = controller_launch_release_id
+        self._controller_launch_contract_sha256 = (
+            controller_launch_contract_sha256
+        )
+        self._controller_open_target_status = controller_open_target_status
+        self._arm_control_capability = None
+        # The (still dormant) controller-launch activation object + the CANDIDATE disable
+        # (design (a): the CAN disable) the operator-witnessed safe-stop HIL validates.
+        # Real bring-up is authorized ONLY after that HIL passes this session.
+        self._controller_launch_activation = controller_launch_activation
+        self._safe_stop_disable_command = (
+            tuple(str(part) for part in safe_stop_disable_command)
+            if safe_stop_disable_command else None
+        )
+        self._safe_stop_gate = None
+        if controller_launch_activation is not None:
+            self._safe_stop_gate = SafeStopHilGate(
+                release_id=str(controller_launch_release_id or ""),
+                contract_sha256=str(controller_launch_contract_sha256 or ""),
+                session_id=os.urandom(8).hex(),
+            )
         self._controller_readiness_timeout_s = float(controller_readiness_timeout_s)
         self._controller_companion = None
         self._controller_lock = threading.Lock()
         # A bring-up runs OUTSIDE the lock (so a concurrent E-stop can interrupt it);
         # this guards against a second concurrent bring-up.
         self._controller_bringup_active = False
+        # True from immediately before the trusted launcher is invoked until bring-up
+        # has either committed READY or completed its late-launch stop fence. An E-stop
+        # readback observed while this is true cannot prove a controller that may still
+        # appear afterward is isolated.
+        self._controller_launch_fence_open = False
         # Independent motor-disable readback hook wired into every companion. Absent
         # (None) -> energy_isolated is NEVER claimed (the honest default); a real
         # STATE-frame torque-off readback is injected here at deployment to earn it.
@@ -1246,6 +1397,7 @@ class Collector:
         self._force_recording_active = False
         self._force_last_summary = None
         self._force_sync_metadata = None
+        self._force_advisory_events = []
         self._model_worker = None
         self._back_gate = None
         self._preview_worker = LatestFrameWorker(
@@ -1330,6 +1482,10 @@ class Collector:
                 "single_owner": True,
             },
             "force": {
+                "advisory": True,
+                "available": False,
+                "status": self._force_status,
+                "error": None,
                 "single_owner": True,
                 "mode": (
                     "UNSYNCED_COMMISSIONING_MONITOR"
@@ -1407,32 +1563,10 @@ class Collector:
             required["commissioned stethoscope audio device"] = self.audio_device
             required["stethoscope USB VID"] = self.audio_expected_usb_vid
             required["stethoscope USB PID"] = self.audio_expected_usb_pid
-        if self._force_requested:
-            required.update({
-                "calibrated Hall-force calibration path": self.hall_calibration,
-                "Hall-force calibration SHA-256": self.hall_calibration_sha256,
-                "commissioned Hall-force serial port": self.hall_port,
-                "Hall-force USB VID": self.hall_expected_usb_vid,
-                "Hall-force USB PID": self.hall_expected_usb_pid,
-                "Hall-force USB serial": self.hall_expected_usb_serial,
-            })
-        if self.require_force:
-            required.update({
-                "physical audio-force sync calibration path": self.sync_calibration,
-                "physical audio-force sync calibration SHA-256": self.sync_calibration_sha256,
-            })
         blockers = [
             f"missing {label}" for label, value in required.items()
             if value is None or value == ""
         ]
-        if self.require_force and not self.require_audio:
-            blockers.append(
-                "Hall-force synchronization requires commissioned stethoscope audio"
-            )
-        if self.require_force and self.audio_pick_channel is None:
-            blockers.append(
-                "Hall-force synchronization requires a pinned audio channel"
-            )
         if (
             self.require_audio
             and not self.audio_expected_usb_serial
@@ -1656,6 +1790,10 @@ class Collector:
                 self._force.prepare()
                 self._force_hardware = copy.deepcopy(dict(observed))
                 self._provenance["force"] = {
+                    "advisory": True,
+                    "available": True,
+                    "status": "RUNNING",
+                    "error": None,
                     "single_owner": True,
                     "mode": (
                         "SYNCHRONIZED_CAPTURE"
@@ -1674,13 +1812,16 @@ class Collector:
                 }
                 self._force_status = "RUNNING"
                 self._force_error = None
-            except Exception as exc:  # noqa: BLE001 - requested sensor fails closed
+            except Exception as exc:  # noqa: BLE001 - advisory sensor remains visible
                 self._force = None
                 self._force_status = "ERROR"
                 self._force_error = f"{type(exc).__name__}: {exc}"
-                self._set_diagnostic_blockers([
-                    f"Hall-force failed to start: {self._force_error}",
-                ])
+                self._provenance["force"].update({
+                    "advisory": True,
+                    "available": False,
+                    "status": "ERROR",
+                    "error": self._force_error,
+                })
         self._loop_error = None
         self._thread = threading.Thread(
             target=self._loop_guarded,
@@ -1760,6 +1901,13 @@ class Collector:
                     pass
             self._loop_error = reason
             self._fatal_error = reason
+            # A dead collector loop revokes any safe-stop HIL pass: bring-up authority must
+            # be re-earned (the arm's supervisor is gone).
+            if self._safe_stop_gate is not None:
+                try:
+                    self._safe_stop_gate.fault_reset(reason)
+                except Exception:  # noqa: BLE001 - never mask the crash teardown
+                    pass
             self._camera_status = "ERROR"
             self._model_status = "ERROR"
             # Data teardown is guarded so it can neither undo the disable above nor
@@ -1782,20 +1930,50 @@ class Collector:
                 pass
 
     def shutdown(self):
-        self._clear_back_confirmation("SERVICE_SHUTDOWN")
+        # Publish shutdown intent first, then stop the arm before touching any data,
+        # camera, model, audio, or force teardown.  Those paths may block or fail and
+        # must never delay the motor-disable attempt.
         self._stop.set()
-        if self.platform.state is CollectionState.RECORDING:
-            self._abort_recording("service shutdown before End")
         # Never leave the arm energized across a collector shutdown. The watchdog has just
         # been stopped (_stop.set above), so it can no longer retry a failed disable --
         # retry here, bounded, rather than swallowing a single transient failure.
-        if self._controller_companion is not None and not self._controller_companion.disabled:
+        # Synchronize with companion assignment.  Bring-up performs its final stop/fatal
+        # check while holding this same lock: either it observes _stop and constructs
+        # nothing, or it assigns a companion first and shutdown captures it here.  Never
+        # call disable while holding the non-reentrant controller lock.
+        with self._controller_lock:
+            companion = self._controller_companion
+            idle_stop_authorized = bool(
+                companion is None
+                and self.arm_control_authorization().arm_stop_authorized
+            )
+        if (
+            (companion is not None and not companion.disabled)
+            or idle_stop_authorized
+        ):
             for _ in range(5):
                 try:
-                    if self.disable_controller("service_shutdown").get("ok"):
+                    result = self.disable_controller("service_shutdown")
+                    verifier_required = (
+                        self._controller_verify_motor_disable is not None
+                    )
+                    if result.get("ok") and (
+                        not verifier_required
+                        or result.get("energy_isolated") is True
+                    ):
                         break
                 except Exception:  # noqa: BLE001 - keep retrying the shutdown disable
                     pass
+        self._clear_back_confirmation("SERVICE_SHUTDOWN")
+        if self.platform.state is CollectionState.RECORDING:
+            try:
+                self._abort_recording("service shutdown before End")
+            except Exception as exc:  # teardown must continue after stop attempt
+                if self._fatal_error is None:
+                    self._fatal_error = (
+                        "recording abort failed during shutdown: "
+                        f"{type(exc).__name__}: {exc}"
+                    )
         if self._model_worker is not None:
             self._model_worker.stop()
         if self._preview_worker is not None:
@@ -1833,6 +2011,11 @@ class Collector:
     def control(
         self, action, *, preview_frame_index=None, preview_frame_token=None,
     ):
+        # Every spelling accepted by the normal action parser must preserve the E-stop
+        # fast path.  Normalize before the general control lock so whitespace/case cannot
+        # accidentally queue a stop behind an in-flight Start/End/bring-up request.
+        if _normalize_control_action(action) == "arm_disable":
+            return self.disable_controller()
         # End owns this lock through FIFO closure, exact drain and the platform
         # transition to FINALIZING. No Confirm/Redo/navigation can slip through
         # the gap between the camera boundary and finalization.
@@ -1936,33 +2119,124 @@ class Collector:
         payload["authorized_monotonic_ns"] = authorized_ns
         return payload
 
-    def _controller_configured(self):
-        """True when the console can own the arm controller lifecycle."""
-        return bool(
+    def _install_test_only_fake_arm_capability(self):
+        """Enable synthetic lifecycle tests; impossible on a non-fake collector."""
+
+        if not self.fake:
+            raise RuntimeError("test arm capability is accepted only in fake mode")
+        self._arm_control_capability = _TEST_ONLY_FAKE_ARM_CAPABILITY
+
+    def arm_control_authorization(self):
+        """Derive the sole arm decision; dormant metadata never grants authority."""
+
+        companion = self._controller_companion
+        live_companion = bool(
+            companion is not None and not companion.disabled
+        )
+        callbacks_ready = bool(
             self.require_robot
             and not self.commissioning_preview_only
             and self._robot_coordinator is not None
             and callable(self._controller_launcher)
             and callable(self._controller_disable)
+            and callable(self._controller_verify_motor_disable)
         )
+        fake_capability = bool(
+            self.fake
+            and self._arm_control_capability
+            is _TEST_ONLY_FAKE_ARM_CAPABILITY
+        )
+        fake_authorized = bool(fake_capability and callbacks_ready)
+        visible = bool(
+            self.require_robot
+            or self._controller_launch_release_id
+            or self._controller_launch_contract_sha256
+            or self._controller_open_target_status
+            or companion is not None
+            or self._controller_launcher is not None
+            or self._controller_disable is not None
+        )
+        # Real-arm authorization (design B): a passed operator-witnessed safe-stop HIL this
+        # session, AND the sealed launch + candidate disable are constructible. The operator
+        # witness stands in for the not-yet-available per-motor torque-off readback, so
+        # `verify_motor_disable` is NOT required here (it is required only for the fake path).
+        gate = self._safe_stop_gate
+        real_launch_ready = bool(
+            self.require_robot
+            and not self.commissioning_preview_only
+            and self._robot_coordinator is not None
+            and self._controller_launch_activation is not None
+            and self._safe_stop_disable_command is not None
+        )
+        safe_stop_authorized = bool(
+            gate is not None and gate.bringup_authorized and real_launch_ready
+        )
+        bringup_authorized = bool(fake_authorized or safe_stop_authorized)
+        # Never strand a controller which was created while authority was valid.
+        # This is not idle-stop authorization: an unaccepted idle collector still rejects.
+        stop_authorized = bool(fake_authorized or live_companion)
+        return ArmControlAuthorization(
+            visible=visible,
+            arm_bringup_authorized=bringup_authorized,
+            arm_stop_authorized=stop_authorized,
+            arm_bringup_rejection=(
+                None if bringup_authorized else _SAFE_STOP_HIL_REQUIRED
+            ),
+            arm_stop_rejection=(
+                None if stop_authorized else _SAFE_STOP_HIL_REQUIRED
+            ),
+        )
+
+    @staticmethod
+    def _arm_authority_rejection(authority, *, action):
+        if action == "bringup":
+            reason = authority.arm_bringup_rejection
+            code = (
+                "arm_bringup_not_authorized"
+                if authority.visible else "controller_not_configured"
+            )
+        else:
+            reason = authority.arm_stop_rejection
+            code = "arm_stop_not_authorized"
+        return {
+            "ok": False,
+            "code": code,
+            "message": reason or _SAFE_STOP_HIL_REQUIRED,
+        }
+
+    def _controller_configured(self):
+        """Compatibility predicate: true only when bring-up is authorized."""
+
+        return self.arm_control_authorization().arm_bringup_authorized
 
     def _controller_ready(self):
         comp = self._controller_companion
         return bool(comp is not None and comp.state == "ready" and not comp.disabled)
 
-    def bring_up_controller(self):
+    def bring_up_controller(self, *, safe_stop_test=False):
         """Console-triggered left-arm bring-up via the trusted companion.
 
         Single owner; a fresh companion per bring-up; fault-closed to a
         direct-disable.  Real motion begins here, so it is gated to a configured,
         non-preview collector and returns only after the receiver reports per-motor
         READY (or after the arm has been energy-isolated on failure).
+
+        ``safe_stop_test`` is the ONLY bring-up that runs before ``arm_bringup_authorized``
+        is true: it is the supervised safe-stop test itself (the operator explicitly started
+        it, and the gate is in TESTING). It skips ONLY the authorization checks -- every
+        other safety check (fatal/stopping, single-owner, not-isolated, launch fence) is kept.
         """
-        if not self._controller_configured():
-            return {
-                "ok": False, "code": "controller_not_configured",
-                "message": "arm controller launch/disable is not configured on this collector",
-            }
+        if safe_stop_test:
+            gate = self._safe_stop_gate
+            if gate is None or gate.state != safe_stop_hil.TESTING:
+                return {
+                    "ok": False, "code": "safe_stop_test_not_started",
+                    "message": "safe-stop test bring-up requires an in-progress safe-stop test",
+                }
+        else:
+            authority = self.arm_control_authorization()
+            if not authority.arm_bringup_authorized:
+                return self._arm_authority_rejection(authority, action="bringup")
         # A fatal collector loop (or a service shutdown in progress) means the arm's
         # supervisor is gone / going. Refuse a fresh bring-up onto a dead/stopping owner.
         if (
@@ -2013,9 +2287,43 @@ class Collector:
                     ),
                     "energy_isolated": False,
                 }
+            # Re-check the exact same immutable decision immediately before
+            # companion construction.  A state/UI check or an earlier method check
+            # is never authority to launch after configuration has changed. (The
+            # safe-stop test is exempt -- it is the supervised test that EARNS authority.)
+            if not safe_stop_test:
+                authority = self.arm_control_authorization()
+                if not authority.arm_bringup_authorized:
+                    return self._arm_authority_rejection(
+                        authority, action="bringup",
+                    )
+            # Close shutdown-vs-bring-up: shutdown sets _stop before taking this
+            # lock.  Re-check the owner state at the last possible point; if shutdown
+            # set it after this check, shutdown is waiting on the same lock and will
+            # observe and stop the companion assigned immediately below.
+            if (
+                self._fatal_error is not None
+                or self._loop_error is not None
+                or self._stop.is_set()
+            ):
+                return {
+                    "ok": False,
+                    "code": "controller_bring_up_refused_fatal",
+                    "message": (
+                        "collector is in a fatal/stopping state; arm bring-up refused: "
+                        f"{self._fatal_error or self._loop_error or 'service shutdown'}"
+                    ),
+                }
+            launcher = self._controller_launcher
+
+            def launch_with_fence():
+                with self._controller_lock:
+                    self._controller_launch_fence_open = True
+                return launcher()
+
             companion = TrustedControllerCompanion(
                 coordinator=self._robot_coordinator,
-                launch_controller=self._controller_launcher,
+                launch_controller=launch_with_fence,
                 direct_disable=self._controller_disable,
                 preflight=self._controller_preflight,
                 attest_controller=self._controller_attest,
@@ -2084,18 +2392,45 @@ class Collector:
         finally:
             with self._controller_lock:
                 self._controller_bringup_active = False
+                self._controller_launch_fence_open = False
         return result
 
     def disable_controller(self, reason="operator_estop"):
         """Console E-stop: energy-isolate the arm (direct-disable first)."""
         with self._controller_lock:
             comp = self._controller_companion
-            if comp is None:
-                return {"ok": True, "code": "controller_not_running", "message": "no arm controller is running"}
+            if comp is None or comp.disabled:
+                authority = self.arm_control_authorization()
+                if not authority.arm_stop_authorized:
+                    return self._arm_authority_rejection(
+                        authority, action="stop",
+                    )
             try:
-                outcome = comp.shutdown(str(reason))
+                launch_fence_pending = bool(
+                    comp is not None and self._controller_launch_fence_open
+                )
+                outcome = (
+                    execute_independent_stop(
+                        direct_disable=self._controller_disable,
+                        verify_motor_disable=(
+                            self._controller_verify_motor_disable
+                        ),
+                        reason=str(reason),
+                    )
+                    if comp is None
+                    else comp.shutdown(str(reason))
+                )
             except Exception as exc:  # noqa: BLE001 - disable path must report, never raise out
                 return {"ok": False, "code": "controller_disable_error", "message": f"{type(exc).__name__}: {exc}"}
+            # Safe-stop HIL: a disable issued DURING a safe-stop test records its outcome into
+            # the gate (TESTING -> AWAITING_WITNESS on command success; -> FAILED otherwise).
+            gate = self._safe_stop_gate
+            if gate is not None and gate.state == safe_stop_hil.TESTING:
+                gate.record_disable(
+                    command_succeeded=bool(outcome.command_succeeded),
+                    outcome=str(outcome.outcome),
+                    controller_pid=(comp.controller_pid if comp is not None else None),
+                )
             # E-stop honesty: ok reflects whether the disable COMMAND actually succeeded.
             # If it failed (command_succeeded False), the operator must be told the arm
             # was NOT disabled -- never report success. Energy isolation is a further
@@ -2106,6 +2441,19 @@ class Collector:
                     "message": f"left arm DISABLE COMMAND FAILED — arm NOT confirmed disabled ({outcome.outcome})",
                     "energy_isolated": False,
                     "motor_disable_verified": bool(outcome.motor_verified),
+                    "isolation_pending": launch_fence_pending,
+                }
+            if launch_fence_pending:
+                return {
+                    "ok": True,
+                    "code": "controller_disable_pending",
+                    "message": (
+                        "left arm disable commanded; waiting for the controller "
+                        "launch fence and fresh motor-disable readback"
+                    ),
+                    "energy_isolated": False,
+                    "motor_disable_verified": False,
+                    "isolation_pending": True,
                 }
             message = (
                 "left arm energy-isolated (motor disable verified)"
@@ -2116,38 +2464,155 @@ class Collector:
                 "ok": True, "code": "controller_disabled", "message": message,
                 "energy_isolated": bool(outcome.energy_isolated),
                 "motor_disable_verified": bool(outcome.motor_verified),
+                "isolation_pending": False,
             }
 
-    def _controller_status_payload(self):
-        comp = self._controller_companion
-        if not self._controller_configured():
-            return {"configured": False, "state": "unavailable"}
-        if comp is None:
-            return {"configured": True, "state": "idle"}
-        payload = {
-            "configured": True, "state": comp.state,
-            "disabled": bool(comp.disabled), "controller_pid": comp.controller_pid,
+    def begin_safe_stop_test(self):
+        """Operator-initiated supervised safe-stop test: energize the SEALED controller so
+        the operator can command disable and physically witness de-energization.
+
+        Authorized because the operator explicitly requested it AND the sealed launch
+        activation + candidate disable are present -- it does NOT require (and is how we
+        EARN) real bring-up authority. Constructs the trusted launcher/preflight/disable
+        from the dormant activation, marks the gate TESTING, and does the test bring-up.
+        """
+        gate = self._safe_stop_gate
+        if (
+            gate is None
+            or self._controller_launch_activation is None
+            or self._safe_stop_disable_command is None
+        ):
+            return {
+                "ok": False, "code": "safe_stop_hil_unavailable",
+                "message": "no dormant controller-launch activation / candidate disable configured",
+            }
+        if not (
+            self.require_robot
+            and not self.commissioning_preview_only
+            and self._robot_coordinator is not None
+        ):
+            return {
+                "ok": False, "code": "safe_stop_hil_unavailable",
+                "message": "safe-stop HIL requires a real production collector with a robot coordinator",
+            }
+        try:
+            launcher, preflight, disable = build_launch_from_activation(
+                self._controller_launch_activation,
+                disable_command=self._safe_stop_disable_command,
+            )
+        except Exception as exc:  # noqa: BLE001 - surfaced as a refusal, never a crash
+            return {
+                "ok": False, "code": "safe_stop_hil_launch_build_failed",
+                "message": f"{type(exc).__name__}: {exc}",
+            }
+        with self._controller_lock:
+            self._controller_launcher = launcher
+            self._controller_preflight = preflight
+            self._controller_disable = disable
+        try:
+            gate.begin_test()
+        except SafeStopHilError as exc:
+            return {
+                "ok": False, "code": "safe_stop_test_in_progress", "message": str(exc),
+            }
+        result = self.bring_up_controller(safe_stop_test=True)
+        if not result.get("ok"):
+            # The test could not energize -> void the test; the operator must retry.
+            gate.fault_reset("safe-stop test bring-up failed")
+        return {**result, "safe_stop_test": True, "safe_stop_state": gate.state}
+
+    def confirm_safe_stop(self, *, deenergized):
+        """The operator's PHYSICAL verdict on whether the arm de-energized after the test
+        disable. ``deenergized=True`` is the only path to a passed safe-stop HIL (which
+        authorizes real bring-up this session); ``False`` fails it and keeps bring-up refused.
+        """
+        gate = self._safe_stop_gate
+        if gate is None:
+            return {
+                "ok": False, "code": "safe_stop_hil_unavailable",
+                "message": "safe-stop HIL is not configured on this collector",
+            }
+        try:
+            passed = gate.witness(confirmed=bool(deenergized))
+        except SafeStopHilError as exc:
+            return {
+                "ok": False, "code": "safe_stop_not_awaiting_witness", "message": str(exc),
+            }
+        if passed:
+            return {
+                "ok": True, "code": "safe_stop_hil_passed",
+                "message": (
+                    "safe-stop validated by operator witness; real arm bring-up is now "
+                    "authorized for this collector session"
+                ),
+                "safe_stop_state": gate.state,
+            }
+        return {
+            "ok": False, "code": "safe_stop_hil_failed",
+            "message": "operator reported the arm did NOT de-energize; bring-up stays refused",
+            "safe_stop_state": gate.state,
         }
+
+    def _controller_status_payload(self):
+        authority = self.arm_control_authorization()
+        comp = self._controller_companion
+        base = {
+            "configured": bool(
+                authority.arm_bringup_authorized
+                or authority.arm_stop_authorized
+            ),
+            "visible": authority.visible,
+            "bringup_active": bool(self._controller_bringup_active),
+            "arm_bringup_authorized": authority.arm_bringup_authorized,
+            "arm_stop_authorized": authority.arm_stop_authorized,
+            "arm_bringup_rejection": authority.arm_bringup_rejection,
+            "arm_stop_rejection": authority.arm_stop_rejection,
+            "launch_release_id": self._controller_launch_release_id,
+            "launch_contract_sha256": self._controller_launch_contract_sha256,
+            "open_target_status": self._controller_open_target_status,
+            "safe_stop_hil": (
+                None if self._safe_stop_gate is None
+                else self._safe_stop_gate.status_snapshot()
+            ),
+            "isolation_pending": bool(
+                comp is not None
+                and self._controller_launch_fence_open
+                and comp.stop_requested
+            ),
+        }
+        if comp is None:
+            base["state"] = "idle" if authority.visible else "unavailable"
+            return base
+        base.update({
+            "state": comp.state,
+            "disabled": bool(comp.disabled), "controller_pid": comp.controller_pid,
+        })
         # P0-2: surface the honest disable ladder. "energy_isolated" is only ever True
         # after an independent motor-disable readback; a mere command success shows as
         # command_succeeded + motor_disable_verified=False so the UI never lies.
         outcome = comp.disable_outcome
         if outcome is not None:
-            payload.update({
+            isolation_pending = base["isolation_pending"]
+            base.update({
                 "disable_command_succeeded": bool(outcome.command_succeeded),
-                "motor_disable_verified": bool(outcome.motor_verified),
-                "energy_isolated": bool(outcome.energy_isolated),
-                "disable_summary": str(outcome.outcome),
+                "motor_disable_verified": (
+                    False if isolation_pending else bool(outcome.motor_verified)
+                ),
+                "energy_isolated": (
+                    False if isolation_pending else bool(outcome.energy_isolated)
+                ),
+                "disable_summary": (
+                    "late_launch_fence_pending"
+                    if isolation_pending else str(outcome.outcome)
+                ),
             })
-        return payload
+        return base
 
     def _start_robot_session(self, session_dir):
         if not self.require_robot:
             return None
-        if self._controller_configured() and not self._controller_ready():
-            raise RuntimeError(
-                "left OpenArm controller is not brought up; use Bring up arm first"
-            )
+        if not self._controller_ready():
+            raise RuntimeError(_CONTROLLER_NOT_READY)
         coordinator = self._robot_coordinator
         if coordinator is None:
             raise RuntimeError("left OpenArm capture coordinator is unavailable")
@@ -2288,6 +2753,88 @@ class Collector:
             "message": str(reason),
             "state": self.platform.state.value,
         }
+
+    def _preserve_advisory_force_failure(self, phase, error):
+        """Detach failed force sidecars while preserving every recoverable byte.
+
+        The capture writer intentionally rejects unbound force artifacts. Force is an
+        advisory channel, however, so a partial Hall sidecar must not poison the RGB-D,
+        audio, or robot session. Close the force owner, atomically move its exact known
+        artifacts under a non-promotable advisory namespace, and bind hashes of the
+        preserved bytes into the camera boundary. The main writer therefore sees no
+        unbound force artifact while the raw evidence remains auditable.
+        """
+
+        if self._force is not None:
+            try:
+                self._force.abort_recording()
+            except Exception:
+                pass
+        self._force_recording_active = False
+        phase_name = re.sub(r"[^a-z0-9_-]+", "-", str(phase).lower()).strip("-")
+        phase_name = phase_name or "unknown"
+        event = {
+            "schema": "wam_force_advisory_failure_v1",
+            "phase": phase_name,
+            "status": "DEGRADED",
+            "contact_force_valid": False,
+            "reason": f"{type(error).__name__}: {error}",
+            "observed_host_t_s": time.monotonic(),
+            "preserved_artifacts": [],
+            "preservation_errors": [],
+        }
+        session_dir = self.platform.session_dir
+        if session_dir is not None:
+            session_path = Path(session_dir)
+            advisory_dir = session_path / "force_advisory"
+            try:
+                advisory_dir.mkdir(mode=0o750, parents=False, exist_ok=True)
+            except OSError as exc:
+                event["preservation_errors"].append(
+                    f"force_advisory directory: {type(exc).__name__}: {exc}"
+                )
+            else:
+                event_index = len(self._force_advisory_events)
+                for name in _FORCE_SESSION_ARTIFACT_NAMES:
+                    source = session_path / name
+                    if not source.exists() and not source.is_symlink():
+                        continue
+                    destination = advisory_dir / (
+                        f"{event_index:02d}-{phase_name}-{name}"
+                    )
+                    try:
+                        os.replace(source, destination)
+                        artifact = {
+                            "source_path": name,
+                            "path": destination.relative_to(session_path).as_posix(),
+                        }
+                        if destination.is_file() and not destination.is_symlink():
+                            sha256, size_bytes, _identity = _verified_regular_file(
+                                destination
+                            )
+                            artifact.update({
+                                "sha256": sha256,
+                                "bytes": size_bytes,
+                                "kind": "regular_file",
+                            })
+                        else:
+                            artifact.update({
+                                "sha256": None,
+                                "bytes": None,
+                                "kind": "non_regular",
+                            })
+                        event["preserved_artifacts"].append(artifact)
+                    except (OSError, RuntimeError) as exc:
+                        event["preservation_errors"].append(
+                            f"{name}: {type(exc).__name__}: {exc}"
+                        )
+        self._force_advisory_events.append(event)
+        self._provenance["force"].update({
+            "advisory": True,
+            "last_capture_status": "DEGRADED",
+            "last_capture_error": event["reason"],
+        })
+        return copy.deepcopy(event)
 
     def _camera_delivery_health(self):
         camera = self._cam
@@ -2624,6 +3171,74 @@ class Collector:
             self._capture_ingress_paused = False
             return True
 
+    def _start_preflight_rejection(
+        self, *, audio=None, back_confirmation=None,
+    ):
+        """Return the first side-effect-free Start refusal in canonical order.
+
+        Both ``/state`` and ``control('start')`` call this exact authority.  The
+        order is intentional and stable: mode/platform, live devices/controller,
+        patient-back confirmation, stethoscope audio, then planned-session storage.
+        Returning ``None`` authorizes only the preflight; mutating Start-boundary
+        operations still perform their existing TOCTOU rechecks before arming.
+        """
+
+        if self.commissioning_preview_only:
+            return StartPreflightRejection(
+                "commissioning_preview_only",
+                "Recording is disabled in commissioning preview",
+            )
+        platform_rejection = self.platform.start_authorization()
+        if platform_rejection is not None:
+            return StartPreflightRejection(
+                "start_not_authorized", str(platform_rejection),
+            )
+        device_rejection = self._device_start_rejection()
+        if device_rejection is not None:
+            return StartPreflightRejection(
+                "start_not_authorized", str(device_rejection),
+            )
+        back = (
+            self._back_confirmation_snapshot()
+            if back_confirmation is None else back_confirmation
+        )
+        if back.get("required") is True and back.get("confirmed") is not True:
+            return StartPreflightRejection(
+                "back_confirmation_required",
+                "Face away, stay alone in frame, then Confirm Back",
+            )
+        if self.require_audio or self.audio_device is not None:
+            audio_status = self._audio_snapshot() if audio is None else audio
+            if audio_status.get("status") != "OK":
+                return StartPreflightRejection(
+                    "audio_not_ready",
+                    "Start blocked because the stethoscope audio stream is not live: "
+                    f"{audio_status.get('status')}",
+                )
+            if (
+                self.require_audio
+                and audio_status.get("signal_present") is not True
+            ):
+                return StartPreflightRejection(
+                    "audio_signal_missing",
+                    "Start blocked because no stethoscope signal is present",
+                )
+        try:
+            storage_rejection = self._storage_start_rejection(
+                self.planned_session_duration_s,
+            )
+        except OSError as exc:
+            return StartPreflightRejection(
+                "storage_preflight_failed",
+                f"storage preflight failed: {type(exc).__name__}: {exc}",
+            )
+        if storage_rejection is not None:
+            return StartPreflightRejection(
+                "insufficient_storage_for_planned_session",
+                str(storage_rejection),
+            )
+        return None
+
     def _device_start_rejection(self, *, runtime=None):
         """Collector-owned device *liveness* precondition for Start.
 
@@ -2639,6 +3254,8 @@ class Collector:
         immediately before the arm to shrink the confirm->arm TOCTOU window.
         """
 
+        if self.require_robot and not self._controller_ready():
+            return _CONTROLLER_NOT_READY
         runtime = self._runtime_health_snapshot() if runtime is None else runtime
         if runtime.get("strict_ok") is not True:
             blockers = runtime.get("blockers") or ("runtime is not healthy",)
@@ -2650,9 +3267,9 @@ class Collector:
     def _control_locked(
         self, action, *, preview_frame_index=None, preview_frame_token=None,
     ):
-        normalized = action.strip().lower() if isinstance(action, str) else ""
+        normalized = _normalize_control_action(action)
         if self.commissioning_preview_only and normalized in {
-            "start", "end", "confirm", "redo", "prev", "next",
+            "end", "confirm", "redo", "prev", "next",
         }:
             return {
                 "ok": False,
@@ -2660,12 +3277,19 @@ class Collector:
                 "message": "Recording is disabled in commissioning preview",
                 "state": self.platform.state.value,
             }
-        # Left-arm controller lifecycle from the console (real motion).  Disable is
-        # always honoured; bring-up is gated to a configured, non-preview collector.
+        # Left-arm controller lifecycle from the console (real motion).  Both actions
+        # consume the same fail-closed authority; only an already-live companion keeps
+        # stop access if that authority changes while the arm is running.
         if normalized == "arm_disable":
             return self.disable_controller()
         if normalized == "arm_bringup":
             return self.bring_up_controller()
+        if normalized == "safe_stop_test":
+            return self.begin_safe_stop_test()
+        if normalized == "safe_stop_pass":
+            return self.confirm_safe_stop(deenergized=True)
+        if normalized == "safe_stop_fail":
+            return self.confirm_safe_stop(deenergized=False)
         if normalized == "confirm_back":
             token_valid = (
                 type(preview_frame_index) is int
@@ -2708,34 +3332,20 @@ class Collector:
         start_back_gate = None
         start_back_token = None
         if normalized == "start":
-            # Single Start authority, shared with the served snapshot: the
-            # platform decision (mode/preflight/writer/state) AND the
-            # collector-owned device readiness (camera/model up, no fatal error).
-            # Device readiness is exactly the piece the platform cannot see and
-            # the one the reviewer saw the page block while the API allowed; the
-            # specific audio/back gates below then add their own precise codes.
-            start_rejection = self.platform.start_authorization()
-            if start_rejection is None:
-                start_rejection = self._device_start_rejection()
+            start_rejection = self._start_preflight_rejection()
             if start_rejection is not None:
-                return {
+                result = {
                     "ok": False,
-                    "code": "start_not_authorized",
-                    "message": start_rejection,
+                    "code": start_rejection.code,
+                    "message": start_rejection.message,
                     "state": self.platform.state.value,
                 }
+                if start_rejection.code == "back_confirmation_required":
+                    result["back_confirmation"] = (
+                        self._back_confirmation_snapshot()
+                    )
+                return result
             back_confirmation = self._back_confirmation_snapshot()
-            if (
-                back_confirmation.get("required") is True
-                and back_confirmation.get("confirmed") is not True
-            ):
-                return {
-                    "ok": False,
-                    "code": "back_confirmation_required",
-                    "message": "Face away, stay alone in frame, then Confirm Back",
-                    "state": self.platform.state.value,
-                    "back_confirmation": back_confirmation,
-                }
             if back_confirmation.get("required") is True:
                 start_back_gate = self._back_gate
                 begin = getattr(start_back_gate, "begin_start_confirmation", None)
@@ -2757,27 +3367,6 @@ class Collector:
                         "message": str(exc),
                         "state": self.platform.state.value,
                     }
-        if normalized == "start" and (self.require_audio or self.audio_device is not None):
-            audio = self._audio_snapshot()
-            if audio["status"] != "OK":
-                self._clear_back_confirmation("START_FAILED")
-                return {
-                    "ok": False,
-                    "code": "audio_not_ready",
-                    "message": (
-                        "Start blocked because the stethoscope audio stream is not live: "
-                        f"{audio['status']}"
-                    ),
-                    "state": self.platform.state.value,
-                }
-            if self.require_audio and audio.get("signal_present") is not True:
-                self._clear_back_confirmation("START_FAILED")
-                return {
-                    "ok": False,
-                    "code": "audio_signal_missing",
-                    "message": "Start blocked because no stethoscope signal is present",
-                    "state": self.platform.state.value,
-                }
         if normalized == "confirm" and self.platform.state is CollectionState.RECORDING:
             runtime = self._runtime_health_snapshot()
             if runtime["strict_ok"] is not True:
@@ -2820,9 +3409,21 @@ class Collector:
                 # hold the planned session length plus the finalization reserve
                 # (a static min-free watermark would still let Start proceed with
                 # only a second of headroom, then fail mid-record).
-                storage_rejection = self._storage_start_rejection(
-                    self.planned_session_duration_s,
-                )
+                try:
+                    storage_rejection = self._storage_start_rejection(
+                        self.planned_session_duration_s,
+                    )
+                except OSError as exc:
+                    self._clear_back_confirmation("START_FAILED")
+                    return {
+                        "ok": False,
+                        "code": "storage_preflight_failed",
+                        "message": (
+                            "storage preflight failed: "
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        "state": self.platform.state.value,
+                    }
                 if storage_rejection is not None:
                     self._clear_back_confirmation("START_FAILED")
                     return {
@@ -2850,6 +3451,7 @@ class Collector:
                 self._pending_delivery_frame = None
                 self._latest_recorded_robot_evidence = None
                 self._pending_model_frame = None
+                self._force_advisory_events = []
                 result = self.platform.control(action)
                 if result.get("ok"):
                     if self.require_force:
@@ -2873,6 +3475,7 @@ class Collector:
                                 "Hall-force channel unavailable at Start (advisory, "
                                 f"recording without it): {type(exc).__name__}: {exc}"
                             )
+                            self._preserve_advisory_force_failure("prepare", exc)
                     robot_camera_arm = None
                     try:
                         session_dir = self.platform.session_dir
@@ -2984,7 +3587,11 @@ class Collector:
                         self._recording_boundary["robot_camera_arm"] = (
                             robot_camera_arm
                         )
-                    if self.require_force:
+                    if self._force_advisory_events:
+                        self._recording_boundary["force_advisory"] = copy.deepcopy(
+                            self._force_advisory_events
+                        )
+                    if self.require_force and self._force_recording_active:
                         try:
                             self._force.begin_recording(t0=start_t)
                             self._recording_boundary["force_start_boundary"] = {
@@ -3003,6 +3610,10 @@ class Collector:
                             self._force_error = (
                                 "Hall-force Start boundary unavailable (advisory, "
                                 f"recording without it): {type(exc).__name__}: {exc}"
+                            )
+                            self._preserve_advisory_force_failure("begin", exc)
+                            self._recording_boundary["force_advisory"] = copy.deepcopy(
+                                self._force_advisory_events
                             )
                     if self._audio is not None:
                         try:
@@ -3285,6 +3896,13 @@ class Collector:
                         self._force_error = (
                             "Hall-force End readout unavailable (advisory): "
                             f"{type(exc).__name__}: {exc}"
+                        )
+                        self._force_last_summary = None
+                        self._preserve_advisory_force_failure("end_or_bind", exc)
+                        end_boundary.pop("force", None)
+                        end_boundary.pop("force_sync", None)
+                        end_boundary["force_advisory"] = copy.deepcopy(
+                            self._force_advisory_events
                         )
                 if self.require_robot:
                     try:
@@ -4550,30 +5168,36 @@ class Collector:
                 raise RuntimeError("diagnostic audio WAV verification failed")
         if self.require_force:
             force = result.get("force")
-            if not isinstance(force, dict):
-                raise RuntimeError("diagnostic Hall-force summary is incomplete")
-            from mechanical_sensor.force_feedback.force_capture import (
-                verify_force_capture,
-            )
-            verified_force = verify_force_capture(session_dir)
-            expected_force = {
-                "path": "force.csv",
-                "t_start": float(verified_force.t_start),
-                "t_end": float(verified_force.t_end),
-                "n_samples": int(verified_force.n_samples),
-                "status": str(verified_force.status),
-                "sha256": str(verified_force.sha256),
-                "device_t_start_ms": float(verified_force.device_t_start_ms),
-                "device_t_end_ms": float(verified_force.device_t_end_ms),
-                "calibration_sha256": str(verified_force.calibration_sha256),
-                "device_identity_sha256": str(
-                    verified_force.device_identity_sha256
-                ),
-            }
-            if force != expected_force:
-                raise RuntimeError(
-                    "diagnostic Hall-force summary does not match sealed artifacts"
+            if force is None:
+                if result.get("contact_force_valid") is not False:
+                    raise RuntimeError(
+                        "missing advisory Hall-force requires contact_force_valid=false"
+                    )
+            else:
+                if not isinstance(force, dict):
+                    raise RuntimeError("diagnostic Hall-force summary is invalid")
+                from mechanical_sensor.force_feedback.force_capture import (
+                    verify_force_capture,
                 )
+                verified_force = verify_force_capture(session_dir)
+                expected_force = {
+                    "path": "force.csv",
+                    "t_start": float(verified_force.t_start),
+                    "t_end": float(verified_force.t_end),
+                    "n_samples": int(verified_force.n_samples),
+                    "status": str(verified_force.status),
+                    "sha256": str(verified_force.sha256),
+                    "device_t_start_ms": float(verified_force.device_t_start_ms),
+                    "device_t_end_ms": float(verified_force.device_t_end_ms),
+                    "calibration_sha256": str(verified_force.calibration_sha256),
+                    "device_identity_sha256": str(
+                        verified_force.device_identity_sha256
+                    ),
+                }
+                if force != expected_force:
+                    raise RuntimeError(
+                        "diagnostic Hall-force summary does not match sealed artifacts"
+                    )
         stitch = result.get("video_stitch")
         provenance = stitch.get("provenance") if isinstance(stitch, dict) else None
         packet_validation = (
@@ -4685,6 +5309,9 @@ class Collector:
             summary["force"] = finalization.get("force")
             summary["force_authenticity"] = finalization.get(
                 "force_authenticity"
+            )
+            summary["contact_force_valid"] = finalization.get(
+                "contact_force_valid"
             )
         if (
             finalization.get("quality") is not None
@@ -4893,9 +5520,13 @@ class Collector:
             force_summary = finalization.get("force")
             force_authenticity = finalization.get("force_authenticity")
             force_cache_rows = []
-            if self.require_force and force_summary is None:
-                return summary
             if (force_summary is None) != (force_authenticity is None):
+                return summary
+            if (
+                force_summary is None
+                and self.require_force
+                and finalization.get("contact_force_valid") is not False
+            ):
                 return summary
             if force_summary is not None:
                 if (
@@ -5670,7 +6301,6 @@ class Collector:
             and fatal_error is None
             and not snapshot["diagnostic_blockers"]
             and (not self.require_robot or robot.get("ready") is True)
-            and (not self._force_requested or force.get("ready") is True)
             and (
                 (self.audio_device is None and not self.require_audio)
                 or (
@@ -5762,55 +6392,28 @@ class Collector:
             "recording_controls_enabled": not self.commissioning_preview_only,
             "capture_mode": (
                 "COMMISSIONING_PREVIEW_ONLY"
-                if self.commissioning_preview_only else "DIAGNOSTIC_CAPTURE"
+                if self.commissioning_preview_only
+                else "PRODUCTION_TELEOP_V4"
+                if self.production_teleop
+                else "DIAGNOSTIC_CAPTURE"
             ),
             "runtime_health": runtime_health,
             "finalization_summary": finalization_summary,
         })
-        # Unified Start authority.  The page consumes ONLY snapshot.start_authorized,
-        # so it must fold the platform's decision together with the collector-owned
-        # hardware gates (camera/model readiness, live stethoscope audio, back
-        # confirmation) the platform cannot see.  These mirror the HTTP
-        # _control_locked start checks exactly, so the page and API never disagree.
-        platform_ok = snapshot.get("start_authorized") is True
-        # Device readiness is the Start precondition: the camera and model must be
-        # up, with no fatal error or outstanding preflight blocker.  The richer
-        # per-frame recording-quality signals (live constellation strictness,
-        # delivery-interval health) are NOT Start gates -- they govern an active
-        # recording and the back-confirmation handshake, not whether Start may
-        # begin -- so folding them in here would wrongly forbid a legitimate
-        # Start (and diverge from the operator's confirm-then-start flow).
-        device_ready = self._device_start_rejection() is None
-        audio_gate_ok = True
-        audio_reason = None
-        if self.require_audio or self.audio_device is not None:
-            if audio.get("status") != "OK":
-                audio_gate_ok = False
-                audio_reason = (
-                    "stethoscope audio stream is not live: %s" % audio.get("status")
-                )
-            elif self.require_audio and audio.get("signal_present") is not True:
-                audio_gate_ok = False
-                audio_reason = "no stethoscope signal is present"
-        back_gate_ok = not (
-            back_confirmation.get("required") is True
-            and back_confirmation.get("confirmed") is not True
+        # One side-effect-free Start authority serves both /state and POST.  Pass
+        # the already-read back/audio snapshots so the UI status and rejection are
+        # derived from the same observation.
+        start_rejection = self._start_preflight_rejection(
+            audio=audio,
+            back_confirmation=back_confirmation,
         )
-        unified_ok = (
-            platform_ok and device_ready and audio_gate_ok and back_gate_ok
+        snapshot["start_authorized"] = start_rejection is None
+        snapshot["start_rejection_code"] = (
+            None if start_rejection is None else start_rejection.code
         )
-        if unified_ok:
-            unified_reason = None
-        elif not platform_ok:
-            unified_reason = snapshot.get("start_rejection") or "start is not authorized"
-        elif not device_ready:
-            unified_reason = "camera/model preflight is not ready"
-        elif not audio_gate_ok:
-            unified_reason = audio_reason
-        else:
-            unified_reason = "confirm the patient's back before starting"
-        snapshot["start_authorized"] = unified_ok
-        snapshot["start_rejection"] = unified_reason
+        snapshot["start_rejection"] = (
+            None if start_rejection is None else start_rejection.message
+        )
         return snapshot
 
 
@@ -5956,7 +6559,8 @@ def make_handler(col: Collector, page: bytes):
                                "application/json", status=400, no_store=True)
                     return
                 action = body.get("action")
-                if action == "arm_disable":
+                normalized_action = _normalize_control_action(action)
+                if normalized_action == "arm_disable":
                     # E-STOP FAST PATH: the console disable MUST NOT queue behind an
                     # in-flight bring-up/preflight/readiness-wait that holds _control_lock.
                     # It bypasses _control_lock entirely and goes straight to the
@@ -5971,7 +6575,7 @@ def make_handler(col: Collector, page: bytes):
                         )
                         return
                     result = col.disable_controller()
-                elif action == "confirm_back":
+                elif normalized_action == "confirm_back":
                     if (
                         set(body) != {
                             "action", "preview_frame_index", "preview_frame_token",
@@ -6052,7 +6656,7 @@ details.engineering{margin-top:10px;background:#0c1115;border:1px solid var(--li
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
 </style></head><body><main class="shell">
 <header class="mast"><div><div class="eyebrow">LINBOX · LIVE CAPTURE</div><h1>Auscultation Capture</h1></div>
-<div class="scope"><strong>COMMISSIONING</strong><span>NOT TRAINING-READY</span></div></header>
+<div class="scope"><strong>CAPTURE MODE</strong><span>Checking authorization…</span></div></header>
 <section class="layout"><div class="stage"><div class="feed" id="feed"><canvas id="camera" role="img" aria-label="Live Orbbec camera preview">Live camera preview</canvas>
 <div class="feedhead"><span>Orbbec · Live tracking</span><span class="live" id="live"><i></i><b id="recword">Idle</b></span></div>
 <div class="feedfoot"><div id="statusbar">Connecting…</div><div class="telemetry"><span id="livefps">Live FPS —</span><span id="sessionframes">Session frames 0</span><span id="pointstat">Points 0 / 10</span></div></div></div>
@@ -6060,13 +6664,13 @@ details.engineering{margin-top:10px;background:#0c1115;border:1px solid var(--li
 <section class="capturestrip" id="capturestrip"><div class="capturetop"><span class="label">Capture</span><span class="pill" id="statepill">—</span></div><div class="capturemetrics">
 <div class="capturemetric"><span class="label">Duration</span><b id="elapsed">0.0 s</b></div><div class="capturemetric"><span class="label">Written</span><b id="framecount">0 frames</b></div><div class="capturemetric"><span class="label">Point</span><b id="attempt">—</b></div><div class="capturemetric"><span class="label">Storage</span><b id="storage">Estimating</b></div></div>
 <div class="capturefoot"><div><div class="keyline" id="capturehint">Start when ready; end to save and verify.</div><div class="sessionpath" id="sessionpath">No session</div></div><div class="sessionpath" id="videoresult">Verified on end</div></div></section>
-<details class="engineering"><summary>System details</summary><div class="telemetry"><span id="camstat">Camera —</span><span id="modelstat">Model —</span><span id="robotstat">Robot —</span><span id="handeyestat">Hand-eye —</span><span id="dropstat">Drops —</span></div><span class="label blockerhead">Training gates</span><ul class="blockers" id="blockers"><li>Loading…</li></ul></details></div>
+<details class="engineering"><summary>System details</summary><div class="telemetry"><span id="camstat">Camera —</span><span id="modelstat">Model —</span><span id="robotstat">Robot —</span><span id="handeyestat">Hand-eye —</span><span id="dropstat">Drops —</span></div><span class="label blockerhead">Start gate</span><ul class="blockers" id="blockers"><li>Loading…</li></ul></details></div>
 <aside class="rail"><section class="card railcard" id="taskcard"><div class="cardhead"><span class="label">Current point</span><span id="counter" class="label">—</span></div><div class="target" id="tname">—</div><div class="back" id="backgate">Waiting for back</div><div class="buttons backcontrol"><button class="wide" id="btnback">Confirm Back</button></div>
 <div class="taskpoints"><div class="cardhead"><span class="label">10 auscultation points</span><span id="pointslabel" class="label">0 / 10</span></div><div class="points" id="plist"></div></div><div class="keyline">Face away, stay alone in frame, then Confirm Back.</div></section>
 <section class="card railcard" id="sensorcard"><div class="sensorblock"><div class="cardhead"><span class="label">Lung audio</span><span class="pill" id="audiopill">—</span></div><div class="audio-row"><div class="audio-copy"><strong id="audiostatus">Checking input</strong><span id="audiodb">— dBFS</span></div><button class="listen" id="btnaudio">▶ Monitor</button></div><div class="audiolevel" aria-hidden="true"><i id="audiofill"></i></div><div class="keyline">Headphones required.</div></div>
 <div class="sensorblock"><div class="cardhead"><span class="label">Contact force</span><span class="pill" id="forcepill">—</span></div><div class="forcelevel" id="forcebar" role="progressbar" aria-label="Contact force level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-valuetext="Unavailable"><i id="forcefill"></i></div><div class="keyline">Physician reference only — never stops recording or the arm.</div></div></section>
 <section class="card railcard" id="controlcard"><div class="cardhead"><span class="label">Controls</span></div><div class="buttons">
-<div class="armctl" id="armctl" hidden><div class="armstat" id="armstat">Arm —</div><div class="buttons"><button class="wide" id="btnarm">⬆ Bring up arm</button><button class="wide estop" id="btnestop">■ Disable (E-stop)</button></div></div>
+<div class="armctl" id="armctl" hidden><div class="armstat" id="armstat">Arm —</div><div class="buttons"><button class="wide" id="btnarm">⬆ Bring up arm</button><button class="wide estop" id="btnestop">■ Disable (E-stop)</button></div><div class="armstat" id="safestopstat" style="margin-top:8px" hidden></div><div class="buttons" id="safestopctl" hidden><button class="wide" id="btnsafetest">▶ Safe-stop test (energize)</button><button id="btnsafepass" class="start">✓ Arm de-energized</button><button id="btnsafefail" class="end">✗ Still holding</button></div></div>
 <button class="start wide" id="btnstart">● Start</button><button class="end wide" id="btnend">■ End &amp; Verify</button>
 <button id="btnconfirm">✓ Confirm</button><button id="btnredo">↻ Redo</button><button id="btnprev">← Previous</button><button id="btnnext">Next →</button></div>
 </section></aside></section></main>
@@ -6081,14 +6685,14 @@ function fmtBytes(v){if(v==null||!Number.isFinite(Number(v)))return '—';let n=
 function fmtRemaining(v){if(v==null||!Number.isFinite(Number(v)))return 'Estimating';const seconds=Math.max(0,Number(v));if(seconds<120)return '~ '+Math.floor(seconds)+' s';if(seconds<7200)return '~ '+(seconds/60).toFixed(1)+' min';return '~ '+(seconds/3600).toFixed(1)+' hr'}
 const stateText={READY:'Ready',RECORDING:'Recording',FINALIZING:'Verifying',COMPLETE:'Complete',PREFLIGHT_FAILED:'Not ready',ERROR:'Error',ABORTED:'Stopped',DISABLED:'Off',WAITING:'Waiting'};
 const reasonText={NO_PERSON:'Waiting for person',AMBIGUOUS_PEOPLE:'One person only',PERSON_DETECTION_INVALID:'Person detector invalid',BACK_CONFIRMATION_REQUIRED:'Confirm patient back',BACK_CONFIRMATION_PENDING_FRAME:'Checking person',BACK_NOT_CONFIRMABLE:'Waiting for one person',PREVIEW_FRAME_NOT_BOUND:'Preview changed · confirm again',OPERATOR_CONFIRMED_BACK:'Back confirmed',CONFIRMATION_TARGET_LOST:'Person lost · confirm again',CONFIRMATION_OBSERVATION_STALE:'Person feed stale · confirm again',PERSON_OBSERVATION_STALE:'Waiting for current person',CONFIRMED_PERSON_CHANGED:'Person changed · confirm again',NON_MONOTONIC_PERSON_FRAME:'Person feed reset · confirm again',PERSON_GATE_STARTING:'Starting person detector',NO_BACK:'Waiting for back',MODEL_STARTING:'Starting model',TRACKING:'Tracking',REACQUIRING:'Reacquiring',INITIALIZING:'Initializing'};
-const blockerText={'physical audio-force sync calibration is missing':'Audio-force sync','Orbbec mode-bound hardware LED latency calibration is missing':'Camera latency','camera-to-robot hand-eye calibration and robot-base targets are missing':'Hand-eye calibration','confirmed direct motor-disable command is missing':'Motor stop','live robot/action, Hall force, and stethoscope audio identities are not commissioned':'Hardware identities'};
+const blockerText={'Orbbec mode-bound hardware LED latency calibration is missing':'Camera latency','camera-to-robot hand-eye calibration and robot-base targets are missing':'Hand-eye calibration','confirmed direct motor-disable command is missing':'Motor stop','live robot/action and stethoscope audio identities are not commissioned':'Hardware identities'};
 const ackText={'Diagnostic preflight ready':'Ready to start','Diagnostic recording started':'Recording started','End accepted; diagnostic recording is finalizing':'Ending · verifying','Diagnostic recording saved and verified (not training eligible)':'Saved · verified'};
 function shortText(v){return ackText[v]||reasonText[v]||stateText[v]||String(v||'—').replaceAll('_',' ')}
 function pointList(s){const root=$('plist');if(root.children.length!==s.n){root.textContent='';s.names.forEach((name,index)=>{const row=document.createElement('div');row.className='point';row.id='p'+index;const dot=document.createElement('i');const label=document.createElement('span');label.textContent=name;row.append(dot,label);root.append(row)})}s.names.forEach((_,index)=>{$('p'+index).className='point'+(s.completed.includes(index)?' done':index===s.idx?' active':'')})}
 function blockerList(items){const labels=(items.length?items:['None']).map(item=>blockerText[item]||item),key=JSON.stringify(labels);if(key===lastBlockersKey)return;lastBlockersKey=key;const root=$('blockers');root.textContent='';labels.forEach(label=>{const li=document.createElement('li');li.textContent=label;root.append(li)})}
 function syncBackButton(back=latest?.back_confirmation||{}){const button=$('btnback');button.disabled=busy||back.required!==true||back.confirmable!==true||back.active===true||!Number.isInteger(displayedPreviewFrameIndex)||typeof displayedPreviewFrameToken!=='string';button.textContent=back.confirmed?'Back Confirmed':back.active?'Checking…':'Confirm Back'}
-function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.state==='FINALIZING',back=s.back_confirmation||{},previewOnly=s.commissioning_preview_only===true,recordingControls=s.recording_controls_enabled!==false;
- if(previewOnly){document.querySelector('.scope strong').textContent='COMMISSIONING PREVIEW';document.querySelector('.scope span').textContent='Preview only · recording disabled';$('capturehint').textContent='Recording disabled. Verify live camera, points, and audio.'}
+function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.state==='FINALIZING',back=s.back_confirmation||{},previewOnly=s.commissioning_preview_only===true,productionCapture=s.capture_mode==='PRODUCTION_TELEOP_V4',recordingControls=s.recording_controls_enabled!==false,scopeTitle=document.querySelector('.scope strong'),scopeNote=document.querySelector('.scope span');
+ if(previewOnly){scopeTitle.textContent='COMMISSIONING PREVIEW';scopeNote.textContent='Preview only · recording disabled';$('capturehint').textContent='Recording disabled. Verify live camera, points, and audio.'}else if(productionCapture){scopeTitle.textContent='PRODUCTION CAPTURE';scopeNote.textContent='Raw session · promotion checked after End';$('capturehint').textContent='Start when ready; End seals the raw session for verification.'}else{scopeTitle.textContent='DIAGNOSTIC CAPTURE';scopeNote.textContent='Not training data';$('capturehint').textContent='Start when ready; End saves and verifies.'}
  $('statepill').textContent=stateText[s.state]||s.state;$('statepill').style.color=({READY:'var(--green)',RECORDING:'var(--red)',FINALIZING:'var(--amber)',COMPLETE:'var(--green)',PREFLIGHT_FAILED:'var(--red)',ERROR:'var(--red)',ABORTED:'var(--red)'})[s.state]||'var(--muted)';
  $('elapsed').textContent=Number(s.elapsed||0).toFixed(1)+' s';$('framecount').textContent=Number(s.session_recorded_frames||0)+' frames';$('attempt').textContent=(s.idx+1)+' / '+s.n+' · attempt '+s.attempt;$('sessionpath').textContent=s.session_dir||'No session';
  const storage=s.capture_storage;$('storage').textContent=storage?(fmtBytes(storage.usable_bytes_before_safety_reserve)+' · '+fmtRemaining(storage.estimated_remaining_seconds)):'Estimating';
@@ -6096,7 +6700,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point?(s.point+(s.site?' · '+String(s.site).replace(/^auscultate the /,''):'')):'—';
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled';$('armstat').textContent='Arm '+(dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st);$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||(st==='ready'&&!dis);$('btnestop').disabled=st==='idle';}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;$('armstat').textContent=hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=false;$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'');$('safestopstat').className='armstat '+(sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
@@ -6104,7 +6708,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('btnstart').disabled=busy||s.start_authorized!==true;$('btnstart').title=s.start_authorized===true?'':(s.start_rejection||'');$('btnstart').textContent=previewOnly?'Recording disabled':(s.state==='COMPLETE'||s.state==='ABORTED'||s.state==='ERROR')?'● New capture':'● Start';$('btnend').disabled=busy||!recordingControls||!recording;
  syncBackButton(back);
  const canConfirm=!busy&&recording&&s.target_valid&&s.points_visible===s.n&&recordingControls;const canRedo=!busy&&recordingControls&&recording;$('btnconfirm').disabled=!canConfirm;$('btnredo').disabled=!canRedo;$('btnprev').disabled=busy||!recordingControls||!recording;$('btnnext').disabled=busy||!recordingControls||!recording;
- pointList(s);blockerList(s.training_blockers||[]);if(s.action_ack&&s.action_ack!==lastActionAck){action(shortText(s.action_ack),s.error?'bad':'good')}if(s.error){action(shortText(s.error),'bad')}lastActionAck=s.action_ack||null}
+ pointList(s);const gateReasons=[...(s.training_blockers||[])];if(s.start_authorized!==true&&s.start_rejection&&!gateReasons.includes(s.start_rejection)){gateReasons.unshift(s.start_rejection)}blockerList(gateReasons);if(s.action_ack&&s.action_ack!==lastActionAck){action(shortText(s.action_ack),s.error?'bad':'good')}if(s.error){action(shortText(s.error),'bad')}lastActionAck=s.action_ack||null}
 function schedulePoll(delay){if(pageStopped)return;if(pollTimer)clearTimeout(pollTimer);pollTimer=setTimeout(poll,delay)}
 async function poll(){pollTimer=null;if(pageStopped||pollInFlight)return;pollInFlight=true;try{const response=await fetch('/state',{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);const state=await response.json();const recovered=transportDown;transportDown=false;render(state);if(recovered&&!state.error&&!state.fatal_error)action(shortText(state.action_ack||state.tracking_reason||state.state),state.action_ack?'good':'')}catch(error){transportDown=true;action('State disconnected: '+error.message,'bad')}finally{pollInFlight=false;schedulePoll(document.hidden?1000:250)}}
 async function ctl(name){if(busy)return;busy=true;if(latest)render(latest);try{const payload={action:name};if(name==='confirm_back'){if(!Number.isInteger(displayedPreviewFrameIndex)||typeof displayedPreviewFrameToken!=='string')throw new Error('No displayed camera frame');payload.preview_frame_index=displayedPreviewFrameIndex;payload.preview_frame_token=displayedPreviewFrameToken}const response=await fetch('/control',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const result=await response.json();action(shortText(result.ack||result.message||('HTTP '+response.status)),result.ok?'good':'bad')}catch(error){action('Action failed: '+error.message,'bad')}finally{busy=false;await poll()}}
@@ -6122,6 +6726,9 @@ async function pumpAudio(){if(!listening)return;try{const query=new URLSearchPar
 async function toggleAudio(){if(listening){stopAudio();return}try{audioContext=audioContext||new AudioContext();await audioContext.resume();listening=true;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='■ Stop audio';$('btnaudio').className='listen on';pumpAudio()}catch(error){action('Browser audio unavailable: '+error.message,'bad');stopAudio()}}
 $('btnback').onclick=()=>ctl('confirm_back');$('btnstart').onclick=()=>ctl('start');$('btnend').onclick=()=>ctl('end');$('btnconfirm').onclick=()=>ctl('confirm');$('btnredo').onclick=()=>ctl('redo');$('btnprev').onclick=()=>ctl('prev');$('btnnext').onclick=()=>ctl('next');
 $('btnarm').onclick=()=>{if(confirm('Bring up the LEFT arm controller? The arm will energize and move.'))ctl('arm_bringup')};$('btnestop').onclick=()=>estop();
+$('btnsafetest').onclick=()=>{if(confirm('Start the SAFE-STOP TEST? The LEFT arm will ENERGIZE so you can command Disable and physically confirm it de-energizes. Stay at the arm.'))ctl('safe_stop_test')};
+$('btnsafepass').onclick=()=>{if(confirm('Confirm the arm PHYSICALLY went limp / lost torque after Disable? This UNLOCKS real bring-up for this session.'))ctl('safe_stop_pass')};
+$('btnsafefail').onclick=()=>ctl('safe_stop_fail');
 $('btnaudio').onclick=toggleAudio;
 addEventListener('keydown',event=>{if(event.repeat||event.metaKey||event.ctrlKey||event.altKey)return;const key=event.key;if((key==='b'||key==='B')&&!$('btnback').disabled)ctl('confirm_back');else if(key===' '){event.preventDefault();if(!$('btnconfirm').disabled)ctl('confirm')}else if((key==='r'||key==='R')&&!$('btnredo').disabled)ctl('redo');else if(key==='ArrowLeft'&&!$('btnprev').disabled)ctl('prev');else if(key==='ArrowRight'&&!$('btnnext').disabled)ctl('next');else if(key==='s'||key==='S'){if(latest?.state==='RECORDING')ctl('end');else if(!$('btnstart').disabled)ctl('start')}else if(key==='f'||key==='F')$('feed').requestFullscreen?.()});
 addEventListener('visibilitychange',()=>{if(document.hidden){if(listening)stopAudio();return}schedulePoll(0);scheduleCamera(0)});
@@ -6206,10 +6813,28 @@ def build_parser():
                          "(can1 leader -> can3 follower); enables the console Bring-up-arm button")
     ap.add_argument("--controller-disable-cmd", default=None,
                     help="shell command that energy-isolates the left arm (direct-disable)")
+    ap.add_argument(
+        "--safe-stop-disable-cmd", default=None,
+        help="candidate CAN disable command for the operator-witnessed safe-stop HIL "
+             "(design (a)); the operator validates it de-energizes the arm before real "
+             "bring-up is authorized. Used with --controller-launch-release in real mode.",
+    )
     ap.add_argument("--controller-preflight-cmd", default=None,
                     help="optional shell command run synchronously BEFORE the controller "
                          "is launched (clear_faults + telemetry-socket dir); lets the "
                          "controller binary be launched directly for a sound exe attestation")
+    ap.add_argument(
+        "--controller-launch-release", default=None,
+        help="absolute completed dormant controller-launch sidecar release",
+    )
+    ap.add_argument(
+        "--controller-launch-trusted-root", default=None,
+        help="absolute immutable trusted root containing the dormant sidecar",
+    )
+    ap.add_argument(
+        "--controller-launch-contract-sha256", default=None,
+        help="independent SHA-256 pin for the dormant sidecar contract",
+    )
     ap.add_argument("--controller-readiness-timeout-s", type=float, default=15.0)
     ap.add_argument("--max-tracking-age-ms", type=float, default=250.0)
     ap.add_argument("--capture-queue-frames", type=int, default=8)
@@ -6306,9 +6931,66 @@ def _production_capture_mode(args):
     }
 
 
+def _load_dormant_controller_launch(args, *, production_runtime, loader=None):
+    """Load display-only sidecar metadata before any Collector/hardware object.
+
+    This function returns a verified dormant activation object.  It never
+    constructs a launcher or grants arm authority; fake and preview modes are
+    explicitly forbidden from carrying a production controller identity.
+    """
+
+    fields = (
+        args.controller_launch_release,
+        args.controller_launch_trusted_root,
+        args.controller_launch_contract_sha256,
+    )
+    count = sum(value not in {None, ""} for value in fields)
+    if count == 0:
+        return None
+    if count != len(fields):
+        raise ValueError(
+            "controller launch binding requires release, trusted root, and SHA-256"
+        )
+    if args.fake or args.commissioning_preview_only or production_runtime is None:
+        raise ValueError(
+            "controller launch sidecar is allowed only in real production mode"
+        )
+    if loader is None:
+        from ausc.perception.robot.controller_launch_activation import (
+            ControllerLaunchActivationError,
+            load_controller_launch_activation,
+        )
+
+        def checked_loader(*loader_args, **loader_kwargs):
+            try:
+                return load_controller_launch_activation(
+                    *loader_args, **loader_kwargs,
+                )
+            except ControllerLaunchActivationError as exc:
+                raise ValueError(
+                    "controller launch activation rejected: %s" % exc
+                ) from exc
+
+        loader = checked_loader
+    return loader(
+        args.controller_launch_release,
+        trusted_root=args.controller_launch_trusted_root,
+        expected_contract_sha256=args.controller_launch_contract_sha256,
+        openarm_pair=production_runtime.openarm_pair,
+    )
+
+
 def main(argv=None):
     parser = build_parser()
     a = parser.parse_args(argv)
+    if not a.fake and any((
+        a.teleop_launch_cmd,
+        a.controller_disable_cmd,
+        a.controller_preflight_cmd,
+    )):
+        parser.error(
+            "raw controller command flags are forbidden in real mode"
+        )
     if a.commissioning_preview_only and a.fake:
         parser.error(
             "--commissioning-preview-only requires real hardware; "
@@ -6392,34 +7074,9 @@ def main(argv=None):
             "--production-teleop requires a real production activation and is "
             "incompatible with --fake / --commissioning-preview-only"
         )
-    if not a.fake and not a.commissioning_preview_only:
-        force_fields = {
-            "--hall-calibration": a.hall_calibration,
-            "--hall-calibration-sha256": a.hall_calibration_sha256,
-            "--hall-port": a.hall_port,
-            "--hall-expected-usb-vid": a.hall_expected_usb_vid,
-            "--hall-expected-usb-pid": a.hall_expected_usb_pid,
-            "--hall-expected-usb-serial": a.hall_expected_usb_serial,
-            "--sync-calibration": a.sync_calibration,
-            "--sync-calibration-sha256": a.sync_calibration_sha256,
-        }
-        missing_force = [
-            name for name, value in force_fields.items()
-            if value is None or value == ""
-        ]
-        if missing_force:
-            parser.error(
-                "real collection requires immutable Hall/sync inputs: "
-                + ", ".join(missing_force)
-            )
-        if not a.require_audio or a.audio_pick_channel is None:
-            parser.error(
-                "real Hall-force collection requires --require-audio and "
-                "--audio-pick-channel"
-            )
-    production_blockers = _resolve_production_blockers(a.production_blocker)
     targets = load_targets(a.targets)
     production_runtime = None
+    controller_launch = None
     commissioning_handeye = None
     if a.commissioning_preview_only and len(supplied_handeye) == len(handeye_fields):
         try:
@@ -6446,6 +7103,25 @@ def main(argv=None):
             )
         except (ProductionRuntimeActivationError, TypeError, ValueError) as exc:
             parser.error(f"production activation rejected: {exc}")
+
+    # Static production blockers may clear only after the trusted loader has
+    # returned the complete concrete runtime graph.  CLI values remain add-only;
+    # live controller, audio, camera, and worker readiness are checked again by
+    # Collector at every Start and therefore are not represented by a naked []
+    # here.
+    production_blockers = _resolve_production_blockers(
+        a.production_blocker,
+        production_runtime=production_runtime,
+    )
+
+    try:
+        controller_launch = _load_dormant_controller_launch(
+            a, production_runtime=production_runtime,
+        )
+    except (TypeError, ValueError) as exc:
+        if production_runtime is not None:
+            production_runtime.close()
+        parser.error(str(exc))
 
     session_root = a.out or os.path.join(ROOT, "data", "sessions")
     reconciled = reconcile_orphan_diagnostic_sessions(
@@ -6482,6 +7158,15 @@ def main(argv=None):
                     a.controller_preflight_cmd, label="--controller-preflight-cmd"
                 ),
             )
+    # Candidate CAN disable (design (a)) for the operator-witnessed safe-stop HIL. Parsed to
+    # an argv here; the trusted launcher/disable are constructed from the sealed activation
+    # only when the operator starts the supervised safe-stop test.
+    safe_stop_disable_command = None
+    if a.safe_stop_disable_cmd:
+        from ausc.perception.robot.controller_launch import parse_command
+        safe_stop_disable_command = parse_command(
+            a.safe_stop_disable_cmd, label="--safe-stop-disable-cmd",
+        )
     col = None
     server = None
     try:
@@ -6566,6 +7251,21 @@ def main(argv=None):
                 else getattr(production_runtime, "motor_disable_verifier", None)
             ),
             controller_readiness_timeout_s=a.controller_readiness_timeout_s,
+            controller_launch_release_id=(
+                None if controller_launch is None else controller_launch.release_id
+            ),
+            controller_launch_contract_sha256=(
+                None
+                if controller_launch is None
+                else controller_launch.contract_sha256
+            ),
+            controller_open_target_status=(
+                None
+                if controller_launch is None
+                else controller_launch.open_target_status
+            ),
+            controller_launch_activation=controller_launch,
+            safe_stop_disable_command=safe_stop_disable_command,
             robot_mask_provider=(
                 None
                 if production_runtime is None
