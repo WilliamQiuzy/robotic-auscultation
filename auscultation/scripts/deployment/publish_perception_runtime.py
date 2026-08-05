@@ -27,7 +27,8 @@ import perception_environment_manifest as environment_manifest
 
 
 RUNTIME_MANIFEST_NAME = "PERCEPTION_RUNTIME.json"
-RUNTIME_MANIFEST_SCHEMA = "wam_perception_runtime_v4"
+RUNTIME_MANIFEST_SCHEMA = "wam_perception_runtime_v5"
+V4_RUNTIME_MANIFEST_SCHEMA = "wam_perception_runtime_v4"
 V3_RUNTIME_MANIFEST_SCHEMA = "wam_perception_runtime_v3"
 LEGACY_RUNTIME_MANIFEST_SCHEMA = "wam_perception_runtime_v2"
 ENVIRONMENT_LOCK_SCHEMA = "wam_perception_environment_lock_v2"
@@ -62,7 +63,7 @@ V3_REQUIRED_HARDENED_CODE_FILES = frozenset({
     "auscultation/scripts/perception_worker.py",
     "auscultation/scripts/posterior_gate.py",
 })
-REQUIRED_HARDENED_CODE_FILES = frozenset({
+V4_REQUIRED_HARDENED_CODE_FILES = frozenset({
     *V3_REQUIRED_HARDENED_CODE_FILES,
     "auscultation/ausc/realtime_q.py",
     "auscultation/ausc/perception/depth_codec.py",
@@ -92,6 +93,14 @@ REQUIRED_HARDENED_CODE_FILES = frozenset({
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py",
     "auscultation/scripts/perception/activate_handeye.py",
 })
+REQUIRED_HARDENED_CODE_FILES = frozenset({
+    *V4_REQUIRED_HARDENED_CODE_FILES,
+    "auscultation/ausc/perception/robot/controller_launch_activation.py",
+    "auscultation/scripts/deployment/artifact_contract.py",
+    "auscultation/scripts/deployment/collection_service_unit.py",
+    "auscultation/scripts/deployment/perception_environment_manifest.py",
+    "auscultation/scripts/deployment/verify_perception_environment.py",
+})
 # Runtime schema v3 made a stronger claim than file integrity alone: YOLO is
 # not an orientation authority, and Start requires an operator confirmation
 # bound to a displayed frame.  Pin the two files that implement that claim so
@@ -118,8 +127,8 @@ REQUIRED_BACK_GATE_SEMANTIC_CODE_SHA256 = (
 
 # This independently reviewed v4 mapping deliberately does not replace the
 # frozen v3 mapping above.  A v3 rollback therefore retains its original
-# 14-file claim, while a new v4 build must match the complete production chain.
-REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = {
+# 14-file claim, while a v4 rollback must match its original 41-file contract.
+V4_REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/audio/audio_stream.py": "91781c9564f41545ea3330dc38645fffe055961140bea412202cd933d290402a",
     "auscultation/ausc/models/iuv_model.py": "2bd72dc0a33e06e29c88e64480ad20b5586e361a8d7d6958e66fd08aea127cbf",
     "auscultation/ausc/perception/camera_stream.py": "9d62914b30ee6fd114763d31bf167afedc28ecc36b87943e3f55b004c4eaa34f",
@@ -161,6 +170,73 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = {
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",
     "auscultation/scripts/perception_worker.py": "d138b4cb323a6ab61db33649e6cb99e916a874d2d5946a088d8eb37f19bdfc20",
     "auscultation/scripts/posterior_gate.py": "47693f1605f041471f0159d70ba73269f845c7b3774dcec24c129cbe129f50c4",
+}
+# Backwards-compatible public name for consumers that inspect the frozen v4
+# production-chain contract.  Runtime v5 uses the narrower raw-collection
+# contract below and does not reinterpret this mapping as arm authorization.
+REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = (
+    V4_REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256
+)
+
+# Runtime v5 pins the complete raw collection runtime plus the dormant
+# controller-launch identity loader and its non-circular verification trust
+# closure.  These bytes authorize neither live arm control nor training
+# promotion; both remain independently fail-closed.  This publisher cannot
+# safely pin its own bytes, so it remains the externally reviewed and pinned
+# build/verify trust root rather than pretending a circular self-hash is proof.
+REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
+    "auscultation/ausc/audio/audio_stream.py": "91781c9564f41545ea3330dc38645fffe055961140bea412202cd933d290402a",
+    "auscultation/ausc/models/iuv_model.py": "2bd72dc0a33e06e29c88e64480ad20b5586e361a8d7d6958e66fd08aea127cbf",
+    "auscultation/ausc/perception/camera_stream.py": "9d62914b30ee6fd114763d31bf167afedc28ecc36b87943e3f55b004c4eaa34f",
+    "auscultation/ausc/perception/depth_codec.py": "7ff7ff8b2746a5913cf14e3ba89b908c3068ede9a5572c9427358c39fd820ead",
+    "auscultation/ausc/perception/production_runtime_activation.py": "f6dcc7206cf711eebac1ab478fd01b3f2e8bbfa7b7c41a030bfa542112df3c30",
+    "auscultation/ausc/perception/robot/camera_exposure_evidence.py": "ba07a9c3c90d7799ffc327adcd29b3228a842e73c12ceb94554e3de36fd27b34",
+    "auscultation/ausc/perception/robot/controller_launch.py": "7f9afd33df93f3ac692933e1cd05c9d5115e064390330abee86a7a6a9e7fa771",
+    "auscultation/ausc/perception/robot/controller_launch_activation.py": "c0e927d696d11e4376ae2e2b99d64f7c79c470b92e4c545609ed6257ccfbde08",
+    "auscultation/ausc/perception/robot/frame_evidence_bundle.py": "53c3c7f1e7b9a2543f9836e2b16a3d420fc19075081c86d33091959b318c9dac",
+    "auscultation/ausc/perception/robot/openarm_pair_activation.py": "52ac7798fd9cd800118d94bed4a4efd08b5fdd651d8d701095058e0aeeb5f1c9",
+    "auscultation/ausc/perception/robot/robot_capture_coordinator.py": "c89e289830a510fcdc82cd18f0a6aafeea8648114856822dc4fa39ec72242444",
+    "auscultation/ausc/perception/robot/robot_mask_provider.py": "a6dd78c4fe7203fc035fc4123a1f00efbc53a888195323898cf6a257c86219e2",
+    "auscultation/ausc/perception/robot/robot_session_capture.py": "8b6613a3341b3e5b404393701d4828ba1d1cbb3aebd3df5e9fe42916e37f3f2c",
+    "auscultation/ausc/perception/robot/robot_socket_receiver.py": "75ab952d59a5174a78baf10f7b5d79fda508afabaa77a48eb6ffa5fb472a26d9",
+    "auscultation/ausc/perception/robot/robot_state_stream.py": "2a39a6befcc23b64708db0b2454e7526e8e7b8a815c7023f41702e19b0c0a8e7",
+    "auscultation/ausc/perception/robot/trusted_controller_companion.py": "03dd4e44a860b9414ac7f7d1234b61e5be670c799f70a27bfe0ca30e69b73009",
+    "auscultation/ausc/perception/tracking/__init__.py": "e135d34389019e483400c79b001d9b9e84d13a0cacebe1585174cad2048bccd6",
+    "auscultation/ausc/perception/tracking/back_mask_packet.py": "4aba720dcefa8f80c6baf3558e58e4d0ee34b7727ee385fca1344d97d26df4e0",
+    "auscultation/ausc/perception/tracking/depth_noise_profile.py": "eebb5d23d8033594e3fc580f00bddf4e4a32b0d536ae9a8b7a578b433ce264fc",
+    "auscultation/ausc/perception/tracking/detector.py": "834d2a65fa5236a7240731bb594c521eb76057e103012f46925ec696f363606e",
+    "auscultation/ausc/perception/tracking/experimental_visibility_geometry.py": "ebe51a692a2e871e47415cb6dbecbb96d14bb7f410deceb2d8b1e485c4d52e33",
+    "auscultation/ausc/perception/tracking/geometry.py": "04ef04d473b0d5348cb4bacf9b6168053bd0ac969a8868eb3b845036d6603696",
+    "auscultation/ausc/perception/tracking/geometry_channel_packet.py": "67f184e1bb3be1d8d7a7ef83e5a9b078745ddbe65d5432a2588b4d2b263695bc",
+    "auscultation/ausc/perception/tracking/model_tracker.py": "4d9172b0bfe9e76695c31a1542b42a6bc92d23fd145a0bbeadbf755ca1c5f3af",
+    "auscultation/ausc/perception/tracking/occlusion_runtime.py": "b67f61972344842375ec085c02527e3811f3441ac8bce1108fbddedd6591e392",
+    "auscultation/ausc/perception/tracking/patient_frame_evidence.py": "c3958cf6a5aa5b8d6f856900598b2c402101c78be866e4393db75743fa0f7639",
+    "auscultation/ausc/perception/tracking/patient_pose_provider.py": "a4c0da10e99b91c3e0ba414ab5eaf1469bc77becf167fe2c65f23fdcea8ff589",
+    "auscultation/ausc/perception/tracking/posterior_back_mask_provider.py": "7f97668e9fff41ca3eab945a5133f62beacd9535cd23010dde7bc75fa5d941f3",
+    "auscultation/ausc/perception/tracking/production_evidence_capture.py": "8421cc914c500b621d1c4f0f28582891cfd1f3f4fda8f28db145d4d1c235df84",
+    "auscultation/ausc/perception/tracking/production_geometry_gate.py": "48111d9c1253d192370aa2080042bc159f58ef9a55d0724f39e0a8bd046cdc85",
+    "auscultation/ausc/perception/tracking/runtime.py": "47f35928e9f94691ec5ea35ba8f73c1957dc5fed637be729ca68d247dfb81187",
+    "auscultation/ausc/realtime_q.py": "b9a7640c8a7efa8f3a6b13f5a3ee6cf858c3adc590f2fd3ac6beba84a55c3067",
+    "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
+    "auscultation/mechanical_sensor/force_feedback/force_capture.py": "b0adb862198587ba6a294801ad4800d41360b751b9e30cf7f087526464cb39e2",
+    "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
+    "auscultation/scripts/collect_server.py": "20cb8429674f82296cd0475b7df6b6409f4c9b65b3ddffd9ac78902f11331763",
+    "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
+    "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
+    "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",
+    "auscultation/scripts/deployment/collection_service_unit.py": "d595832d1b80fb228616ea8b024347bd067d3dfe3af1c5ce70b3e526f9b0b2fb",
+    "auscultation/scripts/deployment/perception_environment_manifest.py": "dc526e1190502a38ebd3015b246e12b9e3640a7c2fc2861c8456b9c3f870ec6b",
+    "auscultation/scripts/deployment/verify_perception_environment.py": "cae1a043fcdafc5252a2f476791bdabb87c6f7e19affb228b3fcd22e4f82bf97",
+    "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",
+    "auscultation/scripts/perception_capture.py": "4d437bb7428271cc857141ae5d6836d939b803b2720e3d0ffb1df5d0859fd386",
+    "auscultation/scripts/perception_worker.py": "d138b4cb323a6ab61db33649e6cb99e916a874d2d5946a088d8eb37f19bdfc20",
+    "auscultation/scripts/posterior_gate.py": "47693f1605f041471f0159d70ba73269f845c7b3774dcec24c129cbe129f50c4",
+}
+
+RUNTIME_CAPABILITIES = {
+    "arm_control_authority": False,
+    "controller_launch_state": "DORMANT_HIL_PENDING",
+    "training_promotion": "NOT_ACTIVATED",
 }
 APPROVED_LEGACY_V2_ROLLBACKS = {
     "perception_runtime-33641f649a1fd658101e": {
@@ -1041,7 +1117,13 @@ def _verify_hardened_code_manifest(
 ) -> dict[str, str]:
     if runtime_schema == RUNTIME_MANIFEST_SCHEMA:
         required_files = REQUIRED_HARDENED_CODE_FILES
-        semantic_sha256 = REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256
+        semantic_sha256 = REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256
+        semantic_label = (
+            "raw collection runtime semantic code does not match runtime schema v5"
+        )
+    elif runtime_schema == V4_RUNTIME_MANIFEST_SCHEMA:
+        required_files = V4_REQUIRED_HARDENED_CODE_FILES
+        semantic_sha256 = V4_REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256
         semantic_label = "production chain semantic code does not match runtime schema v4"
     elif runtime_schema == V3_RUNTIME_MANIFEST_SCHEMA:
         required_files = V3_REQUIRED_HARDENED_CODE_FILES
@@ -1053,9 +1135,11 @@ def _verify_hardened_code_manifest(
         semantic_label = ""
     else:
         raise PerceptionRuntimeError("hardened code runtime schema is unsupported")
-    if runtime_schema == RUNTIME_MANIFEST_SCHEMA and set(semantic_sha256) != required_files:
+    if runtime_schema in {
+        RUNTIME_MANIFEST_SCHEMA, V4_RUNTIME_MANIFEST_SCHEMA,
+    } and set(semantic_sha256) != required_files:
         raise PerceptionRuntimeError(
-            "runtime schema v4 production semantic pin set is incomplete"
+            "runtime semantic pin set is incomplete for %s" % runtime_schema
         )
     payload = envelope.get("payload")
     rows = payload.get("files") if isinstance(payload, Mapping) else None
@@ -1111,6 +1195,7 @@ def _runtime_manifest(
 ) -> dict:
     return {
         "schema": RUNTIME_MANIFEST_SCHEMA,
+        "capabilities": dict(RUNTIME_CAPABILITIES),
         "model": {
             "architecture": "NormalsDetector",
             "checkpoint_path": CHECKPOINT_PATH,
@@ -1180,17 +1265,26 @@ def verify_perception_runtime_release(release_dir: Union[str, Path]) -> dict:
     manifest, _raw = _load_canonical_object(
         release / RUNTIME_MANIFEST_NAME, "perception runtime manifest",
     )
-    _exact_keys(manifest, {
-        "schema", "model", "posterior_gate", "dino", "code", "environment",
-        "entrypoint", "runtime",
-    }, "perception runtime manifest")
-    runtime_schema = manifest["schema"]
+    runtime_schema = manifest.get("schema")
     if runtime_schema not in {
         RUNTIME_MANIFEST_SCHEMA,
+        V4_RUNTIME_MANIFEST_SCHEMA,
         V3_RUNTIME_MANIFEST_SCHEMA,
         LEGACY_RUNTIME_MANIFEST_SCHEMA,
     }:
         raise PerceptionRuntimeError("perception runtime manifest schema is invalid")
+    expected_manifest_keys = {
+        "schema", "model", "posterior_gate", "dino", "code", "environment",
+        "entrypoint", "runtime",
+    }
+    if runtime_schema == RUNTIME_MANIFEST_SCHEMA:
+        expected_manifest_keys.add("capabilities")
+    _exact_keys(manifest, expected_manifest_keys, "perception runtime manifest")
+    if (
+        runtime_schema == RUNTIME_MANIFEST_SCHEMA
+        and manifest["capabilities"] != RUNTIME_CAPABILITIES
+    ):
+        raise PerceptionRuntimeError("runtime capability boundary is invalid")
     legacy_approval = None
     if runtime_schema == LEGACY_RUNTIME_MANIFEST_SCHEMA:
         legacy_approval = APPROVED_LEGACY_V2_ROLLBACKS.get(envelope["release_id"])
@@ -1225,7 +1319,11 @@ def verify_perception_runtime_release(release_dir: Union[str, Path]) -> dict:
     posterior_gate = manifest["posterior_gate"]
     if not isinstance(posterior_gate, dict):
         raise PerceptionRuntimeError("posterior gate identity is invalid")
-    if runtime_schema in {RUNTIME_MANIFEST_SCHEMA, V3_RUNTIME_MANIFEST_SCHEMA}:
+    if runtime_schema in {
+        RUNTIME_MANIFEST_SCHEMA,
+        V4_RUNTIME_MANIFEST_SCHEMA,
+        V3_RUNTIME_MANIFEST_SCHEMA,
+    }:
         expected_posterior_gate = {
             "architecture": "YOLO11x-pose",
             "back_confirmation": "operator_required",
