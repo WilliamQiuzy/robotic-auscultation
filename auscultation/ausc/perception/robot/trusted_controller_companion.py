@@ -13,8 +13,8 @@ is that launcher.  It owns exactly one controller lifecycle:
   5. wait until the receiver reports READY with preflight_ready True -- i.e. every
      joint's per-motor RX/liveness, command-response and trajectory authenticity
      the receiver validates has passed;
-  6. and on ANY failure -- bring-up, telemetry fault, force-unsafe, collector
-     crash, or shutdown -- invoke the confirmed direct-disable, then stop the
+  6. and on any controller/runtime safety fault, collector crash, operator stop,
+     or shutdown -- invoke the confirmed direct-disable, then stop the
      receiver and terminate the controller, energy-isolation first.
 
 It never relaxes the robot gate to make Start green, and it is the single owner of
@@ -99,6 +99,54 @@ def _disable_command_succeeded(result: object) -> bool:
     if command_succeeded is not None:
         return bool(command_succeeded)
     return bool(result)
+
+
+def execute_independent_stop(
+    *,
+    direct_disable: Callable[[str], object],
+    verify_motor_disable: Optional[Callable[[], bool]],
+    reason: str,
+) -> DisableOutcome:
+    """Issue a direct motor-disable and independently verify torque-off.
+
+    This helper owns no controller process or receiver, so it is safe to use for
+    an authorized idle-page stop where no ``TrustedControllerCompanion`` exists.
+    A successful command is reported honestly as unverified unless the independent
+    verifier returns the literal boolean ``True``.
+    """
+
+    reason = str(reason)
+    command_succeeded = False
+    motor_verified = False
+    raw_outcome = "unknown"
+    try:
+        result = direct_disable(reason)
+        command_succeeded = _disable_command_succeeded(result)
+        raw_outcome = str(
+            getattr(result, "outcome", result) or "disable_requested"
+        )
+    except BaseException as exc:  # noqa: BLE001 - stop must return honest evidence
+        raw_outcome = f"direct_disable_error: {type(exc).__name__}: {exc}"
+    else:
+        if command_succeeded and verify_motor_disable is not None:
+            try:
+                motor_verified = verify_motor_disable() is True
+            except BaseException:  # noqa: BLE001 - unverified, never isolated
+                motor_verified = False
+
+    energy_isolated = motor_verified is True
+    summary = (
+        "energy_isolated" if energy_isolated
+        else "disable_command_succeeded_motor_unverified"
+        if command_succeeded else raw_outcome
+    )
+    return DisableOutcome(
+        reason=reason,
+        outcome=summary,
+        command_succeeded=command_succeeded,
+        motor_verified=motor_verified,
+        energy_isolated=energy_isolated,
+    )
 
 
 def _default_attest_controller(pid: int, expected_uid: int) -> object:
@@ -227,10 +275,26 @@ class TrustedControllerCompanion:
                     controller.terminate()
                 except Exception:  # noqa: BLE001 - best-effort teardown
                     pass
-                try:
-                    self._direct_disable("late controller terminated during E-stop")
-                except BaseException:  # noqa: BLE001 - disable must never mask itself
-                    pass
+                # A disable that raced *before* launch cannot prove this newly launched
+                # process left the motors off.  Serialize with the ordinary stop path,
+                # issue a fresh disable after terminating the late controller, and make
+                # this final command carry its own independent torque-off evidence.  Do
+                # not retain an older ``energy_isolated=True`` outcome for a command that
+                # preceded the late launch.
+                with self._disable_lock:
+                    self._disable_outcome = execute_independent_stop(
+                        direct_disable=self._direct_disable,
+                        verify_motor_disable=self._verify_motor_disable,
+                        reason="late controller terminated during E-stop",
+                    )
+                    verifier_configured = self._verify_motor_disable is not None
+                    self._disabled = bool(
+                        self._disable_outcome.command_succeeded
+                        and (
+                            self._disable_outcome.energy_isolated
+                            or not verifier_configured
+                        )
+                    )
                 self._state = "faulted"
                 raise CompanionFault(
                     "companion was disabled during launch; controller terminated and re-disabled"
@@ -320,7 +384,11 @@ class TrustedControllerCompanion:
         return health
 
     def report_external_fault(self, reason: str) -> None:
-        """A force-unsafe / collector-crash signal from outside; disable now."""
+        """A collector/runtime safety fault from outside; disable immediately.
+
+        Physician-observed force is advisory and must not call this safety-fault
+        path merely because it crosses a force-display threshold.
+        """
         detail = f"external safety fault: {reason}"
         self._fault_disable(detail)
         raise CompanionFault(detail)
@@ -367,36 +435,13 @@ class TrustedControllerCompanion:
             # Already SUCCESSFULLY disabled -> idempotent no-op (no double-disable).
             self._state = "faulted"
             return self._disable_outcome
-        command_succeeded = False
-        motor_verified = False
-        outcome = "unknown"
-        try:
-            result = self._direct_disable(reason)
-            command_succeeded = _disable_command_succeeded(result)
-            outcome = str(getattr(result, "outcome", result) or "disable_requested")
-        except BaseException as exc:  # noqa: BLE001 - disable must never mask itself
-            outcome = f"direct_disable_error: {type(exc).__name__}: {exc}"
-        else:
-            # Independent readback while telemetry is still live.  Absent a verifier
-            # (or if it raises/returns False), isolation is not claimed.
-            if command_succeeded and self._verify_motor_disable is not None:
-                try:
-                    motor_verified = bool(self._verify_motor_disable())
-                except BaseException:  # noqa: BLE001 - unverified, not isolated
-                    motor_verified = False
-        energy_isolated = bool(motor_verified)
-        summary = (
-            "energy_isolated" if energy_isolated
-            else "disable_command_succeeded_motor_unverified"
-            if command_succeeded else outcome
-        )
-        self._disable_outcome = DisableOutcome(
+        self._disable_outcome = execute_independent_stop(
+            direct_disable=self._direct_disable,
+            verify_motor_disable=self._verify_motor_disable,
             reason=reason,
-            outcome=summary,
-            command_succeeded=command_succeeded,
-            motor_verified=motor_verified,
-            energy_isolated=energy_isolated,
         )
+        command_succeeded = self._disable_outcome.command_succeeded
+        energy_isolated = self._disable_outcome.energy_isolated
         # Mark disabled (stop retries + let the arm be moved on from) ONLY when the arm is
         # confirmed SAFE -- not merely when the disable COMMAND was accepted:
         #   * a FAILED command stays retryable (never latch a live arm as "disabled");
@@ -429,4 +474,5 @@ __all__ = [
     "LaunchedController",
     "ReceiverCoordinator",
     "TrustedControllerCompanion",
+    "execute_independent_stop",
 ]

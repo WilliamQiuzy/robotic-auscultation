@@ -14,6 +14,7 @@ from typing import List, Optional
 
 import pytest
 
+from ausc.perception.robot import trusted_controller_companion as companion_module
 from ausc.perception.robot.trusted_controller_companion import (
     CompanionError,
     CompanionFault,
@@ -131,6 +132,65 @@ class _FakeClock:
 
 # --------------------------------------------------------------------------- #
 
+
+def test_independent_stop_runs_command_then_explicit_motor_verifier():
+    events = []
+
+    def disable(reason):
+        events.append(("disable", reason))
+        return "disable_sent"
+
+    def verify():
+        events.append(("verify", None))
+        return True
+
+    outcome = companion_module.execute_independent_stop(
+        direct_disable=disable,
+        verify_motor_disable=verify,
+        reason="idle_operator_stop",
+    )
+
+    assert events == [
+        ("disable", "idle_operator_stop"),
+        ("verify", None),
+    ]
+    assert outcome.command_succeeded is True
+    assert outcome.motor_verified is True
+    assert outcome.energy_isolated is True
+    assert outcome.outcome == "energy_isolated"
+
+
+def test_independent_stop_requires_literal_true_to_claim_energy_isolated():
+    outcome = companion_module.execute_independent_stop(
+        direct_disable=lambda _reason: "disable_sent",
+        verify_motor_disable=lambda: "truthy but not an explicit pass",
+        reason="idle_operator_stop",
+    )
+
+    assert outcome.command_succeeded is True
+    assert outcome.motor_verified is False
+    assert outcome.energy_isolated is False
+    assert outcome.outcome == "disable_command_succeeded_motor_unverified"
+
+
+def test_independent_stop_does_not_verify_after_disable_command_failure():
+    verify_calls = []
+
+    def failing_disable(_reason):
+        raise RuntimeError("disable transport failed")
+
+    outcome = companion_module.execute_independent_stop(
+        direct_disable=failing_disable,
+        verify_motor_disable=lambda: verify_calls.append("verify") or True,
+        reason="idle_operator_stop",
+    )
+
+    assert verify_calls == []
+    assert outcome.command_succeeded is False
+    assert outcome.motor_verified is False
+    assert outcome.energy_isolated is False
+    assert "direct_disable_error" in outcome.outcome
+
 def test_bring_up_reaches_ready_without_disabling(tmp_path):
     coord = _FakeCoordinator([_Health("WARMING"), _Health("WARMING"), _Health("READY", True)])
     companion, controller, disabler = _companion(coord)
@@ -219,12 +279,12 @@ def test_controller_exit_during_poll_disables():
     assert companion.state == "faulted"
 
 
-def test_external_fault_disables():
+def test_collector_runtime_fault_disables():
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
-    with pytest.raises(CompanionFault, match="force unsafe"):
-        companion.report_external_fault("force unsafe")
+    with pytest.raises(CompanionFault, match="collector loop crashed"):
+        companion.report_external_fault("collector loop crashed")
     assert disabler.calls and companion.disabled is True
 
 
@@ -332,6 +392,41 @@ def test_late_controller_during_stop_is_terminated_and_re_disabled():
         companion.bring_up()
     assert controller.terminated is True                        # process killed
     assert any("late controller" in reason for reason in disabler.calls)  # re-disable issued
+
+
+def test_late_controller_re_disable_is_independently_reverified():
+    coord = _FakeCoordinator([_Health("READY", True)])
+    controller = _FakeController()
+    events = []
+
+    def racing_launch():
+        companion._stop_requested = True
+        return controller
+
+    def disable(reason):
+        events.append(("disable", reason))
+        return "disable_sent"
+
+    def verify():
+        events.append(("verify", None))
+        return True
+
+    companion, _c, _d = _companion(
+        coord,
+        controller=controller,
+        launch_controller=racing_launch,
+        disabler=disable,
+        verify_motor_disable=verify,
+    )
+    with pytest.raises(CompanionFault, match="terminated and re-disabled"):
+        companion.bring_up()
+
+    assert controller.terminated is True
+    assert events == [
+        ("disable", "late controller terminated during E-stop"),
+        ("verify", None),
+    ]
+    assert companion.disable_outcome.energy_isolated is True
 
 
 def test_preflight_runs_synchronously_before_launch():

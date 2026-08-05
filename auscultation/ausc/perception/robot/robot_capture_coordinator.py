@@ -269,21 +269,30 @@ class ProductionRobotCaptureCoordinator:
         self._fault_reason = ""
         self._abort_callback_invoked = False
 
+        # The receiver is SINGLE-USE (its stop() permanently consumes it), but the
+        # coordinator outlives bring-up attempts. Keep the factory + construction
+        # arguments so ``renew_receiver`` can build a fresh receiver for each new
+        # bring-up (safe-stop test retries, and real bring-up after a safe-stop).
+        self._receiver_factory = receiver_factory
+        self._receiver_kwargs = dict(
+            socket_path=socket_path,
+            runtime_dir=runtime_dir,
+            controller_process_attestation=controller_process_attestation,
+            deferred_controller_attestation=deferred_controller_attestation,
+            process_inspector=process_inspector,
+            preflight_min_envelopes=preflight_min_envelopes,
+            preflight_duration_ns=preflight_duration_ns,
+        )
+        self._receiver = self._construct_receiver()
+
+    def _construct_receiver(self) -> object:
+        """Build and validate one fresh single-use receiver from the stored args."""
+        contract = self.contract
         try:
-            receiver = receiver_factory(
-                socket_path=socket_path,
+            receiver = self._receiver_factory(
                 sink=self,
-                runtime_dir=runtime_dir,
-                controller_process_attestation=(
-                    controller_process_attestation
-                ),
-                deferred_controller_attestation=(
-                    deferred_controller_attestation
-                ),
-                process_inspector=process_inspector,
                 abort_callback=self._receiver_fault,
-                preflight_min_envelopes=preflight_min_envelopes,
-                preflight_duration_ns=preflight_duration_ns,
+                **self._receiver_kwargs,
             )
         except Exception as exc:
             raise RobotCaptureCoordinatorError(
@@ -311,7 +320,35 @@ class ProductionRobotCaptureCoordinator:
                 raise RobotCaptureCoordinatorError(
                     f"robot telemetry receiver is missing {method}()"
                 )
-        self._receiver = receiver
+        return receiver
+
+    def renew_receiver(self) -> None:
+        """Replace a consumed single-use receiver ahead of a fresh bring-up attempt.
+
+        ``RobotSocketReceiver.stop()`` permanently consumes the object, so a second
+        bring-up on the same coordinator would fail at ``prepare_receiver_socket``
+        ("cannot prepare a socket after reception has started"). Callers invoke this
+        only from the bring-up path AFTER the prior controller is confirmed
+        stopped/disabled; it refuses during an active capture. The preflight stream
+        and fault latches reset so stale ticks or a dead attempt's fault can never
+        satisfy or poison the new attempt.
+        """
+        with self._lock:
+            if self._active_capture is not None:
+                raise RobotCaptureCoordinatorError(
+                    "cannot renew the telemetry receiver during an active capture"
+                )
+            old = self._receiver
+            try:
+                old.stop()
+            except Exception:
+                pass
+            self._receiver_started = False
+            self._fault_reason = ""
+            self._abort_callback_invoked = False
+            self._preflight_stream = ExactControlStateStream(self.contract)
+            self._recent_wire.clear()
+            self._receiver = self._construct_receiver()
 
     @property
     def receiver(self) -> object:

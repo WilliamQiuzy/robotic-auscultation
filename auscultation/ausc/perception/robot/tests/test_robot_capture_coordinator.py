@@ -939,3 +939,39 @@ def test_finished_summary_hash_inventory_matches_promoted_bytes(
             "sha256": hashlib.sha256(data).hexdigest(),
             "size_bytes": len(data),
         }
+
+
+def test_renew_receiver_replaces_consumed_receiver_and_clears_fault(
+    tmp_path: Path,
+) -> None:
+    # P0 (safe-stop retry): the single-use receiver is consumed by any bring-up
+    # attempt; renew must build a FRESH receiver, stop the old one, and clear the
+    # dead attempt's fault so it cannot poison the next attempt.
+    coordinator, first, _clock = _new_coordinator(tmp_path, deferred=True)
+    coordinator.prepare_receiver_socket()
+    coordinator.attach_controller_process(object())
+    coordinator.start_receiver()
+    assert first.started is True
+
+    coordinator.renew_receiver()
+    second = coordinator.receiver
+    assert second is not first
+    assert first.stopped is True
+    assert coordinator.faulted is False
+
+    # The fresh receiver supports a full new two-phase bring-up.
+    coordinator.prepare_receiver_socket()
+    coordinator.attach_controller_process(object())
+    coordinator.start_receiver()
+    assert second.prepared is True and second.started is True
+
+
+def test_renew_receiver_clears_a_prior_fault(tmp_path: Path) -> None:
+    coordinator, first, _clock = _new_coordinator(tmp_path, deferred=True)
+    with pytest.raises(RobotCaptureCoordinatorError, match="attachment failed"):
+        coordinator.attach_controller_process(object())
+    assert coordinator.faulted
+
+    coordinator.renew_receiver()
+    assert coordinator.faulted is False
+    assert coordinator.receiver is not first

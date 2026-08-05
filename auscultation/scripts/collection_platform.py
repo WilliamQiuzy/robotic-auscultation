@@ -71,6 +71,7 @@ class CaptureMode(str, Enum):
 #: capture can never be produced by one of these; the contract rejects the pair
 #: before a session directory is ever allocated.
 _DIAGNOSTIC_WRITER_IDENTITIES = frozenset({"DiagnosticPerceptionCapture"})
+_PRODUCTION_CAPTURE_KINDS = frozenset({"production_teleop_v4"})
 
 
 class WriterIdentityMismatch(RuntimeError):
@@ -117,13 +118,14 @@ class CaptureContract:
 
     def __post_init__(self) -> None:
         kind = str(self.capture_kind)
-        is_production_kind = kind.startswith("production_")
+        claims_production_kind = kind.startswith("production_")
+        is_production_kind = kind in _PRODUCTION_CAPTURE_KINDS
         if self.mode is CaptureMode.PREVIEW_ONLY:
             if self.training_intent:
                 raise ValueError(
                     "preview-only capture can never carry training intent"
                 )
-            if is_production_kind:
+            if claims_production_kind:
                 raise ValueError(
                     "preview-only capture cannot claim a production capture_kind"
                 )
@@ -132,7 +134,7 @@ class CaptureContract:
                 raise ValueError(
                     "diagnostic capture can never carry training intent"
                 )
-            if is_production_kind:
+            if claims_production_kind:
                 raise ValueError(
                     "diagnostic capture cannot claim a production capture_kind"
                 )
@@ -143,7 +145,7 @@ class CaptureContract:
                 )
             if not is_production_kind:
                 raise ValueError(
-                    "production capture_kind must start with 'production_'"
+                    "production capture_kind must be exactly production_teleop_v4"
                 )
             if self.writer_identity in _DIAGNOSTIC_WRITER_IDENTITIES:
                 raise ValueError(

@@ -1029,6 +1029,11 @@ class StartPreflightRejection(NamedTuple):
     message: str
 
 
+_ARM_LIFECYCLE_ACTIONS = frozenset({
+    "arm_disable", "arm_bringup", "safe_stop_test", "safe_stop_pass", "safe_stop_fail",
+})
+
+
 def _normalize_control_action(action):
     return action.strip().lower() if isinstance(action, str) else ""
 
@@ -1301,6 +1306,9 @@ class Collector:
         # A bring-up runs OUTSIDE the lock (so a concurrent E-stop can interrupt it);
         # this guards against a second concurrent bring-up.
         self._controller_bringup_active = False
+        # P1: last arm-lifecycle attempt (bring-up / safe-stop / disable) result,
+        # persisted for /state so a transient HTTP error is never the only record.
+        self._controller_last_attempt = None
         # True from immediately before the trusted launcher is invoked until bring-up
         # has either committed READY or completed its late-launch stop fence. An E-stop
         # readback observed while this is true cannot prove a controller that may still
@@ -2316,6 +2324,24 @@ class Collector:
                 }
             launcher = self._controller_launcher
 
+            # The telemetry receiver is SINGLE-USE (stop() consumes it). Every prior
+            # attempt -- a faulted safe-stop test, a completed safe-stop, a torn-down
+            # controller -- consumed the coordinator's receiver, so a fresh bring-up
+            # on the old object would fail at prepare_receiver_socket. Renew it now;
+            # all prior-controller-not-isolated guards above have already passed.
+            renew = getattr(self._robot_coordinator, "renew_receiver", None)
+            if callable(renew):
+                try:
+                    renew()
+                except Exception as exc:  # noqa: BLE001 - refusal, never a crash
+                    return {
+                        "ok": False, "code": "receiver_renew_failed",
+                        "message": (
+                            "telemetry receiver renewal failed: "
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                    }
+
             def launch_with_fence():
                 with self._controller_lock:
                     self._controller_launch_fence_open = True
@@ -2496,9 +2522,17 @@ class Collector:
                 "message": "safe-stop HIL requires a real production collector with a robot coordinator",
             }
         try:
+            # P0 SAFETY: do NOT run the sealed preflight here. The sealed
+            # ``tools/preflight`` is ``comm_test``, which with no args defaults to
+            # can0 and ENABLES motors + sends MIT commands -- i.e. it energizes the
+            # RIGHT arm (can0/can2), which must never be touched. The left controller
+            # does its own can1/can3 enable, so the safe-stop test needs no CAN
+            # preflight; pass an explicit no-op. (A proper sealed clear_faults on
+            # can1/can3 is the correct future preflight.)
             launcher, preflight, disable = build_launch_from_activation(
                 self._controller_launch_activation,
                 disable_command=self._safe_stop_disable_command,
+                preflight_command=("/bin/true",),
             )
         except Exception as exc:  # noqa: BLE001 - surfaced as a refusal, never a crash
             return {
@@ -2574,6 +2608,7 @@ class Collector:
                 None if self._safe_stop_gate is None
                 else self._safe_stop_gate.status_snapshot()
             ),
+            "last_attempt": self._controller_last_attempt,
             "isolation_pending": bool(
                 comp is not None
                 and self._controller_launch_fence_open
@@ -2607,6 +2642,25 @@ class Collector:
                 ),
             })
         return base
+
+    def _receiver_health_brief(self):
+        """Compact receiver evidence for the persisted last-attempt record."""
+        coordinator = self._robot_coordinator
+        if coordinator is None:
+            return None
+        try:
+            health = coordinator.receiver_health()
+            payload = (
+                dict(health) if isinstance(health, Mapping) else dict(vars(health))
+            )
+            return {
+                "status": str(payload.get("status")),
+                "last_envelope_seq": payload.get("last_envelope_seq"),
+                "last_control_tick_seq": payload.get("last_control_tick_seq"),
+                "error": payload.get("error"),
+            }
+        except Exception as exc:  # noqa: BLE001 - evidence capture must never raise
+            return {"status": "ERROR", "error": f"{type(exc).__name__}: {exc}"}
 
     def _start_robot_session(self, session_dir):
         if not self.require_robot:
@@ -3280,16 +3334,30 @@ class Collector:
         # Left-arm controller lifecycle from the console (real motion).  Both actions
         # consume the same fail-closed authority; only an already-live companion keeps
         # stop access if that authority changes while the arm is running.
-        if normalized == "arm_disable":
-            return self.disable_controller()
-        if normalized == "arm_bringup":
-            return self.bring_up_controller()
-        if normalized == "safe_stop_test":
-            return self.begin_safe_stop_test()
-        if normalized == "safe_stop_pass":
-            return self.confirm_safe_stop(deenergized=True)
-        if normalized == "safe_stop_fail":
-            return self.confirm_safe_stop(deenergized=False)
+        if normalized in _ARM_LIFECYCLE_ACTIONS:
+            handler = {
+                "arm_disable": self.disable_controller,
+                "arm_bringup": self.bring_up_controller,
+                "safe_stop_test": self.begin_safe_stop_test,
+                "safe_stop_pass": lambda: self.confirm_safe_stop(deenergized=True),
+                "safe_stop_fail": lambda: self.confirm_safe_stop(deenergized=False),
+            }[normalized]
+            result = handler()
+            # P1: persist the full attempt outcome. The HTTP reply is transient in the
+            # UI; without this the operator sees "the button did nothing" while the
+            # real error (e.g. a 15s readiness timeout) is lost. Shown via /state.
+            self._controller_last_attempt = {
+                "action": normalized,
+                "ok": bool(result.get("ok")) if isinstance(result, dict) else None,
+                "code": result.get("code") if isinstance(result, dict) else None,
+                "message": (
+                    str(result.get("message", ""))[:500]
+                    if isinstance(result, dict) else str(result)[:500]
+                ),
+                "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "receiver": self._receiver_health_brief(),
+            }
+            return result
         if normalized == "confirm_back":
             token_valid = (
                 type(preview_frame_index) is int
@@ -6700,7 +6768,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point?(s.point+(s.site?' · '+String(s.site).replace(/^auscultate the /,''):'')):'—';
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;$('armstat').textContent=hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=false;$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'');$('safestopstat').className='armstat '+(sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;$('armstat').textContent=hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=false;const la=ct.last_attempt;const laTxt=(la&&la.ok===false)?(' · LAST '+String(la.action||'').replace('safe_stop_','')+' FAILED ['+(la.code||'')+'] '+String(la.message||'').slice(0,180)+(la.receiver?(' · recv='+la.receiver.status+' seq='+la.receiver.last_envelope_seq):'')):'';$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'')+laTxt;$('safestopstat').title=laTxt?String(la.message||''):'';$('safestopstat').className='armstat '+(sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);

@@ -1,31 +1,38 @@
 #!/usr/bin/env bash
 # WAM auscultation — safe-stop HIL disable CANDIDATE (design B, operator-witnessed).
 #
-# This is the disable command the operator-witnessed safe-stop HIL validates each
-# session before real-arm bring-up is authorized (see ausc/perception/robot/safe_stop_hil.py).
-# It SIGINTs the SEALED unilateral_control controller (launched from the sealed
-# controller-launch release, argv[0] = ".../controller/unilateral_control") so its
-# clean-shutdown handler disables the motors on can1/can3 (the LEFT auscultation arm).
+# Validated each session by the operator-witnessed safe-stop HIL gate (see
+# ausc/perception/robot/safe_stop_hil.py). SIGINTs the SEALED unilateral_control
+# (argv[0] ".../controller/unilateral_control", LEFT arm can1/can3) so its clean
+# shutdown handler disables the motors, then VERIFIES the process actually exited.
 #
-# IMPORTANT: this is a TEST-GRADE stop, NOT a confirmed direct CAN-level energy
-# isolation. The confirmed per-motor torque-off readback is the known HIL_PENDING gap
-# (the sealed stop_tool descriptor is held at HIL_PENDING). Until that exists, the
-# operator's physical witness that the arm de-energized, plus the hardware power
-# switch / E-stop, are the real safety backstop. The safe-stop HIL gate refuses to
-# authorize bring-up until a human confirms de-energization, every session.
+# HONESTY CONTRACT (P0 audit): success here proves ONLY "no sealed controller
+# process is running". It is NOT an independent CAN-level energy isolation and has
+# no per-motor torque-off readback (the sealed stop_tool remains HIL_PENDING).
+# Whether the motors truly de-energized is decided by the OPERATOR WITNESS at the
+# arm, with the hardware power switch / E-stop as the backstop.
 set -uo pipefail
 
-# Match ONLY the sealed controller path (".../controller/unilateral_control"), never
-# the canary dev build (".../teleop_merge/build/unilateral_control").
-pkill -INT -f "controller/unilateral_control"
-rc=$?
+PATTERN="controller/unilateral_control"   # sealed path only; never the canary build
 
-# pkill exit: 0 = signalled a live controller, 1 = nothing matched (arm already not
-# being driven). Both mean "no controller is driving the arm" -> report command
-# success; whether the motors actually de-energized is decided by the operator
-# witness, not by this script. Only a genuine pkill error (>=2) is a command failure.
-echo "[safe-stop-disable] SIGINT -> sealed unilateral_control (pkill rc=${rc}); operator must witness de-energize"
-if [ "${rc}" -le 1 ]; then
+pkill -INT -f "${PATTERN}"
+rc=$?
+if [ "${rc}" -ge 2 ]; then
+  echo "[safe-stop-disable] pkill ERROR rc=${rc} — controller NOT signalled" >&2
+  exit "${rc}"
+fi
+if [ "${rc}" -eq 1 ]; then
+  echo "[safe-stop-disable] no sealed controller matched — already stopped (nothing was signalled)"
   exit 0
 fi
-exit "${rc}"
+
+# Signalled a live controller: require it to actually exit (shutdown handler ran).
+for _ in $(seq 1 40); do
+  if ! pgrep -f "${PATTERN}" > /dev/null 2>&1; then
+    echo "[safe-stop-disable] SIGINT delivered and sealed controller EXITED — operator must still witness de-energize"
+    exit 0
+  fi
+  sleep 0.1
+done
+echo "[safe-stop-disable] controller STILL RUNNING 4s after SIGINT — treat as DISABLE FAILURE, use E-stop/power" >&2
+exit 3
