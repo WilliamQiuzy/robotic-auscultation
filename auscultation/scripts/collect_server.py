@@ -1871,6 +1871,23 @@ class Collector:
 
     def _watchdog_tick(self):
         comp = self._controller_companion
+        # Stranded-TESTING recovery: a companion fault DURING a safe-stop test (after
+        # READY, before the operator's Disable) would otherwise leave the gate in
+        # TESTING with every arm button dead (restart-only recovery). An operator
+        # Disable transitions TESTING -> AWAITING_WITNESS before this runs, so a gate
+        # still in TESTING with a faulted companion means the test died on its own:
+        # void it so the operator can fix the cause and retry.
+        gate = self._safe_stop_gate
+        if (
+            gate is not None
+            and gate.state == safe_stop_hil.TESTING
+            and comp is not None
+            and comp.state == "faulted"
+        ):
+            try:
+                gate.fault_reset("companion fault during safe-stop test")
+            except Exception:  # noqa: BLE001 - watchdog must never die
+                pass
         if comp is None or comp.disabled:
             return
         if comp.state == "ready":
@@ -2422,12 +2439,41 @@ class Collector:
         return result
 
     def disable_controller(self, reason="operator_estop"):
-        """Console E-stop: energy-isolate the arm (direct-disable first)."""
+        """Console E-stop: energy-isolate the arm (direct-disable first).
+
+        Wrapper persists the attempt outcome (P1: the HTTP fast path bypasses the
+        _control_locked dispatch, so a failed witness-Disable would otherwise leave
+        no /state evidence).
+        """
+        result = self._disable_controller_impl(reason=reason)
+        self._record_arm_attempt("arm_disable", result)
+        return result
+
+    def _disable_controller_impl(self, reason="operator_estop"):
         with self._controller_lock:
             comp = self._controller_companion
             if comp is None or comp.disabled:
                 authority = self.arm_control_authorization()
                 if not authority.arm_stop_authorized:
+                    if comp is not None and comp.disabled:
+                        # The arm is already confirmed-disabled; an authority
+                        # rejection ("Safe-stop HIL required") here would mislead an
+                        # operator trying to verify the arm is safe. Report honestly.
+                        outcome = comp.disable_outcome
+                        return {
+                            "ok": True, "code": "controller_already_disabled",
+                            "message": (
+                                "left arm controller already disabled ("
+                                + (str(outcome.outcome) if outcome is not None else "no outcome recorded")
+                                + ")"
+                            ),
+                            "energy_isolated": bool(
+                                outcome is not None and outcome.energy_isolated
+                            ),
+                            "motor_disable_verified": bool(
+                                outcome is not None and outcome.motor_verified
+                            ),
+                        }
                     return self._arm_authority_rejection(
                         authority, action="stop",
                     )
@@ -2642,6 +2688,25 @@ class Collector:
                 ),
             })
         return base
+
+    def _record_arm_attempt(self, action, result):
+        """P1: persist the full arm-lifecycle attempt outcome for /state.
+
+        The HTTP reply is transient in the UI; without this the operator sees "the
+        button did nothing" while the real error (e.g. a 15s readiness timeout or a
+        telemetry bound fault) is lost.
+        """
+        self._controller_last_attempt = {
+            "action": str(action),
+            "ok": bool(result.get("ok")) if isinstance(result, dict) else None,
+            "code": result.get("code") if isinstance(result, dict) else None,
+            "message": (
+                str(result.get("message", ""))[:500]
+                if isinstance(result, dict) else str(result)[:500]
+            ),
+            "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "receiver": self._receiver_health_brief(),
+        }
 
     def _receiver_health_brief(self):
         """Compact receiver evidence for the persisted last-attempt record."""
@@ -3343,20 +3408,7 @@ class Collector:
                 "safe_stop_fail": lambda: self.confirm_safe_stop(deenergized=False),
             }[normalized]
             result = handler()
-            # P1: persist the full attempt outcome. The HTTP reply is transient in the
-            # UI; without this the operator sees "the button did nothing" while the
-            # real error (e.g. a 15s readiness timeout) is lost. Shown via /state.
-            self._controller_last_attempt = {
-                "action": normalized,
-                "ok": bool(result.get("ok")) if isinstance(result, dict) else None,
-                "code": result.get("code") if isinstance(result, dict) else None,
-                "message": (
-                    str(result.get("message", ""))[:500]
-                    if isinstance(result, dict) else str(result)[:500]
-                ),
-                "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "receiver": self._receiver_health_brief(),
-            }
+            self._record_arm_attempt(normalized, result)
             return result
         if normalized == "confirm_back":
             token_valid = (
@@ -6768,7 +6820,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point?(s.point+(s.site?' · '+String(s.site).replace(/^auscultate the /,''):'')):'—';
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;$('armstat').textContent=hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=false;const la=ct.last_attempt;const laTxt=(la&&la.ok===false)?(' · LAST '+String(la.action||'').replace('safe_stop_','')+' FAILED ['+(la.code||'')+'] '+String(la.message||'').slice(0,180)+(la.receiver?(' · recv='+la.receiver.status+' seq='+la.receiver.last_envelope_seq):'')):'';$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'')+laTxt;$('safestopstat').title=laTxt?String(la.message||''):'';$('safestopstat').className='armstat '+(sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;$('armstat').textContent=hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=false;const la=ct.last_attempt;const laTxt=(la&&la.ok===false)?(' · LAST '+String(la.action||'').replace('safe_stop_','')+' FAILED ['+(la.code||'')+'] '+String(la.message||'').slice(0,180)+(la.receiver?(' · recv='+la.receiver.status+' seq='+la.receiver.last_envelope_seq):'')):'';$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'')+laTxt;$('safestopstat').title=laTxt?String(la.message||''):'';$('safestopstat').className='armstat '+(sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafetest').dataset.unlocked=ss.bringup_authorized?'1':'';$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);
@@ -6778,7 +6830,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  const canConfirm=!busy&&recording&&s.target_valid&&s.points_visible===s.n&&recordingControls;const canRedo=!busy&&recordingControls&&recording;$('btnconfirm').disabled=!canConfirm;$('btnredo').disabled=!canRedo;$('btnprev').disabled=busy||!recordingControls||!recording;$('btnnext').disabled=busy||!recordingControls||!recording;
  pointList(s);const gateReasons=[...(s.training_blockers||[])];if(s.start_authorized!==true&&s.start_rejection&&!gateReasons.includes(s.start_rejection)){gateReasons.unshift(s.start_rejection)}blockerList(gateReasons);if(s.action_ack&&s.action_ack!==lastActionAck){action(shortText(s.action_ack),s.error?'bad':'good')}if(s.error){action(shortText(s.error),'bad')}lastActionAck=s.action_ack||null}
 function schedulePoll(delay){if(pageStopped)return;if(pollTimer)clearTimeout(pollTimer);pollTimer=setTimeout(poll,delay)}
-async function poll(){pollTimer=null;if(pageStopped||pollInFlight)return;pollInFlight=true;try{const response=await fetch('/state',{cache:'no-store'});if(!response.ok)throw new Error('HTTP '+response.status);const state=await response.json();const recovered=transportDown;transportDown=false;render(state);if(recovered&&!state.error&&!state.fatal_error)action(shortText(state.action_ack||state.tracking_reason||state.state),state.action_ack?'good':'')}catch(error){transportDown=true;action('State disconnected: '+error.message,'bad')}finally{pollInFlight=false;schedulePoll(document.hidden?1000:250)}}
+async function poll(){pollTimer=null;if(pageStopped||pollInFlight)return;pollInFlight=true;try{const response=await fetch('/state',{cache:'no-store',signal:AbortSignal.timeout(3000)});if(!response.ok)throw new Error('HTTP '+response.status);const state=await response.json();const recovered=transportDown;transportDown=false;render(state);if(recovered&&!state.error&&!state.fatal_error)action(shortText(state.action_ack||state.tracking_reason||state.state),state.action_ack?'good':'')}catch(error){transportDown=true;action('State disconnected: '+error.message,'bad')}finally{pollInFlight=false;schedulePoll(document.hidden?1000:250)}}
 async function ctl(name){if(busy)return;busy=true;if(latest)render(latest);try{const payload={action:name};if(name==='confirm_back'){if(!Number.isInteger(displayedPreviewFrameIndex)||typeof displayedPreviewFrameToken!=='string')throw new Error('No displayed camera frame');payload.preview_frame_index=displayedPreviewFrameIndex;payload.preview_frame_token=displayedPreviewFrameToken}const response=await fetch('/control',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const result=await response.json();action(shortText(result.ack||result.message||('HTTP '+response.status)),result.ok?'good':'bad')}catch(error){action('Action failed: '+error.message,'bad')}finally{busy=false;await poll()}}
 // E-STOP FAST PATH (UI): the disable MUST NOT be gated by `busy` or set it. A doctor has
 // to be able to E-stop the arm even while a bring-up/preflight is in flight on THIS same
@@ -6794,7 +6846,7 @@ async function pumpAudio(){if(!listening)return;try{const query=new URLSearchPar
 async function toggleAudio(){if(listening){stopAudio();return}try{audioContext=audioContext||new AudioContext();await audioContext.resume();listening=true;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='■ Stop audio';$('btnaudio').className='listen on';pumpAudio()}catch(error){action('Browser audio unavailable: '+error.message,'bad');stopAudio()}}
 $('btnback').onclick=()=>ctl('confirm_back');$('btnstart').onclick=()=>ctl('start');$('btnend').onclick=()=>ctl('end');$('btnconfirm').onclick=()=>ctl('confirm');$('btnredo').onclick=()=>ctl('redo');$('btnprev').onclick=()=>ctl('prev');$('btnnext').onclick=()=>ctl('next');
 $('btnarm').onclick=()=>{if(confirm('Bring up the LEFT arm controller? The arm will energize and move.'))ctl('arm_bringup')};$('btnestop').onclick=()=>estop();
-$('btnsafetest').onclick=()=>{if(confirm('Start the SAFE-STOP TEST? The LEFT arm will ENERGIZE so you can command Disable and physically confirm it de-energizes. Stay at the arm.'))ctl('safe_stop_test')};
+$('btnsafetest').onclick=()=>{const voids=$('btnsafetest').dataset.unlocked?' WARNING: this VOIDS the current PASSED safe-stop — bring-up locks until you re-witness.':'';if(confirm('Start the SAFE-STOP TEST? The LEFT arm will ENERGIZE so you can command Disable and physically confirm it de-energizes. Stay at the arm.'+voids))ctl('safe_stop_test')};
 $('btnsafepass').onclick=()=>{if(confirm('Confirm the arm PHYSICALLY went limp / lost torque after Disable? This UNLOCKS real bring-up for this session.'))ctl('safe_stop_pass')};
 $('btnsafefail').onclick=()=>ctl('safe_stop_fail');
 $('btnaudio').onclick=toggleAudio;
