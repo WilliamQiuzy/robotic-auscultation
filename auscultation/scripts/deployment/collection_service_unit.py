@@ -25,7 +25,14 @@ import artifact_contract as contract
 import publish_perception_runtime as publisher
 
 
-UNIT_SCHEMA = "wam_linbox_collector_unit_v1"
+UNIT_SCHEMA = "wam_linbox_collector_unit_v2"
+REQUIRED_RUNTIME_MANIFEST_V2 = "PERCEPTION_RUNTIME.json"
+REQUIRED_RUNTIME_SCHEMA_V2 = "wam_perception_runtime_v5"
+REQUIRED_RUNTIME_CAPABILITIES_V2 = {
+    "arm_control_authority": False,
+    "controller_launch_state": "DORMANT_HIL_PENDING",
+    "training_promotion": "NOT_ACTIVATED",
+}
 VERIFY_CODE_SCHEMA = "wam_linbox_collector_code_preflight_v1"
 VERIFY_RUNTIME_SCHEMA = "wam_linbox_collector_runtime_preflight_v1"
 VERIFY_ACTIVATION_SCHEMA = "wam_linbox_collector_activation_preflight_v1"
@@ -47,6 +54,7 @@ ENV_VERIFIER_RELATIVE = (
 _CODE_ID = re.compile(r"^code_release-[0-9a-f]{20}$")
 _RUNTIME_ID = re.compile(r"^perception_runtime-[0-9a-f]{20}$")
 _ENVIRONMENT_ID = re.compile(r"^linbox-perception-[0-9a-f]{20}$")
+_CONTROLLER_LAUNCH_ID = re.compile(r"^controller_launch_v1-([0-9a-f]{64})$")
 _HANDEYE_ID = re.compile(r"^handeye_activation-[0-9a-f]{20}$")
 _CAMERA_ID = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _AUDIO_DEVICE = re.compile(r"^[A-Za-z0-9._,:=() -]{1,128}$")
@@ -79,6 +87,12 @@ class ServiceSpec:
     hall_port: Optional[str]
     sync_calibration: Optional[Path]
     sync_calibration_sha256: Optional[str]
+    controller_launch_release: Optional[Path] = None
+    controller_launch_trusted_root: Optional[Path] = None
+    controller_launch_contract_sha256: Optional[str] = None
+    # Candidate CAN disable (design (a)) the operator-witnessed safe-stop HIL validates
+    # before real bring-up is authorized. Only meaningful with a controller-launch release.
+    safe_stop_disable_cmd: Optional[str] = None
     commissioning_handeye_release: Optional[Path] = None
     commissioning_handeye_artifact_sha256: Optional[str] = None
     commissioning_handeye_complete_sha256: Optional[str] = None
@@ -452,6 +466,73 @@ def _verify_hall_binding(spec: ServiceSpec) -> dict:
     return hall_payload
 
 
+def _verify_dormant_controller_launch_binding(
+    spec: ServiceSpec,
+) -> Tuple[Optional[Path], Optional[Path], Optional[str]]:
+    """Validate only the immutable path pins; execution remains impossible here.
+
+    The collector performs the semantic pair-v2/artifact verification after it
+    has loaded the production activation.  This unit generator deliberately
+    transports only the three all-or-none pins and never renders controller,
+    preflight, stop, or gripper commands into systemd.
+    """
+
+    values = (
+        spec.controller_launch_release,
+        spec.controller_launch_trusted_root,
+        spec.controller_launch_contract_sha256,
+    )
+    count = sum(value not in {None, ""} for value in values)
+    if count == 0:
+        return None, None, None
+    if count != len(values):
+        raise UnitContractError(
+            "controller launch binding requires release, trusted root, and SHA-256"
+        )
+    if spec.commissioning_preview_only:
+        raise UnitContractError(
+            "commissioning preview forbids a controller launch binding"
+        )
+    digest = _require_sha256(
+        str(spec.controller_launch_contract_sha256),
+        "controller launch contract SHA-256",
+    )
+    root = Path(spec.controller_launch_trusted_root)
+    release = Path(spec.controller_launch_release)
+    _reject_dynamic(root, "controller launch trusted root")
+    _reject_dynamic(release, "controller launch release")
+    expected_leaf = "controller_launch_v1-" + digest
+    if release.name != expected_leaf or _CONTROLLER_LAUNCH_ID.fullmatch(release.name) is None:
+        raise UnitContractError(
+            "controller launch release id must match the pinned SHA-256"
+        )
+    try:
+        root_info = root.lstat()
+        release_info = release.lstat()
+        root_resolved = root.resolve(strict=True)
+        release_resolved = release.resolve(strict=True)
+    except OSError as exc:
+        raise UnitContractError("controller launch immutable directory is missing") from exc
+    if (
+        root.is_symlink()
+        or release.is_symlink()
+        or not stat.S_ISDIR(root_info.st_mode)
+        or not stat.S_ISDIR(release_info.st_mode)
+        or root_resolved != root
+        or release_resolved != release
+        or stat.S_IMODE(root_info.st_mode) & 0o222
+        or stat.S_IMODE(release_info.st_mode) & 0o222
+    ):
+        raise UnitContractError(
+            "controller launch root and release must be real immutable directories"
+        )
+    if release.parent != root:
+        raise UnitContractError(
+            "controller launch release must be a direct child of its trusted root"
+        )
+    return release, root, digest
+
+
 def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
     """Verify and mutually bind all immutable collector inputs."""
     code_id = _require_identifier(spec.code_release_id, _CODE_ID, "code release id")
@@ -490,6 +571,11 @@ def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
         spec.commissioning_handeye_complete_sha256,
     )
     handeye_count = sum(value not in {None, ""} for value in handeye_values)
+    (
+        controller_launch_release,
+        controller_launch_trusted_root,
+        controller_launch_contract_sha256,
+    ) = _verify_dormant_controller_launch_binding(spec)
     if handeye_count not in {0, len(handeye_values)}:
         raise UnitContractError(
             "commissioning hand-eye binding must provide release and both hashes"
@@ -588,9 +674,17 @@ def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
     if runtime_envelope.get("release_id") != runtime_id:
         raise UnitContractError("runtime release id mismatch")
     semantic, _semantic_raw = _canonical_object(
-        runtime_release / publisher.RUNTIME_MANIFEST_NAME,
+        runtime_release / REQUIRED_RUNTIME_MANIFEST_V2,
         "perception runtime manifest",
     )
+    if semantic.get("schema") != REQUIRED_RUNTIME_SCHEMA_V2:
+        raise UnitContractError(
+            "collector unit schema v2 requires perception runtime schema v5"
+        )
+    if semantic.get("capabilities") != REQUIRED_RUNTIME_CAPABILITIES_V2:
+        raise UnitContractError(
+            "perception runtime v5 capability boundary is invalid"
+        )
     code_semantic = semantic.get("code")
     environment_semantic = semantic.get("environment")
     if not isinstance(code_semantic, Mapping) or (
@@ -679,6 +773,11 @@ def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
         ),
         *(() if spec.hall_calibration is None else (spec.hall_calibration,)),
         *(() if spec.sync_calibration is None else (spec.sync_calibration,)),
+        *(
+            ()
+            if controller_launch_release is None
+            else (controller_launch_release, controller_launch_trusted_root)
+        ),
     )
     for index, path in enumerate(paths):
         _safe_unit_token(path, "unit path %d" % index)
@@ -702,6 +801,12 @@ def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
             sync_calibration=(
                 None if spec.sync_calibration is None else Path(spec.sync_calibration)
             ),
+            controller_launch_release=controller_launch_release,
+            controller_launch_trusted_root=controller_launch_trusted_root,
+            controller_launch_contract_sha256=(
+                controller_launch_contract_sha256
+            ),
+            safe_stop_disable_cmd=spec.safe_stop_disable_cmd,
         ),
         code_payload_sha256=str(code_envelope["payload_sha256"]),
         environment_lock=lock,
@@ -799,6 +904,7 @@ def collector_argv(bindings: ReleaseBindings) -> List[str]:
             ])
     else:
         argv.extend([
+            "--production-teleop",
             "--production-activation", str(spec.production_activation),
             "--production-activation-sha256", str(
                 spec.production_activation_sha256
@@ -813,6 +919,19 @@ def collector_argv(bindings: ReleaseBindings) -> List[str]:
             "--sync-calibration-sha256", str(spec.sync_calibration_sha256),
             "--require-force",
         ])
+        if spec.controller_launch_release is not None:
+            argv.extend([
+                "--controller-launch-release",
+                str(spec.controller_launch_release),
+                "--controller-launch-trusted-root",
+                str(spec.controller_launch_trusted_root),
+                "--controller-launch-contract-sha256",
+                str(spec.controller_launch_contract_sha256),
+            ])
+            if spec.safe_stop_disable_cmd is not None:
+                argv.extend([
+                    "--safe-stop-disable-cmd", str(spec.safe_stop_disable_cmd),
+                ])
     if spec.audio_pick_channel is not None:
         insert_at = argv.index("--require-audio")
         argv[insert_at:insert_at] = [
@@ -1335,9 +1454,24 @@ def verify_runtime_release(
         raise UnitContractError("runtime release verification failed") from exc
     if envelope.get("release_id") != expected_runtime:
         raise UnitContractError("runtime release id mismatch")
+    # This boot preflight is an independent local trust boundary.  The generic
+    # publisher verifier intentionally supports older runtime schemas for
+    # audit/rollback tooling, so accepting its verdict alone would let a
+    # self-consistent v4 (or publisher-constant reinterpretation) satisfy a v2
+    # collector unit.  Pin both the filename and the exact dormant v5
+    # capability contract here, just as bind_releases() does at generation time.
     semantic, _semantic_raw = _canonical_object(
-        release / publisher.RUNTIME_MANIFEST_NAME, "perception runtime manifest"
+        release / REQUIRED_RUNTIME_MANIFEST_V2,
+        "perception runtime manifest",
     )
+    if semantic.get("schema") != REQUIRED_RUNTIME_SCHEMA_V2:
+        raise UnitContractError(
+            "collector unit schema v2 requires perception runtime schema v5"
+        )
+    if semantic.get("capabilities") != REQUIRED_RUNTIME_CAPABILITIES_V2:
+        raise UnitContractError(
+            "perception runtime v5 capability boundary is invalid"
+        )
     code = semantic.get("code")
     environment = semantic.get("environment")
     if not isinstance(code, Mapping) or (
@@ -1829,11 +1963,28 @@ class _DeploymentParser(argparse.ArgumentParser):
             getattr(parsed, field, None) not in {None, ""}
             for field in handeye_fields
         )
+        controller_launch_fields = (
+            "controller_launch_release",
+            "controller_launch_trusted_root",
+            "controller_launch_contract_sha256",
+        )
+        controller_launch_count = sum(
+            getattr(parsed, field, None) not in {None, ""}
+            for field in controller_launch_fields
+        )
+        if controller_launch_count not in {0, len(controller_launch_fields)}:
+            self.error(
+                "controller launch requires release, trusted root, and SHA-256"
+            )
         if handeye_count not in {0, len(handeye_fields)}:
             self.error(
                 "commissioning hand-eye requires release and both SHA-256 pins"
             )
         if preview:
+            if controller_launch_count:
+                self.error(
+                    "commissioning preview forbids controller launch binding"
+                )
             if (
                 getattr(parsed, "production_activation", None) is not None
                 or getattr(parsed, "production_activation_sha256", None)
@@ -1933,6 +2084,14 @@ def build_deployment_parser() -> argparse.ArgumentParser:
     parser.add_argument("--hall-expected-usb-serial", default="53032847188a2e1c")
     parser.add_argument("--sync-calibration")
     parser.add_argument("--sync-calibration-sha256")
+    parser.add_argument("--controller-launch-release")
+    parser.add_argument("--controller-launch-trusted-root")
+    parser.add_argument("--controller-launch-contract-sha256")
+    parser.add_argument(
+        "--safe-stop-disable-cmd", default=None,
+        help="candidate CAN disable command the operator-witnessed safe-stop HIL validates "
+             "(design (a)); emitted into ExecStart only with a controller-launch release",
+    )
     parser.add_argument("--port", type=int, default=8800)
     parser.add_argument(
         "--audio-device", default="usb-serial:Y77BQVG17CD6E1"
@@ -1995,6 +2154,20 @@ def _service_spec_from_args(args: argparse.Namespace) -> ServiceSpec:
             None if args.sync_calibration is None else Path(args.sync_calibration)
         ),
         sync_calibration_sha256=args.sync_calibration_sha256,
+        controller_launch_release=(
+            None
+            if args.controller_launch_release is None
+            else Path(args.controller_launch_release)
+        ),
+        controller_launch_trusted_root=(
+            None
+            if args.controller_launch_trusted_root is None
+            else Path(args.controller_launch_trusted_root)
+        ),
+        controller_launch_contract_sha256=(
+            args.controller_launch_contract_sha256
+        ),
+        safe_stop_disable_cmd=args.safe_stop_disable_cmd,
         port=args.port,
         audio_device=args.audio_device,
         audio_sample_rate=args.audio_sample_rate,
