@@ -1777,7 +1777,8 @@ def _parse_exact_control_record(
     ):
         if not gripper_lower <= value <= gripper_upper:
             raise RobotTelemetryError(
-                f"{label} gripper motor position is outside activated limits"
+                f"{label} gripper motor position is outside activated limits: "
+                f"{value:.4f} rad not in [{gripper_lower:.4f}, {gripper_upper:.4f}]"
             )
 
     return ExactControlRecord(
