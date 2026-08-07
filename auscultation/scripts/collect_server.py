@@ -1888,6 +1888,15 @@ class Collector:
             and comp is not None
             and comp.state == "faulted"
         ):
+            # Persist WHY before voiding: a post-READY auto-fault has no operator
+            # action attached, so without this the reason is unrecoverable.
+            reason = getattr(comp, "fault_reason", "") or (
+                "companion faulted during safe-stop test"
+            )
+            self._record_arm_attempt("safe_stop_test_auto_fault", {
+                "ok": False, "code": "companion_fault_during_test",
+                "message": reason,
+            })
             try:
                 gate.fault_reset("companion fault during safe-stop test")
             except Exception:  # noqa: BLE001 - watchdog must never die
@@ -2671,6 +2680,7 @@ class Collector:
         base.update({
             "state": comp.state,
             "disabled": bool(comp.disabled), "controller_pid": comp.controller_pid,
+            "fault_reason": getattr(comp, "fault_reason", "") or None,
         })
         # P0-2: surface the honest disable ladder. "energy_isolated" is only ever True
         # after an independent motor-disable readback; a mere command success shows as

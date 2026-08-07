@@ -198,6 +198,7 @@ class TrustedControllerCompanion:
         self._monotonic = monotonic
         self._sleep = sleep
         self._state = "idle"           # idle -> ready -> faulted
+        self._fault_reason = ""        # first fault's reason, kept for evidence
         self._controller: Optional[LaunchedController] = None
         self._disabled = False
         self._disable_outcome: Optional[DisableOutcome] = None
@@ -216,6 +217,11 @@ class TrustedControllerCompanion:
     @property
     def state(self) -> str:
         return self._state
+
+    @property
+    def fault_reason(self) -> str:
+        """The FIRST fault's reason, preserved through teardown for evidence."""
+        return self._fault_reason
 
     @property
     def disabled(self) -> bool:
@@ -424,6 +430,11 @@ class TrustedControllerCompanion:
         # aborts immediately -- this is the cancellation token that closes the
         # "arm reaches READY while an E-stop disable is still running" race.
         self._stop_requested = True
+        # Keep the FIRST fault's reason as evidence: post-READY auto-faults happen in
+        # the watchdog with no operator action attached, so without this the reason
+        # would be unrecoverable after teardown.
+        if not self._fault_reason:
+            self._fault_reason = str(reason)
         # Serialize teardown: a watchdog-poll fault and a console E-stop must not
         # interleave their disable of the SAME companion.  The outcome is captured and
         # returned from INSIDE the lock so the caller reports its own command's result.
