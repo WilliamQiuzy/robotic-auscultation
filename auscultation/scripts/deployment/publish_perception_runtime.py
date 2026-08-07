@@ -220,7 +220,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "b0adb862198587ba6a294801ad4800d41360b751b9e30cf7f087526464cb39e2",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
-    "auscultation/scripts/collect_server.py": "97550b5be58c6b10c5a041fdf6a4c8d54282ee5985647a06b85c5ce966577c2f",
+    "auscultation/scripts/collect_server.py": "58c495dcb225d09dad9b4ed0e83ea39999a5089ecdddac25dacca48a61ca0e80",
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",

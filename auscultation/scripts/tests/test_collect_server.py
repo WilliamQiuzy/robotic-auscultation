@@ -3558,12 +3558,18 @@ def test_idle_state_reports_storage_capacity_before_recording(tmp_path, monkeypa
     storage = collector.state_snapshot()["capture_storage"]
 
     # Diagnostic capture persists depth aligned to the RGB frame (camera size),
-    # not the raw depth-mode size, so the conservative rate uses 1920x1080.
-    expected_rate = 1920 * 1080 * 2 * 30
+    # not the raw depth-mode size, so the raw base uses 1920x1080. The recordable
+    # estimate credits the lossless zlib depth codec (measured >=17x on real
+    # frames; conservative default ratio 8.0) plus the non-depth allowance and
+    # rate margin -- the SAME formula as the Start storage gate, so the idle
+    # minutes and the gate can never disagree.
+    raw_depth_rate = 1920 * 1080 * 2 * 30
+    expected_rate = (raw_depth_rate / 8.0 + 12_000_000) * 1.3
     assert storage["status"] == "OK"
     assert storage["free_bytes"] == free
     assert storage["usable_bytes_before_safety_reserve"] == 50 * 1024 ** 3
-    assert storage["conservative_bytes_per_second"] == expected_rate
+    assert storage["expected_raw_depth_bytes_per_second"] == raw_depth_rate
+    assert storage["conservative_bytes_per_second"] == pytest.approx(expected_rate)
     assert storage["estimated_remaining_seconds"] == pytest.approx(
         50 * 1024 ** 3 / expected_rate,
     )
