@@ -253,21 +253,21 @@ def test_energy_isolation_ordering_disable_before_stop():
     assert coord.events.index("disable") < coord.events.index("stop")
 
 
-def test_poll_regression_after_ready_disables_only_when_sustained():
-    # Freshness wobble is debounced: one GIL-lagged STALE snapshot on a busy shared
-    # box must NOT kill the arm; a SUSTAINED regression (3 consecutive polls) must.
+def test_poll_sustained_stale_latches_alarm_but_never_cuts_power():
+    # OPERATOR POLICY: telemetry problems latch a loud alarm and invalidate the
+    # data, but software NEVER cuts arm power -- only the operator's three
+    # channels (console action / physical E-stop / 8801 Disable) do.
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
     assert companion.poll().status == "READY"        # still healthy
     coord._script = [_Health("STALE", False)]        # telemetry goes stale
     assert companion.poll().status == "STALE"        # 1st stale poll: tolerated
-    assert not companion.disabled
+    assert companion.telemetry_fault_reason == ""
     assert companion.poll().status == "STALE"        # 2nd stale poll: tolerated
-    assert not companion.disabled
-    with pytest.raises(CompanionFault):
-        companion.poll()                              # 3rd consecutive: fault-close
-    assert disabler.calls and companion.disabled is True
+    assert companion.poll().status == "STALE"        # 3rd: alarm latches
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason
+    assert not disabler.calls and companion.disabled is False
 
 
 def test_poll_stale_debounce_resets_on_recovery():
@@ -285,20 +285,22 @@ def test_poll_stale_debounce_resets_on_recovery():
     assert not companion.disabled and not disabler.calls
 
 
-def test_poll_terminal_fault_disables_immediately():
-    # Integrity/terminal regressions keep the IMMEDIATE fail-closed path.
+def test_poll_terminal_fault_latches_alarm_immediately_without_power_cut():
+    # A latched receiver FAULT alarms on the first poll; power stays with the
+    # operator (data is already marked unusable by the receiver latch).
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
     coord._script = [_Health("FAULT", False)]
-    with pytest.raises(CompanionFault):
-        companion.poll()
-    assert disabler.calls and companion.disabled is True
+    assert companion.poll().status == "FAULT"
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason
+    assert not disabler.calls and companion.disabled is False
 
 
-def test_controller_exit_during_poll_disables():
-    # P0-3: a controller crash AFTER ready (during supervision) must fault-close the
-    # arm disable-first, not leak a bare CompanionError that leaves the arm live.
+def test_controller_exit_during_poll_faults_without_commanding_disable():
+    # A controller crash means nothing is driving the arm. OPERATOR POLICY: no
+    # automatic disable command is issued (the SIGINT stop tool is a no-op on a
+    # dead process); the fault latches with evidence and the operator decides.
     controller = _FakeController()
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord, controller=controller)
@@ -307,8 +309,9 @@ def test_controller_exit_during_poll_disables():
     controller.die(9)                                # controller crashes mid-capture
     with pytest.raises(CompanionFault):
         companion.poll()
-    assert disabler.calls and companion.disabled is True
+    assert not disabler.calls
     assert companion.state == "faulted"
+    assert companion.fault_reason
 
 
 def test_collector_runtime_fault_disables():
@@ -667,28 +670,27 @@ def test_shutdown_returns_its_own_disable_outcome():
     assert outcome.command_succeeded is True
 
 
-def test_poll_warming_is_debounced_like_stale():
-    # WARMING = envelopes FRESH but the rolling window not yet clean (health
-    # derivation): a pure freshness observation with an empty reason. Real
-    # CAN/feedback faults latch _fault_reason -> FAULT -> immediate path, so
-    # debouncing WARMING cannot delay a genuine safety fault.
+def test_poll_warming_is_debounced_like_stale_and_never_cuts_power():
+    # WARMING = envelopes FRESH but the rolling window not yet clean: freshness
+    # family, debounced; on sustained regression the alarm latches -- power stays.
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
     coord._script = [_Health("WARMING", False)]
     assert companion.poll().status == "WARMING"       # 1st: tolerated
     assert companion.poll().status == "WARMING"       # 2nd: tolerated
-    with pytest.raises(CompanionFault):
-        companion.poll()                              # 3rd consecutive: fault
-    assert disabler.calls and companion.disabled is True
+    assert companion.poll().status == "WARMING"       # 3rd: alarm latches
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason
+    assert not disabler.calls and companion.disabled is False
 
 
-def test_poll_unknown_status_disables_immediately():
-    # Anything outside the freshness family keeps the immediate fail-closed path.
+def test_poll_unknown_status_latches_alarm_immediately_without_power_cut():
+    # Anything outside the freshness family latches the alarm on the FIRST poll
+    # (no debounce) -- but per operator policy still never cuts power.
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
     coord._script = [_Health("UNKNOWN", False)]
-    with pytest.raises(CompanionFault):
-        companion.poll()
-    assert disabler.calls and companion.disabled is True
+    assert companion.poll().status == "UNKNOWN"
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason
+    assert not disabler.calls and companion.disabled is False

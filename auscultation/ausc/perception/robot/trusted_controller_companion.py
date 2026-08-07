@@ -211,6 +211,14 @@ class TrustedControllerCompanion:
         self._state = "idle"           # idle -> ready -> faulted
         self._fault_reason = ""        # first fault's reason, kept for evidence
         self._stale_polls = 0          # consecutive non-READY freshness polls
+        # OPERATOR SAFETY POLICY (2026-08-07, explicit directive): software NEVER
+        # cuts arm power on its own. Power-off happens ONLY via (1) an operator
+        # console action, (2) the physical E-stop, (3) the 8801 Disable button.
+        # A telemetry fault therefore LATCHES here (data invalid, recording
+        # blocked, loud UI alarm) while the arm STAYS POWERED for the human to
+        # decide -- an unexpected mid-teleop power cut drops the follower onto
+        # the patient and is the greater hazard in this human-in-the-loop system.
+        self._telemetry_fault_reason = ""
         self._controller: Optional[LaunchedController] = None
         self._disabled = False
         self._disable_outcome: Optional[DisableOutcome] = None
@@ -234,6 +242,11 @@ class TrustedControllerCompanion:
     def fault_reason(self) -> str:
         """The FIRST fault's reason, preserved through teardown for evidence."""
         return self._fault_reason
+
+    @property
+    def telemetry_fault_reason(self) -> str:
+        """Latched telemetry-integrity fault; the arm remains POWERED (operator policy)."""
+        return self._telemetry_fault_reason
 
     @property
     def controller_alive(self) -> bool:
@@ -396,23 +409,31 @@ class TrustedControllerCompanion:
         try:
             self._assert_controller_alive()
         except CompanionError as exc:
-            # P0-3: a controller exit during capture is a safety fault. Energy-isolate
-            # first, then surface it as a CompanionFault (the same disable-first path as
-            # a telemetry fault) -- never a bare CompanionError that would leave the arm
-            # live because the collector only reacts to CompanionFault.
-            self._fault_disable(str(exc))
+            # The controller PROCESS exited: nothing is driving the arm any more.
+            # OPERATOR POLICY: do NOT issue a disable command -- the SIGINT stop
+            # tool is a no-op on a dead process anyway, and power decisions belong
+            # to the operator (console / E-stop / 8801 Disable). Latch the fault
+            # for evidence and surface it; the physical arm state is whatever the
+            # controller's own shutdown/crash left behind.
+            if not self._fault_reason:
+                self._fault_reason = str(exc)
+            self._state = "faulted"
             raise CompanionFault(str(exc)) from exc
         health = self._coordinator.receiver_health()
         status = str(getattr(health, "status", "FAULT"))
-        # INTEGRITY faults (a latched receiver fault or a terminal status) disable
-        # immediately -- they carry a real reason and never self-heal.
+        # TELEMETRY integrity fault (latched receiver fault or terminal status):
+        # per the explicit operator safety policy this NEVER cuts arm power. The
+        # fault latches (recording eligibility dies, UI alarms loudly, data is
+        # marked unusable) and the HUMAN decides whether to press Disable/E-stop.
+        # A mid-teleop software power cut would drop the follower onto the
+        # patient -- the greater hazard in this human-in-the-loop system.
         if self._coordinator.faulted or status in _TERMINAL_BAD_STATUS:
-            reason = (
-                f"robot telemetry fault during capture: status={status} "
-                f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
-            )
-            self._fault_disable(reason)
-            raise CompanionFault(reason)
+            if not self._telemetry_fault_reason:
+                self._telemetry_fault_reason = (
+                    f"telemetry fault (ARM STILL POWERED): status={status} "
+                    f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
+                )
+            return health
         # FRESHNESS wobble (STALE ONLY: the last envelope is momentarily older than
         # the display bound) is an observation, not an integrity violation -- on a
         # busy shared box the GIL-bound receiver thread can lag for one poll while
@@ -426,22 +447,22 @@ class TrustedControllerCompanion:
             status != _READY_STATUS
             or not bool(getattr(health, "preflight_ready", False))
         ):
-            reason = (
-                f"robot telemetry fault during capture: status={status} "
-                f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
-            )
-            self._fault_disable(reason)
-            raise CompanionFault(reason)
-        if status in _DEBOUNCED_FRESHNESS_STATUS:
-            self._stale_polls += 1
-            if self._stale_polls >= _STALE_POLL_FAULT_LIMIT:
-                reason = (
-                    "robot telemetry fault during capture: status="
-                    f"{status} sustained for {self._stale_polls} supervision polls "
+            if not self._telemetry_fault_reason:
+                self._telemetry_fault_reason = (
+                    f"telemetry regression (ARM STILL POWERED): status={status} "
                     f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
                 )
-                self._fault_disable(reason)
-                raise CompanionFault(reason)
+            return health
+        if status in _DEBOUNCED_FRESHNESS_STATUS:
+            self._stale_polls += 1
+            if (
+                self._stale_polls >= _STALE_POLL_FAULT_LIMIT
+                and not self._telemetry_fault_reason
+            ):
+                self._telemetry_fault_reason = (
+                    f"telemetry stale (ARM STILL POWERED): status={status} "
+                    f"sustained for {self._stale_polls} supervision polls"
+                )
             return health
         self._stale_polls = 0
         return health

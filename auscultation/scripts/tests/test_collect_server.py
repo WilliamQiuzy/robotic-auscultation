@@ -7348,9 +7348,11 @@ def test_disable_command_failure_reports_not_ok(tmp_path):
         c.shutdown()
 
 
-def test_collector_loop_crash_disables_arm(tmp_path):
-    # Safety: a dead collector loop energy-isolates the arm (disable-first) -- a real
-    # software safety fault DOES stop the arm (distinct from an advisory force reading).
+def test_collector_loop_crash_does_not_cut_arm_power(tmp_path):
+    # OPERATOR SAFETY POLICY: software never cuts arm power on its own -- not even
+    # on a collector crash. The human-teleoperated arm stays powered; the fatal
+    # error latches (bring-ups refused) and the operator decides via their three
+    # channels (console action / physical E-stop / 8801 Disable).
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
                          fake=True, out_dir=tmp_path, start_thread=False)
@@ -7365,11 +7367,11 @@ def test_collector_loop_crash_disables_arm(tmp_path):
             raise RuntimeError("synthetic loop crash")
 
         c._loop = _boom
-        # disable-first: even if data teardown throws, the arm is still disabled.
         c._abort_recording = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("abort boom"))
         c._loop_guarded()
-        assert disable.calls                       # the arm was disabled FIRST
-        assert c._controller_companion.disabled is True
+        assert not disable.calls                   # power was NOT cut
+        assert c._controller_companion.disabled is False
+        assert c._fatal_error                      # but the fatal latched
     finally:
         c.shutdown()
 
@@ -7504,9 +7506,10 @@ def test_shutdown_observes_and_stops_companion_assigned_first(
     assert disable.calls[0] == "service_shutdown"
 
 
-def test_watchdog_thread_disables_arm_on_telemetry_fault(tmp_path):
-    # Safety: controller supervision runs on an INDEPENDENT watchdog thread, so a
-    # telemetry fault energy-isolates the arm even if the main loop is busy or hung.
+def test_watchdog_thread_latches_telemetry_alarm_without_power_cut(tmp_path):
+    # OPERATOR SAFETY POLICY: the independent watchdog still supervises, but a
+    # telemetry fault latches the LOUD alarm (data unusable) instead of cutting
+    # power; the operator's three channels are the only power-off paths.
     import threading as _threading
     import time as _time
     server = _load_collect_server()
@@ -7523,10 +7526,12 @@ def test_watchdog_thread_disables_arm_on_telemetry_fault(tmp_path):
         wd.start()
         coord._script = [_ArmHealth("STALE", False)]     # telemetry goes stale
         deadline = _time.monotonic() + 2.0
-        while not c._controller_companion.disabled and _time.monotonic() < deadline:
+        comp = c._controller_companion
+        while not comp.telemetry_fault_reason and _time.monotonic() < deadline:
             _time.sleep(0.01)
-        assert c._controller_companion.disabled is True  # watchdog disabled the arm
-        assert disable.calls
+        assert "ARM STILL POWERED" in comp.telemetry_fault_reason
+        assert comp.disabled is False                    # power NOT cut
+        assert not disable.calls
     finally:
         c._stop.set()
         wd.join(timeout=1.0)
@@ -7587,12 +7592,10 @@ def test_http_estop_bypasses_control_path_during_bringup():
         worker.join(timeout=2.0)
 
 
-def test_watchdog_retries_failed_disable_until_confirmed(tmp_path):
-    # Safety: if the first automatic disable command FAILS (arm faulted but not confirmed
-    # disabled), the watchdog must keep re-issuing the disable until it succeeds -- one
-    # transient disable failure can never leave the arm energized.
-    import threading as _threading
-    import time as _time
+def test_operator_disable_failure_is_reported_and_retryable(tmp_path):
+    # OPERATOR SAFETY POLICY: disables originate only from the operator. If the
+    # command FAILS, the result says so honestly (ok=False, arm NOT confirmed
+    # disabled) and the operator's retry succeeds -- no automatic re-issuing.
     server = _load_collect_server()
     c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
                          fake=True, out_dir=tmp_path, start_thread=False)
@@ -7610,21 +7613,17 @@ def test_watchdog_retries_failed_disable_until_confirmed(tmp_path):
 
     disable = _FlakyDisable()
     _configure_arm(c, coord, disable)
-    c._controller_watchdog_interval_s = 0.005
     try:
         c.bring_up_controller()
         assert c._controller_ready() is True
-        wd = _threading.Thread(target=c._controller_watchdog_run, daemon=True)
-        wd.start()
-        coord._script = [_ArmHealth("STALE", False)]      # telemetry fault -> disable
-        deadline = _time.monotonic() + 2.0
-        while not c._controller_companion.disabled and _time.monotonic() < deadline:
-            _time.sleep(0.01)
-        assert c._controller_companion.disabled is True   # eventually confirmed disabled
-        assert attempts["n"] >= 2                          # retried after the first failure
+        first = c.disable_controller()                    # operator presses Disable
+        assert first["ok"] is False                       # honest failure report
+        assert c._controller_companion.disabled is False
+        second = c.disable_controller()                   # operator retries
+        assert second["ok"] is True
+        assert c._controller_companion.disabled is True
+        assert attempts["n"] == 2                         # exactly the two operator actions
     finally:
-        c._stop.set()
-        wd.join(timeout=1.0)
         c.shutdown()
 
 
@@ -7862,7 +7861,9 @@ def test_estop_ui_button_is_not_gated_by_busy():
     assert "$('btnarm').disabled=busy||bringActive||!bringAllowed" in page
     assert "$('btnestop').disabled=!stopAllowed" in page
     assert "hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled')" in page
-    assert "$('armstat').textContent=hasComp?" in page
+    # telemetry fault (arm still powered, operator decides) overrides the status line
+    assert "const tf=ct.telemetry_fault;" in page
+    assert "TELEMETRY FAULT" in page and "ARM STILL POWERED" in page
     assert "Safe-stop HIL required" in page
 
 
