@@ -243,9 +243,13 @@ def build_controller_environment(
         "GRIP_LEAD": "0.08",
         "LANG": "C.UTF-8",
         "LC_ALL": "C.UTF-8",
-        "TELEOP_FRICTION_GAIN": "0.5",
-        "TELEOP_LEADER_DAMP": "0",
-        "TELEOP_STICTION": "0.3",
+        # 2026-08-07 wrist-oscillation fix, operator-validated at the arm: gain 0.5 with zero
+        # damping self-drives the low-friction wrist (friction comp = positive velocity feedback;
+        # huge tanh k on j5/j6 makes it bang-bang) -> violent limit-to-limit slamming. 0.32 with
+        # Kd=0.5 is stable and light enough; stiction back to the code default 0.1.
+        "TELEOP_FRICTION_GAIN": "0.32",
+        "TELEOP_LEADER_DAMP": "0.5",
+        "TELEOP_STICTION": "0.1",
         "WAM_OPENARM_CONTROLLER_BINARY_SHA256": pair.candidate_binary_sha256,
         "WAM_OPENARM_CONTROLLER_SOURCE_MANIFEST_SHA256": (
             pair.controller_source_manifest_sha256
