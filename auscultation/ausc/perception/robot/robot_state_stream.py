@@ -50,6 +50,14 @@ MAX_CONTROL_ENVELOPE_BYTES = 131_072
 # measures tick LATENESS. One constant shared by receiver, coordinator, stream
 # and session writer so bring-up READY and capture acceptance can never disagree.
 MAX_CONTROL_TICK_GAP_NS = 10_000_000
+
+# Max missed 100 Hz envelopes absorbed as ONE bounded, exactly tick-aligned
+# publisher hole (50 ms) before the stream latches a terminal fault. The shared
+# box's low-priority publisher thread can miss an occasional 10 ms slot under
+# load while the 1 kHz tick counter keeps running; a real loss (bigger,
+# tick-misaligned, duplicated, or backwards) still faults immediately. Single
+# source of truth — the socket receiver imports this.
+_ENVELOPE_HOLE_TOLERANCE = 5
 VOID_SEND_STATUS_REASON = "upstream_mit_control_all_returns_void"
 SOCKETCAN_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 SOCKETCAN_TX_ENQUEUE_SEMANTICS = (
@@ -2248,7 +2256,30 @@ class ExactControlStateStream:
                 self._latch_fault("exact-control envelope schema changed")
             if envelope.process_identity != self._process_identity:
                 self._latch_fault("control publisher process identity changed")
-            if envelope.envelope_seq != self._last_envelope_seq + 1:
+            seq_jump = envelope.envelope_seq - self._last_envelope_seq
+            tick_delta = (
+                envelope.records[0].control_tick_seq - self._last_control_tick_seq
+            )
+            records_per_envelope = len(envelope.records)
+            missed = seq_jump - 1
+            # Bounded, exactly tick-aligned publisher hole (current schema only;
+            # see robot_socket_receiver._ENVELOPE_HOLE_TOLERANCE): the shared
+            # box's low-priority publisher can miss an occasional 10 ms slot
+            # while the 1 kHz tick counter keeps running. Tolerate the hole when
+            # the tick counter corroborates it exactly and the observation clock
+            # gap stays within the aligned bound; everything else still latches.
+            hole_ok = (
+                envelope.schema == CONTROL_ENVELOPE_SCHEMA
+                and 1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
+                and records_per_envelope > 0
+                and tick_delta == 1 + missed * records_per_envelope
+                and (
+                    envelope.records[0].observation_monotonic_ns
+                    - self._last_monotonic_ns
+                )
+                <= tick_delta * MAX_CONTROL_TICK_GAP_NS
+            )
+            if seq_jump != 1 and not hole_ok:
                 self._latch_fault(
                     "control envelope sequence loss or duplication"
                 )
@@ -2259,7 +2290,7 @@ class ExactControlStateStream:
                 )
             except RobotTelemetryError as exc:
                 self._latch_fault(str(exc))
-            if envelope.records[0].control_tick_seq != self._last_control_tick_seq + 1:
+            if seq_jump == 1 and tick_delta != 1:
                 self._latch_fault("exact control tick sequence loss or duplication")
             if (
                 envelope.records[0].observation_monotonic_ns

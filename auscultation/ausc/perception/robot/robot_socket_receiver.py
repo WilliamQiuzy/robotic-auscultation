@@ -40,6 +40,7 @@ from ausc.perception.robot.robot_state_stream import (
     CONTROL_ENVELOPE_SCHEMA_V4,
     MAX_CONTROL_ENVELOPE_BYTES,
     MAX_CONTROL_TICK_GAP_NS,
+    _ENVELOPE_HOLE_TOLERANCE,
     RobotControlEnvelope,
     RobotStateContract,
     parse_control_envelope_datagram,
@@ -71,6 +72,11 @@ _STARTUP_GRACE_GAP_NS = 200_000_000
 # isolated collisions are benign (one 10 ms tick of uncertain reference provenance,
 # observations exact); a sustained run means the reference stream is torn.
 _INVALID_REFERENCE_RUN_LIMIT = 3
+
+# Bounded publisher-hole tolerance (_ENVELOPE_HOLE_TOLERANCE) is imported from
+# robot_state_stream — the single source shared with ExactControlStream. See the
+# rationale there (observed live 2026-08-07: "expected 109 got 110" with a
+# 128 MiB rcvbuf = one missed 10 ms publisher slot; three aborted bring-ups).
 
 
 class RobotSocketReceiverError(RuntimeError):
@@ -516,6 +522,8 @@ class RobotSocketHealth:
     envelope_count: int
     control_tick_count: int
     preflight_ready: bool
+    publisher_hole_count: int = 0    # absorbed bounded publisher holes (QC signal)
+    missed_envelope_total: int = 0   # envelopes skipped inside absorbed holes
 
     @property
     def last_seq(self) -> Optional[int]:
@@ -741,6 +749,8 @@ class RobotSocketReceiver:
         self._last_envelope: Optional[RobotControlEnvelope] = None
         self._invalid_reference_run = 0  # consecutive seqlock-collision ticks
         self._rcvbuf_actual_bytes = -1   # granted SO_RCVBUF, read back at bind
+        self._publisher_hole_count = 0   # absorbed bounded publisher holes (events)
+        self._missed_envelope_total = 0  # envelopes skipped inside absorbed holes
         self._envelope_count = 0
         self._control_tick_count = 0
         self._recent_envelopes: Deque[RobotControlEnvelope] = deque()
@@ -1375,47 +1385,89 @@ class RobotSocketReceiver:
             raise RobotSocketReceiverError(
                 "exact control envelope schema changed"
             )
-        if envelope.envelope_seq != previous.envelope_seq + 1:
-            raise RobotSocketReceiverError(
-                "control envelope sequence loss or duplication: expected "
-                f"{previous.envelope_seq + 1} got {envelope.envelope_seq} "
-                f"(rcvbuf={self._rcvbuf_actual_bytes})"
-            )
         if envelope.publisher_monotonic_ns <= previous.publisher_monotonic_ns:
             raise RobotSocketReceiverError(
                 "control envelope publisher clock rollback"
             )
-        # Cold-start grace on a shared box: while the controller's RT threads spin
-        # up (and noisy neighbors burst), the deliberately low-priority publisher
-        # thread can miss a couple of 10 ms periods. For the first envelopes only,
-        # tolerate up to 200 ms between envelopes instead of latching a terminal
-        # fault; sequence contiguity and clock monotonicity above stay strict, and
-        # READY still requires a clean continuous preflight window at the hard
-        # bound, so steady-state quality guarantees are unchanged.
-        gap_bound_ns = self.contract.max_gap_ns
-        if previous.envelope_seq < _STARTUP_GRACE_ENVELOPES:
-            gap_bound_ns = max(gap_bound_ns, _STARTUP_GRACE_GAP_NS)
-        if (
-            envelope.publisher_monotonic_ns - previous.publisher_monotonic_ns
-            > gap_bound_ns
-        ):
-            raise RobotSocketReceiverError(
-                "100 Hz control envelope continuity exceeds hard 20 ms bound"
-            )
         previous_record = previous.records[-1]
         current_record = records[0]
-        if current_record.control_tick_seq != previous_record.control_tick_seq + 1:
-            raise RobotSocketReceiverError(
-                "exact control tick sequence loss or duplication"
-            )
-        tick_gap_ns = (
-            current_record.observation_monotonic_ns
-            - previous_record.observation_monotonic_ns
+        seq_jump = envelope.envelope_seq - previous.envelope_seq
+        tick_delta = (
+            current_record.control_tick_seq - previous_record.control_tick_seq
         )
-        if tick_gap_ns <= 0 or tick_gap_ns > _MAX_CONTROL_TICK_GAP_NS:
-            raise RobotSocketReceiverError(
-                "exact 1 kHz control tick gap exceeds hard 10 ms bound"
+        if seq_jump == 1:
+            # Contiguous stream: the strict steady-state contract.
+            # Cold-start grace on a shared box: while the controller's RT threads
+            # spin up (and noisy neighbors burst), the deliberately low-priority
+            # publisher thread can miss a couple of 10 ms periods. For the first
+            # envelopes only, tolerate up to 200 ms between envelopes instead of
+            # latching a terminal fault; sequence contiguity and clock
+            # monotonicity stay strict, and READY still requires a clean
+            # continuous preflight window at the hard bound, so steady-state
+            # quality guarantees are unchanged.
+            gap_bound_ns = self.contract.max_gap_ns
+            if previous.envelope_seq < _STARTUP_GRACE_ENVELOPES:
+                gap_bound_ns = max(gap_bound_ns, _STARTUP_GRACE_GAP_NS)
+            if (
+                envelope.publisher_monotonic_ns - previous.publisher_monotonic_ns
+                > gap_bound_ns
+            ):
+                raise RobotSocketReceiverError(
+                    "100 Hz control envelope continuity exceeds hard 20 ms bound"
+                )
+            if tick_delta != 1:
+                raise RobotSocketReceiverError(
+                    "exact control tick sequence loss or duplication"
+                )
+            tick_gap_ns = (
+                current_record.observation_monotonic_ns
+                - previous_record.observation_monotonic_ns
             )
+            if tick_gap_ns <= 0 or tick_gap_ns > _MAX_CONTROL_TICK_GAP_NS:
+                raise RobotSocketReceiverError(
+                    "exact 1 kHz control tick gap exceeds hard 10 ms bound"
+                )
+            return
+        missed = seq_jump - 1
+        records_per_envelope = len(previous.records)
+        if (
+            1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
+            and records_per_envelope > 0
+            and tick_delta == 1 + missed * records_per_envelope
+        ):
+            # Bounded, exactly tick-aligned publisher hole (see
+            # _ENVELOPE_HOLE_TOLERANCE): the publisher missed `missed` slots but
+            # the tick counter corroborates that nothing else is wrong. The hole
+            # must also be short in wall-clock terms on BOTH clocks.
+            hole_bound_ns = seq_jump * self.contract.max_gap_ns
+            if previous.envelope_seq < _STARTUP_GRACE_ENVELOPES:
+                hole_bound_ns = max(hole_bound_ns, _STARTUP_GRACE_GAP_NS)
+            if (
+                envelope.publisher_monotonic_ns - previous.publisher_monotonic_ns
+                > hole_bound_ns
+            ):
+                raise RobotSocketReceiverError(
+                    "publisher hole exceeds its envelope-aligned duration bound: "
+                    f"{missed} missed envelopes "
+                    f"(rcvbuf={self._rcvbuf_actual_bytes})"
+                )
+            tick_gap_ns = (
+                current_record.observation_monotonic_ns
+                - previous_record.observation_monotonic_ns
+            )
+            if tick_gap_ns <= 0 or tick_gap_ns > tick_delta * _MAX_CONTROL_TICK_GAP_NS:
+                raise RobotSocketReceiverError(
+                    "publisher hole tick observations exceed their aligned bound: "
+                    f"{missed} missed envelopes"
+                )
+            self._publisher_hole_count += 1
+            self._missed_envelope_total += missed
+            return
+        raise RobotSocketReceiverError(
+            "control envelope sequence loss or duplication: expected "
+            f"{previous.envelope_seq + 1} got {envelope.envelope_seq} "
+            f"(rcvbuf={self._rcvbuf_actual_bytes})"
+        )
 
     def _receive_loop(self) -> None:
         selector = self._selector
@@ -1628,6 +1680,8 @@ class RobotSocketReceiver:
                 envelope_count=self._envelope_count,
                 control_tick_count=self._control_tick_count,
                 preflight_ready=preflight_ready,
+                publisher_hole_count=self._publisher_hole_count,
+                missed_envelope_total=self._missed_envelope_total,
             )
 
     def _unlink_owned_socket(self) -> None:

@@ -1132,3 +1132,96 @@ def test_open_pidfd_fails_closed_when_no_pidfd_available(monkeypatch):
     monkeypatch.setattr(receiver_module, "_SYSCALL_PIDFD_OPEN", None)
     with pytest.raises(receiver_module.RobotSocketReceiverError):
         LinuxControllerProcessInspector().open_pidfd(4321)
+
+
+def test_receive_absorbs_bounded_tick_aligned_publisher_hole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One missed 10 ms publisher slot (the 2026-08-07 'expected 109 got 110'
+    live fault) must be absorbed and counted, not latched as a terminal fault —
+    provided the tick counter corroborates the hole exactly."""
+    monkeypatch.setattr(receiver_module, "_SCM_CREDENTIALS", 2)
+    receiver = _receiver(tmp_path)
+    base = time.monotonic_ns() - 60_000_000
+    _unit_ingest(
+        receiver,
+        _wire(_envelope(envelope_seq=1, first_tick=100, first_observation_ns=base)),
+    )
+    # seq jumps 1 -> 3 (one missed envelope); ticks jump 109 -> 120 = 1 + 1*10,
+    # observations resume 20 ms later: a genuine, exactly-aligned bounded hole.
+    _unit_ingest(
+        receiver,
+        _wire(
+            _envelope(
+                envelope_seq=3,
+                first_tick=120,
+                first_observation_ns=base + 20_000_000,
+            )
+        ),
+    )
+    health = receiver.health()
+    assert health.status != "FAULT"
+    assert health.publisher_hole_count == 1
+    assert health.missed_envelope_total == 1
+    # stream continues strictly afterwards
+    _unit_ingest(
+        receiver,
+        _wire(
+            _envelope(
+                envelope_seq=4,
+                first_tick=130,
+                first_observation_ns=base + 30_000_000,
+            )
+        ),
+    )
+    assert receiver.health().status != "FAULT"
+
+
+def test_receive_rejects_hole_larger_than_tolerance(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A large telemetry hole (e.g. the 1.33 s cold-load stall) must still fault:
+    data-void policy for real losses is unchanged."""
+    monkeypatch.setattr(receiver_module, "_SCM_CREDENTIALS", 2)
+    receiver = _receiver(tmp_path)
+    base = time.monotonic_ns() - 200_000_000
+    _unit_ingest(
+        receiver,
+        _wire(_envelope(envelope_seq=1, first_tick=100, first_observation_ns=base)),
+    )
+    with pytest.raises(RobotSocketReceiverError, match="sequence loss or duplication"):
+        _unit_ingest(
+            receiver,
+            _wire(
+                _envelope(
+                    envelope_seq=9,  # 7 missed > tolerance of 5
+                    first_tick=180,
+                    first_observation_ns=base + 80_000_000,
+                )
+            ),
+        )
+
+
+def test_receive_rejects_seq_jump_without_matching_tick_hole(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A seq jump whose ticks are NOT aligned to the hole (ticks contiguous =>
+    renumbering/duplication, not a real publisher hole) must still fault."""
+    monkeypatch.setattr(receiver_module, "_SCM_CREDENTIALS", 2)
+    receiver = _receiver(tmp_path)
+    base = time.monotonic_ns() - 60_000_000
+    _unit_ingest(
+        receiver,
+        _wire(_envelope(envelope_seq=1, first_tick=100, first_observation_ns=base)),
+    )
+    with pytest.raises(RobotSocketReceiverError, match="sequence loss or duplication"):
+        _unit_ingest(
+            receiver,
+            _wire(
+                _envelope(
+                    envelope_seq=3,
+                    first_tick=110,  # contiguous ticks but seq skipped => inconsistent
+                    first_observation_ns=base + 10_000_000,
+                )
+            ),
+        )
