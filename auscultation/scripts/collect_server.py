@@ -5084,7 +5084,18 @@ class Collector:
                     # same-frame OpenArm mask bundle exists.
                     self._pending_model_frame = detached
             model_input_submitted = False
-            if not self.fake and self._pending_model_frame is not None:
+            gate_testing = (
+                self._safe_stop_gate is not None
+                and self._safe_stop_gate.state == safe_stop_hil.TESTING
+            )
+            if gate_testing:
+                # GIL relief during the safe-stop test: the tracker/person-gate is
+                # useless while the operator validates the arm, and its inference
+                # pre/post-processing contends with the telemetry receiver thread
+                # for the GIL (observed: ~1 s receiver stalls -> 16 envelopes
+                # dropped mid-stream -> sequence-loss fault seconds after READY).
+                self._pending_model_frame = None
+            if not gate_testing and not self.fake and self._pending_model_frame is not None:
                 pending_model_frame = self._pending_model_frame
                 try:
                     model_input = self._model_input_for_frame(
