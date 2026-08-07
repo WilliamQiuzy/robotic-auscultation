@@ -278,16 +278,7 @@ def test_v3_parser_rejects_inconsistent_or_overclaimed_tx_status(
             lambda value: value.update(publisher_rejected_record_count=1),
             "publisher_rejected",
         ),
-        (
-            lambda value: value.update(socket_send_failure_count=1),
-            "socket_send_failure",
-        ),
-        (
-            lambda value: value["records"][0].update(
-                reference_snapshot_valid=False
-            ),
-            "reference snapshot",
-        ),
+
         (
             lambda value: value["records"][0].update(
                 arm_call_return_monotonic_ns=999_000_000
@@ -441,3 +432,37 @@ def test_exact_control_stream_rejects_v2_to_v3_schema_switch() -> None:
     switched["publisher_monotonic_ns"] = 1_006_500_000
     with pytest.raises(RobotTelemetryError, match="schema changed"):
         stream.ingest_datagram(_wire(switched))
+
+
+def test_parse_accepts_constant_send_failure_baseline_and_carries_counter():
+    # New semantics: a nonzero cumulative sendto-failure count is a legal BASELINE
+    # at parse (drops before the receiver started draining are invisible to the
+    # sequence checks and harmless); only a mid-stream INCREASE faults, at the
+    # stream/receiver transition layer.
+    value = _envelope(envelope_seq=3, first_tick=30, first_observation_ns=1_000_000)
+    value["socket_send_failure_count"] = 7
+    envelope = parse_control_envelope_datagram(_wire(value), _contract())
+    assert envelope.socket_send_failure_count == 7
+
+
+def test_parse_carries_isolated_invalid_reference_snapshot_flag():
+    # New semantics: an isolated seqlock-collision tick (reference_snapshot_valid
+    # False) is carried through the parse — the receiver faults only on a
+    # SUSTAINED run of invalid ticks.
+    value = _envelope(envelope_seq=3, first_tick=30, first_observation_ns=1_000_000)
+    value["records"][0]["reference_snapshot_valid"] = False
+    envelope = parse_control_envelope_datagram(_wire(value), _contract())
+    assert envelope.records[0].reference_snapshot_valid is False
+
+
+def test_stream_faults_on_mid_stream_send_failure_increase():
+    stream = ExactControlStateStream(_contract())
+    first = _envelope(envelope_seq=1, first_tick=10, first_observation_ns=1_000_000)
+    first["socket_send_failure_count"] = 2          # constant baseline: legal
+    stream.ingest_datagram(_wire(first))
+    second = _envelope(
+        envelope_seq=2, first_tick=20, first_observation_ns=11_000_000,
+    )
+    second["socket_send_failure_count"] = 3         # increase: mid-stream loss
+    with pytest.raises(RobotTelemetryError, match="increased mid-stream"):
+        stream.ingest_datagram(_wire(second))

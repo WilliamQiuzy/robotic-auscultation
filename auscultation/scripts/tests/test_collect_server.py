@@ -6618,6 +6618,11 @@ class _ArmCoord:
         self._faulted = False
         self._fr = ""
 
+    def renew_receiver(self):
+        self.events.append("renew")
+        self._faulted = False
+        self._fr = ""
+
     def prepare_receiver_socket(self): self.events.append("prepare")
     def attach_controller_process(self, a): self.events.append("attach")
     def start_receiver(self): self.events.append("start")
@@ -7248,7 +7253,8 @@ def test_arm_bringup_ready_then_disable(tmp_path):
         r = c.bring_up_controller()
         assert r["ok"] and r["code"] == "controller_ready" and r["controller_pid"] == 999
         assert c._controller_ready() is True
-        assert coord.events[:3] == ["prepare", "attach", "start"]
+        # renew_receiver runs first: every bring-up gets a fresh single-use receiver
+        assert coord.events[:4] == ["renew", "prepare", "attach", "start"]
         assert disable.calls == []                       # never disabled on success
         d = c.disable_controller()
         assert d["ok"] and d["code"] == "controller_disabled"
@@ -8006,6 +8012,14 @@ def test_full_safe_stop_test_flow_authorizes_real_bringup(tmp_path, monkeypatch)
         p = c.confirm_safe_stop(deenergized=True)          # 3) witness de-energize
         assert p["ok"] is True and p["code"] == "safe_stop_hil_passed"
         assert c.arm_control_authorization().arm_bringup_authorized is True
+        # 4) REAL second bring-up must succeed on a RENEWED receiver (the safe-stop
+        # consumed the first one) and must NOT void the PASSED gate.
+        renews_before = c._robot_coordinator.events.count("renew")
+        r2 = c.bring_up_controller()
+        assert r2["ok"] is True, r2
+        assert c._robot_coordinator.events.count("renew") == renews_before + 1
+        assert c._safe_stop_gate.state == "HIL_PASSED"
+        assert c._controller_companion.state == "ready"
     finally:
         c.shutdown()
 

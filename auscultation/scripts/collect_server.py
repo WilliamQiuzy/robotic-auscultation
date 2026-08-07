@@ -2494,6 +2494,14 @@ class Collector:
                 launch_fence_pending = bool(
                     comp is not None and self._controller_launch_fence_open
                 )
+                # Snapshot liveness BEFORE issuing the disable: during a safe-stop
+                # TEST, a disable against an already-dead controller must not be
+                # recorded as a successful stop-tool validation (the tool provably
+                # stopped nothing; pkill's no-match "success" would be a false
+                # positive for the witness).
+                controller_alive_before = bool(
+                    comp is not None and getattr(comp, "controller_alive", False)
+                )
                 outcome = (
                     execute_independent_stop(
                         direct_disable=self._controller_disable,
@@ -2512,8 +2520,14 @@ class Collector:
             gate = self._safe_stop_gate
             if gate is not None and gate.state == safe_stop_hil.TESTING:
                 gate.record_disable(
-                    command_succeeded=bool(outcome.command_succeeded),
-                    outcome=str(outcome.outcome),
+                    command_succeeded=bool(
+                        outcome.command_succeeded and controller_alive_before
+                    ),
+                    outcome=(
+                        str(outcome.outcome)
+                        if controller_alive_before
+                        else "controller_already_dead_before_disable"
+                    ),
                     controller_pid=(comp.controller_pid if comp is not None else None),
                 )
             # E-stop honesty: ok reflects whether the disable COMMAND actually succeeded.
@@ -2721,6 +2735,17 @@ class Collector:
             "utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "receiver": self._receiver_health_brief(),
         }
+        # Append-only audit trail: /state's last_attempt dies with the process, so a
+        # restart erased the evidence of every prior attempt. One JSON line per
+        # attempt, best-effort (audit must never break the arm path).
+        try:
+            audit_path = Path(self.out_dir) / "arm_lifecycle_audit.jsonl"
+            with open(audit_path, "a", encoding="utf-8") as audit:
+                audit.write(json.dumps(
+                    self._controller_last_attempt, ensure_ascii=False,
+                ) + "\n")
+        except Exception:  # noqa: BLE001
+            pass
 
     def _receiver_health_brief(self):
         """Compact receiver evidence for the persisted last-attempt record."""

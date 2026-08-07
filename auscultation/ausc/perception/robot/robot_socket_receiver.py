@@ -739,6 +739,7 @@ class RobotSocketReceiver:
         self._fault_reason = ""
         self._last_envelope: Optional[RobotControlEnvelope] = None
         self._invalid_reference_run = 0  # consecutive seqlock-collision ticks
+        self._rcvbuf_actual_bytes = -1   # granted SO_RCVBUF, read back at bind
         self._envelope_count = 0
         self._control_tick_count = 0
         self._recent_envelopes: Deque[RobotControlEnvelope] = deque()
@@ -1067,6 +1068,14 @@ class RobotSocketReceiver:
                 )
             except OSError:
                 pass  # kernel caps at rmem_max; the bounds checks still fail closed
+            # Read back the GRANTED size (the kernel silently truncates at
+            # rmem_max) so drop diagnostics can attribute queue overflows honestly.
+            try:
+                self._rcvbuf_actual_bytes = int(
+                    receiver.getsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF)
+                )
+            except OSError:
+                self._rcvbuf_actual_bytes = -1
             try:
                 receiver.setsockopt(socket.SOL_SOCKET, _SO_RXQ_OVFL, 1)
             except OSError as exc:
@@ -1367,7 +1376,9 @@ class RobotSocketReceiver:
             )
         if envelope.envelope_seq != previous.envelope_seq + 1:
             raise RobotSocketReceiverError(
-                "control envelope sequence loss or duplication"
+                "control envelope sequence loss or duplication: expected "
+                f"{previous.envelope_seq + 1} got {envelope.envelope_seq} "
+                f"(rcvbuf={self._rcvbuf_actual_bytes})"
             )
         if envelope.publisher_monotonic_ns <= previous.publisher_monotonic_ns:
             raise RobotSocketReceiverError(

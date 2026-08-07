@@ -34,6 +34,7 @@ from typing import Callable, Optional, Protocol
 # Ready only in this exact receiver state; every other state keeps waiting (during
 # bring-up) or is a fault (after ready).
 _READY_STATUS = "READY"
+_STALE_STATUS = "STALE"
 # Terminal-bad receiver states: never wait through these.
 _TERMINAL_BAD_STATUS = frozenset({"FAULT", "STOPPED"})
 # Freshness (non-terminal) regressions must persist this many consecutive
@@ -229,6 +230,22 @@ class TrustedControllerCompanion:
         return self._fault_reason
 
     @property
+    def controller_alive(self) -> bool:
+        """Whether the launched controller PROCESS is currently running.
+
+        Used by the safe-stop witness path: a disable commanded against an
+        already-dead controller must not be recorded as a successful stop-tool
+        validation (the stop tool provably stopped nothing).
+        """
+        controller = self._controller
+        if controller is None:
+            return False
+        try:
+            return controller.poll() is None
+        except Exception:  # noqa: BLE001 - liveness probe must never raise
+            return False
+
+    @property
     def disabled(self) -> bool:
         return self._disabled
 
@@ -390,13 +407,26 @@ class TrustedControllerCompanion:
             )
             self._fault_disable(reason)
             raise CompanionFault(reason)
-        # FRESHNESS wobble (e.g. STALE: the last envelope is momentarily older than
+        # FRESHNESS wobble (STALE ONLY: the last envelope is momentarily older than
         # the display bound) is an observation, not an integrity violation -- on a
         # busy shared box the GIL-bound receiver thread can lag for one poll while
         # the stream itself is intact (any real loss latches via the sequence/tick
         # checks above and takes the immediate path). Debounce: only a SUSTAINED
-        # regression (consecutive polls) disables the arm.
-        if status != _READY_STATUS or not bool(getattr(health, "preflight_ready", False)):
+        # STALE run disables the arm. Every OTHER regression (WARMING, WAITING, a
+        # READY snapshot that lost preflight_ready, unknown statuses) keeps the
+        # IMMEDIATE fail-closed path -- e.g. a motor-feedback dropout must not gain
+        # extra watchdog periods of delay from this debounce.
+        if status != _STALE_STATUS and (
+            status != _READY_STATUS
+            or not bool(getattr(health, "preflight_ready", False))
+        ):
+            reason = (
+                f"robot telemetry fault during capture: status={status} "
+                f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
+            )
+            self._fault_disable(reason)
+            raise CompanionFault(reason)
+        if status == _STALE_STATUS:
             self._stale_polls += 1
             if self._stale_polls >= _STALE_POLL_FAULT_LIMIT:
                 reason = (

@@ -665,3 +665,15 @@ def test_shutdown_returns_its_own_disable_outcome():
     assert outcome is not None
     assert outcome.reason == "estop-A"
     assert outcome.command_succeeded is True
+
+
+def test_poll_non_stale_regression_disables_immediately():
+    # Audit P0: the debounce must cover STALE ONLY. Any other non-terminal
+    # regression (e.g. WARMING after a feedback dropout) keeps the immediate path.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("WARMING", False)]
+    with pytest.raises(CompanionFault):
+        companion.poll()                              # no grace for WARMING
+    assert disabler.calls and companion.disabled is True

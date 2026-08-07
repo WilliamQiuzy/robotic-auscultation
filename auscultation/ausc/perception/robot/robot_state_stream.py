@@ -1189,6 +1189,10 @@ class RobotControlEnvelope:
     controller_pid: int
     controller_start_token: str
     records: Tuple[ExactControlRecord, ...]
+    # Cumulative publisher sendto-failure count carried for TRANSITION checks: a
+    # constant baseline (pre-receiver drops) is tolerated; any INCREASE across
+    # received envelopes is a mid-stream loss and must fault.
+    socket_send_failure_count: int = 0
 
     @property
     def process_identity(self) -> Tuple[int, str]:
@@ -2153,7 +2157,28 @@ def parse_control_envelope_datagram(
         controller_pid=pid,
         controller_start_token=start_token,
         records=records,
+        socket_send_failure_count=int(envelope["socket_send_failure_count"]),
     )
+
+
+def validate_send_failure_transition(previous_count, current_count):
+    """Fault on any mid-stream CHANGE of the cumulative sendto-failure counter.
+
+    A constant nonzero baseline is legal (envelopes dropped before the receiver
+    started draining never reached us and are invisible to sequence checks); an
+    INCREASE across received envelopes means an envelope was lost mid-stream, and
+    a DECREASE means the publisher state is inconsistent. Both fault.
+    """
+    if current_count > previous_count:
+        raise RobotTelemetryError(
+            "socket_send_failure_count increased mid-stream "
+            f"({previous_count} -> {current_count}): an envelope was lost"
+        )
+    if current_count < previous_count:
+        raise RobotTelemetryError(
+            "socket_send_failure_count rolled back "
+            f"({previous_count} -> {current_count})"
+        )
 
 
 class ExactControlStateStream:
@@ -2174,6 +2199,7 @@ class ExactControlStateStream:
         self.contract = contract
         self._records: List[ExactControlRecord] = []
         self._last_envelope_seq: int | None = None
+        self._last_send_failure_count = 0
         self._last_control_tick_seq: int | None = None
         self._last_monotonic_ns: int | None = None
         self._process_identity: Tuple[int, str] | None = None
@@ -2218,6 +2244,13 @@ class ExactControlStateStream:
                 self._latch_fault(
                     "control envelope sequence loss or duplication"
                 )
+            try:
+                validate_send_failure_transition(
+                    self._last_send_failure_count,
+                    envelope.socket_send_failure_count,
+                )
+            except RobotTelemetryError as exc:
+                self._latch_fault(str(exc))
             if envelope.records[0].control_tick_seq != self._last_control_tick_seq + 1:
                 self._latch_fault("exact control tick sequence loss or duplication")
             if (
@@ -2238,6 +2271,7 @@ class ExactControlStateStream:
 
         self._records.extend(envelope.records)
         self._last_envelope_seq = envelope.envelope_seq
+        self._last_send_failure_count = envelope.socket_send_failure_count
         self._last_control_tick_seq = envelope.records[-1].control_tick_seq
         self._last_monotonic_ns = envelope.records[-1].observation_monotonic_ns
         cutoff_ns = self._last_monotonic_ns - self.contract.buffer_duration_ns
