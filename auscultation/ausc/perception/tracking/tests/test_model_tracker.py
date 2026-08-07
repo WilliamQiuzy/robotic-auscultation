@@ -1045,11 +1045,15 @@ def test_no_back_destroys_dormant_canonical():
     _assert_fail_closed_dormant(output, "DORMANT")
 
     detector.back_present = False
-    frame = frames[7]
-    detector.set_truth(frame.gt_pixels)
-    no_back = tracker.process(
-        frame.rgb, frame.depth, t=frame.t, depth_scale=frame.depth_scale,
-    )
+    # Debounced (2026-08-07 audit): one flickered no-back frame must NOT wipe the
+    # canonical; the reset fires only after no_back_reset_frames consecutive frames.
+    no_back = None
+    for index in range(7, 7 + tracker.cfg.no_back_reset_frames):
+        frame = frames[index]
+        detector.set_truth(frame.gt_pixels)
+        no_back = tracker.process(
+            frame.rgb, frame.depth, t=frame.t, depth_scale=frame.depth_scale,
+        )
     assert not no_back.initialized
     assert no_back.tracking_state == "COLD_INIT"
     assert no_back.pose_valid is False
@@ -1409,3 +1413,81 @@ def test_reacquisition_gates_the_exact_retained_output_template():
     ]
     assert max(measured_error) <= tracker.cfg.reacquire_max_resid_m
     np.testing.assert_array_equal(tracker.residual, retained_residual)
+
+
+def test_individually_lost_point_readmits_via_canonical_gate():
+    # 2026-08-07 audit (critical): a single point that exceeded coast_max stayed
+    # LOST for many seconds (R3 absent 97% of a static session) even when its
+    # observation returned. The re-admission path re-admits it after a streak of
+    # observations consistent with the pose-predicted anatomical position.
+    frames, intr = make_synthetic_sequence(
+        n_frames=80, motion=False, breathing=False, depth_noise_mm=0.0,
+    )
+    det = SyntheticDetector(intr, noise_px=0.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=4, coast_max=3))
+    victim = 4
+    for i, fr in enumerate(frames):
+        truth = fr.gt_pixels.copy()
+        if 10 <= i < 30:
+            truth[victim] = np.nan                  # only this point disappears
+        det.set_truth(truth)
+        out = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+        if i == 29:
+            assert tr._miss_pp[victim] > tr.cfg.coast_max  # individually LOST
+    # after the observation returns, the point must be re-admitted and measured
+    assert tr._miss_pp[victim] == 0
+    assert out.points[victim].status == "TRACKING"
+    # and it must have landed back on the true anatomy (within a few mm)
+    gt3d = frames[-1].gt_xyz_cam[victim]
+    err = float(np.linalg.norm(np.asarray(out.points[victim].xyz_camera) - gt3d))
+    assert err < 0.008, err
+
+
+def test_pose_snap_after_gap_prevents_confident_crawl_back():
+    # 2026-08-07 audit: after a gap the pose EMA crawled from the stale pose to
+    # the new fit over several frames, publishing confidently-wrong points. With
+    # the snap, the FIRST post-gap fit is adopted outright when the median
+    # displacement exceeds pose_snap_m.
+    frames, intr = make_synthetic_sequence(n_frames=60, motion=True)
+    det = SyntheticDetector(intr, noise_px=0.5)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=6, coast_max=30))
+    out = None
+    for i, fr in enumerate(frames):
+        det.set_truth(fr.gt_pixels)
+        if 25 <= i < 40:
+            out = tr.process(None, None, t=fr.t)     # 15-frame dropout while moving
+        else:
+            out = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+        if i == 40:
+            # FIRST frame after the gap: published points already at the new truth
+            errs = [
+                float(np.linalg.norm(
+                    np.asarray(pt.xyz_camera) - fr.gt_xyz_cam[j]
+                ))
+                for j, pt in enumerate(out.points)
+                if pt.status == "TRACKING" and np.isfinite(pt.xyz_camera).all()
+            ]
+            assert errs and float(np.median(errs)) < 0.010, errs
+
+
+def test_oscillation_recovery_returns_to_same_anatomy():
+    # The operator's core question: after a large oscillation + detector dropout,
+    # do the 10 points reconverge to the SAME anatomical locations?
+    frames, intr = make_synthetic_sequence(n_frames=100, motion=True, breathing=True)
+    det = SyntheticDetector(intr, noise_px=1.0)
+    tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=6, coast_max=10))
+    out = None
+    for i, fr in enumerate(frames):
+        det.set_truth(fr.gt_pixels)
+        if 45 <= i < 55:
+            out = tr.process(None, None, t=fr.t)     # oscillation blur: no detections
+        else:
+            out = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+    assert out.initialized
+    errs = [
+        float(np.linalg.norm(np.asarray(pt.xyz_camera) - frames[-1].gt_xyz_cam[j]))
+        for j, pt in enumerate(out.points)
+        if np.isfinite(pt.xyz_camera).all()
+    ]
+    assert len(errs) >= 9
+    assert float(np.median(errs)) < 0.006, errs      # reconverged to anatomy

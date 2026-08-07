@@ -249,14 +249,23 @@ def test_reset_never_exports_stale_coasting_points():
     assert all(not np.isfinite(point.pixel).any() for point in output.points)
 
 
-def test_explicit_no_back_immediately_resets_an_initialized_track():
+def test_no_back_is_debounced_then_resets_an_initialized_track():
+    # 2026-08-07 audit: a SINGLE no-back frame (depth-plausibility flicker) must
+    # not wipe the canonical template; the frame is treated as a miss and the
+    # reset fires only after no_back_reset_frames CONSECUTIVE no-back frames.
     tracker, detector, frame = _single_frame_tracker(init_frames=2, coast_max=20)
     assert _initialize(tracker, frame, 2).initialized
     detector.back_present = False
 
-    output = tracker.process(frame.rgb, frame.depth, t=3.0)
+    flicker = tracker.process(frame.rgb, frame.depth, t=3.0)
+    assert flicker.initialized                       # survived the flicker
+    assert flicker.n_measured == 0                   # but published no measurement
 
-    assert not output.initialized
+    output = flicker
+    for step in range(1, tracker.cfg.no_back_reset_frames):
+        output = tracker.process(frame.rgb, frame.depth, t=3.0 + step)
+
+    assert not output.initialized                    # sustained no-back -> reset
     assert output.back_present is False
     assert output.reason == "NO_BACK"
     assert all(not np.isfinite(point.pixel).any() for point in output.points)

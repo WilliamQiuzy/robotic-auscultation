@@ -89,6 +89,24 @@ class ModelConfig:
     reacquire_absolute_rotation_deg: float = 15.0
     reacquire_max_point_displacement_m: float = 0.05
     reacquire_max_gap_s: float = 0.2
+    # ── perturbation-recovery honesty (2026-08-07 audit) ─────────────────────
+    # Snap-vs-blend: the pose EMA exists to kill >2 Hz jitter, not to low-pass a
+    # genuine pose change. After a gap the EMA would CRAWL from the held pose to
+    # the new fit over ~1/pose_ema frames, publishing confidently-labelled points
+    # tens of mm wrong. If the median point displacement between held pose and
+    # fresh fit exceeds this, adopt the fresh fit outright.
+    pose_snap_m: float = 0.010
+    # Debounce the detector-internal depth-plausibility reset: a single-frame
+    # flicker (highest risk during patient oscillation) must not wipe the whole
+    # track + canonical template. Reset only after this many CONSECUTIVE
+    # no-back frames; during the debounce the frame is treated as a miss.
+    no_back_reset_frames: int = 3
+    # Individual-LOST re-admission: audit showed single points (R3 97% / R2 84%
+    # absent) staying LOST for many seconds while the constellation pose stayed
+    # valid. Re-admit a LOST point after a consecutive streak of observations
+    # that agree with its pose-predicted anatomical position.
+    readmit_gate_m: float = 0.03
+    readmit_frames: int = 3
 
     def __post_init__(self) -> None:
         def _real_positive(value) -> bool:
@@ -107,6 +125,14 @@ class ModelConfig:
             raise ValueError("reacquire_frames must be an int >= 5")
         if not _real_positive(self.reacquire_max_gap_s):
             raise ValueError("reacquire_max_gap_s must be finite and positive")
+        if not _real_positive(self.pose_snap_m):
+            raise ValueError("pose_snap_m must be finite and positive")
+        if type(self.no_back_reset_frames) is not int or self.no_back_reset_frames < 1:
+            raise ValueError("no_back_reset_frames must be an int >= 1")
+        if not _real_positive(self.readmit_gate_m):
+            raise ValueError("readmit_gate_m must be finite and positive")
+        if type(self.readmit_frames) is not int or self.readmit_frames < 1:
+            raise ValueError("readmit_frames must be an int >= 1")
         positive_reacquisition_limits = (
             self.reacquire_median_resid_m,
             self.reacquire_max_resid_m,
@@ -252,6 +278,10 @@ class ModelBasedTracker:
         self._frame_measurement_residual_m = np.full(
             len(LUNG_ORDER), np.inf, dtype=np.float64,
         )
+        self._no_back_streak = 0
+        self._readmit_obs: List[List[np.ndarray]] = [
+            [] for _ in range(len(LUNG_ORDER))
+        ]
 
     # -- body cloud + ray surface-snap (Step 1: stable depth at the source) ------
     def _expanded_robot_mask(self, robot_mask: np.ndarray) -> np.ndarray:
@@ -546,6 +576,59 @@ class ModelBasedTracker:
             recovered[index] = True
         return recovered
 
+    def _readmit_lost_points(self, obs: np.ndarray) -> np.ndarray:
+        """Re-admit an individually-LOST point whose observations have returned.
+
+        Audit evidence (2026-08-07): single points stayed LOST for many seconds
+        (R3 absent 97% of a static session) while the constellation pose stayed
+        valid — nothing re-admitted a point once ``_miss_pp`` exceeded
+        ``coast_max`` unless it happened to pass the tight inlier band. Require a
+        consecutive streak of observations that agree with the pose-predicted
+        anatomical position within ``readmit_gate_m``; on success refresh the
+        slow residual from the streak so drift during the absence is absorbed
+        instead of blocking the inlier gate forever.
+        """
+        readmitted = np.zeros(len(LUNG_ORDER), dtype=bool)
+        lost = self._miss_pp > int(self.cfg.coast_max)
+        predicted = self._pose_apply(self.canonical + self.residual)
+        required = max(1, int(self.cfg.readmit_frames))
+        for index in range(len(LUNG_ORDER)):
+            history = self._readmit_obs[index]
+            if not lost[index] or not np.isfinite(self.canonical[index]).all():
+                history.clear()
+                continue
+            sample = obs[index]
+            if (
+                not np.isfinite(sample).all()
+                or not np.isfinite(predicted[index]).all()
+                or float(np.linalg.norm(sample - predicted[index]))
+                > self.cfg.readmit_gate_m
+            ):
+                history.clear()
+                continue
+            history.append(sample.copy())
+            if len(history) > required:
+                del history[:-required]
+            if len(history) < required:
+                continue
+            values = np.asarray(history, dtype=np.float64)
+            centre = np.median(values, axis=0)
+            spread = np.linalg.norm(values - centre, axis=1)
+            if float(np.max(spread)) > self.cfg.huber_m:
+                history[:] = [sample.copy()]
+                continue
+            # Absorb drift-during-absence into the (clamped) slow residual so the
+            # point publishes at the observed anatomy immediately.
+            body = self._pose_inv(values.mean(axis=0)[None, :])[0]
+            offset = body - self.canonical[index]
+            norm = float(np.linalg.norm(offset))
+            if norm > self.cfg.max_resid_m:
+                offset = offset / max(norm, 1e-9) * self.cfg.max_resid_m
+            self.residual[index] = offset
+            history.clear()
+            readmitted[index] = True
+        return readmitted
+
     # -- robust pose fit (IRLS) -------------------------------------------
     def _evaluate_pose_geometry(self, source, destination, target_template):
         if self.geometry_gate is None:
@@ -801,6 +884,21 @@ class ModelBasedTracker:
 
     def _smooth_pose(self, R, s, t):
         a = self.cfg.pose_ema
+        # Recovery snap: a genuine pose change (post-gap/perturbation) must not be
+        # low-passed into a multi-frame crawl of confidently-labelled wrong points.
+        if self.canonical is not None:
+            valid = np.isfinite(self.canonical).all(1)
+            if np.any(valid):
+                held = self._pose_apply(self.canonical[valid])
+                fresh = s * (R @ self.canonical[valid].T).T + t
+                displacement = float(
+                    np.median(np.linalg.norm(held - fresh, axis=1))
+                )
+                if displacement > self.cfg.pose_snap_m:
+                    self.R = np.asarray(R, dtype=np.float64).copy()
+                    self.s = float(s)
+                    self.t = np.asarray(t, dtype=np.float64).copy()
+                    return
         # rotation: low-pass via the relative rotvec
         if cv2 is not None:
             rel = self.R.T @ R
@@ -861,8 +959,16 @@ class ModelBasedTracker:
         )
 
         if self._frame_back_present is False:
-            self.reset(REASON_NO_BACK)
-            return self._emit(t, reason=REASON_NO_BACK)
+            # Debounce: a single-frame depth-plausibility flicker must not wipe the
+            # canonical template (a reset also rebases the body frame). Persist the
+            # streak; within the debounce window treat the frame as a plain miss.
+            self._no_back_streak += 1
+            if self._no_back_streak >= int(self.cfg.no_back_reset_frames):
+                self.reset(REASON_NO_BACK)
+                return self._emit(t, reason=REASON_NO_BACK)
+            obs = None
+        else:
+            self._no_back_streak = 0
         if self._frame_back_present is True:
             self._back_present = True
 
@@ -980,6 +1086,7 @@ class ModelBasedTracker:
             trusted_timestamp if np.isfinite(trusted_timestamp) else None
         )
         measured = measured | self._bootstrap_missing_canonical(obs)
+        measured = measured | self._readmit_lost_points(obs)
         self._miss_pp = np.where(measured, 0, self._miss_pp + 1)
         # slow per-point residual in body frame (absorbs non-rigid deformation, clamped). Only update
         # from MEASURED points — never let an extrapolated point feed its own (circular) residual.
