@@ -39,6 +39,7 @@ from ausc.perception.robot.robot_state_stream import (
     CONTROL_ENVELOPE_SCHEMA_V3,
     CONTROL_ENVELOPE_SCHEMA_V4,
     MAX_CONTROL_ENVELOPE_BYTES,
+    MAX_CONTROL_TICK_GAP_NS,
     RobotControlEnvelope,
     RobotStateContract,
     parse_control_envelope_datagram,
@@ -60,13 +61,7 @@ _OVERFLOW_STRUCT = struct.Struct("=I")
 _SOCKET_NAME_RE = re.compile(r"[A-Za-z0-9_.-]{1,80}\.sock\Z")
 _MAX_UNIX_PATH_BYTES = 107
 _MAX_POLL_TIMEOUT_S = 0.25
-_MAX_CONTROL_TICK_GAP_NS = 10_000_000
-# The nominal control period is 1 ms; the original hard bound was 2 ms, which
-# assumed an RT-scheduled controller on an unshared box. Under user-level systemd
-# (no rtprio) on the shared 32-core box, CFS preemptions of 2-6 ms are routine and
-# LOSE NOTHING: control_tick_seq stays contiguous (a genuinely missed/lost tick
-# still faults via the sequence checks); the gap here only measures tick LATENESS.
-# 10 ms still latches a real control-thread stall.
+_MAX_CONTROL_TICK_GAP_NS = MAX_CONTROL_TICK_GAP_NS  # single source of truth
 # Cold-start envelope-continuity grace (shared-box scheduling jitter): for the
 # first N envelopes, tolerate up to this inter-envelope publisher gap instead of
 # latching a terminal fault. Steady state reverts to the contract's hard bound.

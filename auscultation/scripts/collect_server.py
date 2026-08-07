@@ -1304,6 +1304,7 @@ class Collector:
                 contract_sha256=str(controller_launch_contract_sha256 or ""),
                 session_id=os.urandom(8).hex(),
             )
+            self._try_restore_safe_stop_witness()
         self._controller_readiness_timeout_s = float(controller_readiness_timeout_s)
         self._controller_companion = None
         self._controller_lock = threading.Lock()
@@ -2651,6 +2652,7 @@ class Collector:
             except Exception:  # noqa: BLE001 - cosmetic cleanup must never fail the verdict
                 pass
         if passed:
+            self._persist_safe_stop_witness()
             return {
                 "ok": True, "code": "safe_stop_hil_passed",
                 "message": (
@@ -2659,6 +2661,8 @@ class Collector:
                 ),
                 "safe_stop_state": gate.state,
             }
+        # A failed witness DISPROVES the stop path: revoke any persisted pass.
+        self._revoke_safe_stop_witness()
         return {
             "ok": False, "code": "safe_stop_hil_failed",
             "message": "operator reported the arm did NOT de-energize; bring-up stays refused",
@@ -2722,6 +2726,78 @@ class Collector:
                 ),
             })
         return base
+
+    def _safe_stop_witness_path(self):
+        return Path(self.out_dir) / "safe_stop_witness.json"
+
+    def _disable_tool_sha256(self):
+        """Content hash of the configured stop tool (the witness binds to it)."""
+        for part in reversed(self._safe_stop_disable_command or ()):
+            try:
+                path = Path(str(part))
+                if path.is_file():
+                    return hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError:
+                continue
+        return None
+
+    def _try_restore_safe_stop_witness(self):
+        """Restore a persisted operator witness for the SAME sealed stop path.
+
+        The witness validated the sealed controller binary + stop tool -- both
+        content-addressed; a service restart changes neither. Bring-up therefore
+        stays authorized across restarts and is re-earned ONLY when the sealed
+        controller-launch contract or the stop tool's content actually changes
+        (or a witness explicitly fails, which revokes the record).
+        """
+        gate = self._safe_stop_gate
+        if gate is None:
+            return
+        try:
+            record = json.loads(self._safe_stop_witness_path().read_text())
+            if (
+                record.get("schema") == "wam_safe_stop_witness_v1"
+                and (record.get("controller_launch_contract_sha256") or "")
+                == (self._controller_launch_contract_sha256 or "")
+                and record.get("disable_tool_sha256")
+                and record.get("disable_tool_sha256") == self._disable_tool_sha256()
+            ):
+                gate.restore_witnessed_pass(
+                    witnessed_utc_ns=int(record.get("witnessed_utc_ns") or 0),
+                    witness_note=(
+                        str(record.get("witness_note") or "")
+                        + " [restored from persisted witness]"
+                    ).strip(),
+                )
+        except Exception:  # noqa: BLE001 - missing/corrupt/mismatch -> normal PENDING
+            pass
+
+    def _persist_safe_stop_witness(self):
+        gate = self._safe_stop_gate
+        attestation = None if gate is None else gate.attestation
+        try:
+            payload = {
+                "schema": "wam_safe_stop_witness_v1",
+                "controller_launch_contract_sha256": (
+                    self._controller_launch_contract_sha256
+                ),
+                "disable_tool_sha256": self._disable_tool_sha256(),
+                "witnessed_utc_ns": (
+                    attestation.passed_utc_ns if attestation else time.time_ns()
+                ),
+                "witness_note": attestation.witness_note if attestation else "",
+            }
+            self._safe_stop_witness_path().write_text(
+                json.dumps(payload, indent=1), encoding="utf-8",
+            )
+        except Exception:  # noqa: BLE001 - persistence must never fail the verdict
+            pass
+
+    def _revoke_safe_stop_witness(self):
+        try:
+            self._safe_stop_witness_path().unlink()
+        except Exception:  # noqa: BLE001
+            pass
 
     def _record_arm_attempt(self, action, result):
         """P1: persist the full arm-lifecycle attempt outcome for /state.

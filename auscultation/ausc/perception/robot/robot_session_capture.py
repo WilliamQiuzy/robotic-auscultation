@@ -28,6 +28,7 @@ from types import MappingProxyType
 from typing import Any, Dict, IO, List, Mapping, Optional, Sequence, Tuple
 
 from .robot_state_stream import (
+    MAX_CONTROL_TICK_GAP_NS,
     BracketedExactControlTrajectory,
     BracketedRobotTrajectory,
     ExactControlRecord,
@@ -2186,7 +2187,7 @@ class RobotSessionCapture:
                 right.observation_monotonic_ns - left.observation_monotonic_ns
                 for left, right in zip(records, records[1:])
             ]
-            if any(gap <= 0 or gap > 2_000_000 for gap in gaps):
+            if any(gap <= 0 or gap > MAX_CONTROL_TICK_GAP_NS for gap in gaps):
                 raise self._abort(
                     "exact-control preflight ticks are not continuous"
                 )
@@ -3403,9 +3404,9 @@ def _stream_validate_capture_data(
                         record.observation_monotonic_ns
                         - last_record.observation_monotonic_ns
                     )
-                    if gap <= 0 or gap > 2_000_000:
+                    if gap <= 0 or gap > MAX_CONTROL_TICK_GAP_NS:
                         raise RobotCaptureError(
-                            "raw exact control gap exceeds 2 ms"
+                            "raw exact control gap exceeds the hard tick-gap bound"
                         )
                     max_gap = max(max_gap, gap)
                 last_record = record

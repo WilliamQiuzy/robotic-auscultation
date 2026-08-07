@@ -8357,3 +8357,51 @@ def test_arm_interval_if_healthy_is_atomic_on_the_health_epoch(tmp_path):
         assert collector._health_generation == 8  # epoch advanced on the degrade edge
     finally:
         collector.shutdown()
+
+
+def test_safe_stop_witness_persists_across_restart_and_binds_to_sealed_identity(tmp_path, monkeypatch):
+    # The witness validates the sealed controller + stop tool (content-addressed);
+    # a restart changes neither, so the pass persists. It re-arms ONLY when the
+    # sealed identity changes, and a failed witness revokes the record.
+    server = _load_collect_server()
+    tool = tmp_path / "stop.sh"
+    tool.write_text("#!/bin/bash\ntrue\n")
+
+    def build(out_dir):
+        c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                             fake=True, out_dir=out_dir, start_thread=False)
+        disable = _ArmDisable()
+        _configure_safe_stop_arm(server, c, _ArmCoord([_ArmHealth("READY", True)]), disable)
+        c._safe_stop_disable_command = ("bash", str(tool))
+        return c, disable
+
+    c1, disable1 = build(tmp_path)
+    try:
+        monkeypatch.setattr(
+            server, "build_launch_from_activation",
+            lambda activation, *, disable_command, **_k: ((lambda: _ArmCtrl()), (lambda: None), disable1),
+        )
+        assert c1.begin_safe_stop_test()["ok"] is True
+        assert c1.disable_controller()["ok"] is True
+        assert c1.confirm_safe_stop(deenergized=True)["ok"] is True
+        assert (tmp_path / "safe_stop_witness.json").exists()
+    finally:
+        c1.shutdown()
+
+    # "restart": a fresh collector restores PASSED for the same sealed identity
+    c2, _d2 = build(tmp_path)
+    try:
+        c2._try_restore_safe_stop_witness()
+        assert c2._safe_stop_gate.state == "HIL_PASSED"
+        assert c2.arm_control_authorization().arm_bringup_authorized is True
+    finally:
+        c2.shutdown()
+
+    # changed stop tool content -> identity mismatch -> witness NOT restored
+    tool.write_text("#!/bin/bash\nfalse\n")
+    c3, _d3 = build(tmp_path)
+    try:
+        c3._try_restore_safe_stop_witness()
+        assert c3._safe_stop_gate.state == "HIL_PENDING"
+    finally:
+        c3.shutdown()

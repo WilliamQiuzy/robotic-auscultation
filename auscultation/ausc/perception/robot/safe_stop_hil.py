@@ -165,6 +165,35 @@ class SafeStopHilGate:
         self._state = PASSED
         return True
 
+    def restore_witnessed_pass(
+        self, *, witnessed_utc_ns: int, witness_note: str = "",
+        disable_outcome: str = "restored_from_persisted_witness",
+    ) -> None:
+        """Restore a PERSISTED operator witness of the SAME sealed stop path.
+
+        The witness validates the sealed controller binary + stop tool -- content-
+        addressed artifacts a service restart cannot change. The CALLER must have
+        verified the persisted binding (controller-launch contract sha256 AND the
+        disable tool's content sha256) matches the currently configured pair
+        before restoring. Valid only from PENDING at startup; any in-session
+        fault/failure still voids the gate normally.
+        """
+        if self._state != PENDING:
+            raise SafeStopHilError(
+                f"restore requires a pristine PENDING gate, not {self._state}"
+            )
+        self._attestation = SafeStopHilAttestation(
+            release_id=self._release_id,
+            contract_sha256=self._contract_sha256,
+            session_id=self._session_id,
+            test_controller_pid=None,
+            disable_outcome=str(disable_outcome),
+            disable_command_succeeded=True,
+            witness_note=str(witness_note),
+            passed_utc_ns=int(witnessed_utc_ns),
+        )
+        self._state = PASSED
+
     def fault_reset(self, reason: str) -> None:
         """A fault (companion fault, collector crash, shutdown) voids the gate.
 

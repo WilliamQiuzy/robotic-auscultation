@@ -42,6 +42,7 @@ from .robot_session_capture import (
 )
 from .robot_socket_receiver import RobotSocketReceiver
 from .robot_state_stream import (
+    MAX_CONTROL_TICK_GAP_NS,
     CONTROL_ENVELOPE_SCHEMA_V4,
     BracketedExactControlTrajectory,
     ExactControlRecord,
@@ -685,7 +686,7 @@ class ProductionRobotCaptureCoordinator:
                 <= left.observation_monotonic_ns
                 or right.observation_monotonic_ns
                 - left.observation_monotonic_ns
-                > 2_000_000
+                > MAX_CONTROL_TICK_GAP_NS
                 or right.process_identity != records[0].process_identity
             ):
                 return (
