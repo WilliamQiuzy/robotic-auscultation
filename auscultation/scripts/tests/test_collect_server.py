@@ -8389,13 +8389,38 @@ def test_safe_stop_witness_persists_across_restart_and_binds_to_sealed_identity(
         c1.shutdown()
 
     # "restart": a fresh collector restores PASSED for the same sealed identity
+    # AND wires the launch/disable callables exactly like the live safe-stop test
+    # (2026-08-07: a restored witness with unwired callables sent bring-up into
+    # `None(...)` and the disable fallback failed the same way).
     c2, _d2 = build(tmp_path)
     try:
         c2._try_restore_safe_stop_witness()
         assert c2._safe_stop_gate.state == "HIL_PASSED"
         assert c2.arm_control_authorization().arm_bringup_authorized is True
+        assert callable(c2._controller_launcher)
+        assert callable(c2._controller_disable)
     finally:
         c2.shutdown()
+
+    # wiring failure -> witness NOT restored (no authorization without a
+    # working stop path), even though the persisted identity matches
+    c2b, _d2b = build(tmp_path)
+    try:
+        monkeypatch.setattr(
+            server, "build_launch_from_activation",
+            lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("launch build broken")),
+        )
+        c2b._controller_launcher = None
+        c2b._controller_disable = None
+        c2b._try_restore_safe_stop_witness()
+        assert c2b._safe_stop_gate.state == "HIL_PENDING"
+        assert c2b._controller_disable is None
+    finally:
+        c2b.shutdown()
+    monkeypatch.setattr(
+        server, "build_launch_from_activation",
+        lambda activation, *, disable_command, **_k: ((lambda: _ArmCtrl()), (lambda: None), disable1),
+    )
 
     # changed stop tool content -> identity mismatch -> witness NOT restored
     tool.write_text("#!/bin/bash\nfalse\n")

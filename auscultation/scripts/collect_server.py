@@ -2762,6 +2762,23 @@ class Collector:
                 and record.get("disable_tool_sha256")
                 and record.get("disable_tool_sha256") == self._disable_tool_sha256()
             ):
+                # A restored witness authorizes bring-up, so the launch/disable
+                # callables must be wired EXACTLY as the live safe-stop test
+                # wires them — wiring FIRST, restore only if it succeeds
+                # (2026-08-07 live: a restored witness with unwired callables
+                # sent bring-up into `None(...)` -> TypeError, and the disable
+                # fallback failed the same way; no authorization without a
+                # working stop path). Same no-op preflight rationale as the
+                # safe-stop test: tools/preflight defaults to can0 (RIGHT arm).
+                launcher, preflight, disable = build_launch_from_activation(
+                    self._controller_launch_activation,
+                    disable_command=self._safe_stop_disable_command,
+                    preflight_command=("/bin/true",),
+                )
+                with self._controller_lock:
+                    self._controller_launcher = launcher
+                    self._controller_preflight = preflight
+                    self._controller_disable = disable
                 gate.restore_witnessed_pass(
                     witnessed_utc_ns=int(record.get("witnessed_utc_ns") or 0),
                     witness_note=(
