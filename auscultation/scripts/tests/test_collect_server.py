@@ -8434,3 +8434,39 @@ def test_safe_stop_witness_persists_across_restart_and_binds_to_sealed_identity(
         assert c3._safe_stop_gate.state == "HIL_PENDING"
     finally:
         c3.shutdown()
+
+
+def test_prewarm_exercises_full_path_with_correct_contracts(tmp_path):
+    # The prewarm must call detect(rgb, depth, intr) with production-resolution
+    # ndarrays and assess() with the CameraStream frame contract (.frame/.index)
+    # — a bare ndarray broke live on 2026-08-07 ('numpy.ndarray' has no 'index')
+    # and silently skipped the warm. Both passes must complete.
+    import numpy as np
+
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    calls = {"detect": 0, "assess": 0}
+
+    class _Det:
+        def detect(self, rgb, depth, intr):
+            assert isinstance(rgb, np.ndarray) and rgb.shape == (1080, 1920, 3)
+            assert isinstance(depth, np.ndarray) and depth.dtype == np.uint16
+            assert (depth == 0).any()          # holes present -> fill path warmed
+            assert float(intr.fx) > 0
+            calls["detect"] += 1
+
+    class _Gate:
+        def assess(self, frame):
+            rgb = frame.frame                   # the REAL gate's contract
+            index = int(frame.index)
+            assert isinstance(rgb, np.ndarray) and index == 0
+            calls["assess"] += 1
+            return {}
+
+    try:
+        c._heavy_model_cache = (_Det(), _Gate())
+        c._prewarm_heavy_models()
+        assert calls == {"detect": 2, "assess": 2}   # both passes, both models
+    finally:
+        c.shutdown()

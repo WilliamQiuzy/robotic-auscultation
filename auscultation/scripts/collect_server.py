@@ -4597,7 +4597,8 @@ class Collector:
             for _ in range(2):                        # pass 1 JIT/alloc, pass 2 steady
                 t = _time.monotonic()
                 detector.detect(rgb, depth, intr)
-                person_gate.assess(rgb)
+                # assess() takes the CameraStream frame contract (.frame RGB + .index)
+                person_gate.assess(SimpleNamespace(frame=rgb, index=0))
                 timings.append(_time.monotonic() - t)
             # pass2 << pass1 proves the storm is paid HERE, not at bring-up; the
             # worker's first real frame runs at pass2 speed in this same process.
