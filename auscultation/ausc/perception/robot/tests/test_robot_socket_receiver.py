@@ -970,7 +970,7 @@ def test_preflight_rejects_slow_control_ticks_even_when_sequences_are_contiguous
     second = _envelope(
         envelope_seq=2,
         first_tick=11,
-        first_observation_ns=base + 12_500_000,
+        first_observation_ns=base + 25_000_000,
     )
     _unit_ingest(receiver, _wire(first))
     with pytest.raises(Exception, match="2 ms|1 kHz"):
