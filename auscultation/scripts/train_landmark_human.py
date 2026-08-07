@@ -128,6 +128,74 @@ def structure_points(xy):
     return out
 
 
+def structure_points_robust(xy):
+    """Robust variant of ``structure_points`` (2026-08-07 audit item #5).
+
+    ``structure_points`` sets the 5 layer axial positions with ``np.linspace(t[0], t[4], 5)`` —
+    the spacing is driven *only* by the two endpoint levels (R1/L1 and R5/L5), and R5/L5 are the
+    noisiest points on the curved lower back, so their jitter smears the middle layers. This fits
+    the axial positions ``t_i ≈ a + b·i`` over ALL five levels with a Theil-Sen line (median of
+    pairwise slopes → resistant to a single bad endpoint), then rebuilds the even grid from that.
+    Half-widths stay per-level (unchanged). Pure numpy; same signature/return as structure_points.
+    """
+    R = np.array([xy[IDX[f"R{i}"]] for i in range(1, 6)])
+    L = np.array([xy[IDX[f"L{i}"]] for i in range(1, 6)])
+    M = (R + L) / 2.0; c = M.mean(0); X = M - c
+    try:
+        _, _, vt = np.linalg.svd(X)
+    except np.linalg.LinAlgError:
+        return xy
+    d = vt[0]; d = d if d[1] >= 0 else -d
+    t = X @ d
+    idx = np.arange(5, dtype=np.float64)
+    slopes = [(t[b] - t[a]) / (b - a) for a in range(5) for b in range(a + 1, 5)]
+    b_ts = float(np.median(slopes))                      # Theil-Sen slope over all 10 pairs
+    a_ts = float(np.median(t - b_ts * idx))              # robust intercept
+    te = a_ts + b_ts * idx                               # even grid fit from ALL layers
+    Mp = c + np.outer(te, d); perp = np.array([-d[1], d[0]])
+    out = xy.copy()
+    for i in range(5):
+        w = ((R[i] - L[i]) @ perp) / 2.0
+        out[IDX[f"R{i+1}"]] = Mp[i] + perp * w
+        out[IDX[f"L{i+1}"]] = Mp[i] - perp * w
+    return out
+
+
+def heatmap_xy_soft(hm_logits, res, win=5, temp=1.0):
+    """Temperature soft-argmax variant of ``heatmap_xy`` (2026-08-07 audit item #5).
+
+    NOTE: ``heatmap_xy`` is ALREADY a windowed soft-argmax — it takes the sigmoid-probability
+    weighted centroid over a ±win window around the hard-argmax peak (a DSNT-style expectation on
+    the *calibrated* sigmoid probabilities the model was trained with, via sigmoid+MSE). So item
+    #5b is largely already in production. This adds only a temperature knob on those probabilities:
+    ``w = p**(1/temp)`` — ``temp=1`` reduces EXACTLY to ``heatmap_xy`` (never worse); ``temp>1``
+    softens (flatter window → less grid-flip when the peak jitters ±1 cell); ``temp<1`` sharpens.
+    Operating on sigmoid probs (not raw logits) matters: the head is sigmoid-MSE-trained, so a
+    softmax over raw logits would be badly over-peaked and worse than the centroid. Same
+    (B,K,h,w)->(B,K,2 in res space) contract as heatmap_xy.
+    """
+    B, Kk, h, w = hm_logits.shape
+    prob = torch.sigmoid(hm_logits)
+    flat = prob.view(B, Kk, -1)
+    idx = flat.argmax(-1)
+    py0 = (idx // w).float(); px0 = (idx % w).float()
+    out = torch.zeros(B, Kk, 2, device=hm_logits.device)
+    inv_t = 1.0 / max(temp, 1e-6)
+    for b in range(B):
+        for k in range(Kk):
+            cy, cx = int(py0[b, k]), int(px0[b, k])
+            y0, y1 = max(0, cy - win), min(h, cy + win + 1)
+            x0, x1 = max(0, cx - win), min(w, cx + win + 1)
+            patch = prob[b, k, y0:y1, x0:x1] ** inv_t          # temp=1 → the heatmap_xy centroid
+            s = patch.sum().clamp(min=1e-9)
+            ys = torch.arange(y0, y1, device=hm_logits.device).float()
+            xs = torch.arange(x0, x1, device=hm_logits.device).float()
+            my = (patch.sum(1) * ys).sum() / s
+            mx = (patch.sum(0) * xs).sum() / s
+            out[b, k, 0] = mx * (res / w); out[b, k, 1] = my * (res / h)
+    return out
+
+
 def load_items(jsonf, canvas_root):
     d = json.load(open(jsonf)); out = []
     for stem, rec in d.items():

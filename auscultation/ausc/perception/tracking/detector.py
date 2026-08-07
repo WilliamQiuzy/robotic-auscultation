@@ -75,20 +75,39 @@ class DenseIUVDetector:
     def __init__(self, ckpt: str, encoder: str = "dinov2_vitb14", res: int = 518,
                  up_bias: float = 0.12, device: Optional[str] = None,
                  compute_confidence: bool = True, review_scale: float = 24.0,
-                 half: bool = False) -> None:
+                 half: bool = False, stabilize_crop: bool = False, crop_pct: float = 2.0,
+                 flip_tta: bool = False, flip_tta_guard_px: float = 8.0,
+                 robust_structure: bool = False, soft_decode: bool = False,
+                 soft_decode_temp: float = 1.0, real_focal_normals: bool = False) -> None:
         self.res = res
         self.up_bias = up_bias
         self.compute_confidence = compute_confidence
         self.review_scale = review_scale  # flip% mapped to conf=1-flip/review_scale
         self.half = half                  # fp16 autocast inference (~2x faster on the GPU)
+        # ── 2026-08-07 audit refinements — ALL default OFF (live path stays byte-identical) ──
+        self.stabilize_crop = stabilize_crop        # #1 temporal deadband-EMA on the crop box
+        self.crop_pct = crop_pct                    #    percentile bbox when stabilizing
+        self.flip_tta = flip_tta                    # #4 fuse the (already-computed) flipped pass
+        self.flip_tta_guard_px = flip_tta_guard_px  #    only average where the two passes agree
+        # #3 real per-frame effective-focal normals instead of fixed K=560. RETRAIN-COUPLED:
+        # the model was trained on K=560 normals, so turning this ON without a matching retrain
+        # (stage1/stage2 with real f_eff) DEGRADES accuracy (train/infer distribution mismatch).
+        # Kept default OFF; only enable together with the retrained checkpoint.
+        self.real_focal_normals = real_focal_normals
+        self._crop_stab = None                      #    lazily-built CropStabilizer (per session)
         self._import_repo()
         import torch  # noqa: F401
         self._torch = __import__("torch")
         self.device = device or ("cuda" if self._torch.cuda.is_available() else "cpu")
         self.hm_res = res // 4
         from iuv_model import DenseIUVModel, apply_lora  # type: ignore
-        self._heatmap_xy = __import__("train_landmark_human").heatmap_xy
-        self._structure = __import__("train_landmark_human").structure_points
+        _tlh = __import__("train_landmark_human")
+        if soft_decode:                             # #5 soft-argmax (DSNT) sub-pixel decode
+            self._heatmap_xy = (lambda hl, res, _f=_tlh.heatmap_xy_soft, _t=soft_decode_temp:
+                                _f(hl, res, temp=_t))
+        else:
+            self._heatmap_xy = _tlh.heatmap_xy
+        self._structure = _tlh.structure_points_robust if robust_structure else _tlh.structure_points
         from dataset import IMAGENET_MEAN, IMAGENET_STD  # type: ignore
         self._mean, self._std = IMAGENET_MEAN, IMAGENET_STD
         ck = self._torch.load(ckpt, map_location=self.device)
@@ -241,37 +260,87 @@ class NormalsDetector(DenseIUVDetector):
     def _normal_image(self, rgb_full: np.ndarray, depth, intr):
         import cv2
         from .geometry import back_square_crop, _pad_extract
-        _, crop = back_square_crop(rgb_full, depth, intr)
+        if getattr(self, "stabilize_crop", False):          # #1 percentile bbox + temporal deadband-EMA
+            if getattr(self, "_crop_stab", None) is None:
+                from .geometry import CropStabilizer
+                self._crop_stab = CropStabilizer()
+            _, crop = back_square_crop(rgb_full, depth, intr, pct=self.crop_pct,
+                                       stabilizer=self._crop_stab)
+        else:
+            _, crop = back_square_crop(rgb_full, depth, intr)
         dc = cv2.resize(_pad_extract(depth, crop.x0, crop.y0, crop.side), (self.res, self.res),
                         interpolation=cv2.INTER_NEAREST).astype(np.float32)
         dc *= float(intr.depth_scale) / 1000.0
         plausible = (not self.plausibility_gate) or self._back_plausible(dc)   # on RAW depth (pre-fill)
         if getattr(self, "fill_holes", False):
             dc = _fill_depth_holes(dc)    # else holes → gray normal gaps → detector fails (PCK 100→11 at 40% holes)
-        nrm = np.clip(normals_from_depth_m(dc, *_NORM_K) * 127 + 127, 0, 255).astype(np.uint8)
+        if getattr(self, "real_focal_normals", False):    # #3 true crop-space focal (RETRAIN-COUPLED)
+            side = max(int(crop.side), 1)
+            kk = (float(intr.fx) * self.res / side, float(intr.fy) * self.res / side,
+                  self.res / 2.0, self.res / 2.0)
+        else:
+            kk = _NORM_K                                  # training K=560 (matches current checkpoint)
+        nrm = np.clip(normals_from_depth_m(dc, *kk) * 127 + 127, 0, 255).astype(np.uint8)
         return nrm, crop, plausible
 
-    def _flip_conf(self, im: np.ndarray, xy0: np.ndarray) -> float:
+    @staticmethod
+    def _lr_swap() -> dict:
+        return {LUNG_INDEX[nm]: LUNG_INDEX[("L" + nm[1:] if nm[0] == "R" else "R" + nm[1:])]
+                for nm in LUNG_ORDER}
+
+    def _flip_pass(self, im: np.ndarray, xy0_struct: np.ndarray):
+        """Single flipped forward pass. Returns ``(confidence, aligned_raw_flipped_xy)``:
+          * ``confidence`` — flip-consistency scalar, computed EXACTLY as the old ``_flip_conf``
+            (structured flipped points vs the structured original), so it is unchanged.
+          * ``aligned_raw_flipped_xy`` — the (10,2) coords the confidence pass computes and then
+            discards: the flipped detections un-mirrored (``res-1-x``) and L/R-swapped back into
+            the original frame, pre-structure. Flip-TTA (#4) fuses these back in — free, since this
+            pass already runs whenever confidence is on.
+        """
         flip = im[:, ::-1, :].copy()
         flip[..., 0] = 254 - flip[..., 0]                 # mirror nx with the x-flip
-        xyf, _, _ = self._points_from_im(flip)
-        xyf = self._structure(xyf)
-        swap = {LUNG_INDEX[nm]: LUNG_INDEX[("L" + nm[1:] if nm[0] == "R" else "R" + nm[1:])]
-                for nm in LUNG_ORDER}
-        d = [np.hypot(xy0[k, 0] - (self.res - 1 - xyf[swap[k], 0]), xy0[k, 1] - xyf[swap[k], 1])
+        xyf, _, _ = self._points_from_im(flip)            # native flipped order, raw
+        swap = self._lr_swap()
+        xyf_struct = self._structure(xyf)
+        d = [np.hypot(xy0_struct[k, 0] - (self.res - 1 - xyf_struct[swap[k], 0]),
+                      xy0_struct[k, 1] - xyf_struct[swap[k], 1])
              for k in range(len(LUNG_ORDER))]
-        flip = float(np.mean(d)) / self.res * 100.0
-        if not np.isfinite(flip):
-            return 0.0
-        return float(np.clip(1.0 - flip / self.review_scale, 0.02, 1.0))
+        flip_pct = float(np.mean(d)) / self.res * 100.0
+        conf = 0.0 if not np.isfinite(flip_pct) else float(
+            np.clip(1.0 - flip_pct / self.review_scale, 0.02, 1.0))
+        aligned = np.empty((len(LUNG_ORDER), 2), dtype=np.float64)
+        for k in range(len(LUNG_ORDER)):                  # raw flipped points re-aligned to xy0 frame
+            aligned[k, 0] = self.res - 1 - xyf[swap[k], 0]
+            aligned[k, 1] = xyf[swap[k], 1]
+        return conf, aligned
+
+    def _fuse_flip_tta(self, xy0: np.ndarray, xyf_aligned: np.ndarray) -> np.ndarray:
+        """Per-point average of the two passes where they agree (√2 variance reduction); keep the
+        original estimate where they disagree by > ``flip_tta_guard_px`` (occlusion / one bad pass)."""
+        out = xy0.copy()
+        d = np.hypot(xy0[:, 0] - xyf_aligned[:, 0], xy0[:, 1] - xyf_aligned[:, 1])
+        ok = np.isfinite(d) & (d <= self.flip_tta_guard_px)
+        out[ok] = 0.5 * (xy0[ok] + xyf_aligned[ok])
+        return out
+
+    def _flip_conf(self, im: np.ndarray, xy0: np.ndarray) -> float:
+        return self._flip_pass(im, xy0)[0]
 
     def detect(self, rgb_full: np.ndarray, depth=None, intr=None) -> Optional[DetectorResult]:
         if rgb_full is None or depth is None or intr is None:
             return None
         nrm, crop, plausible = self._normal_image(rgb_full, depth, intr)
-        xy, _, _ = self._points_from_im(nrm)
-        xy = self._structure(xy)
-        conf = self._flip_conf(nrm, xy) if self.compute_confidence else 0.8
+        xy_raw, _, _ = self._points_from_im(nrm)
+        xy_struct = self._structure(xy_raw)               # original structured estimate (baseline xy)
+        conf = 0.8
+        xy = xy_struct
+        _flip_tta = getattr(self, "flip_tta", False)
+        if self.compute_confidence or _flip_tta:          # one flipped pass powers both
+            conf_v, xyf_aligned = self._flip_pass(nrm, xy_struct)
+            if self.compute_confidence:
+                conf = conf_v
+            if _flip_tta:                                 # #4 fuse then re-structure (else unchanged)
+                xy = self._structure(self._fuse_flip_tta(xy_raw, xyf_aligned))
         if not plausible:
             conf = 0.0            # OOD fail-safe: not a body-plausible back → gate rejects (no action on garbage)
         return DetectorResult(xy_det=xy[:len(LUNG_ORDER)], crop=crop, confidence=conf,

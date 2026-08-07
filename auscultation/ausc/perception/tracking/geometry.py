@@ -208,9 +208,68 @@ def _pad_extract(img: np.ndarray, x0: float, y0: float, side: float) -> np.ndarr
     return sub
 
 
+class CropStabilizer:
+    """Temporal deadband-EMA on the back-crop box ``(cx, cy, side)`` — audit item #1 (2026-08-07).
+
+    The dominant common-mode 3D jitter source is the per-frame flicker of ``back_square_crop``'s
+    depth-mask bounding box: a few mask pixels appear/disappear at the border each frame, the box
+    breathes, and because all 10 landmarks are read from that shifting crop the whole constellation
+    translates in lock-step (~2.2× through the penetrating fit). This damps that flicker:
+
+      * inside a *deadband* (|Δ| < ``deadband_frac``·side) the box is held (ignore flicker),
+      * on a *large jump* (|Δ| > ``snap_frac``·side, i.e. real patient/camera motion) the box snaps
+        through immediately (no lag),
+      * in between, an EMA smooths it.
+
+    Inference-only and stateful: the first frame returns the raw box (so a single frame is
+    unchanged); a lost body (``reset``) clears history. Training crops are independent single frames
+    and must NOT use this. Pure python/numpy → unit-testable without torch.
+
+    Bounded-lag, not a ratchet: the held value is the comparison anchor, so during a slow real drift
+    ``new - held`` accumulates against the *frozen* anchor and crosses the deadband within a few
+    frames (then EMA/snap follows) — the box never gets stuck. The deliberate tradeoff is a bounded
+    steady-state lag of up to ``deadband_frac·side`` while drifting; that is the price of rejecting
+    zero-mean flicker, which is exactly the intent.
+    """
+
+    def __init__(self, ema: float = 0.15, deadband_frac: float = 0.02,
+                 snap_frac: float = 0.25) -> None:
+        self.ema = float(ema)
+        self.deadband_frac = float(deadband_frac)
+        self.snap_frac = float(snap_frac)
+        self._cx: Optional[float] = None
+        self._cy: Optional[float] = None
+        self._side: Optional[float] = None
+
+    def reset(self) -> None:
+        self._cx = self._cy = self._side = None
+
+    def update(self, cx: float, cy: float, side: float) -> Tuple[float, float, float]:
+        if self._side is None:                              # first frame → raw box, no smoothing
+            self._cx, self._cy, self._side = float(cx), float(cy), float(side)
+            return self._cx, self._cy, self._side
+        ref = self._side                                   # scale deadband/snap to the held box size
+
+        def _step(old: float, new: float) -> float:
+            delta = new - old
+            mag = abs(delta)
+            if mag < self.deadband_frac * ref:             # flicker → hold
+                return old
+            if mag > self.snap_frac * ref:                 # real motion → snap through (no lag)
+                return new
+            return old + self.ema * delta                  # otherwise smooth
+
+        self._cx = _step(self._cx, cx)
+        self._cy = _step(self._cy, cy)
+        self._side = _step(self._side, side)
+        return self._cx, self._cy, self._side
+
+
 def back_square_crop(rgb: np.ndarray, depth: np.ndarray, intr: "Intrinsics",
                      margin: float = 0.20, head_frac: float = 0.15, stride: int = 4,
-                     min_px: int = 80) -> Tuple[np.ndarray, "CropTransform"]:
+                     min_px: int = 80, pct: Optional[float] = None,
+                     stabilizer: Optional["CropStabilizer"] = None
+                     ) -> Tuple[np.ndarray, "CropTransform"]:
     """Depth-centred, pad-not-clamp, **invertible** square crop of the patient's back.
 
     Replaces ``center_square`` / ``iuv_back_crop``. Centres on the patient (depth body mask,
@@ -218,6 +277,12 @@ def back_square_crop(rgb: np.ndarray, depth: np.ndarray, intr: "Intrinsics",
     (never clamps) so no lung column is sliced off and ``CropTransform.det_to_full`` inverts
     exactly (origin may be negative). Returns (518×518 RGB, CropTransform). Falls back to a
     full-height centre square only if the depth mask is too small.
+
+    ``pct`` and ``stabilizer`` are opt-in stabilization (audit item #1); with both left at their
+    defaults (``None``) the box is the historical min/max bbox and the output is byte-identical:
+      * ``pct`` (e.g. 2.0): use the ``pct``/``100-pct`` percentiles of the mask indices instead of
+        min/max, rejecting single-pixel border flicker before it moves the box.
+      * ``stabilizer``: a :class:`CropStabilizer` carrying temporal state across frames.
     """
     import cv2
     H, W = rgb.shape[:2]
@@ -225,14 +290,22 @@ def back_square_crop(rgb: np.ndarray, depth: np.ndarray, intr: "Intrinsics",
     m = body_band_mask(P)
     ys, xs = np.nonzero(m)
     if len(ys) < min_px:
+        if stabilizer is not None:
+            stabilizer.reset()                              # body lost → drop temporal history
         s = min(H, W); x0 = (W - s) // 2; y0 = (H - s) // 2
         return (cv2.resize(_pad_extract(rgb, x0, y0, s), (518, 518), interpolation=cv2.INTER_AREA),
                 CropTransform(x0, y0, s, 518))
-    x0, x1 = xs.min() * stride, xs.max() * stride
-    y0, y1 = ys.min() * stride, ys.max() * stride
+    if pct is None:
+        x0, x1 = xs.min() * stride, xs.max() * stride
+        y0, y1 = ys.min() * stride, ys.max() * stride
+    else:                                                   # percentile bbox → reject border flicker
+        x0, x1 = np.percentile(xs, pct) * stride, np.percentile(xs, 100.0 - pct) * stride
+        y0, y1 = np.percentile(ys, pct) * stride, np.percentile(ys, 100.0 - pct) * stride
     y0b = y0 + head_frac * (y1 - y0)                         # trim head → back fills the square
     cx, cy = (x0 + x1) / 2.0, (y0b + y1) / 2.0
     side = max(x1 - x0, y1 - y0b) * (1.0 + margin)
+    if stabilizer is not None:
+        cx, cy, side = stabilizer.update(cx, cy, side)      # temporal deadband-EMA
     sx0, sy0 = cx - side / 2.0, cy - side / 2.0
     img = _pad_extract(rgb, sx0, sy0, side)
     return (cv2.resize(img, (518, 518), interpolation=cv2.INTER_AREA),
