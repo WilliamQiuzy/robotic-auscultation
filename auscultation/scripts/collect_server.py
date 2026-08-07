@@ -1431,6 +1431,10 @@ class Collector:
         # Bring-up/safe-stop interlock: arm actions refuse until the prewarm has
         # finished (set immediately when no prewarm thread will run).
         self._model_prewarm_done = threading.Event()
+        # Post-READY live-inference grace (see the camera-loop comment): first
+        # robot-evidence timestamp per bring-up; None until evidence appears.
+        self._model_robot_ready_t0 = None
+        self._model_inference_grace_s = 2.5
         self._preview_worker = LatestFrameWorker(
             self._render_preview_bundle, name="wam-diagnostic-preview",
         ).start()
@@ -4568,6 +4572,21 @@ class Collector:
         return self._build_heavy_models_locked()
 
     def _build_heavy_models_locked(self):
+        # Cap CPU-side thread fan-out BEFORE any torch/cv2 work: default
+        # num_threads == all cores lets one inference burst occupy the whole
+        # box and starve the deliberately low-priority C++ telemetry publisher
+        # (the READY+1.1s publisher holes, 2026-08-07). GPU inference is
+        # unaffected; the CPU-side pre/post work does not need the whole box.
+        try:
+            import torch as _torch
+            _torch.set_num_threads(2)
+        except Exception:  # noqa: BLE001 - cap is best-effort
+            pass
+        try:
+            import cv2 as _cv2
+            _cv2.setNumThreads(2)
+        except Exception:  # noqa: BLE001
+            pass
         verify_file_sha256(self.checkpoint, self.checkpoint_sha256, label="v9 checkpoint")
         verify_file_sha256(self.base_model, self.base_model_sha256, label="DINOv2 base")
         verify_file_sha256(
@@ -5326,6 +5345,7 @@ class Collector:
                     )
                 except RobotCaptureNotReady:
                     self._model_status = "WAITING_ROBOT"
+                    self._model_robot_ready_t0 = None
                 except RobotCaptureCoordinatorError as exc:
                     comp = self._controller_companion
                     if comp is None or comp.disabled or comp.state != "ready":
@@ -5336,6 +5356,7 @@ class Collector:
                         # renews the receiver) instead of resetting the camera
                         # pipeline in a loop and strobing the UI.
                         self._model_status = "WAITING_ROBOT"
+                        self._model_robot_ready_t0 = None
                     else:
                         self._reset_camera_pipeline(
                             "robot/model frame evidence failed: "
@@ -5349,6 +5370,24 @@ class Collector:
                     )
                     continue
                 else:
+                    # Post-READY inference grace: every aborted bring-up tonight
+                    # faulted at READY+~1.1s with a 0.4-0.8s publisher hole —
+                    # exactly when the first live inference burst lands while the
+                    # controller finishes homing. Safe-stop tests (model paused)
+                    # never faulted. Hold live inference for a short grace after
+                    # robot evidence first becomes available so the burst cannot
+                    # collide with the homing-transition window; preview keeps
+                    # running from the camera path meanwhile.
+                    if self._model_robot_ready_t0 is None:
+                        self._model_robot_ready_t0 = time.monotonic()
+                    if (
+                        self._processor_factory is None  # real heavy path only
+                        and time.monotonic() - self._model_robot_ready_t0
+                        < self._model_inference_grace_s
+                    ):
+                        self._model_status = "WARMING_UP"
+                        self._pending_model_frame = None
+                        continue
                     if self._model_worker is None and self._fatal_error is None:
                         try:
                             processor = self._build_tracker_processor(
