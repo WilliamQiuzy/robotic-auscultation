@@ -1058,10 +1058,10 @@ class RobotSocketReceiver:
             # absorbs seconds of stall; the timing bounds still police quality.
             try:
                 receiver.setsockopt(
-                    socket.SOL_SOCKET, socket.SO_RCVBUF, 4 * 1024 * 1024
+                    socket.SOL_SOCKET, socket.SO_RCVBUF, 64 * 1024 * 1024
                 )
             except OSError:
-                pass  # keep the default; the bounds checks still fail closed
+                pass  # kernel caps at rmem_max; the bounds checks still fail closed
             try:
                 receiver.setsockopt(socket.SOL_SOCKET, _SO_RXQ_OVFL, 1)
             except OSError as exc:

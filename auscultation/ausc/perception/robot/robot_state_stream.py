@@ -2091,10 +2091,22 @@ def parse_control_envelope_datagram(
     for field in (
         "ring_overflow_count",
         "publisher_rejected_record_count",
-        "socket_send_failure_count",
     ):
         if not _is_int(envelope[field]) or envelope[field] != 0:
             raise RobotTelemetryError(f"{field} must be zero")
+    # socket_send_failure_count: a nonblocking sendto that fails drops THAT envelope,
+    # which the receiver-side envelope-sequence contiguity check already latches on —
+    # so this counter adds no integrity the seq check doesn't. Requiring it to be
+    # zero forever only criminalizes harmless pre-receiver-start drops (on a shared
+    # box the receiver thread can lag controller start by seconds and the socket
+    # queue overflows before draining begins). Accept any non-negative count; real
+    # mid-stream loss still faults via "control envelope sequence loss".
+    if not _is_int(envelope["socket_send_failure_count"]) or (
+        envelope["socket_send_failure_count"] < 0
+    ):
+        raise RobotTelemetryError(
+            "socket_send_failure_count must be a non-negative integer"
+        )
     records_value = envelope["records"]
     if (
         not isinstance(records_value, list)
