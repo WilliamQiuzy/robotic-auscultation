@@ -2245,7 +2245,11 @@ def test_page_separates_back_confirmation_from_point_confirmation():
     assert "payload.preview_frame_token=displayedPreviewFrameToken" in page
     assert "X-Preview-Confirmable" in page
     assert "displayedPreviewFrameIndex=confirmable?frameIndex:null" in page
-    assert "await sha256Hex(bytes)!==expectedDigest" in page
+    # digest verified when crypto.subtle exists; null (insecure origin, e.g.
+    # plain-IP LAN http) skips gracefully instead of killing the video the
+    # moment frames turn confirmable at bring-up (2026-08-07)
+    assert "digest!==null&&digest!==expectedDigest" in page
+    assert "crypto.subtle" in page
     assert "await afterPaint()" in page
     assert "Number(latest?.preview_frame_index)" not in page
     assert 'src="/stream"' not in page

@@ -1304,13 +1304,18 @@ class Collector:
                 contract_sha256=str(controller_launch_contract_sha256 or ""),
                 session_id=os.urandom(8).hex(),
             )
-            self._try_restore_safe_stop_witness()
         self._controller_readiness_timeout_s = float(controller_readiness_timeout_s)
         self._controller_companion = None
         self._controller_lock = threading.Lock()
         # A bring-up runs OUTSIDE the lock (so a concurrent E-stop can interrupt it);
         # this guards against a second concurrent bring-up.
         self._controller_bringup_active = False
+        # Witness restore MUST run after _controller_lock exists: the restore
+        # path wires the launch/disable callables under that lock (2026-08-07:
+        # restoring before the lock was created raised AttributeError, the broad
+        # except swallowed it, and the witness silently failed to restore).
+        if self._safe_stop_gate is not None:
+            self._try_restore_safe_stop_witness()
         # P1: last arm-lifecycle attempt (bring-up / safe-stop / disable) result,
         # persisted for /state so a transient HTTP error is never the only record.
         self._controller_last_attempt = None
@@ -2805,8 +2810,11 @@ class Collector:
                         + " [restored from persisted witness]"
                     ).strip(),
                 )
-        except Exception:  # noqa: BLE001 - missing/corrupt/mismatch -> normal PENDING
-            pass
+        except Exception as exc:  # noqa: BLE001 - missing/corrupt/mismatch -> normal PENDING
+            # Log-only (UI stays quiet): a silent skip here cost an hour of live
+            # debugging on 2026-08-07 — the operator saw "Safe-stop HIL required"
+            # with no clue that a restore was attempted and why it failed.
+            print(f"[witness] restore skipped: {type(exc).__name__}: {exc}", flush=True)
 
     def _persist_safe_stop_witness(self):
         gate = self._safe_stop_gate
@@ -4561,18 +4569,44 @@ class Collector:
             return self._heavy_model_cache
 
     def _prewarm_heavy_models(self):
-        """Server-start warm-up so the FIRST bring-up pays no GIL/CUDA storm."""
+        """Server-start warm-up so the FIRST bring-up pays no GIL/CUDA storm.
+
+        Warms the FULL per-frame path, not just a bare forward — the first real
+        detect() also pays crop, scipy hole-fill, normals, TWO fp16 forwards
+        (main + flip-confidence), structure fit, and the YOLO person gate's own
+        first inference. A partial warm left a ~420 ms bring-up stall
+        (2026-08-07: 'expected 115 got 157'); the full path must run here twice
+        (JIT/alloc, then steady) at production resolution.
+        """
         try:
+            import time as _time
+
+            t0 = _time.monotonic()
             detector, person_gate = self._heavy_models()
             import numpy as _np
 
-            # one dummy forward each: forces CUDA context + kernels + fp16 paths
-            zeros = _np.full((518, 518, 3), 127, dtype=_np.uint8)
-            detector._points_from_im(zeros)
-            warm = getattr(person_gate, "warmup", None)
-            if callable(warm):
-                warm()
-            print("[prewarm] perception models warm (detector + person gate)", flush=True)
+            from ausc.perception.tracking import Intrinsics as _Intr
+
+            rgb = _np.zeros((1080, 1920, 3), dtype=_np.uint8)
+            depth = _np.full((1080, 1920), 1200, dtype=_np.uint16)
+            depth[300:700, 700:1300] = 1150          # a "body" band for the crop mask
+            depth[450:520, 900:1000] = 0             # holes -> exercises scipy EDT fill
+            intr = _Intr(fx=1123.173, fy=1122.996, cx=955.720, cy=533.176,
+                         width=1920, height=1080, depth_scale=1.0)
+            timings = []
+            for _ in range(2):                        # pass 1 JIT/alloc, pass 2 steady
+                t = _time.monotonic()
+                detector.detect(rgb, depth, intr)
+                person_gate.assess(rgb)
+                timings.append(_time.monotonic() - t)
+            # pass2 << pass1 proves the storm is paid HERE, not at bring-up; the
+            # worker's first real frame runs at pass2 speed in this same process.
+            print(
+                f"[prewarm] perception models warm in {_time.monotonic() - t0:.1f}s "
+                f"(load+pass1 {timings[0]:.2f}s, steady pass2 {timings[1]:.2f}s, "
+                "full detect+gate path at production resolution)",
+                flush=True,
+            )
         except Exception as exc:  # noqa: BLE001 - warm-up is best-effort
             print(f"[prewarm] skipped: {type(exc).__name__}: {exc}", flush=True)
 
@@ -7055,10 +7089,19 @@ async function ctl(name){if(busy)return;busy=true;if(latest)render(latest);try{c
 // page (which holds busy=true). It never touches `busy`, so it can never be blocked by an
 // in-flight control action; the backend routes arm_disable straight to disable_controller.
 async function estop(){try{const response=await fetch('/control',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'arm_disable'})});const result=await response.json();action(shortText(result.ack||result.message||('HTTP '+response.status)),result.ok?'good':'bad')}catch(error){action('E-stop failed: '+error.message,'bad')}finally{try{await poll()}catch(_e){}}}
-async function sha256Hex(buffer){const digest=await crypto.subtle.digest('SHA-256',buffer);return Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('')}
+let subtleWarned=false;
+async function sha256Hex(buffer){
+/* crypto.subtle exists ONLY in secure contexts (https or http://localhost). On a
+   plain-IP LAN origin it is undefined, and confirmable frames (which begin the
+   moment the model pipeline runs, i.e. right after bring-up) would then throw on
+   EVERY frame - the 2026-08-07 "video dies exactly at bring-up" bug. The digest
+   is display-integrity defense-in-depth; confirm-back is authenticated by the
+   SERVER via the frame token, so skipping the client-side digest is safe. */
+if(!(typeof crypto!=='undefined'&&crypto.subtle&&crypto.subtle.digest)){if(!subtleWarned){subtleWarned=true;console.warn('crypto.subtle unavailable (insecure origin) - skipping client-side frame digest; use http://localhost via ssh -L for full verification')}return null}
+const digest=await crypto.subtle.digest('SHA-256',buffer);return Array.from(new Uint8Array(digest),value=>value.toString(16).padStart(2,'0')).join('')}
 function afterPaint(){return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))}
 function scheduleCamera(delay){if(pageStopped)return;if(cameraTimer)clearTimeout(cameraTimer);cameraTimer=setTimeout(refreshCamera,delay)}
-async function refreshCamera(){cameraTimer=null;if(pageStopped||cameraInFlight)return;if(document.hidden){scheduleCamera(1000);return}cameraInFlight=true;let bitmap=null;try{const query=new URLSearchParams({after:String(lastRenderedFrameIndex??-1)});if(Number.isInteger(lastRenderedGeneration))query.set('generation',String(lastRenderedGeneration));const response=await fetch('/frame.jpg?'+query,{cache:'no-store'});if(response.status===204)return;if(!response.ok)throw new Error('video HTTP '+response.status);const frameIndex=Number(response.headers.get('X-Preview-Frame-Index')),frameGeneration=Number(response.headers.get('X-Preview-Generation')),frameToken=response.headers.get('X-Preview-Frame-Token'),confirmable=response.headers.get('X-Preview-Confirmable')==='1';if(!Number.isInteger(frameIndex)||frameIndex<0||!Number.isInteger(frameGeneration)||frameGeneration<0||(confirmable&&!/^[0-9a-f]{64}\.[0-9a-f]{64}$/.test(frameToken||''))||(!confirmable&&frameToken!==null))throw new Error('video frame identity invalid');const bytes=await response.arrayBuffer();if(confirmable){const expectedDigest=frameToken.slice(0,64);if(await sha256Hex(bytes)!==expectedDigest)throw new Error('video frame digest mismatch')}const blob=new Blob([bytes],{type:'image/jpeg'});bitmap=await createImageBitmap(blob);if(!bitmap.width||!bitmap.height)throw new Error('video decode failed');const canvas=$('camera');if(canvas.width!==bitmap.width)canvas.width=bitmap.width;if(canvas.height!==bitmap.height)canvas.height=bitmap.height;const context=canvas.getContext('2d',{alpha:false});if(!context)throw new Error('video canvas unavailable');displayedPreviewFrameIndex=null;displayedPreviewFrameToken=null;syncBackButton();context.drawImage(bitmap,0,0);lastRenderedFrameIndex=frameIndex;lastRenderedGeneration=frameGeneration;bitmap.close();bitmap=null;await afterPaint();displayedPreviewFrameIndex=confirmable?frameIndex:null;displayedPreviewFrameToken=confirmable?frameToken:null;syncBackButton()}catch(error){if(!pageStopped)action('Video interrupted · reconnecting…','bad')}finally{if(bitmap)bitmap.close();cameraInFlight=false;scheduleCamera(document.hidden?1000:40)}}
+async function refreshCamera(){cameraTimer=null;if(pageStopped||cameraInFlight)return;if(document.hidden){scheduleCamera(1000);return}cameraInFlight=true;let bitmap=null;try{const query=new URLSearchParams({after:String(lastRenderedFrameIndex??-1)});if(Number.isInteger(lastRenderedGeneration))query.set('generation',String(lastRenderedGeneration));const response=await fetch('/frame.jpg?'+query,{cache:'no-store'});if(response.status===204)return;if(!response.ok)throw new Error('video HTTP '+response.status);const frameIndex=Number(response.headers.get('X-Preview-Frame-Index')),frameGeneration=Number(response.headers.get('X-Preview-Generation')),frameToken=response.headers.get('X-Preview-Frame-Token'),confirmable=response.headers.get('X-Preview-Confirmable')==='1';if(!Number.isInteger(frameIndex)||frameIndex<0||!Number.isInteger(frameGeneration)||frameGeneration<0||(confirmable&&!/^[0-9a-f]{64}\.[0-9a-f]{64}$/.test(frameToken||''))||(!confirmable&&frameToken!==null))throw new Error('video frame identity invalid');const bytes=await response.arrayBuffer();if(confirmable){const expectedDigest=frameToken.slice(0,64);const digest=await sha256Hex(bytes);if(digest!==null&&digest!==expectedDigest)throw new Error('video frame digest mismatch')}const blob=new Blob([bytes],{type:'image/jpeg'});bitmap=await createImageBitmap(blob);if(!bitmap.width||!bitmap.height)throw new Error('video decode failed');const canvas=$('camera');if(canvas.width!==bitmap.width)canvas.width=bitmap.width;if(canvas.height!==bitmap.height)canvas.height=bitmap.height;const context=canvas.getContext('2d',{alpha:false});if(!context)throw new Error('video canvas unavailable');displayedPreviewFrameIndex=null;displayedPreviewFrameToken=null;syncBackButton();context.drawImage(bitmap,0,0);lastRenderedFrameIndex=frameIndex;lastRenderedGeneration=frameGeneration;bitmap.close();bitmap=null;await afterPaint();displayedPreviewFrameIndex=confirmable?frameIndex:null;displayedPreviewFrameToken=confirmable?frameToken:null;syncBackButton()}catch(error){if(!pageStopped){console.error('video frame error:',error);action('Video interrupted · reconnecting…','bad')}}finally{if(bitmap)bitmap.close();cameraInFlight=false;scheduleCamera(document.hidden?1000:40)}}
 function stopAudio(){listening=false;if(audioTimer)clearTimeout(audioTimer);audioTimer=null;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='Monitor';$('btnaudio').className='listen'}
 async function pumpAudio(){if(!listening)return;try{const query=new URLSearchParams({samples:'4410'});if(audioCursor!==null)query.set('cursor',String(audioCursor));const response=await fetch('/audio/pcm?'+query,{cache:'no-store'});if(!response.ok)throw new Error('audio HTTP '+response.status);const audioStatus=response.headers.get('X-Audio-Status')||'NO_DATA';if(audioStatus!=='OK')throw new Error('Audio input '+audioStatus.toLowerCase());const rate=Number(response.headers.get('X-Audio-Sample-Rate'));const overrun=response.headers.get('X-Audio-Overrun')==='1';audioCursor=Number(response.headers.get('X-Audio-Next-Sample'));const raw=await response.arrayBuffer();if(raw.byteLength&&Number.isFinite(rate)&&rate>0){const pcm=new Int16Array(raw),buffer=audioContext.createBuffer(1,pcm.length,rate),channel=buffer.getChannelData(0);for(let i=0;i<pcm.length;i++)channel[i]=pcm[i]/32768;const lead=.08;if(overrun||audioNextAt<audioContext.currentTime||audioNextAt>audioContext.currentTime+.6)audioNextAt=audioContext.currentTime+lead;const source=audioContext.createBufferSource();source.buffer=buffer;source.connect(audioContext.destination);source.onended=()=>source.disconnect();source.start(audioNextAt);audioNextAt+=buffer.duration}audioTimer=setTimeout(pumpAudio,60)}catch(error){action('Audio monitoring stopped: '+error.message,'bad');stopAudio()}}
 async function toggleAudio(){if(listening){stopAudio();return}try{audioContext=audioContext||new AudioContext();await audioContext.resume();listening=true;audioCursor=null;audioNextAt=0;$('btnaudio').textContent='■ Stop audio';$('btnaudio').className='listen on';pumpAudio()}catch(error){action('Browser audio unavailable: '+error.message,'bad');stopAudio()}}
