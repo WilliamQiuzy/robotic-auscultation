@@ -667,13 +667,28 @@ def test_shutdown_returns_its_own_disable_outcome():
     assert outcome.command_succeeded is True
 
 
-def test_poll_non_stale_regression_disables_immediately():
-    # Audit P0: the debounce must cover STALE ONLY. Any other non-terminal
-    # regression (e.g. WARMING after a feedback dropout) keeps the immediate path.
+def test_poll_warming_is_debounced_like_stale():
+    # WARMING = envelopes FRESH but the rolling window not yet clean (health
+    # derivation): a pure freshness observation with an empty reason. Real
+    # CAN/feedback faults latch _fault_reason -> FAULT -> immediate path, so
+    # debouncing WARMING cannot delay a genuine safety fault.
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
     coord._script = [_Health("WARMING", False)]
+    assert companion.poll().status == "WARMING"       # 1st: tolerated
+    assert companion.poll().status == "WARMING"       # 2nd: tolerated
     with pytest.raises(CompanionFault):
-        companion.poll()                              # no grace for WARMING
+        companion.poll()                              # 3rd consecutive: fault
+    assert disabler.calls and companion.disabled is True
+
+
+def test_poll_unknown_status_disables_immediately():
+    # Anything outside the freshness family keeps the immediate fail-closed path.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("UNKNOWN", False)]
+    with pytest.raises(CompanionFault):
+        companion.poll()
     assert disabler.calls and companion.disabled is True

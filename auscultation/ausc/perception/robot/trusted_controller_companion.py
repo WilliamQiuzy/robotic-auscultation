@@ -34,7 +34,13 @@ from typing import Callable, Optional, Protocol
 # Ready only in this exact receiver state; every other state keeps waiting (during
 # bring-up) or is a fault (after ready).
 _READY_STATUS = "READY"
-_STALE_STATUS = "STALE"
+# Non-latched FRESHNESS observations (empty reason, self-healing): STALE = last
+# envelope momentarily older than the 50 ms display bound; WARMING = envelopes
+# FRESH but the rolling preflight window not yet clean again. Real integrity
+# failures (CAN, motor feedback, sequence loss...) latch the receiver fault and
+# surface as FAULT, which always takes the immediate path -- so debouncing these
+# two cannot delay a genuine safety fault.
+_DEBOUNCED_FRESHNESS_STATUS = frozenset({"STALE", "WARMING"})
 # Terminal-bad receiver states: never wait through these.
 _TERMINAL_BAD_STATUS = frozenset({"FAULT", "STOPPED"})
 # Freshness (non-terminal) regressions must persist this many consecutive
@@ -416,7 +422,7 @@ class TrustedControllerCompanion:
         # READY snapshot that lost preflight_ready, unknown statuses) keeps the
         # IMMEDIATE fail-closed path -- e.g. a motor-feedback dropout must not gain
         # extra watchdog periods of delay from this debounce.
-        if status != _STALE_STATUS and (
+        if status not in _DEBOUNCED_FRESHNESS_STATUS and (
             status != _READY_STATUS
             or not bool(getattr(health, "preflight_ready", False))
         ):
@@ -426,7 +432,7 @@ class TrustedControllerCompanion:
             )
             self._fault_disable(reason)
             raise CompanionFault(reason)
-        if status == _STALE_STATUS:
+        if status in _DEBOUNCED_FRESHNESS_STATUS:
             self._stale_polls += 1
             if self._stale_polls >= _STALE_POLL_FAULT_LIMIT:
                 reason = (
