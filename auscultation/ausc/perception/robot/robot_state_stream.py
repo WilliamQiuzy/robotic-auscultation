@@ -52,7 +52,7 @@ MAX_CONTROL_ENVELOPE_BYTES = 131_072
 MAX_CONTROL_TICK_GAP_NS = 10_000_000
 
 # Max missed 100 Hz envelopes absorbed as ONE bounded, exactly tick-aligned
-# publisher hole (1 s) before the stream latches a terminal fault. The shared
+# publisher hole (3 s) before the stream latches a terminal fault. The shared
 # box's low-priority publisher thread gets starved for hundreds of ms by
 # bring-up-adjacent CPU bursts while the 1 kHz tick counter keeps running
 # (observed live 2026-08-07: 170-790 ms tick-aligned holes at READY+1.1 s).
@@ -63,7 +63,10 @@ MAX_CONTROL_TICK_GAP_NS = 10_000_000
 # power-cut by software. A real loss (bigger, tick-misaligned, duplicated, or
 # backwards) still faults immediately. Single source of truth — the socket
 # receiver imports this.
-_ENVELOPE_HOLE_TOLERANCE = 100
+# (Raised 100 -> 300 after live evidence 2026-08-07: the once-per-bring-up first
+# robot-evidence assembly stalls the publisher for a deterministic ~1.33 s at
+# grace-end — 'expected 327 got 460' — which cleared the 1 s bound by 0.33 s.)
+_ENVELOPE_HOLE_TOLERANCE = 300
 VOID_SEND_STATUS_REASON = "upstream_mit_control_all_returns_void"
 SOCKETCAN_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 SOCKETCAN_TX_ENQUEUE_SEMANTICS = (

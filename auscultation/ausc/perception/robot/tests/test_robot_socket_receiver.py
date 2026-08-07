@@ -1196,9 +1196,9 @@ def test_receive_rejects_hole_larger_than_tolerance(
             receiver,
             _wire(
                 _envelope(
-                    envelope_seq=103,  # 101 missed > tolerance of 100 (1 s)
-                    first_tick=1120,   # tick-aligned on purpose: size alone must reject
-                    first_observation_ns=base + 1_011_000_000,
+                    envelope_seq=303,  # 301 missed > tolerance of 300 (3 s)
+                    first_tick=3120,   # tick-aligned on purpose: size alone must reject
+                    first_observation_ns=base + 3_011_000_000,
                 )
             ),
         )
@@ -1272,15 +1272,15 @@ def test_absorbing_stream_still_rejects_oversized_and_misaligned_holes():
         RobotTelemetryError,
     )
 
-    base = time.monotonic_ns() - 2_000_000_000
-    # oversized: 101 missed envelopes > tolerance of 100
+    base = 50_000_000_000  # fixed positive: reject path never consults wall-now
+    # oversized: 301 missed envelopes > tolerance of 300
     stream = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
     stream.ingest_datagram(_wire_v4(_v4_envelope(
         envelope_seq=1, first_tick=100, first_observation_ns=base)))
     with pytest.raises(RobotTelemetryError, match="sequence loss"):
         stream.ingest_datagram(_wire_v4(_v4_envelope(
-            envelope_seq=103, first_tick=1120,
-            first_observation_ns=base + 1_011_000_000)))
+            envelope_seq=303, first_tick=3120,
+            first_observation_ns=base + 3_011_000_000)))
     # misaligned: seq skips but ticks contiguous (renumbering, not a hole)
     stream = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
     stream.ingest_datagram(_wire_v4(_v4_envelope(
