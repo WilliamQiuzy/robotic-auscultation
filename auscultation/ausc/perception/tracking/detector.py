@@ -75,7 +75,7 @@ class DenseIUVDetector:
     def __init__(self, ckpt: str, encoder: str = "dinov2_vitb14", res: int = 518,
                  up_bias: float = 0.12, device: Optional[str] = None,
                  compute_confidence: bool = True, review_scale: float = 24.0,
-                 half: bool = False, stabilize_crop: bool = False, crop_pct: float = 2.0,
+                 half: bool = False, stabilize_crop: bool = False, crop_pct: Optional[float] = None,
                  flip_tta: bool = False, flip_tta_guard_px: float = 8.0,
                  robust_structure: bool = False, soft_decode: bool = False,
                  soft_decode_temp: float = 1.0, real_focal_normals: bool = False) -> None:
@@ -86,7 +86,10 @@ class DenseIUVDetector:
         self.half = half                  # fp16 autocast inference (~2x faster on the GPU)
         # ── 2026-08-07 audit refinements — ALL default OFF (live path stays byte-identical) ──
         self.stabilize_crop = stabilize_crop        # #1 temporal deadband-EMA on the crop box
-        self.crop_pct = crop_pct                    #    percentile bbox when stabilizing
+        # crop_pct default None (EMA-only): the 2026-08-07 linbox A/B showed the 2/98 percentile
+        # bbox REGRESSES (+17% jitter — it shrinks the crop off the model's training distribution),
+        # while EMA-only stabilization HELPS (-9% raw 2D jitter). Percentile is opt-in, off by default.
+        self.crop_pct = crop_pct
         self.flip_tta = flip_tta                    # #4 fuse the (already-computed) flipped pass
         self.flip_tta_guard_px = flip_tta_guard_px  #    only average where the two passes agree
         # #3 real per-frame effective-focal normals instead of fixed K=560. RETRAIN-COUPLED:

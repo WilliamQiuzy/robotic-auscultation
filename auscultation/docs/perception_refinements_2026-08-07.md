@@ -52,6 +52,27 @@ python -m ausc.perception.eval.landmark_offline_eval \
 
 **可立即做**:在 linbox 用 live checkpoint + 一段 diagnostic session 跑 jitter/3D A/B(read-only、不碰 8801)。PCK 完整门需再定位 H200 labeled release。
 
+## 已跑:linbox 离线 A/B(2026-08-07,read-only,live checkpoint 68037e69)
+在 live release 的 `perc_lmh_v9_occ` 上,取一段 diagnostic session 最静窗口(depth 运动 1.0mm/step)250 帧跑 A/B。**注意口径:测的是 raw detector 逐帧(无 tracker/EKF),无标注(无 PCK)** —— 故 baseline 本身 ~17px/~20mm/帧(生产是 detector→ModelBasedTracker 平滑后才 1–3mm)。这是**相对**比较 + **初步**结论。
+
+| 变体 | 2D 抖动 | 3D 共模 | 结论 |
+|---|---|---|---|
+| baseline | 16.9px | 19.5mm | ref |
+| **crop EMA-only**(crop_pct=None) | **-9% ✓** | +2% | **真正的赢家**(+coverage) |
+| crop 2/98 分位+EMA | +17% ✗ | +16% ✗ | 分位把裁剪缩到训练分布外→退化,**丢弃** |
+| flip_tta | +1% | **-1% ✓** | 安全中性(易帧上买不到抖动,买的是鲁棒/难帧) |
+| robust_struct | +21% ✗ | +48% ✗ | Theil-Sen 用全层→对逐帧噪声更敏感,**丢弃(默认)** |
+| soft_decode(temp1.5) | +5% ✗ | +3% ✗ | temp>1 软化反伤;temp=1 等于现产,**丢弃(默认)** |
+| crop_stab(motion regime) | +222% | +1706% | 运动段死区 EMA 严重滞后 → **crop_stab 只在低运动可用** |
+
+**据此改的默认(evidence-based,仍全 OFF):** `crop_pct` 默认 `None`(EMA-only)—— 分位退化、EMA 有益;分位改成 opt-in。`_VARIANTS` 更新:`crop_stab`=EMA-only,`candidates`={crop_stab+flip_tta}(两个不退化的)。
+
+**门抓到的价值:** 把我原定"最高杠杆"的 crop 稳定化拆开 —— **EMA 有益、分位有害**(bundled 时被抵消成"退化"),避免了盲部署一个回归。
+
+**关键 caveat(别过度解读):** (1) 无 tracker —— 生产稳定性 = detector→EKF,精修真实价值须在 tracker 环里测;(2) 无 PCK —— 没法判断是否漂移离解剖(crop_ema_only 抖动降但准度未验);(3) 单 clip 单窗口、非理想静态黄衣标注 clip。**定论需:tracker-in-loop + 带标注深度 clip(H200 raw_sessions/releases,`AUSC_PERCEPTION_LABELED_RELEASE`,仍需定位)—— 且在录制之后。** 当前一切保持 OFF。
+
+linbox scratch:`~/scratch_ab`(ephemeral,read-only 产物,可删)。
+
 ## 上线顺序(建议,全部在门后)
 1. 建好上面这张表(定位资产即可跑)。
 2. `flip_tta` + `crop_stab` 先过离线 PCK(免训练、最高 ROI)→ 通过 + 你签字 → 才在部署配置里翻 flag。

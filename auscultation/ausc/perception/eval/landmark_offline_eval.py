@@ -235,14 +235,17 @@ def run_variant(detect_fn: Callable, frames: List[Tuple[np.ndarray, np.ndarray]]
 
 # ── clip loading + CLI (GPU host) ───────────────────────────────────────────────────────────
 
+# 2026-08-07 linbox A/B (raw detector, static window, no tracker/PCK): crop EMA-only -9% 2D jitter
+# (a candidate); percentile bbox +17% (dropped); flip_tta neutral-safe; robust_struct +21..48% and
+# soft_decode(temp1.5) +3..7% (dropped as defaults). crop_stab now = EMA-only (crop_pct=None default).
 _VARIANTS: Dict[str, dict] = {
     "baseline": {},
-    "crop_stab": {"stabilize_crop": True},
+    "crop_stab": {"stabilize_crop": True},                       # EMA-only (the -9% candidate)
+    "crop_pct": {"stabilize_crop": True, "crop_pct": 2.0},       # +EMA percentile (regressed; kept for A/B)
     "flip_tta": {"flip_tta": True},
     "robust_struct": {"robust_structure": True},
-    "soft_decode": {"soft_decode": True},
-    "all_free": {"stabilize_crop": True, "flip_tta": True,
-                 "robust_structure": True, "soft_decode": True},
+    "soft_decode": {"soft_decode": True, "soft_decode_temp": 1.5},
+    "candidates": {"stabilize_crop": True, "flip_tta": True},    # the two that don't regress
 }
 
 
