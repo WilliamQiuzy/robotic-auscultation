@@ -329,7 +329,9 @@ class _RecordingExactSink:
 
     def __init__(self, contract: RobotStateContract) -> None:
         self.contract = contract
-        self.stream = ExactControlStateStream(contract)
+        # mirrors production wiring: the coordinator's live preflight stream
+        # opts into bounded-hole absorption (session capture stays strict)
+        self.stream = ExactControlStateStream(contract, absorb_bounded_holes=True)
         self.raw_payloads: list[bytes] = []
 
     def ingest_datagram(self, payload: bytes) -> RobotControlEnvelope:
@@ -1225,3 +1227,65 @@ def test_receive_rejects_seq_jump_without_matching_tick_hole(
                 )
             ),
         )
+
+
+def test_preflight_stream_absorbs_bounded_v4_hole_capture_stream_stays_strict():
+    """The SEALED production controller publishes the v4 schema (verified in the
+    deployed ELF 2026-08-07); a v2-only hole gate made absorption dead code live.
+    Policy: the live preflight stream (opt-in) absorbs a bounded tick-aligned
+    hole so bring-up survives a missed 10 ms publisher slot; the session-capture
+    stream keeps the DEFAULT strict contract so recorded telemetry stays gapless
+    (a hole during recording fails fast instead of dying at finalize)."""
+    from ausc.perception.robot.robot_state_stream import (
+        ExactControlStateStream,
+        RobotTelemetryError,
+    )
+
+    base = time.monotonic_ns() - 60_000_000
+
+    def wires():
+        return (
+            _wire_v4(_v4_envelope(
+                envelope_seq=1, first_tick=100, first_observation_ns=base)),
+            _wire_v4(_v4_envelope(
+                envelope_seq=3, first_tick=120,
+                first_observation_ns=base + 20_000_000)),
+        )
+
+    absorbing = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
+    first, second = wires()
+    absorbing.ingest_datagram(first)
+    absorbing.ingest_datagram(second)      # one missed slot -> absorbed, no raise
+    assert not absorbing.faulted
+
+    strict = ExactControlStateStream(_contract())
+    first, second = wires()
+    strict.ingest_datagram(first)
+    with pytest.raises(RobotTelemetryError, match="sequence loss"):
+        strict.ingest_datagram(second)
+    assert strict.faulted
+
+
+def test_absorbing_stream_still_rejects_oversized_and_misaligned_holes():
+    from ausc.perception.robot.robot_state_stream import (
+        ExactControlStateStream,
+        RobotTelemetryError,
+    )
+
+    base = time.monotonic_ns() - 200_000_000
+    # oversized: 7 missed envelopes > tolerance of 5
+    stream = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
+    stream.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=1, first_tick=100, first_observation_ns=base)))
+    with pytest.raises(RobotTelemetryError, match="sequence loss"):
+        stream.ingest_datagram(_wire_v4(_v4_envelope(
+            envelope_seq=9, first_tick=180,
+            first_observation_ns=base + 80_000_000)))
+    # misaligned: seq skips but ticks contiguous (renumbering, not a hole)
+    stream = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
+    stream.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=1, first_tick=100, first_observation_ns=base)))
+    with pytest.raises(RobotTelemetryError, match="sequence loss"):
+        stream.ingest_datagram(_wire_v4(_v4_envelope(
+            envelope_seq=3, first_tick=110,
+            first_observation_ns=base + 10_000_000)))

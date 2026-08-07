@@ -1431,7 +1431,8 @@ class RobotSocketReceiver:
         missed = seq_jump - 1
         records_per_envelope = len(previous.records)
         if (
-            1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
+            envelope.schema in (CONTROL_ENVELOPE_SCHEMA, CONTROL_ENVELOPE_SCHEMA_V4)
+            and 1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
             and records_per_envelope > 0
             and tick_delta == 1 + missed * records_per_envelope
         ):

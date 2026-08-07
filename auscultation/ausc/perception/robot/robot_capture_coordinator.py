@@ -250,7 +250,7 @@ class ProductionRobotCaptureCoordinator:
         )
 
         self._lock = threading.RLock()
-        self._preflight_stream = ExactControlStateStream(contract)
+        self._preflight_stream = ExactControlStateStream(contract, absorb_bounded_holes=True)
         self._recent_wire: Deque[
             Tuple[RobotControlEnvelope, bytes]
         ] = deque()
@@ -347,7 +347,7 @@ class ProductionRobotCaptureCoordinator:
             self._receiver_started = False
             self._fault_reason = ""
             self._abort_callback_invoked = False
-            self._preflight_stream = ExactControlStateStream(self.contract)
+            self._preflight_stream = ExactControlStateStream(self.contract, absorb_bounded_holes=True)
             self._recent_wire.clear()
             self._receiver = self._construct_receiver()
 

@@ -2209,10 +2209,19 @@ class ExactControlStateStream:
     # must never silently accept the diagnostic v1 RobotStateStream.
     telemetry_schema = CONTROL_ENVELOPE_SCHEMA
 
-    def __init__(self, contract: RobotStateContract):
+    def __init__(self, contract: RobotStateContract, *,
+                 absorb_bounded_holes: bool = False):
         if not isinstance(contract, RobotStateContract):
             raise TypeError("contract must be RobotStateContract")
         self.contract = contract
+        # Bounded publisher-hole absorption is OPT-IN and belongs ONLY to the
+        # live preflight/monitoring stream (arm stays usable through a missed
+        # 10 ms publisher slot). Session-capture streams keep the default
+        # STRICT contract: a hole during an active recording faults the
+        # session immediately (fail fast) so finalized raw telemetry remains
+        # gapless — the finalize validators depend on that invariant.
+        self._absorb_bounded_holes = bool(absorb_bounded_holes)
+        self._last_record_count = 0
         self._records: List[ExactControlRecord] = []
         self._last_envelope_seq: int | None = None
         self._last_send_failure_count = 0
@@ -2260,16 +2269,23 @@ class ExactControlStateStream:
             tick_delta = (
                 envelope.records[0].control_tick_seq - self._last_control_tick_seq
             )
-            records_per_envelope = len(envelope.records)
+            records_per_envelope = self._last_record_count
             missed = seq_jump - 1
-            # Bounded, exactly tick-aligned publisher hole (current schema only;
-            # see robot_socket_receiver._ENVELOPE_HOLE_TOLERANCE): the shared
-            # box's low-priority publisher can miss an occasional 10 ms slot
-            # while the 1 kHz tick counter keeps running. Tolerate the hole when
-            # the tick counter corroborates it exactly and the observation clock
-            # gap stays within the aligned bound; everything else still latches.
+            # Bounded, exactly tick-aligned publisher hole (see
+            # _ENVELOPE_HOLE_TOLERANCE): the shared box's low-priority publisher
+            # can miss an occasional 10 ms slot while the 1 kHz tick counter
+            # keeps running. Absorb-eligible ONLY when this stream opted in
+            # (live preflight; never session capture) and the schema is a
+            # production one — the SEALED controller publishes v4 (verified in
+            # the deployed ELF 2026-08-07; a v2-only gate made this dead code
+            # live). Tolerated only when the tick counter corroborates the hole
+            # exactly and the observation clock gap stays within the aligned
+            # bound; everything else still latches.
             hole_ok = (
-                envelope.schema == CONTROL_ENVELOPE_SCHEMA
+                self._absorb_bounded_holes
+                and envelope.schema in (
+                    CONTROL_ENVELOPE_SCHEMA, CONTROL_ENVELOPE_SCHEMA_V4,
+                )
                 and 1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
                 and records_per_envelope > 0
                 and tick_delta == 1 + missed * records_per_envelope
@@ -2297,7 +2313,9 @@ class ExactControlStateStream:
                 <= self._last_monotonic_ns
             ):
                 self._latch_fault("exact control CLOCK_MONOTONIC clock rollback")
-            if envelope.schema == CONTROL_ENVELOPE_SCHEMA_V4:
+            if envelope.schema == CONTROL_ENVELOPE_SCHEMA_V4 and seq_jump == 1:
+                # the v4 feedback transition compares CONSECUTIVE records and is
+                # undefined across an absorbed hole
                 try:
                     _validate_v4_feedback_transition(
                         self._records[-1], envelope.records[0]
@@ -2309,6 +2327,7 @@ class ExactControlStateStream:
             self._envelope_schema = envelope.schema
 
         self._records.extend(envelope.records)
+        self._last_record_count = len(envelope.records)
         self._last_envelope_seq = envelope.envelope_seq
         self._last_send_failure_count = envelope.socket_send_failure_count
         self._last_control_tick_seq = envelope.records[-1].control_tick_seq

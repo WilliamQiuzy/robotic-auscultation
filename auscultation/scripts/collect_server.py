@@ -1428,6 +1428,9 @@ class Collector:
         # rebuilt fresh every bring-up.
         self._heavy_model_cache = None
         self._heavy_model_lock = threading.Lock()
+        # Bring-up/safe-stop interlock: arm actions refuse until the prewarm has
+        # finished (set immediately when no prewarm thread will run).
+        self._model_prewarm_done = threading.Event()
         self._preview_worker = LatestFrameWorker(
             self._render_preview_bundle, name="wam-diagnostic-preview",
         ).start()
@@ -1567,6 +1570,8 @@ class Collector:
                 name="wam-model-prewarm",
                 daemon=True,
             ).start()
+        else:
+            self._model_prewarm_done.set()
 
     def _configuration_blockers(self):
         if self.fake:
@@ -2284,6 +2289,15 @@ class Collector:
         it, and the gate is in TESTING). It skips ONLY the authorization checks -- every
         other safety check (fatal/stopping, single-owner, not-isolated, launch fence) is kept.
         """
+        if not self._model_prewarm_done.is_set():
+            # Interlock with the server-start model prewarm: energizing the arm
+            # while the multi-second torch/CUDA build storms the box reproduces
+            # the aborted-bring-up + frozen-preview failure (2026-08-07 review).
+            return {
+                "ok": False, "code": "model_prewarm_in_progress",
+                "message": "perception models are still warming up after the "
+                           "service (re)start — retry in ~1 minute",
+            }
         if safe_stop_test:
             gate = self._safe_stop_gate
             if gate is None or gate.state != safe_stop_hil.TESTING:
@@ -2595,6 +2609,12 @@ class Collector:
         EARN) real bring-up authority. Constructs the trusted launcher/preflight/disable
         from the dormant activation, marks the gate TESTING, and does the test bring-up.
         """
+        if not self._model_prewarm_done.is_set():
+            return {
+                "ok": False, "code": "model_prewarm_in_progress",
+                "message": "perception models are still warming up after the "
+                           "service (re)start — retry in ~1 minute",
+            }
         gate = self._safe_stop_gate
         if (
             gate is None
@@ -4540,33 +4560,39 @@ class Collector:
     def _heavy_models(self):
         """Build-once, reuse-forever torch models (robot/camera independent)."""
         with self._heavy_model_lock:
-            if self._heavy_model_cache is not None:
-                return self._heavy_model_cache
-            verify_file_sha256(self.checkpoint, self.checkpoint_sha256, label="v9 checkpoint")
-            verify_file_sha256(self.base_model, self.base_model_sha256, label="DINOv2 base")
-            verify_file_sha256(
-                self.posterior_gate_checkpoint,
-                self.posterior_gate_checkpoint_sha256,
-                label="posterior-person gate checkpoint",
-            )
-            verify_file_sha256(
-                self.runtime_lock, self.runtime_lock_sha256, label="runtime lock"
-            )
-            from ausc.perception.tracking import NormalsDetector
+            return self._heavy_models_locked()
 
-            detector = NormalsDetector(
-                str(self.checkpoint), device="cuda", half=True,
-                fill_holes=True, plausibility_gate=True,
-            )
-            person_gate = UltralyticsPersonGate(
-                str(self.posterior_gate_checkpoint),
-                device=0,
-                image_size=640,
-                model_release_id=self.posterior_gate_release_id,
-                model_sha256=self.posterior_gate_checkpoint_sha256,
-            )
-            self._heavy_model_cache = (detector, person_gate)
+    def _heavy_models_locked(self):
+        if self._heavy_model_cache is not None:
             return self._heavy_model_cache
+        return self._build_heavy_models_locked()
+
+    def _build_heavy_models_locked(self):
+        verify_file_sha256(self.checkpoint, self.checkpoint_sha256, label="v9 checkpoint")
+        verify_file_sha256(self.base_model, self.base_model_sha256, label="DINOv2 base")
+        verify_file_sha256(
+            self.posterior_gate_checkpoint,
+            self.posterior_gate_checkpoint_sha256,
+            label="posterior-person gate checkpoint",
+        )
+        verify_file_sha256(
+            self.runtime_lock, self.runtime_lock_sha256, label="runtime lock"
+        )
+        from ausc.perception.tracking import NormalsDetector
+
+        detector = NormalsDetector(
+            str(self.checkpoint), device="cuda", half=True,
+            fill_holes=True, plausibility_gate=True,
+        )
+        person_gate = UltralyticsPersonGate(
+            str(self.posterior_gate_checkpoint),
+            device=0,
+            image_size=640,
+            model_release_id=self.posterior_gate_release_id,
+            model_sha256=self.posterior_gate_checkpoint_sha256,
+        )
+        self._heavy_model_cache = (detector, person_gate)
+        return self._heavy_model_cache
 
     def _prewarm_heavy_models(self):
         """Server-start warm-up so the FIRST bring-up pays no GIL/CUDA storm.
@@ -4582,24 +4608,33 @@ class Collector:
             import time as _time
 
             t0 = _time.monotonic()
-            detector, person_gate = self._heavy_models()
             import numpy as _np
 
             from ausc.perception.tracking import Intrinsics as _Intr
 
             rgb = _np.zeros((1080, 1920, 3), dtype=_np.uint8)
             depth = _np.full((1080, 1920), 1200, dtype=_np.uint16)
-            depth[300:700, 700:1300] = 1150          # a "body" band for the crop mask
+            # a "body" band with >80 mm depth extent so _back_plausible passes
+            # (the full pipeline including the flip-confidence pass then runs
+            # exactly as on a live back, not the OOD-gated variant)
+            depth[300:700, 700:1300] = _np.linspace(
+                1100, 1250, 600, dtype=_np.uint16
+            )[None, :].repeat(400, axis=0)
             depth[450:520, 900:1000] = 0             # holes -> exercises scipy EDT fill
             intr = _Intr(fx=1123.173, fy=1122.996, cx=955.720, cy=533.176,
                          width=1920, height=1080, depth_scale=1.0)
             timings = []
-            for _ in range(2):                        # pass 1 JIT/alloc, pass 2 steady
-                t = _time.monotonic()
-                detector.detect(rgb, depth, intr)
-                # assess() takes the CameraStream frame contract (.frame RGB + .index)
-                person_gate.assess(SimpleNamespace(frame=rgb, index=0))
-                timings.append(_time.monotonic() - t)
+            # Hold the cache lock across build AND both warm passes: a bring-up
+            # racing this window blocks in _heavy_models() until the models are
+            # FULLY warm, instead of starting the worker mid-storm.
+            with self._heavy_model_lock:
+                detector, person_gate = self._heavy_models_locked()
+                for _ in range(2):                    # pass 1 JIT/alloc, pass 2 steady
+                    t = _time.monotonic()
+                    detector.detect(rgb, depth, intr)
+                    # assess() takes the CameraStream frame contract (.frame + .index)
+                    person_gate.assess(SimpleNamespace(frame=rgb, index=0))
+                    timings.append(_time.monotonic() - t)
             # pass2 << pass1 proves the storm is paid HERE, not at bring-up; the
             # worker's first real frame runs at pass2 speed in this same process.
             print(
@@ -4610,6 +4645,11 @@ class Collector:
             )
         except Exception as exc:  # noqa: BLE001 - warm-up is best-effort
             print(f"[prewarm] skipped: {type(exc).__name__}: {exc}", flush=True)
+        finally:
+            # release the bring-up/safe-stop interlock even on failure — the
+            # models then build lazily at first use (pre-fix behavior), which is
+            # degraded but must never permanently block arm actions
+            self._model_prewarm_done.set()
 
     def _build_tracker_processor(self, frame):
         if self._processor_factory is not None:
