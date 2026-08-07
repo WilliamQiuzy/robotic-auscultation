@@ -2308,13 +2308,27 @@ class ExactControlStateStream:
                 self._latch_fault(
                     "control envelope sequence loss or duplication"
                 )
-            try:
-                validate_send_failure_transition(
-                    self._last_send_failure_count,
-                    envelope.socket_send_failure_count,
-                )
-            except RobotTelemetryError as exc:
-                self._latch_fault(str(exc))
+            send_failure_delta = (
+                envelope.socket_send_failure_count
+                - self._last_send_failure_count
+            )
+            if hole_ok and 0 <= send_failure_delta <= missed:
+                # The absorbed hole's publisher-side signature (observed live
+                # 2026-08-07: 0 -> 37 across a stall): the publisher TRIED to
+                # send the missing envelopes and the sends failed while the
+                # receiver was stalled. Bounded by the hole size this is the
+                # SAME already-accounted event, not an additional silent loss;
+                # any larger jump (or any increase on a contiguous stream)
+                # still faults below.
+                pass
+            else:
+                try:
+                    validate_send_failure_transition(
+                        self._last_send_failure_count,
+                        envelope.socket_send_failure_count,
+                    )
+                except RobotTelemetryError as exc:
+                    self._latch_fault(str(exc))
             if seq_jump == 1 and tick_delta != 1:
                 self._latch_fault("exact control tick sequence loss or duplication")
             if (

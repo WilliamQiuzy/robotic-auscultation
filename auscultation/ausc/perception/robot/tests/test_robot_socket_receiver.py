@@ -1258,6 +1258,27 @@ def test_preflight_stream_absorbs_bounded_v4_hole_capture_stream_stays_strict():
     absorbing.ingest_datagram(second)      # one missed slot -> absorbed, no raise
     assert not absorbing.faulted
 
+    # publisher-side signature of the SAME hole: socket_send_failure_count rises
+    # by <= missed (it tried to send, the sends failed) -> absorbed too
+    absorbing2 = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
+    base2 = 90_000_000_000
+    absorbing2.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=1, first_tick=100, first_observation_ns=base2)))
+    absorbing2.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=3, first_tick=120, first_observation_ns=base2 + 20_000_000,
+        socket_send_failure_count=1)))
+    assert not absorbing2.faulted
+
+    # but a send-failure jump LARGER than the hole is an additional silent loss
+    absorbing3 = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
+    absorbing3.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=1, first_tick=100, first_observation_ns=base2)))
+    with pytest.raises(RobotTelemetryError, match="send_failure_count increased"):
+        absorbing3.ingest_datagram(_wire_v4(_v4_envelope(
+            envelope_seq=3, first_tick=120,
+            first_observation_ns=base2 + 20_000_000,
+            socket_send_failure_count=5)))
+
     strict = ExactControlStateStream(_contract())
     first, second = wires()
     strict.ingest_datagram(first)
