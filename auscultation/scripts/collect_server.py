@@ -1413,6 +1413,16 @@ class Collector:
         self._force_advisory_events = []
         self._model_worker = None
         self._back_gate = None
+        # Process-lifetime cache of the HEAVY torch models (DINOv2 detector +
+        # YOLO person gate). Building them takes seconds of GIL/CPU storm; doing
+        # that at first bring-up starved the telemetry receiver (sequence holes),
+        # froze the MJPEG preview (browser stream died) and the force serial
+        # reader (STALE flicker) — 2026-08-07, three aborted bring-ups. The cache
+        # is built once (pre-warmed at server start, below) and reused across
+        # worker rebuilds; per-episode state (tracker, back gate) is still
+        # rebuilt fresh every bring-up.
+        self._heavy_model_cache = None
+        self._heavy_model_lock = threading.Lock()
         self._preview_worker = LatestFrameWorker(
             self._render_preview_bundle, name="wam-diagnostic-preview",
         ).start()
@@ -1543,6 +1553,15 @@ class Collector:
         )
         if start_thread:
             self.start()
+        if start_thread and not self.fake and self._processor_factory is None:
+            # Warm the heavy torch models NOW, while nothing safety-critical is
+            # running — not at first bring-up, where the load storm starved the
+            # telemetry receiver / preview / force reader (2026-08-07).
+            threading.Thread(
+                target=self._prewarm_heavy_models,
+                name="wam-model-prewarm",
+                daemon=True,
+            ).start()
 
     def _configuration_blockers(self):
         if self.fake:
@@ -4510,19 +4529,59 @@ class Collector:
         self._reset_camera_pipeline(reason)
         return reason
 
+    def _heavy_models(self):
+        """Build-once, reuse-forever torch models (robot/camera independent)."""
+        with self._heavy_model_lock:
+            if self._heavy_model_cache is not None:
+                return self._heavy_model_cache
+            verify_file_sha256(self.checkpoint, self.checkpoint_sha256, label="v9 checkpoint")
+            verify_file_sha256(self.base_model, self.base_model_sha256, label="DINOv2 base")
+            verify_file_sha256(
+                self.posterior_gate_checkpoint,
+                self.posterior_gate_checkpoint_sha256,
+                label="posterior-person gate checkpoint",
+            )
+            verify_file_sha256(
+                self.runtime_lock, self.runtime_lock_sha256, label="runtime lock"
+            )
+            from ausc.perception.tracking import NormalsDetector
+
+            detector = NormalsDetector(
+                str(self.checkpoint), device="cuda", half=True,
+                fill_holes=True, plausibility_gate=True,
+            )
+            person_gate = UltralyticsPersonGate(
+                str(self.posterior_gate_checkpoint),
+                device=0,
+                image_size=640,
+                model_release_id=self.posterior_gate_release_id,
+                model_sha256=self.posterior_gate_checkpoint_sha256,
+            )
+            self._heavy_model_cache = (detector, person_gate)
+            return self._heavy_model_cache
+
+    def _prewarm_heavy_models(self):
+        """Server-start warm-up so the FIRST bring-up pays no GIL/CUDA storm."""
+        try:
+            detector, person_gate = self._heavy_models()
+            import numpy as _np
+
+            # one dummy forward each: forces CUDA context + kernels + fp16 paths
+            zeros = _np.full((518, 518, 3), 127, dtype=_np.uint8)
+            detector._points_from_im(zeros)
+            warm = getattr(person_gate, "warmup", None)
+            if callable(warm):
+                warm()
+            print("[prewarm] perception models warm (detector + person gate)", flush=True)
+        except Exception as exc:  # noqa: BLE001 - warm-up is best-effort
+            print(f"[prewarm] skipped: {type(exc).__name__}: {exc}", flush=True)
+
     def _build_tracker_processor(self, frame):
         if self._processor_factory is not None:
             return self._processor_factory(self, frame)
-        verify_file_sha256(self.checkpoint, self.checkpoint_sha256, label="v9 checkpoint")
-        verify_file_sha256(self.base_model, self.base_model_sha256, label="DINOv2 base")
-        verify_file_sha256(
-            self.posterior_gate_checkpoint,
-            self.posterior_gate_checkpoint_sha256,
-            label="posterior-person gate checkpoint",
-        )
-        verify_file_sha256(self.runtime_lock, self.runtime_lock_sha256, label="runtime lock")
+        detector, person_gate = self._heavy_models()
         from ausc.perception.tracking import (
-            Intrinsics, ModelBasedTracker, ModelConfig, NormalsDetector, runtime_frame,
+            Intrinsics, ModelBasedTracker, ModelConfig, runtime_frame,
         )
 
         active = getattr(self._cam, "color_intrinsics", None)
@@ -4545,20 +4604,10 @@ class Collector:
             )
         if frame.depth is None or tuple(frame.depth.shape) != (height, width):
             raise RuntimeError("v9 runtime requires depth aligned to the active RGB frame")
-        detector = NormalsDetector(
-            str(self.checkpoint), device="cuda", half=True,
-            fill_holes=True, plausibility_gate=True,
-        )
+        # per-episode state rebuilt fresh; heavy models come from the cache
         tracker = ModelBasedTracker(
             detector, intrinsics,
             ModelConfig(init_frames=12, min_conf=0.3, coast_max=20),
-        )
-        person_gate = UltralyticsPersonGate(
-            str(self.posterior_gate_checkpoint),
-            device=0,
-            image_size=640,
-            model_release_id=self.posterior_gate_release_id,
-            model_sha256=self.posterior_gate_checkpoint_sha256,
         )
         back_gate = OperatorConfirmedBackGate(person_gate)
         self._back_gate = back_gate
