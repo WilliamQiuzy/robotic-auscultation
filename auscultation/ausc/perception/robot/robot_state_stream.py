@@ -52,12 +52,18 @@ MAX_CONTROL_ENVELOPE_BYTES = 131_072
 MAX_CONTROL_TICK_GAP_NS = 10_000_000
 
 # Max missed 100 Hz envelopes absorbed as ONE bounded, exactly tick-aligned
-# publisher hole (50 ms) before the stream latches a terminal fault. The shared
-# box's low-priority publisher thread can miss an occasional 10 ms slot under
-# load while the 1 kHz tick counter keeps running; a real loss (bigger,
-# tick-misaligned, duplicated, or backwards) still faults immediately. Single
-# source of truth — the socket receiver imports this.
-_ENVELOPE_HOLE_TOLERANCE = 5
+# publisher hole (1 s) before the stream latches a terminal fault. The shared
+# box's low-priority publisher thread gets starved for hundreds of ms by
+# bring-up-adjacent CPU bursts while the 1 kHz tick counter keeps running
+# (observed live 2026-08-07: 170-790 ms tick-aligned holes at READY+1.1 s).
+# This absorption applies ONLY to opt-in live preflight/monitoring streams —
+# session-capture streams stay strict, so RECORDED telemetry keeps its gapless
+# guarantee and a hole during recording still fails fast. Consistent with the
+# operator's doctrine: telemetry is advisory pre-recording; the arm is never
+# power-cut by software. A real loss (bigger, tick-misaligned, duplicated, or
+# backwards) still faults immediately. Single source of truth — the socket
+# receiver imports this.
+_ENVELOPE_HOLE_TOLERANCE = 100
 VOID_SEND_STATUS_REASON = "upstream_mit_control_all_returns_void"
 SOCKETCAN_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 SOCKETCAN_TX_ENQUEUE_SEMANTICS = (

@@ -1434,7 +1434,7 @@ class Collector:
         # Post-READY live-inference grace (see the camera-loop comment): first
         # robot-evidence timestamp per bring-up; None until evidence appears.
         self._model_robot_ready_t0 = None
-        self._model_inference_grace_s = 2.5
+        self._model_inference_grace_s = 3.0
         self._preview_worker = LatestFrameWorker(
             self._render_preview_bundle, name="wam-diagnostic-preview",
         ).start()
@@ -2478,6 +2478,8 @@ class Collector:
                     ),
                 }
             else:
+                # anchor for the post-READY evidence/inference grace window
+                self._model_robot_ready_t0 = time.monotonic()
                 result = {
                     "ok": True, "code": "controller_ready",
                     "message": "left arm controller ready (per-motor telemetry verified)",
@@ -5338,6 +5340,17 @@ class Collector:
                 # dropped mid-stream -> sequence-loss fault seconds after READY).
                 self._pending_model_frame = None
             if not gate_testing and not self.fake and self._pending_model_frame is not None:
+                if (
+                    self._processor_factory is None  # real heavy path only
+                    and self._model_robot_ready_t0 is not None
+                    and time.monotonic() - self._model_robot_ready_t0
+                    < self._model_inference_grace_s
+                ):
+                    # full evidence+inference grace: run NOTHING robot-derived on
+                    # this thread until the controller has settled post-homing
+                    self._model_status = "WARMING_UP"
+                    self._pending_model_frame = None
+                    continue
                 pending_model_frame = self._pending_model_frame
                 try:
                     model_input = self._model_input_for_frame(
@@ -5370,24 +5383,6 @@ class Collector:
                     )
                     continue
                 else:
-                    # Post-READY inference grace: every aborted bring-up tonight
-                    # faulted at READY+~1.1s with a 0.4-0.8s publisher hole —
-                    # exactly when the first live inference burst lands while the
-                    # controller finishes homing. Safe-stop tests (model paused)
-                    # never faulted. Hold live inference for a short grace after
-                    # robot evidence first becomes available so the burst cannot
-                    # collide with the homing-transition window; preview keeps
-                    # running from the camera path meanwhile.
-                    if self._model_robot_ready_t0 is None:
-                        self._model_robot_ready_t0 = time.monotonic()
-                    if (
-                        self._processor_factory is None  # real heavy path only
-                        and time.monotonic() - self._model_robot_ready_t0
-                        < self._model_inference_grace_s
-                    ):
-                        self._model_status = "WARMING_UP"
-                        self._pending_model_frame = None
-                        continue
                     if self._model_worker is None and self._fatal_error is None:
                         try:
                             processor = self._build_tracker_processor(
