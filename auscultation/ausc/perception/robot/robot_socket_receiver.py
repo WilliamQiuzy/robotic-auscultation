@@ -40,7 +40,7 @@ from ausc.perception.robot.robot_state_stream import (
     CONTROL_ENVELOPE_SCHEMA_V4,
     MAX_CONTROL_ENVELOPE_BYTES,
     MAX_CONTROL_TICK_GAP_NS,
-    _ENVELOPE_HOLE_TOLERANCE,
+    _MAX_HOLE_NS,
     RobotControlEnvelope,
     RobotStateContract,
     parse_control_envelope_datagram,
@@ -1429,38 +1429,25 @@ class RobotSocketReceiver:
                 )
             return
         missed = seq_jump - 1
-        records_per_envelope = len(previous.records)
+        observation_delta_ns = (
+            current_record.observation_monotonic_ns
+            - previous_record.observation_monotonic_ns
+        )
+        publisher_delta_ns = (
+            envelope.publisher_monotonic_ns - previous.publisher_monotonic_ns
+        )
         if (
             envelope.schema in (CONTROL_ENVELOPE_SCHEMA, CONTROL_ENVELOPE_SCHEMA_V4)
-            and 1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
-            and records_per_envelope > 0
-            and tick_delta == 1 + missed * records_per_envelope
+            and missed >= 1
+            and tick_delta >= 1
+            and 0 < observation_delta_ns <= _MAX_HOLE_NS
+            and 0 < publisher_delta_ns <= _MAX_HOLE_NS
         ):
-            # Bounded, exactly tick-aligned publisher hole (see
-            # _ENVELOPE_HOLE_TOLERANCE): the publisher missed `missed` slots but
-            # the tick counter corroborates that nothing else is wrong. The hole
-            # must also be short in wall-clock terms on BOTH clocks.
-            hole_bound_ns = seq_jump * self.contract.max_gap_ns
-            if previous.envelope_seq < _STARTUP_GRACE_ENVELOPES:
-                hole_bound_ns = max(hole_bound_ns, _STARTUP_GRACE_GAP_NS)
-            if (
-                envelope.publisher_monotonic_ns - previous.publisher_monotonic_ns
-                > hole_bound_ns
-            ):
-                raise RobotSocketReceiverError(
-                    "publisher hole exceeds its envelope-aligned duration bound: "
-                    f"{missed} missed envelopes "
-                    f"(rcvbuf={self._rcvbuf_actual_bytes})"
-                )
-            tick_gap_ns = (
-                current_record.observation_monotonic_ns
-                - previous_record.observation_monotonic_ns
-            )
-            if tick_gap_ns <= 0 or tick_gap_ns > tick_delta * _MAX_CONTROL_TICK_GAP_NS:
-                raise RobotSocketReceiverError(
-                    "publisher hole tick observations exceed their aligned bound: "
-                    f"{missed} missed envelopes"
-                )
+            # Time-bounded advisory-stream hole (see _MAX_HOLE_NS in
+            # robot_state_stream): both clocks moved forward by a bounded
+            # amount and ticks progressed. Shape corroboration (exact tick
+            # alignment) was abandoned 2026-08-07 — the real publisher's
+            # tick/seq relationship shifts across a stall (ring overwrites).
             self._publisher_hole_count += 1
             self._missed_envelope_total += missed
             return

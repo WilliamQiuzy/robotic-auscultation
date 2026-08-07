@@ -836,7 +836,7 @@ def test_receive_rejects_loss_wrong_pair_or_wrong_v2_hashes(
         _unit_ingest(receiver, _wire(value))
 
 
-@pytest.mark.parametrize("loss", ("envelope", "tick"))
+@pytest.mark.parametrize("loss", ("tick",))  # "envelope" jumps within time bounds are absorbed on advisory streams (2026-08-07)
 def test_receive_rejects_envelope_or_exact_tick_loss_immediately(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1196,19 +1196,19 @@ def test_receive_rejects_hole_larger_than_tolerance(
             receiver,
             _wire(
                 _envelope(
-                    envelope_seq=303,  # 301 missed > tolerance of 300 (3 s)
-                    first_tick=3120,   # tick-aligned on purpose: size alone must reject
-                    first_observation_ns=base + 3_011_000_000,
+                    envelope_seq=403,  # ~4 s hole > _MAX_HOLE_NS (3.5 s)
+                    first_tick=4120,
+                    first_observation_ns=base + 4_011_000_000,
                 )
             ),
         )
 
 
-def test_receive_rejects_seq_jump_without_matching_tick_hole(
+def test_receive_rejects_seq_jump_with_backward_ticks(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A seq jump whose ticks are NOT aligned to the hole (ticks contiguous =>
-    renumbering/duplication, not a real publisher hole) must still fault."""
+    """Time-bounded absorption still requires FORWARD tick progress: a seq jump
+    whose ticks go backwards (replay/duplication) must fault."""
     monkeypatch.setattr(receiver_module, "_SCM_CREDENTIALS", 2)
     receiver = _receiver(tmp_path)
     base = time.monotonic_ns() - 60_000_000
@@ -1222,8 +1222,8 @@ def test_receive_rejects_seq_jump_without_matching_tick_hole(
             _wire(
                 _envelope(
                     envelope_seq=3,
-                    first_tick=110,  # contiguous ticks but seq skipped => inconsistent
-                    first_observation_ns=base + 10_000_000,
+                    first_tick=105,  # backwards vs previous last tick 109
+                    first_observation_ns=base + 20_000_000,
                 )
             ),
         )
@@ -1269,15 +1269,27 @@ def test_preflight_stream_absorbs_bounded_v4_hole_capture_stream_stays_strict():
         socket_send_failure_count=1)))
     assert not absorbing2.faulted
 
-    # but a send-failure jump LARGER than the hole is an additional silent loss
+    # publisher-side counters inside an absorbed hole are the same event —
+    # even a larger jump is absorbed (the TIME bound caps the trust gap);
+    # a counter increase on a CONTIGUOUS stream still faults (covered below)
     absorbing3 = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
     absorbing3.ingest_datagram(_wire_v4(_v4_envelope(
         envelope_seq=1, first_tick=100, first_observation_ns=base2)))
+    absorbing3.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=3, first_tick=120,
+        first_observation_ns=base2 + 20_000_000,
+        socket_send_failure_count=5)))
+    assert not absorbing3.faulted
+
+    # contiguous stream: send-failure increase remains a hard fault
+    strict_sf = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
+    strict_sf.ingest_datagram(_wire_v4(_v4_envelope(
+        envelope_seq=1, first_tick=100, first_observation_ns=base2)))
     with pytest.raises(RobotTelemetryError, match="send_failure_count increased"):
-        absorbing3.ingest_datagram(_wire_v4(_v4_envelope(
-            envelope_seq=3, first_tick=120,
-            first_observation_ns=base2 + 20_000_000,
-            socket_send_failure_count=5)))
+        strict_sf.ingest_datagram(_wire_v4(_v4_envelope(
+            envelope_seq=2, first_tick=110,
+            first_observation_ns=base2 + 10_000_000,
+            socket_send_failure_count=3)))
 
     strict = ExactControlStateStream(_contract())
     first, second = wires()
@@ -1294,19 +1306,19 @@ def test_absorbing_stream_still_rejects_oversized_and_misaligned_holes():
     )
 
     base = 50_000_000_000  # fixed positive: reject path never consults wall-now
-    # oversized: 301 missed envelopes > tolerance of 300
+    # oversized: hole duration beyond _MAX_HOLE_NS (3.5 s) must fault
     stream = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
     stream.ingest_datagram(_wire_v4(_v4_envelope(
         envelope_seq=1, first_tick=100, first_observation_ns=base)))
     with pytest.raises(RobotTelemetryError, match="sequence loss"):
         stream.ingest_datagram(_wire_v4(_v4_envelope(
-            envelope_seq=303, first_tick=3120,
-            first_observation_ns=base + 3_011_000_000)))
-    # misaligned: seq skips but ticks contiguous (renumbering, not a hole)
+            envelope_seq=403, first_tick=4120,
+            first_observation_ns=base + 4_011_000_000)))
+    # backward ticks across a seq jump (replay/duplication) must fault
     stream = ExactControlStateStream(_contract(), absorb_bounded_holes=True)
     stream.ingest_datagram(_wire_v4(_v4_envelope(
         envelope_seq=1, first_tick=100, first_observation_ns=base)))
     with pytest.raises(RobotTelemetryError, match="sequence loss"):
         stream.ingest_datagram(_wire_v4(_v4_envelope(
-            envelope_seq=3, first_tick=110,
-            first_observation_ns=base + 10_000_000)))
+            envelope_seq=3, first_tick=105,
+            first_observation_ns=base + 20_000_000)))

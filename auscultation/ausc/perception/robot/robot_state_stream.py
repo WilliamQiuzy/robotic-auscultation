@@ -63,10 +63,14 @@ MAX_CONTROL_TICK_GAP_NS = 10_000_000
 # power-cut by software. A real loss (bigger, tick-misaligned, duplicated, or
 # backwards) still faults immediately. Single source of truth — the socket
 # receiver imports this.
-# (Raised 100 -> 300 after live evidence 2026-08-07: the once-per-bring-up first
-# robot-evidence assembly stalls the publisher for a deterministic ~1.33 s at
-# grace-end — 'expected 327 got 460' — which cleared the 1 s bound by 0.33 s.)
-_ENVELOPE_HOLE_TOLERANCE = 300
+# (History 2026-08-07: 5 -> 100 -> 300 envelopes, then exact tick-alignment
+# corroboration proved WRONG against the real C++ publisher — across a stall the
+# ring/publisher tick-seq relationship shifts ('expected 552 got 567' with
+# tick_delta 141 vs the aligned 151). Shape-based corroboration is abandoned:
+# an advisory-stream hole is legal iff BOTH clocks moved forward by <= this
+# bound and ticks progressed. Recording streams never absorb anything.)
+_MAX_HOLE_NS = 3_500_000_000
+_ENVELOPE_HOLE_TOLERANCE = 300  # retained for import compatibility/reporting
 VOID_SEND_STATUS_REASON = "upstream_mit_control_all_returns_void"
 SOCKETCAN_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 SOCKETCAN_TX_ENQUEUE_SEMANTICS = (
@@ -2231,6 +2235,7 @@ class ExactControlStateStream:
         # gapless — the finalize validators depend on that invariant.
         self._absorb_bounded_holes = bool(absorb_bounded_holes)
         self._last_record_count = 0
+        self._last_publisher_monotonic_ns = 0
         self._records: List[ExactControlRecord] = []
         self._last_envelope_seq: int | None = None
         self._last_send_failure_count = 0
@@ -2290,36 +2295,33 @@ class ExactControlStateStream:
             # live). Tolerated only when the tick counter corroborates the hole
             # exactly and the observation clock gap stays within the aligned
             # bound; everything else still latches.
+            observation_delta_ns = (
+                envelope.records[0].observation_monotonic_ns
+                - self._last_monotonic_ns
+            )
+            publisher_delta_ns = (
+                envelope.publisher_monotonic_ns
+                - self._last_publisher_monotonic_ns
+            )
             hole_ok = (
                 self._absorb_bounded_holes
                 and envelope.schema in (
                     CONTROL_ENVELOPE_SCHEMA, CONTROL_ENVELOPE_SCHEMA_V4,
                 )
-                and 1 <= missed <= _ENVELOPE_HOLE_TOLERANCE
-                and records_per_envelope > 0
-                and tick_delta == 1 + missed * records_per_envelope
-                and (
-                    envelope.records[0].observation_monotonic_ns
-                    - self._last_monotonic_ns
-                )
-                <= tick_delta * MAX_CONTROL_TICK_GAP_NS
+                and missed >= 1
+                and tick_delta >= 1
+                and 0 < observation_delta_ns <= _MAX_HOLE_NS
+                and 0 < publisher_delta_ns <= _MAX_HOLE_NS
             )
             if seq_jump != 1 and not hole_ok:
                 self._latch_fault(
                     "control envelope sequence loss or duplication"
                 )
-            send_failure_delta = (
-                envelope.socket_send_failure_count
-                - self._last_send_failure_count
-            )
-            if hole_ok and 0 <= send_failure_delta <= missed:
-                # The absorbed hole's publisher-side signature (observed live
-                # 2026-08-07: 0 -> 37 across a stall): the publisher TRIED to
-                # send the missing envelopes and the sends failed while the
-                # receiver was stalled. Bounded by the hole size this is the
-                # SAME already-accounted event, not an additional silent loss;
-                # any larger jump (or any increase on a contiguous stream)
-                # still faults below.
+            if hole_ok:
+                # Inside an absorbed hole the publisher-side counters (failed
+                # sendto calls, ring overwrites) are the SAME already-accounted
+                # event seen from the other side — no transition validation;
+                # the time bounds above already cap the trust gap.
                 pass
             else:
                 try:
@@ -2351,6 +2353,7 @@ class ExactControlStateStream:
 
         self._records.extend(envelope.records)
         self._last_record_count = len(envelope.records)
+        self._last_publisher_monotonic_ns = envelope.publisher_monotonic_ns
         self._last_envelope_seq = envelope.envelope_seq
         self._last_send_failure_count = envelope.socket_send_failure_count
         self._last_control_tick_seq = envelope.records[-1].control_tick_seq
