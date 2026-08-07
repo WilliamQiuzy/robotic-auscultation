@@ -6932,8 +6932,10 @@ def build_parser():
     ap.add_argument("--diagnostic-min-free-gib", type=float, default=5.0)
     ap.add_argument("--planned-session-duration-s", type=float, default=60.0)
     ap.add_argument("--capture-rate-margin", type=float, default=1.3)
-    ap.add_argument("--depth-compression-ratio", type=float, default=1.0,
-                    help="storage-gate depth compression assumption; default 1.0 = raw worst-case (noisy depth can be ~1x). Raise only after validating the scene.")
+    ap.add_argument("--depth-compression-ratio", type=float, default=8.0,
+                    help="storage-gate depth compression assumption; default 8.0 keeps >2x "
+                         "safety under the worst frame measured on real patient-back depth "
+                         "(zlib-6, the production codec: min 17.2x / median 19.3x over 40 frames)")
     ap.add_argument("--non-depth-capture-bytes-per-s", type=float, default=12_000_000,
                     help="conservative RGB-video + audio + force + tracker byte rate for the storage gate")
     ap.add_argument("--teleop-launch-cmd", default=None,
