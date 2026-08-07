@@ -2640,6 +2640,16 @@ class Collector:
             return {
                 "ok": False, "code": "safe_stop_not_awaiting_witness", "message": str(exc),
             }
+        # The witnessed controller is down either way; renew the single-use
+        # receiver NOW so the idle coordinator carries no latched exit-fault
+        # (otherwise the preview's evidence path keeps tripping on it until the
+        # next bring-up).
+        renew = getattr(self._robot_coordinator, "renew_receiver", None)
+        if callable(renew):
+            try:
+                renew()
+            except Exception:  # noqa: BLE001 - cosmetic cleanup must never fail the verdict
+                pass
         if passed:
             return {
                 "ok": True, "code": "safe_stop_hil_passed",
@@ -5099,6 +5109,22 @@ class Collector:
                     )
                 except RobotCaptureNotReady:
                     self._model_status = "WAITING_ROBOT"
+                except RobotCaptureCoordinatorError as exc:
+                    comp = self._controller_companion
+                    if comp is None or comp.disabled or comp.state != "ready":
+                        # No live controller (e.g. right after the witnessed
+                        # safe-stop disable): the coordinator's latched
+                        # controller-exit fault is EXPECTED, not a camera
+                        # problem. Wait quietly for the next bring-up (which
+                        # renews the receiver) instead of resetting the camera
+                        # pipeline in a loop and strobing the UI.
+                        self._model_status = "WAITING_ROBOT"
+                    else:
+                        self._reset_camera_pipeline(
+                            "robot/model frame evidence failed: "
+                            f"{type(exc).__name__}: {exc}",
+                        )
+                        continue
                 except Exception as exc:
                     self._reset_camera_pipeline(
                         "robot/model frame evidence failed: "
