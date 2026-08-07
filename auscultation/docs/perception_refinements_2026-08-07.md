@@ -38,7 +38,19 @@ python -m ausc.perception.eval.landmark_offline_eval \
 
 **判据(deploy candidate):PCK 不掉 + 至少一项抖动/3D 列改善。** 共模 mm = #1 杠杆;2D 抖动 px = #4/#5。
 
-**阻塞:** `perc_lmh_v9_occ` checkpoint 与带深度的黄衣 labeled-release 不在我能触达的任何机器(linbox `~/wam_ausc` 无 git/无 ckpt;H200 home 无 ckpt,仅 `data/lab_back_video_test/labeling_yellow/clothed_labels_yellow.json` 2D-GT + `_session3_rgb.mp4` 在本地但**无深度**)。**需要你告诉我 v9 checkpoint + 黄衣深度 release 现在在哪**,我就能跑这张表。
+### 资产实际位置(2026-08-07 遍历核实 —— 更正此前"不可达"的错误判断)
+此前误判"checkpoint 不可达"是因为查错了目录(`~/wam_ausc/data/outputs` 是过时非-git 副本)。真实情况:
+- **checkpoint 完全可达**:生产模型 = `perc_lmh_v9_occ`(sha `68037e69…f6a14`),打在**每个** sealed release 里。
+  - **live 部署**:linbox `/home/robot/wam_data/perception_runtime/current` → `perception_runtime-86b152f6bd983cf33a6d`(`current` 软链,08-07 09:44),内含 `model/perc_lmh_v9_occ/best.pt`(28MB)+ `model/posterior_gate/yolo11x-pose.pt`(YOLO11x-pose 后验门,118MB)+ DINOv2 backbone。
+  - H200 也有一份同 sha 的 eval 副本(`data/perception_eval_models/releases/…-33641f649a…`)。
+  - **全网仅此一个 perc_lmh 版本**(无 v4/v6/v7/v8/v10;训练脚本里的 v6_normals/v7_adapt 是历史中间产物,已不存在)。"新旧"差异在**运行时代码 release**(40+ 个 hash,live=86b152f6),**模型本身稳定不变**。
+  - 本地 repo `outputs/perc_v0..v5` 是 6 月的**旧 IUV 模型**,与听诊地标模型无关,别混。
+- **rgb+depth clip 可达(可跑 jitter/3D A/B)**:linbox `/home/robot/wam_data/sessions/diagnostic_perception_*/`(多段,每段 ~8000 帧 depth + rgb_segments)。**jitter + 共模 3D mm(主杠杆)不需要标注**即可测。
+- **仍缺(仅 PCK 需要)**:带标注的深度 clip = H200 raw release,经 `AUSC_PERCEPTION_LABELED_RELEASE`(需 `clothed_labels_a.json`)/`AUSC_PERCEPTION_EVAL_RELEASE` 解析,`require_h200_raw_release()`。本地只有 `data/lab_back_video_test/labeling_yellow/clothed_labels_yellow.json`(2D-GT)+ `_session3_rgb.mp4`,**无深度**。
+
+**我的改动不在 live release**:`86b152f6` 早于本次编辑(release 内 `code/` grep 无 flip_tta/CropStabilizer 标记)→ 运行中的系统完全不受影响;要生效需重建 release(未做)。
+
+**可立即做**:在 linbox 用 live checkpoint + 一段 diagnostic session 跑 jitter/3D A/B(read-only、不碰 8801)。PCK 完整门需再定位 H200 labeled release。
 
 ## 上线顺序(建议,全部在门后)
 1. 建好上面这张表(定位资产即可跑)。
