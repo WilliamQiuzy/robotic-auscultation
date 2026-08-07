@@ -24,6 +24,7 @@ S0 = os.path.join(OUTPUTS, "stage0")
 OUT = os.path.join(OUTPUTS, "perc_lmh_v8_drape"); os.makedirs(OUT, exist_ok=True)
 rng = random.Random(0)
 np_rng = np.random.RandomState(0)
+from ausc.augment import augment_normal_channel
 
 
 def normals_k560(D):
@@ -94,7 +95,7 @@ def aug(nm_img, pts):
     if rng.random() < 0.5:
         nm_img = nm_img[:, ::-1].copy(); nm_img[..., 0] = 254 - nm_img[..., 0]; pts[:, 0] = RES - 1 - pts[:, 0]
         pts = pts[[IDX["L" + k[1:]] if k[0] == "R" else IDX["R" + k[1:]] for k in ORDER]]
-    nm_img = nm_img.astype(np.float32) + rng.gauss(0, 4)
+    nm_img = augment_normal_channel(nm_img.astype(np.float32), np_rng)   # per-pixel depth-normal noise (audit fix)
     return nm_img, pts
 
 

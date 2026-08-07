@@ -256,3 +256,45 @@ def sensor_degrade(image, rng=None, severity="mild"):
         sigma = rng.uniform(4, 10) if not strong else rng.uniform(10, 25)
         img = np.clip(img.astype(np.float32) + rng.normal(0, sigma, img.shape), 0, 255).astype(np.uint8)
     return img
+
+
+def augment_normal_channel(nm_img, np_rng, *, sigma=4.0, corr_sigma=3.0,
+                           hole_prob=0.30, max_holes=4, hole_frac=0.06):
+    """Realistic DEPTH-NORMAL-channel augmentation for the landmark model.
+
+    The production landmark model's input is depth-derived surface normals, so it
+    is lighting-invariant by construction — the augmentations that matter are in
+    the DEPTH/normal domain, not RGB. The prior training used ``rng.gauss(0, 4)``,
+    which (``random.Random.gauss``) returns a SINGLE SCALAR added to the whole
+    image — a uniform DC offset, NOT the per-pixel noise that real Orbbec depth
+    produces. A model never shown per-pixel normal noise jitters on real depth
+    (the operator's "a small change breaks it"). This adds:
+
+      * per-pixel Gaussian noise (``sigma``) — the missing term;
+      * a low-frequency spatially-correlated field (``corr_sigma``) — real depth
+        error is spatially correlated, not iid;
+      * random neutral (127) holes — real depth has dropouts the model must
+        tolerate without losing the point.
+
+    Operates on a float32 HxWx3 normal image (0..255 encoding of n*127+127) and
+    returns float32 (the caller clips/normalizes). ``np_rng`` is a NumPy
+    RandomState/Generator so the noise is genuinely per-pixel.
+    """
+    img = np.asarray(nm_img, dtype=np.float32)
+    h, w = img.shape[:2]
+    # per-pixel iid noise (the term the scalar gauss was missing)
+    img = img + np_rng.standard_normal(img.shape).astype(np.float32) * float(sigma)
+    # spatially-correlated low-frequency component (upsampled coarse field)
+    if corr_sigma > 0:
+        coarse = np_rng.standard_normal((max(2, h // 32), max(2, w // 32), img.shape[2]))
+        field = cv2.resize(coarse.astype(np.float32), (w, h), interpolation=cv2.INTER_CUBIC)
+        img = img + field * float(corr_sigma)
+    # neutral depth-hole dropout (real Orbbec dropouts -> 127 normal)
+    if hole_prob > 0 and np_rng.random() < float(hole_prob):
+        for _ in range(int(np_rng.randint(1, max_holes + 1))):
+            hw = int(max(4, hole_frac * w * np_rng.uniform(0.5, 1.5)))
+            hh = int(max(4, hole_frac * h * np_rng.uniform(0.5, 1.5)))
+            x0 = int(np_rng.randint(0, max(1, w - hw)))
+            y0 = int(np_rng.randint(0, max(1, h - hh)))
+            img[y0:y0 + hh, x0:x0 + hw, :] = 127.0
+    return img

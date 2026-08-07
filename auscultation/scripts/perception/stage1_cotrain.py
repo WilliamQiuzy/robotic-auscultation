@@ -19,6 +19,8 @@ from dataset import IMAGENET_MEAN, IMAGENET_STD
 from train_landmark_human import make_heatmaps, weighted_hm_loss, heatmap_xy, structure_points, ORDER, IDX
 RES,HM,DEV="",129,"cuda"; RES=518
 rng=random.Random(0)
+np_rng=np.random.RandomState(0)
+from ausc.augment import augment_normal_channel
 def normals(D,fx=560,fy=560,cx=259,cy=259):
     H,W=D.shape; ys,xs=np.mgrid[0:H,0:W]; z=D; x=(xs-cx)*z/fx; y=(ys-cy)*z/fy
     P=np.dstack([x,y,z]); n=np.zeros_like(P); dx=P[1:-1,2:]-P[1:-1,:-2]; dy=P[2:,1:-1]-P[:-2,1:-1]
@@ -60,7 +62,7 @@ def aug(nm_img,pts):
     if _OCC and rng.random()<0.6:                # gray occluder rectangle (simulated arm)
         rw=int(rng.uniform(0.15,0.45)*RES); rh=int(rng.uniform(0.15,0.45)*RES)
         x0=rng.randint(0,RES-rw); y0=rng.randint(0,RES-rh); nm_img[y0:y0+rh,x0:x0+rw]=127
-    nm_img=nm_img.astype(np.float32)+rng.gauss(0,4)
+    nm_img=augment_normal_channel(nm_img.astype(np.float32), np_rng)   # per-pixel depth-normal noise (audit fix)
     return nm_img,pts
 class DS(Dataset):
     def __init__(self,syn,realtr,kreal=60):

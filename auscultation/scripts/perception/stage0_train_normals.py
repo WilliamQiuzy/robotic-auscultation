@@ -18,6 +18,8 @@ RES, HM, DEV = 518, 518 // 4, "cuda"
 S0 = os.path.join(OUTPUTS, "stage0")
 OUT = os.path.join(OUTPUTS, "perc_lmh_v6_normals"); os.makedirs(OUT, exist_ok=True)
 rng = random.Random(0)
+np_rng = np.random.RandomState(0)
+from ausc.augment import augment_normal_channel
 recs = [json.loads(l) for l in open(f"{S0}/manifest.jsonl")]
 # Subject-grouped split: hold out whole subjects (sid), so heldout PCK measures
 # cross-body-shape generalization, not view-interpolation on already-seen bodies.
@@ -47,7 +49,10 @@ class NormDS(Dataset):
             nm_img = nm_img[:, ::-1].copy(); nm_img[..., 0] = 254 - nm_img[..., 0]
             pts[:, 0] = RES - 1 - pts[:, 0]
             pts = pts[[IDX["L"+k[1:]] if k[0] == "R" else IDX["R"+k[1:]] for k in ORDER]]
-        nm_img += rng.gauss(0, 4)                         # sensor-noise sim
+        # Depth-normal augmentation: per-pixel + spatially-correlated noise +
+        # neutral holes (was rng.gauss(0,4) = a scalar DC offset -> no per-pixel
+        # noise -> jitter on real Orbbec depth). 2026-08-07 audit fix.
+        nm_img = augment_normal_channel(nm_img, np_rng)
         p = {k: (float(pts[IDX[k], 0]), float(pts[IDX[k], 1])) for k in ORDER}
         x = ((np.clip(nm_img, 0, 255) / 255.0 - IMAGENET_MEAN) / IMAGENET_STD).transpose(2, 0, 1).astype(np.float32)
         hm, mask = make_heatmaps(p, HM, RES, sigma=2.5)
