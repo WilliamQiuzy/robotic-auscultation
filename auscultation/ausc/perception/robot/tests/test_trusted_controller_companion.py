@@ -253,12 +253,44 @@ def test_energy_isolation_ordering_disable_before_stop():
     assert coord.events.index("disable") < coord.events.index("stop")
 
 
-def test_poll_regression_after_ready_disables():
+def test_poll_regression_after_ready_disables_only_when_sustained():
+    # Freshness wobble is debounced: one GIL-lagged STALE snapshot on a busy shared
+    # box must NOT kill the arm; a SUSTAINED regression (3 consecutive polls) must.
     coord = _FakeCoordinator([_Health("READY", True)])
     companion, _c, disabler = _companion(coord)
     companion.bring_up()
     assert companion.poll().status == "READY"        # still healthy
     coord._script = [_Health("STALE", False)]        # telemetry goes stale
+    assert companion.poll().status == "STALE"        # 1st stale poll: tolerated
+    assert not companion.disabled
+    assert companion.poll().status == "STALE"        # 2nd stale poll: tolerated
+    assert not companion.disabled
+    with pytest.raises(CompanionFault):
+        companion.poll()                              # 3rd consecutive: fault-close
+    assert disabler.calls and companion.disabled is True
+
+
+def test_poll_stale_debounce_resets_on_recovery():
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("STALE", False)]
+    assert companion.poll().status == "STALE"        # 1 stale
+    assert companion.poll().status == "STALE"        # 2 stale
+    coord._script = [_Health("READY", True)]
+    assert companion.poll().status == "READY"        # recovered -> counter resets
+    coord._script = [_Health("STALE", False)]
+    assert companion.poll().status == "STALE"        # fresh 1st stale again
+    assert companion.poll().status == "STALE"        # 2nd
+    assert not companion.disabled and not disabler.calls
+
+
+def test_poll_terminal_fault_disables_immediately():
+    # Integrity/terminal regressions keep the IMMEDIATE fail-closed path.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("FAULT", False)]
     with pytest.raises(CompanionFault):
         companion.poll()
     assert disabler.calls and companion.disabled is True

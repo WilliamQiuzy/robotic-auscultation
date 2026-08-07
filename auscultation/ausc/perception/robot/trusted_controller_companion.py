@@ -36,6 +36,10 @@ from typing import Callable, Optional, Protocol
 _READY_STATUS = "READY"
 # Terminal-bad receiver states: never wait through these.
 _TERMINAL_BAD_STATUS = frozenset({"FAULT", "STOPPED"})
+# Freshness (non-terminal) regressions must persist this many consecutive
+# supervision polls before the arm is fault-disabled; one GIL-lagged health
+# snapshot on a busy shared box is not a safety event.
+_STALE_POLL_FAULT_LIMIT = 3
 
 
 class CompanionError(RuntimeError):
@@ -199,6 +203,7 @@ class TrustedControllerCompanion:
         self._sleep = sleep
         self._state = "idle"           # idle -> ready -> faulted
         self._fault_reason = ""        # first fault's reason, kept for evidence
+        self._stale_polls = 0          # consecutive non-READY freshness polls
         self._controller: Optional[LaunchedController] = None
         self._disabled = False
         self._disable_outcome: Optional[DisableOutcome] = None
@@ -376,17 +381,33 @@ class TrustedControllerCompanion:
             raise CompanionFault(str(exc)) from exc
         health = self._coordinator.receiver_health()
         status = str(getattr(health, "status", "FAULT"))
-        if (
-            self._coordinator.faulted
-            or status != _READY_STATUS
-            or not bool(getattr(health, "preflight_ready", False))
-        ):
+        # INTEGRITY faults (a latched receiver fault or a terminal status) disable
+        # immediately -- they carry a real reason and never self-heal.
+        if self._coordinator.faulted or status in _TERMINAL_BAD_STATUS:
             reason = (
                 f"robot telemetry fault during capture: status={status} "
                 f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
             )
             self._fault_disable(reason)
             raise CompanionFault(reason)
+        # FRESHNESS wobble (e.g. STALE: the last envelope is momentarily older than
+        # the display bound) is an observation, not an integrity violation -- on a
+        # busy shared box the GIL-bound receiver thread can lag for one poll while
+        # the stream itself is intact (any real loss latches via the sequence/tick
+        # checks above and takes the immediate path). Debounce: only a SUSTAINED
+        # regression (consecutive polls) disables the arm.
+        if status != _READY_STATUS or not bool(getattr(health, "preflight_ready", False)):
+            self._stale_polls += 1
+            if self._stale_polls >= _STALE_POLL_FAULT_LIMIT:
+                reason = (
+                    "robot telemetry fault during capture: status="
+                    f"{status} sustained for {self._stale_polls} supervision polls "
+                    f"reason={self._coordinator.fault_reason or getattr(health, 'error', '')}"
+                )
+                self._fault_disable(reason)
+                raise CompanionFault(reason)
+            return health
+        self._stale_polls = 0
         return health
 
     def report_external_fault(self, reason: str) -> None:

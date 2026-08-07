@@ -200,7 +200,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/robot/robot_session_capture.py": "8b6613a3341b3e5b404393701d4828ba1d1cbb3aebd3df5e9fe42916e37f3f2c",
     "auscultation/ausc/perception/robot/robot_socket_receiver.py": "b17ac49632583d7dad24fa767a5821eed4aec5fd6005af1ab170248ecdcb91e5",
     "auscultation/ausc/perception/robot/robot_state_stream.py": "4b8f81a50af29521b5e58444eedf12c245e2713f730801202c8631cb92842586",
-    "auscultation/ausc/perception/robot/trusted_controller_companion.py": "f7320787a8c5e4408c0fb39fbb06d6079772f685b98cf31f7de12b5a1052694b",
+    "auscultation/ausc/perception/robot/trusted_controller_companion.py": "26030849af08b1f418666497f507b65c5f765f4091791834271c00f61169a454",
     "auscultation/ausc/perception/tracking/__init__.py": "e135d34389019e483400c79b001d9b9e84d13a0cacebe1585174cad2048bccd6",
     "auscultation/ausc/perception/tracking/back_mask_packet.py": "4aba720dcefa8f80c6baf3558e58e4d0ee34b7727ee385fca1344d97d26df4e0",
     "auscultation/ausc/perception/tracking/depth_noise_profile.py": "eebb5d23d8033594e3fc580f00bddf4e4a32b0d536ae9a8b7a578b433ce264fc",
