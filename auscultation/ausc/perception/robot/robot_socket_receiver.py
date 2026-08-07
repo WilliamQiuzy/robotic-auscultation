@@ -66,6 +66,10 @@ _MAX_CONTROL_TICK_GAP_NS = 2_000_000
 # latching a terminal fault. Steady state reverts to the contract's hard bound.
 _STARTUP_GRACE_ENVELOPES = 20
 _STARTUP_GRACE_GAP_NS = 200_000_000
+# Consecutive reference-seqlock-collision ticks tolerated before latching a fault:
+# isolated collisions are benign (one 10 ms tick of uncertain reference provenance,
+# observations exact); a sustained run means the reference stream is torn.
+_INVALID_REFERENCE_RUN_LIMIT = 3
 
 
 class RobotSocketReceiverError(RuntimeError):
@@ -734,6 +738,7 @@ class RobotSocketReceiver:
         self._started = False
         self._fault_reason = ""
         self._last_envelope: Optional[RobotControlEnvelope] = None
+        self._invalid_reference_run = 0  # consecutive seqlock-collision ticks
         self._envelope_count = 0
         self._control_tick_count = 0
         self._recent_envelopes: Deque[RobotControlEnvelope] = deque()
@@ -1328,6 +1333,19 @@ class RobotSocketReceiver:
         """Reject loss/jitter before the original bytes reach the sink."""
 
         records = envelope.records
+        # Reference seqlock collisions (reference_snapshot_valid=false) are expected
+        # as ISOLATED single ticks at 1 kHz (the controller does not retry the read);
+        # only a SUSTAINED run means the reference stream is actually torn.
+        for record in records:
+            if record.reference_snapshot_valid:
+                self._invalid_reference_run = 0
+            else:
+                self._invalid_reference_run += 1
+                if self._invalid_reference_run >= _INVALID_REFERENCE_RUN_LIMIT:
+                    raise RobotSocketReceiverError(
+                        "reference snapshot invalid for "
+                        f"{self._invalid_reference_run} consecutive control ticks"
+                    )
         for left, right in zip(records, records[1:]):
             gap_ns = (
                 right.observation_monotonic_ns

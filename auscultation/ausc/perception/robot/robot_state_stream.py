@@ -1439,9 +1439,16 @@ def _parse_exact_control_record(
         record["reference_source_monotonic_ns"],
         label="reference_source_monotonic_ns",
     )
-    if record["reference_snapshot_valid"] is not True:
+    # reference_snapshot_valid=false marks a controller-side seqlock read collision:
+    # the leader thread updated the reference epoch during this tick's read, so THIS
+    # tick's reference provenance is uncertain (observations remain exact; the
+    # consumed command was still sent). The controller does not retry the read, so
+    # isolated collisions are expected at 1 kHz. Carry the flag through instead of
+    # rejecting the record here — the receiver faults on SUSTAINED runs (>=3
+    # consecutive invalid ticks), which is what an actually torn stream looks like.
+    if not isinstance(record["reference_snapshot_valid"], bool):
         raise RobotTelemetryError(
-            "reference snapshot was not atomically bound to the consumed MITParam"
+            "reference_snapshot_valid must be a boolean"
         )
     arm_begin_ns = _positive_i64(
         record["control_call_begin_monotonic_ns"],
@@ -1787,7 +1794,7 @@ def _parse_exact_control_record(
         observation_monotonic_ns=observation_ns,
         reference_generation=reference_generation,
         reference_source_monotonic_ns=reference_source_ns,
-        reference_snapshot_valid=True,
+        reference_snapshot_valid=bool(record["reference_snapshot_valid"]),
         control_call_begin_monotonic_ns=arm_begin_ns,
         arm_call_return_monotonic_ns=arm_return_ns,
         gripper_call_begin_monotonic_ns=gripper_begin_ns,
