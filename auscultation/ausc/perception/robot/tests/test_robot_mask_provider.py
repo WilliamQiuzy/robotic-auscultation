@@ -629,25 +629,38 @@ def test_trusted_empty_ok_mask_requires_geometry_proven_outside_fov():
     assert packet.reason == "robot_and_tool_proven_outside_camera_fov"
 
 
-def test_nominal_geometry_behind_camera_with_uncertainty_crossing_near_plane_fails():
+def test_geometry_behind_or_straddling_the_near_plane_is_clipped_not_rejected():
+    """2026-08-11 contract change: vertices at/behind the near plane cannot
+    occlude the image. Fully-behind components are skipped; a component
+    STRADDLING the plane (live on this rig: proximal links mounted beside the
+    camera) is clipped to its in-front vertices instead of rejecting every
+    bracket — the old reject deadlocked tracker start permanently."""
     geometry = _geometry()
     tool = _tool()
-    handeye = _handeye(z=-1.05)
     projection = _projection()
     profile = _profile(metric_error=0.1)
+
+    # fully behind: not an occluder — build succeeds, no raise
     provider = _provider(
         geometry=geometry,
         tool=tool,
-        handeye=handeye,
+        handeye=_handeye(z=-1.05),
         projection=projection,
         profile=profile,
     )
+    packet = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert packet is not None
 
-    with pytest.raises(RobotMaskProviderError, match="near plane"):
-        provider.build(
-            exposure=_exposure(),
-            trajectory=_trajectory(),
-        )
+    # straddling: mesh spans the near plane — clipped projection, no raise
+    provider = _provider(
+        geometry=geometry,
+        tool=tool,
+        handeye=_handeye(z=-0.01),
+        projection=projection,
+        profile=profile,
+    )
+    packet = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert packet is not None
 
 
 def test_raw_uncertainty_intersection_uses_full_mask_without_giant_kernel():

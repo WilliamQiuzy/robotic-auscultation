@@ -1880,13 +1880,23 @@ class ProductionRobotMaskProvider:
             component_error_m=component_error_m,
         )
         uncertainty_depth_upper = float(np.max(z)) + metric_bound
-        uncertainty_depth_lower = float(np.min(z)) - metric_bound
         if uncertainty_depth_upper < minimum_depth:
+            return False          # entirely behind/too close: cannot occlude the image
+        # Near-plane clipping (2026-08-11): vertices at/behind the plane cannot
+        # occlude the image. A component STRADDLING the plane (proximal links
+        # physically mounted beside the camera, live on this rig) used to
+        # reject EVERY bracket — the tracker could never start. Project only
+        # the in-front vertices; a link close to the lens then projects to a
+        # huge hull and falls into the conservative full-mask hatch below,
+        # which is the correct occlusion semantics.
+        in_front = z > minimum_depth
+        if not bool(np.any(in_front)):
             return False
-        if uncertainty_depth_lower <= minimum_depth:
-            raise RobotMaskProviderError(
-                "robot/tool uncertainty crosses the camera projection near plane"
-            )
+        vertices_camera = vertices_camera[in_front]
+        z = z[in_front]
+        uncertainty_depth_lower = max(
+            float(np.min(z)) - metric_bound, minimum_depth,
+        )
 
         u = self.projection.fx * vertices_camera[:, 0] / z + self.projection.cx
         v = self.projection.fy * vertices_camera[:, 1] / z + self.projection.cy
