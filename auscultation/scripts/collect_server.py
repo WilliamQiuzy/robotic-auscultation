@@ -1435,6 +1435,7 @@ class Collector:
         # robot-evidence timestamp per bring-up; None until evidence appears.
         self._model_robot_ready_t0 = None
         self._model_inference_grace_s = 3.0
+        self._last_robot_evidence_retry_reason = None
         self._preview_worker = LatestFrameWorker(
             self._render_preview_bundle, name="wam-diagnostic-preview",
         ).start()
@@ -5371,11 +5372,24 @@ class Collector:
                         self._model_status = "WAITING_ROBOT"
                         self._model_robot_ready_t0 = None
                     else:
-                        self._reset_camera_pipeline(
-                            "robot/model frame evidence failed: "
-                            f"{type(exc).__name__}: {exc}",
-                        )
-                        continue
+                        # Live controller but the ROBOT evidence hiccuped
+                        # (stale/absorbing telemetry right after bring-up).
+                        # The camera is innocent — resetting the pipeline here
+                        # blacked the browser video for seconds on every
+                        # bring-up transient (2026-08-11: model=RECONNECTING
+                        # while holes were being absorbed; the operator
+                        # disabled inside the black window). Keep the camera
+                        # streaming, log the reason, retry on the next frame;
+                        # a persistent robot fault surfaces via robot status.
+                        reason = f"{type(exc).__name__}: {exc}"
+                        if reason != self._last_robot_evidence_retry_reason:
+                            self._last_robot_evidence_retry_reason = reason
+                            print(
+                                f"[model] robot evidence retry (camera kept): {reason}",
+                                flush=True,
+                            )
+                        self._model_status = "ROBOT_EVIDENCE_RETRY"
+                        self._pending_model_frame = None
                 except Exception as exc:
                     self._reset_camera_pipeline(
                         "robot/model frame evidence failed: "
