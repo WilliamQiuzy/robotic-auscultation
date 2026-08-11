@@ -1568,12 +1568,25 @@ class ProductionRobotMaskProvider:
                         packet.publisher_monotonic_ns,
                     )
                 )
-                or packet.reference_snapshot_valid is not True
+                or type(packet.reference_snapshot_valid) is not bool
+                # Reference-provenance constraints apply ONLY when the tick
+                # claims a valid snapshot (2026-08-11): the mask is pure
+                # forward kinematics over OBSERVED joint state; a tick whose
+                # reference read collided (seqlock, common under shared-box
+                # load) still has exact observations and must not void the
+                # bracket — requiring validity here deadlocked model start
+                # against the advisory reference-run tolerance (every bracket
+                # rejected, model never came up, start never authorized).
+                or (
+                    packet.reference_snapshot_valid
+                    and not (
+                        0 < packet.reference_generation < 2**64
+                        and 0 < packet.reference_source_monotonic_ns
+                        <= packet.control_call_begin_monotonic_ns
+                    )
+                )
                 or not (
-                    0 < packet.reference_generation < 2**64
-                    and 0 < packet.reference_source_monotonic_ns
-                    <= packet.control_call_begin_monotonic_ns
-                    and packet.observation_monotonic_ns
+                    packet.observation_monotonic_ns
                     <= packet.control_call_begin_monotonic_ns
                     <= packet.arm_call_return_monotonic_ns
                     <= packet.gripper_call_begin_monotonic_ns
