@@ -5494,9 +5494,18 @@ class Collector:
                             ).start()
                             self._model_status = "WARMING_UP"
                         except Exception as exc:
-                            self._reset_camera_pipeline(
-                                f"model init failed: {type(exc).__name__}: {exc}",
-                            )
+                            # same total invariant: a worker BUILD failure is
+                            # robot/model-side — flag, retry next frame (models
+                            # are cached; transient causes clear), camera kept
+                            reason = f"model init failed: {type(exc).__name__}: {exc}"
+                            if reason != self._last_robot_evidence_retry_reason:
+                                self._last_robot_evidence_retry_reason = reason
+                                print(
+                                    f"[model] worker build retry (camera kept): {reason}",
+                                    flush=True,
+                                )
+                            self._model_status = "MODEL_RETRY"
+                            self._pending_model_frame = None
                             continue
                     if self._model_worker is not None:
                         bound_frame = getattr(
