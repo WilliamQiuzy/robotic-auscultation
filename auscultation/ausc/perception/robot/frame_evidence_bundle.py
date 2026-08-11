@@ -21,6 +21,8 @@ from ausc.perception.camera_stream import CameraFrame
 from ausc.perception.robot.camera_exposure_evidence import CameraExposureEvidence
 from ausc.perception.robot.robot_state_stream import (
     EXACT_CONTROL_RECORD_SCHEMA,
+    EXACT_CONTROL_RECORD_SCHEMA_V3,
+    EXACT_CONTROL_RECORD_SCHEMA_V4,
     BracketedExactControlTrajectory,
     ExactControlRecord,
     ExactFollowerAction,
@@ -358,8 +360,14 @@ def _validate_robot_packet(packet: ExactControlRecord) -> None:
         "robot trajectory contains an invalid exact control v2 record",
     )
     _require(
-        packet.schema == EXACT_CONTROL_RECORD_SCHEMA,
-        "robot trajectory exact control v2 record schema is invalid",
+        packet.schema in (
+            EXACT_CONTROL_RECORD_SCHEMA,
+            EXACT_CONTROL_RECORD_SCHEMA_V3,
+            EXACT_CONTROL_RECORD_SCHEMA_V4,
+        ),
+        # the SEALED production controller emits v4 records (verified in the
+        # deployed ELF 2026-08-11); a v2-only pin rejected every live bracket
+        "robot trajectory exact control record schema is invalid",
     )
     _require(
         type(packet.seq) is int and 0 <= packet.seq < 2**64,
@@ -436,16 +444,23 @@ def _validate_robot_packet(packet: ExactControlRecord) -> None:
     ):
         _require(_finite_number(value), f"robot trajectory {label} is invalid")
     _require(
-        type(packet.reference_generation) is int
-        and 0 < packet.reference_generation < 2**64
-        and packet.reference_snapshot_valid is True,
+        type(packet.reference_snapshot_valid) is bool
+        and (
+            not packet.reference_snapshot_valid
+            or (
+                type(packet.reference_generation) is int
+                and 0 < packet.reference_generation < 2**64
+            )
+        ),
+        # constraints apply only when the tick CLAIMS a valid reference
+        # snapshot; seqlock-collision ticks (common under shared-box load)
+        # keep exact observations and must not void the bracket
         "robot trajectory reference snapshot is invalid",
     )
     _require(
         all(
             type(value) is int and 0 < value < 2**63
             for value in (
-                packet.reference_source_monotonic_ns,
                 packet.control_call_begin_monotonic_ns,
                 packet.arm_call_return_monotonic_ns,
                 packet.gripper_call_begin_monotonic_ns,
@@ -454,8 +469,15 @@ def _validate_robot_packet(packet: ExactControlRecord) -> None:
                 packet.publisher_monotonic_ns,
             )
         )
-        and packet.reference_source_monotonic_ns
-        <= packet.control_call_begin_monotonic_ns
+        and (
+            not packet.reference_snapshot_valid
+            or (
+                type(packet.reference_source_monotonic_ns) is int
+                and 0 < packet.reference_source_monotonic_ns < 2**63
+                and packet.reference_source_monotonic_ns
+                <= packet.control_call_begin_monotonic_ns
+            )
+        )
         and packet.observation_monotonic_ns
         <= packet.control_call_begin_monotonic_ns
         <= packet.arm_call_return_monotonic_ns

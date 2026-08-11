@@ -193,7 +193,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/robot/camera_exposure_evidence.py": "ba07a9c3c90d7799ffc327adcd29b3228a842e73c12ceb94554e3de36fd27b34",
     "auscultation/ausc/perception/robot/controller_launch.py": "7f9afd33df93f3ac692933e1cd05c9d5115e064390330abee86a7a6a9e7fa771",
     "auscultation/ausc/perception/robot/controller_launch_activation.py": "1fac632171cb57e001817cbec4957e409c0838e1e29426168f02245e998504e1",
-    "auscultation/ausc/perception/robot/frame_evidence_bundle.py": "53c3c7f1e7b9a2543f9836e2b16a3d420fc19075081c86d33091959b318c9dac",
+    "auscultation/ausc/perception/robot/frame_evidence_bundle.py": "1b2a2b5cfbd8caa9f7dc24d105788ab376a0701305a1e6c6be5d0b6e0c06a8b7",
     "auscultation/ausc/perception/robot/openarm_pair_activation.py": "52ac7798fd9cd800118d94bed4a4efd08b5fdd651d8d701095058e0aeeb5f1c9",
     "auscultation/ausc/perception/robot/robot_capture_coordinator.py": "985f17af91f9b7c6f76d67ab9cfccc2aa4818f8a3c1e6b798b22b3d2feacd2bf",
     "auscultation/ausc/perception/robot/robot_mask_provider.py": "d059490d55fe637cf6849ebf6404b2dd45352050cf5f8cbc28b56a360daa5fee",
