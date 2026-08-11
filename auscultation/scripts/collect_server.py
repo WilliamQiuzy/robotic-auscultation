@@ -4747,7 +4747,17 @@ class Collector:
             detector, intrinsics,
             ModelConfig(init_frames=12, min_conf=0.3, coast_max=20),
         )
-        back_gate = OperatorConfirmedBackGate(person_gate)
+        # Observation age runs from frame capture time; on this shared box the
+        # person-gate cadence is 1-3 s (inference interval + latency + CPU
+        # contention spikes), so the defaults sized for real-time inference
+        # (1.25 s / 30 preview frames) expire an ACTIVE confirmation between
+        # every pair of results. Spatial continuity (IoU / center-shift / area
+        # bounds) still binds the confirmed person at every observation.
+        back_gate = OperatorConfirmedBackGate(
+            person_gate,
+            max_observation_age_s=4.0,
+            max_preview_lag_frames=150,
+        )
         self._back_gate = back_gate
         if self.require_robot:
             for provider, label in (

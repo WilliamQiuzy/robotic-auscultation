@@ -1737,8 +1737,10 @@ def test_tracker_processor_receives_complete_occlusion_chain_and_episode_id(
         pass
 
     class OperatorGate:
-        def __init__(self, person_gate):
+        def __init__(self, person_gate, *, max_observation_age_s, max_preview_lag_frames):
             assert isinstance(person_gate, PersonGate)
+            assert max_observation_age_s == 4.0
+            assert max_preview_lag_frames == 150
 
     def tracker_processor(tracker, runtime_frame_fn, **kwargs):
         calls["processor"] = (tracker, runtime_frame_fn, kwargs)
