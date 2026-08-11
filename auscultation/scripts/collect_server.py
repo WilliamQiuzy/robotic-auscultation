@@ -5462,10 +5462,23 @@ class Collector:
                         self._model_status = "ROBOT_EVIDENCE_RETRY"
                         self._pending_model_frame = None
                 except Exception as exc:
-                    self._reset_camera_pipeline(
-                        "robot/model frame evidence failed: "
-                        f"{type(exc).__name__}: {exc}",
-                    )
+                    # 2026-08-11 live: RobotMaskProviderError ('exact control
+                    # record schema/timing is invalid' — brackets containing
+                    # absorbed telemetry holes) fell through THIS branch and
+                    # kept the camera-reset cycle alive after the coordinator
+                    # branch was decoupled. NO robot/model-side failure may
+                    # ever touch the camera: flag, drop the frame, retry.
+                    # Camera resets belong exclusively to camera-origin paths
+                    # (read failure, sustained STALE, ERROR, delivery FIFO).
+                    reason = f"{type(exc).__name__}: {exc}"
+                    if reason != self._last_robot_evidence_retry_reason:
+                        self._last_robot_evidence_retry_reason = reason
+                        print(
+                            f"[model] robot evidence retry (camera kept): {reason}",
+                            flush=True,
+                        )
+                    self._model_status = "ROBOT_EVIDENCE_RETRY"
+                    self._pending_model_frame = None
                     continue
                 else:
                     if self._model_worker is None and self._fatal_error is None:
