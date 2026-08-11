@@ -1322,3 +1322,30 @@ def test_absorbing_stream_still_rejects_oversized_and_misaligned_holes():
         stream.ingest_datagram(_wire_v4(_v4_envelope(
             envelope_seq=3, first_tick=105,
             first_observation_ns=base + 20_000_000)))
+
+
+def test_reference_run_limit_strict_only_while_recording(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Bring-up stalls starve the C++ reference writer too: seqlock-collision
+    runs far exceed 3 ticks while nothing is recording (2026-08-11 live).
+    Advisory streams tolerate a bounded run; an active recording keeps the
+    strict limit of 3 so recorded reference provenance is unchanged."""
+    monkeypatch.setattr(receiver_module, "_SCM_CREDENTIALS", 2)
+    for strict, should_raise in ((True, True), (False, False)):
+        receiver = _receiver(
+            tmp_path, reference_strict_supplier=lambda s=strict: s
+        )
+        base = time.monotonic_ns() - 30_000_000
+        env = _envelope(
+            envelope_seq=1, first_tick=100, first_observation_ns=base
+        )
+        for record in env["records"][:5]:
+            record["reference_snapshot_valid"] = False
+        if should_raise:
+            with pytest.raises(
+                RobotSocketReceiverError, match="reference snapshot invalid"
+            ):
+                _unit_ingest(receiver, _wire(env))
+        else:
+            _unit_ingest(receiver, _wire(env))

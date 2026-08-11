@@ -72,6 +72,14 @@ _STARTUP_GRACE_GAP_NS = 200_000_000
 # isolated collisions are benign (one 10 ms tick of uncertain reference provenance,
 # observations exact); a sustained run means the reference stream is torn.
 _INVALID_REFERENCE_RUN_LIMIT = 3
+# Advisory (non-recording) bound for the same run check: during bring-up-adjacent
+# stalls the C++ reference WRITER thread is starved along with the publisher, so
+# seqlock collisions arrive in runs far longer than 3 (observed live 2026-08-11,
+# ~2 s after READY, inside the inference grace). Observations remain exact; only
+# reference provenance is uncertain, which is acceptable on the advisory stream
+# for a bounded run. While a capture is ACTIVE the strict limit of 3 applies —
+# recorded reference provenance keeps its original guarantee.
+_INVALID_REFERENCE_RUN_LIMIT_ADVISORY = 2000  # ticks = 2 s at 1 kHz
 
 # Bounded publisher-hole tolerance (_ENVELOPE_HOLE_TOLERANCE) is imported from
 # robot_state_stream — the single source shared with ExactControlStream. See the
@@ -565,6 +573,7 @@ class RobotSocketReceiver:
         poll_timeout_s: float = 0.05,
         preflight_min_envelopes: int = 11,
         preflight_duration_ns: int = 100_000_000,
+        reference_strict_supplier: Optional[Callable[[], bool]] = None,
     ) -> None:
         self._service_uid = os.geteuid()
         path = Path(os.fspath(socket_path))
@@ -748,6 +757,9 @@ class RobotSocketReceiver:
         self._fault_reason = ""
         self._last_envelope: Optional[RobotControlEnvelope] = None
         self._invalid_reference_run = 0  # consecutive seqlock-collision ticks
+        # None -> always strict (limit 3); a supplier lets the coordinator relax
+        # the run bound while NOT recording (see _INVALID_REFERENCE_RUN_LIMIT_ADVISORY)
+        self._reference_strict_supplier = reference_strict_supplier
         self._rcvbuf_actual_bytes = -1   # granted SO_RCVBUF, read back at bind
         self._publisher_hole_count = 0   # absorbed bounded publisher holes (events)
         self._missed_envelope_total = 0  # envelopes skipped inside absorbed holes
@@ -1361,7 +1373,14 @@ class RobotSocketReceiver:
                 self._invalid_reference_run = 0
             else:
                 self._invalid_reference_run += 1
-                if self._invalid_reference_run >= _INVALID_REFERENCE_RUN_LIMIT:
+                supplier = self._reference_strict_supplier
+                strict = True if supplier is None else bool(supplier())
+                limit = (
+                    _INVALID_REFERENCE_RUN_LIMIT
+                    if strict
+                    else _INVALID_REFERENCE_RUN_LIMIT_ADVISORY
+                )
+                if self._invalid_reference_run >= limit:
                     raise RobotSocketReceiverError(
                         "reference snapshot invalid for "
                         f"{self._invalid_reference_run} consecutive control ticks"

@@ -293,6 +293,9 @@ class ProductionRobotCaptureCoordinator:
             receiver = self._receiver_factory(
                 sink=self,
                 abort_callback=self._receiver_fault,
+                # strict reference-provenance bound only while actually
+                # recording; advisory otherwise (see robot_socket_receiver)
+                reference_strict_supplier=lambda: bool(self.recording),
                 **self._receiver_kwargs,
             )
         except Exception as exc:
