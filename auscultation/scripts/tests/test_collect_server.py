@@ -6409,7 +6409,10 @@ def test_stale_camera_aborts_recording_clears_points_and_reopens_pipeline(tmp_pa
             lambda **_k: {"strict_ok": True, "blockers": []})
         assert collector.control("start")["ok"] is True
         stale.set()
-        assert _wait_until(lambda: collector._camera_status == "RECONNECTING")
+        # sustained staleness passes the 2 s hysteresis and still resets
+        assert _wait_until(
+            lambda: collector._camera_status == "RECONNECTING", timeout=4.0
+        )
         state = collector.state_snapshot()
         assert state["state"] == "ABORTED"
         assert state["points"] == []

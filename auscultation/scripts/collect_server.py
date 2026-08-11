@@ -1436,6 +1436,7 @@ class Collector:
         self._model_robot_ready_t0 = None
         self._model_inference_grace_s = 3.0
         self._last_robot_evidence_retry_reason = None
+        self._camera_stale_since = None   # STALE hysteresis anchor (see camera loop)
         # Session quality flags (2026-08-11 operator policy): derivative
         # failures (model worker, tracking association, audio end-verification)
         # no longer ABORT a recording — they are flagged here, surfaced in
@@ -4557,6 +4558,7 @@ class Collector:
         self._model_status = "RECONNECTING"
         self._set_diagnostic_blockers([reason])
         self._next_camera_open_t = time.monotonic() + self.camera_reopen_interval_s
+        print(f"[camera] pipeline reset: {reason}", flush=True)
 
     def _flag_session_quality(self, kind, detail):
         """Record a non-fatal quality event (log + /state + End boundary)."""
@@ -5338,19 +5340,37 @@ class Collector:
                 self._publish_preview(placeholder_frame(reason))
                 continue
             if frame.status != "OK" or frame.frame is None:
-                self._camera_status = str(frame.status)
-                if str(frame.status) in {"STALE", "ERROR"}:
+                status = str(frame.status)
+                self._camera_status = status
+                stale_streak_s = 0.0
+                if status == "STALE":
+                    # Hysteresis (2026-08-11): an INSTANT reset on a single
+                    # stale frame self-oscillated with bring-up CPU spikes —
+                    # frame late >100 ms -> full pipeline reset -> camera
+                    # closed 2 s -> Orbbec reopen storm -> telemetry holes ->
+                    # frames late again -> reset again (6 RECONNECTING cycles,
+                    # 537 missed envelopes in 24 s, video on/off until
+                    # disable). Only SUSTAINED staleness resets; a brief late
+                    # streak keeps the device open and rides through.
+                    if self._camera_stale_since is None:
+                        self._camera_stale_since = time.monotonic()
+                    stale_streak_s = time.monotonic() - self._camera_stale_since
+                if status == "ERROR" or (
+                    status == "STALE" and stale_streak_s > 2.0
+                ):
+                    self._camera_stale_since = None
                     reason = f"camera became {frame.status}; reconnecting"
                     self._reset_camera_pipeline(reason)
                     self._publish_preview(placeholder_frame(reason), frame=frame)
                     continue
                 frame_bgr = placeholder_frame(
-                    f"camera {frame.status.lower()} — recording blocked"
+                    f"camera {frame.status.lower()} — recovering"
                 )
                 self._publish_preview(frame_bgr, frame=frame)
                 time.sleep(0.03)
                 continue
 
+            self._camera_stale_since = None
             self._camera_status = "OK"
             new_camera_frame = frame.index != self._last_camera_index
             if new_camera_frame:
