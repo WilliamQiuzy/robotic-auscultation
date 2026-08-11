@@ -1436,6 +1436,13 @@ class Collector:
         self._model_robot_ready_t0 = None
         self._model_inference_grace_s = 3.0
         self._last_robot_evidence_retry_reason = None
+        # Session quality flags (2026-08-11 operator policy): derivative
+        # failures (model worker, tracking association, audio end-verification)
+        # no longer ABORT a recording — they are flagged here, surfaced in
+        # /state, and attached to the End boundary so QC/training can filter.
+        # Raw-data integrity gates (telemetry pairing, camera delivery) are
+        # unchanged and still abort.
+        self._session_quality_flags = []
         self._preview_worker = LatestFrameWorker(
             self._render_preview_bundle, name="wam-diagnostic-preview",
         ).start()
@@ -3789,6 +3796,8 @@ class Collector:
                             )
                             self._preserve_advisory_force_failure("prepare", exc)
                     robot_camera_arm = None
+                    with self._lock:
+                        self._session_quality_flags = []   # fresh per session
                     try:
                         session_dir = self.platform.session_dir
                         if session_dir is None:
@@ -4273,23 +4282,28 @@ class Collector:
                         end_boundary["audio"] = audio_summary
                         self._audio_last_summary = dict(audio_summary)
                     except Exception as exc:  # noqa: BLE001
+                        # 2026-08-11 operator policy: a Scarlett dropout no
+                        # longer voids the whole session (known intermittent
+                        # USB contact). The session survives WITHOUT verified
+                        # audio, loudly flagged — the trajectory data keeps
+                        # its IL value; acoustic training must filter on this.
                         self._audio_recording_active = False
                         reason = (
                             "stethoscope audio End verification failed: "
                             f"{type(exc).__name__}: {exc}"
                         )
-                        self._abort_recording(reason, boundary_closed=True)
-                        return {
-                            "ok": False,
-                            "code": "audio_end_not_verified",
-                            "message": reason,
-                            "state": self.platform.state.value,
+                        self._flag_session_quality("audio_end_unverified", reason)
+                        end_boundary["audio"] = {
+                            "status": "UNVERIFIED",
+                            "error": reason,
                         }
                 end_model_health = (
                     self._model_worker.health()
                     if self._model_worker is not None
                     else {}
                 )
+                with self._lock:
+                    end_boundary["quality_flags"] = list(self._session_quality_flags)
                 end_boundary.update({
                     "model_submitted_frames": end_model_health.get("submitted"),
                     "model_processed_frames": end_model_health.get("processed"),
@@ -4544,8 +4558,28 @@ class Collector:
         self._set_diagnostic_blockers([reason])
         self._next_camera_open_t = time.monotonic() + self.camera_reopen_interval_s
 
+    def _flag_session_quality(self, kind, detail):
+        """Record a non-fatal quality event (log + /state + End boundary)."""
+        entry = {
+            "t_host_s": time.time(),
+            "kind": str(kind),
+            "detail": str(detail)[:300],
+        }
+        with self._lock:
+            self._session_quality_flags.append(entry)
+            del self._session_quality_flags[:-50]
+        print(f"[quality] {kind}: {entry['detail']}", flush=True)
+
     def _recover_failed_model_worker(self):
-        """Reset the real camera/model pipeline after a terminal worker fault."""
+        """Discard a faulted model worker WITHOUT touching the camera.
+
+        The worker rebuilds on the next frame from the process-lifetime model
+        cache (~cheap). Resetting the camera pipeline here caused the
+        seconds-on/seconds-off video cycle (2026-08-11: generation 0->3 while
+        the worker error-looped against a faulted robot coordinator). During a
+        recording this is a flagged quality event, never an abort — raw
+        RGB-D + telemetry keep flowing and tracking can be recomputed offline.
+        """
 
         if self.fake or self._model_worker is None:
             return None
@@ -4560,9 +4594,14 @@ class Collector:
             or health.get("status")
             or "model worker stopped"
         )
-        reason = f"perception model failed; restarting pipeline: {detail}"
-        self._reset_camera_pipeline(reason)
-        return reason
+        worker, self._model_worker = self._model_worker, None
+        try:
+            worker.stop()
+        except Exception:  # noqa: BLE001 - discard must not fail the loop
+            pass
+        self._model_status = "MODEL_RETRY"
+        self._flag_session_quality("model_worker_fault", detail)
+        return None
 
     def _heavy_models(self):
         """Build-once, reuse-forever torch models (robot/camera independent)."""
@@ -5136,10 +5175,14 @@ class Collector:
             try:
                 tracking = associate_tracking_to_camera_frame(frame, source_tracking)
             except Exception as exc:
-                self._abort_recording(
-                    f"camera/tracking association failed: {type(exc).__name__}: {exc}",
+                # 2026-08-11 operator policy: tracking metadata is derivative —
+                # record the frame WITHOUT it and flag, instead of killing the
+                # session (offline recompute is always possible from raw data).
+                self._flag_session_quality(
+                    "tracking_association_failed",
+                    f"{type(exc).__name__}: {exc}",
                 )
-                return False
+                tracking = {}
             capture_frame = frame
             if evidence is not None:
                 capture_frame = evidence.camera_frame
@@ -5196,9 +5239,17 @@ class Collector:
                 self._frame_ring.pop(old_index, None)
         health = self._model_worker.health()
         if health["status"] == "ERROR":
-            self._model_status = "ERROR"
-            self._fatal_error = health["error"]
-            self._abort_recording(f"perception model failed: {health['error']}")
+            # 2026-08-11 operator policy: a model hiccup never kills the
+            # session — discard the worker (rebuilds from cache next frame),
+            # flag the tracking gap, keep recording raw data.
+            detail = str(health.get("error") or "model worker error")
+            worker, self._model_worker = self._model_worker, None
+            try:
+                worker.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._model_status = "MODEL_RETRY"
+            self._flag_session_quality("model_fault_during_recording", detail)
         else:
             self._model_status = "RUNNING"
             self._fatal_error = None
@@ -6668,6 +6719,7 @@ class Collector:
             preview_publish_times = tuple(self._preview_publish_times)
             fatal_error = self._fatal_error
             current_tracking = copy.deepcopy(self._current_tracking)
+            snapshot["session_quality_flags"] = list(self._session_quality_flags)
         now = time.monotonic()
         if (
             self._record_started is not None

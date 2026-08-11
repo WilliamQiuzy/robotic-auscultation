@@ -6328,36 +6328,33 @@ def test_model_worker_error_clears_points_and_reopens_pipeline_with_backoff(
         camera_reopen_interval_s=0.08,
         start_thread=False,
     )
+    # 2026-08-11 operator policy: a model-worker fault must NOT touch the
+    # camera (the old reset caused the seconds-on/seconds-off video cycle).
+    # The worker is discarded, flagged, and rebuilt from the model cache.
     original_reset = collector._reset_camera_pipeline
 
     def observed_reset(reason):
+        reset_evidence.append(str(reason))
         original_reset(reason)
-        reset_evidence.append({
-            "reason": str(reason),
-            "points": list(collector._current_tracking.get("points") or []),
-            "model_worker": collector._model_worker,
-            "camera_status": collector._camera_status,
-            "at": time.monotonic(),
-        })
 
     collector._reset_camera_pipeline = observed_reset
     collector.start()
     try:
-        assert _wait_until(lambda: bool(reset_evidence), timeout=1.5)
-        assert "simulated CUDA worker failure" in reset_evidence[0]["reason"]
-        assert reset_evidence[0]["points"] == []
-        assert reset_evidence[0]["model_worker"] is None
-        assert reset_evidence[0]["camera_status"] == "RECONNECTING"
-        assert cameras[0].stopped is True
-
         assert _wait_until(
-            lambda: len(cameras) >= 2
-            and len(processor_generations) >= 2
-            and collector._camera_status == "OK"
+            lambda: len(processor_generations) >= 2
             and collector._model_status == "RUNNING",
             timeout=2.0,
         )
-        assert attempts[1] - reset_evidence[0]["at"] >= 0.06
+        assert reset_evidence == []            # camera pipeline NEVER reset
+        assert len(cameras) == 1               # same camera instance throughout
+        assert cameras[0].stopped is False
+        assert collector._camera_status == "OK"
+        flags = list(collector._session_quality_flags)
+        assert any(
+            flag["kind"] == "model_worker_fault"
+            and "simulated CUDA worker failure" in flag["detail"]
+            for flag in flags
+        )
     finally:
         collector.shutdown()
 
