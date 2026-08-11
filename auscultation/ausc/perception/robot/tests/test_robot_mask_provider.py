@@ -766,7 +766,7 @@ def test_mask_revalidates_exact_v2_integer_timing_when_dataclass_is_bypassed(
         records=(changed,) + trajectory.records[1:],
     )
 
-    with pytest.raises(RobotMaskProviderError, match="exact control v2 record"):
+    with pytest.raises(RobotMaskProviderError, match="exact control record"):
         _provider().build(exposure=_exposure(), trajectory=trajectory)
 
 
@@ -816,3 +816,36 @@ def test_learned_mask_can_only_add_pixels_to_geometric_mask():
     assert np.all(combined.mask[geometric.mask])
     assert np.all(combined.mask[5:9, 5:9])
     assert combined.masked_pixel_count >= geometric.masked_pixel_count + 16
+
+
+def test_mask_accepts_v4_records_from_the_sealed_controller():
+    """The SEALED production controller emits wam_openarm_exact_control_record_v4
+    (verified via strings(1) on the deployed ELF, 2026-08-11) while this
+    provider required the v2 schema — every live bracket was rejected and the
+    tracker never started. v2/v3/v4 records must all be accepted."""
+    from ausc.perception.robot.robot_state_stream import (
+        EXACT_CONTROL_RECORD_SCHEMA_V4,
+    )
+
+    trajectory = _trajectory()
+    upgraded = tuple(
+        replace(record, schema=EXACT_CONTROL_RECORD_SCHEMA_V4)
+        for record in trajectory.records
+    )
+    trajectory = replace(trajectory, records=upgraded)
+    packet = _provider().build(exposure=_exposure(), trajectory=trajectory)
+    assert packet is not None
+
+
+def test_mask_accepts_uncertain_reference_ticks():
+    """Ticks whose reference seqlock read collided (reference_snapshot_valid
+    False, common under shared-box load) still carry exact observations; the
+    mask is pure FK over observed joints and must not reject the bracket."""
+    trajectory = _trajectory()
+    softened = tuple(
+        replace(record, reference_snapshot_valid=False)
+        for record in trajectory.records
+    )
+    trajectory = replace(trajectory, records=softened)
+    packet = _provider().build(exposure=_exposure(), trajectory=trajectory)
+    assert packet is not None

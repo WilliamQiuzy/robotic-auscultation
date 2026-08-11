@@ -25,6 +25,8 @@ import numpy as np
 from .camera_exposure_evidence import CameraExposureEvidence
 from .robot_state_stream import (
     EXACT_CONTROL_RECORD_SCHEMA,
+    EXACT_CONTROL_RECORD_SCHEMA_V3,
+    EXACT_CONTROL_RECORD_SCHEMA_V4,
     BracketedExactControlTrajectory,
     ExactControlRecord,
     ExactFollowerAction,
@@ -1548,7 +1550,11 @@ class ProductionRobotMaskProvider:
         for packet in trajectory.records:
             if (
                 not isinstance(packet, ExactControlRecord)
-                or packet.schema != EXACT_CONTROL_RECORD_SCHEMA
+                or packet.schema not in (
+                    EXACT_CONTROL_RECORD_SCHEMA,
+                    EXACT_CONTROL_RECORD_SCHEMA_V3,
+                    EXACT_CONTROL_RECORD_SCHEMA_V4,
+                )
                 or type(packet.control_tick_seq) is not int
                 or not 0 <= packet.control_tick_seq < 2**64
                 or type(packet.observation_monotonic_ns) is not int
@@ -1596,7 +1602,7 @@ class ProductionRobotMaskProvider:
                 )
             ):
                 raise RobotMaskProviderError(
-                    "exact control v2 record schema/timing is invalid"
+                    "exact control record schema/timing is invalid"
                 )
             follower_q = np.asarray(packet.follower_q_rad, dtype=np.float64)
             follower_qd = np.asarray(
