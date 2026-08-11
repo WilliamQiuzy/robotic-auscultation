@@ -101,7 +101,7 @@ class ServiceSpec:
     port: int = 8800
     diagnostic_fps: float = 20.0
     minimum_free_gib: float = 50.0
-    maximum_tracking_age_ms: float = 250.0
+    maximum_tracking_age_ms: float = 2000.0
     capture_queue_frames: int = 8
     camera_delivery_frames: int = 32
     camera_reopen_interval_s: float = 2.0
@@ -645,8 +645,8 @@ def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
         raise UnitContractError("collector port is invalid")
     if float(spec.minimum_free_gib) < 50.0:
         raise UnitContractError("minimum free disk reserve must be at least 50 GiB")
-    if float(spec.maximum_tracking_age_ms) != 250.0:
-        raise UnitContractError("maximum tracking age must be exactly 250 ms")
+    if float(spec.maximum_tracking_age_ms) != 2000.0:
+        raise UnitContractError("maximum tracking age must be exactly 2000 ms")
 
     code_release = _immutable_directory(spec.code_release, "code release", code_id)
     runtime_release = _immutable_directory(
