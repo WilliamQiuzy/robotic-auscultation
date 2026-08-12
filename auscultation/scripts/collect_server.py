@@ -4414,7 +4414,17 @@ class Collector:
                 self._ingress_worker.close_interval()
                 self._abort_camera_delivery()
         else:
+            # boundary_closed=True is used by callers already holding
+            # _ingress_submit_lock (frame-evidence aborts inside
+            # _submit_camera_capture) and by End-path aborts. The ingress
+            # interval must STILL be closed here — leaving it active made
+            # every later Start fail with capture_ingress_not_ready until a
+            # process restart (2026-08-12, record42 incident). close_interval
+            # uses the worker's own lock, so this is reentrancy-safe, and it
+            # is idempotent for End-path callers that already closed it.
             self._end_boundary_closing = False
+            self._capture_ingress_paused = True
+            self._ingress_worker.close_interval()
             self._abort_camera_delivery()
         if active:
             self._abort_robot_session(reason)

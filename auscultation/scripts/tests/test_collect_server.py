@@ -8577,3 +8577,26 @@ def test_end_boundary_closure_divisor_two_strided_indices():
             n_rgb_frames=3,
             expected_fps=30.0,
         )
+
+
+def test_abort_with_boundary_closed_closes_the_ingress_interval(tmp_path):
+    """record42 incident: a frame-evidence abort (boundary_closed=True) left
+    the ingress interval active, wedging every later Start until restart."""
+
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    try:
+        assert collector._ingress_worker.begin_interval() is True
+        assert collector._ingress_worker.health()["interval_active"] is True
+
+        collector._abort_recording("test abort", boundary_closed=True)
+
+        assert collector._ingress_worker.health()["interval_active"] is False
+        # A new recording interval must open cleanly afterwards.
+        assert collector._ingress_worker.begin_interval() is True
+        collector._ingress_worker.close_interval()
+    finally:
+        collector.shutdown()
