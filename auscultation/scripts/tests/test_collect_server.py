@@ -309,12 +309,24 @@ def test_preview_overlay_is_fail_closed_when_tracking_belongs_to_an_older_frame(
         "constellation_valid": True,
     }
 
+    # Bounded lag: a result 1 frame behind the displayed frame stays visible
+    # (live 30 fps preview with ~3 fps inference on this box).
     result = server.tracking_for_preview_frame(5, tracking)
+    assert result["back_present"] is True
+    assert result["constellation_valid"] is True
+    assert [point["name"] for point in result["points"]] == ["R1"]
 
-    assert result["back_present"] is False
-    assert result["constellation_valid"] is False
-    assert result["reason"] == "MODEL_PENDING_FOR_CURRENT_FRAME"
-    assert result["points"] == []
+    # Beyond the lag bound the overlay is stripped fail-closed.
+    stale = server.tracking_for_preview_frame(5 + 91, tracking)
+    assert stale["back_present"] is False
+    assert stale["constellation_valid"] is False
+    assert stale["reason"] == "MODEL_PENDING_FOR_CURRENT_FRAME"
+    assert stale["points"] == []
+
+    # A result claiming a FUTURE frame is never painted.
+    future = server.tracking_for_preview_frame(3, tracking)
+    assert future["back_present"] is False
+    assert future["points"] == []
 
 
 def test_async_model_preview_uses_its_exact_source_frame_not_newer_camera_frame(

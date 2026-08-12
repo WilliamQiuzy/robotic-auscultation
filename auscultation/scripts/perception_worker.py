@@ -83,6 +83,7 @@ class LatestFrameWorker:
         self._dropped = 0
         self._error = None
         self._last_inference_ms = None
+        self._last_stage_timings = None
 
     def start(self):
         with self._condition:
@@ -141,6 +142,9 @@ class LatestFrameWorker:
                 self._last_completed_index = int(frame.index)
                 self._last_completed_monotonic = completed
                 self._last_inference_ms = inference_ms
+                timings = result.get("stage_timings_ms")
+                if isinstance(timings, dict):
+                    self._last_stage_timings = dict(timings)
                 self._error = error
                 self._condition.notify_all()
 
@@ -170,6 +174,7 @@ class LatestFrameWorker:
                 "pending": self._pending is not None,
                 "last_result_age_s": age,
                 "last_inference_ms": self._last_inference_ms,
+                "last_stage_timings_ms": self._last_stage_timings,
             }
 
     def drain(self, timeout=2.0):
@@ -1175,12 +1180,15 @@ class TrackerProcessor:
                 fallback_index, "FRAME_EVIDENCE_BUNDLE_INVALID", exc,
             )
         camera = item.camera_frame
+        stage_ms = {}
+        _stage_t0 = time.monotonic()
         try:
             back_packet, operator_gate, gate_result = self._build_back_mask(camera)
         except Exception as exc:  # noqa: BLE001 - provider is an evidence boundary
             return self._production_failure(
                 camera.index, "BACK_MASK_PROVIDER_ERROR", exc,
             )
+        stage_ms["back_mask_and_gate"] = (time.monotonic() - _stage_t0) * 1000.0
         if back_packet is None:
             return self._production_failure(
                 camera.index, "BACK_MASK_UNAVAILABLE",
@@ -1217,6 +1225,7 @@ class TrackerProcessor:
             return self._production_failure(
                 camera.index, "BACK_MASK_FRAME_MISMATCH",
             )
+        _stage_t0 = time.monotonic()
         try:
             evidence = PatientFrameEvidence.build(
                 frame_bundle=item,
@@ -1226,12 +1235,14 @@ class TrackerProcessor:
             return self._production_failure(
                 camera.index, "BACK_MASK_PACKET_INVALID", exc,
             )
+        stage_ms["evidence_build"] = (time.monotonic() - _stage_t0) * 1000.0
         try:
             episode_id = self._resolve_episode_id()
         except Exception as exc:  # noqa: BLE001 - injected identity boundary
             return self._production_failure(
                 camera.index, "EPISODE_ID_UNAVAILABLE", exc,
             )
+        _stage_t0 = time.monotonic()
         try:
             patient_pose_packet = self.patient_pose_provider.process_evidence(
                 evidence, episode_id,
@@ -1240,6 +1251,7 @@ class TrackerProcessor:
             return self._production_failure(
                 camera.index, "PATIENT_POSE_EVIDENCE_ERROR", exc,
             )
+        stage_ms["patient_pose"] = (time.monotonic() - _stage_t0) * 1000.0
         if patient_pose_packet is None:
             return self._production_failure(
                 camera.index, "PATIENT_POSE_PACKET_UNAVAILABLE",
@@ -1273,6 +1285,7 @@ class TrackerProcessor:
             result = self._production_failure(camera.index, "NO_BACK")
             return self._with_metadata(result, metadata)
 
+        _stage_t0 = time.monotonic()
         try:
             raw = self.tracker.process(
                 evidence.rgb,
@@ -1286,6 +1299,7 @@ class TrackerProcessor:
             return self._production_failure(
                 camera.index, "LANDMARK_MODEL_ERROR", exc,
             )
+        stage_ms["landmark_model"] = (time.monotonic() - _stage_t0) * 1000.0
         landmark_index = getattr(landmark_frame, "frame_index", camera.index)
         try:
             landmark_index = int(landmark_index)
@@ -1297,6 +1311,7 @@ class TrackerProcessor:
             return self._production_failure(
                 camera.index, "LANDMARK_FRAME_MISMATCH",
             )
+        _stage_t0 = time.monotonic()
         try:
             observation = self._landmark_observation(landmark_frame, evidence)
             safe_frame = self.occlusion_runtime.advance(
@@ -1319,8 +1334,12 @@ class TrackerProcessor:
             return self._production_failure(
                 camera.index, "OCCLUSION_RESULT_INVALID", exc,
             )
+        stage_ms["occlusion_runtime"] = (time.monotonic() - _stage_t0) * 1000.0
         if unsafe_reason is not None:
             return self._production_failure(
                 camera.index, unsafe_reason,
             )
+        result["stage_timings_ms"] = {
+            key: round(float(value), 1) for key, value in stage_ms.items()
+        }
         return result

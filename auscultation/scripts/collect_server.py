@@ -544,15 +544,24 @@ def effective_tracking(
     return result
 
 
-def tracking_for_preview_frame(frame_index, tracking):
-    """Never paint a positive inference result onto another camera frame."""
+def tracking_for_preview_frame(frame_index, tracking, *, max_lag_frames=90):
+    """Bound how far a model result may trail the displayed camera frame.
+
+    The preview always renders the LIVE camera frame (the doctor watches the
+    arm in real time; on this box inference runs at ~3 fps with ~1 s latency,
+    so exact result/frame pairing would freeze the video at inference cadence).
+    A result may overlay a newer frame only within ``max_lag_frames`` (3 s at
+    30 fps); the point ages themselves are separately gated upstream by
+    ``effective_tracking`` and the UI surfaces the tracking age explicitly.
+    A result claiming a FUTURE frame, or one beyond the lag bound, is stripped.
+    """
 
     result = copy.deepcopy(tracking) if isinstance(tracking, dict) else {}
     try:
-        same_frame = int(result.get("frame_index", -1)) == int(frame_index)
+        lag = int(frame_index) - int(result.get("frame_index", -1))
     except (TypeError, ValueError):
-        same_frame = False
-    if same_frame:
+        lag = None
+    if lag is not None and 0 <= lag <= int(max_lag_frames):
         return result
     return {
         "frame_index": int(frame_index),
@@ -1436,6 +1445,7 @@ class Collector:
         self._model_robot_ready_t0 = None
         self._model_inference_grace_s = 3.0
         self._last_robot_evidence_retry_reason = None
+        self._last_evidence_build_ms = None
         self._camera_stale_since = None   # STALE hysteresis anchor (see camera loop)
         # Session quality flags (2026-08-11 operator policy): derivative
         # failures (model worker, tracking association, audio end-verification)
@@ -5442,9 +5452,13 @@ class Collector:
                     self._pending_model_frame = None
                     continue
                 pending_model_frame = self._pending_model_frame
+                _evidence_t0 = time.monotonic()
                 try:
                     model_input = self._model_input_for_frame(
                         pending_model_frame
+                    )
+                    self._last_evidence_build_ms = (
+                        (time.monotonic() - _evidence_t0) * 1000.0
                     )
                 except RobotCaptureNotReady:
                     self._model_status = "WAITING_ROBOT"
@@ -6948,7 +6962,13 @@ class Collector:
             "preview_age_s": None if preview_t is None else max(0.0, now - preview_t),
             "camera_status": self._camera_status,
             "model_status": self._model_status,
-            "model_health": model_health,
+            "model_health": {
+                **model_health,
+                "loop_evidence_build_ms": (
+                    None if self._last_evidence_build_ms is None
+                    else round(self._last_evidence_build_ms, 1)
+                ),
+            },
             "capture_ingress": ingress_health,
             "camera_delivery": camera_delivery_health,
             "preview_health": preview_health,
