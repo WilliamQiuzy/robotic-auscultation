@@ -701,3 +701,51 @@ def test_production_bundle_rejects_legacy_v1_robot_trajectory() -> None:
             robot_mask_packet=_mask_packet(),
             activated_identity=_activated_identity(),
         )
+
+
+def test_factory_path_validates_once_external_path_still_validates(monkeypatch):
+    """Owner-authorized de-dup (2026-08-12): build() performs the validation
+    suite exactly once; any non-factory construction still re-verifies."""
+
+    import ausc.perception.robot.frame_evidence_bundle as fev
+
+    calls = {"mask": 0}
+    original = fev._validate_mask
+
+    def counting_validate_mask(*args, **kwargs):
+        calls["mask"] += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(fev, "_validate_mask", counting_validate_mask)
+    bundle = _bundle()
+    assert calls["mask"] == 1  # was 2 before the de-dup
+
+    # External construction (no witness) re-runs the full suite.
+    calls["mask"] = 0
+    clone = fev.FrameEvidenceBundle(
+        camera_frame=bundle.camera_frame,
+        exposure=bundle.exposure,
+        robot_trajectory=bundle.robot_trajectory,
+        robot_mask_packet=bundle.robot_mask_packet,
+        activated_identity=bundle.activated_identity,
+        timing_artifact_sha256=bundle.timing_artifact_sha256,
+        robot_trajectory_sha256=bundle.robot_trajectory_sha256,
+        robot_exact_action_sha256=bundle.robot_exact_action_sha256,
+        bundle_id=bundle.bundle_id,
+    )
+    assert calls["mask"] == 1
+    assert clone.bundle_id == bundle.bundle_id
+
+    # And a tampered digest on the external path still fails closed.
+    with pytest.raises(fev.FrameEvidenceBundleError):
+        fev.FrameEvidenceBundle(
+            camera_frame=bundle.camera_frame,
+            exposure=bundle.exposure,
+            robot_trajectory=bundle.robot_trajectory,
+            robot_mask_packet=bundle.robot_mask_packet,
+            activated_identity=bundle.activated_identity,
+            timing_artifact_sha256=bundle.timing_artifact_sha256,
+            robot_trajectory_sha256="0" * 64,
+            robot_exact_action_sha256=bundle.robot_exact_action_sha256,
+            bundle_id=bundle.bundle_id,
+        )

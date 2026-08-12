@@ -8,7 +8,7 @@ robot mask to describe the exact same physical frame.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, fields, replace
+from dataclasses import InitVar, dataclass, fields, replace
 import hashlib
 import json
 import math
@@ -140,6 +140,15 @@ def _dataclass_metadata(value: object, *, exclude: Tuple[str, ...] = ()) -> Dict
     }
 
 
+# Module-private witness: passed ONLY by the in-module factory methods after
+# they have just performed the identical validations/digests on the identical
+# objects. Any other construction path (tests, replay tooling, deserialization)
+# omits it and gets the full fail-closed re-verification. Owner-authorized
+# 2026-08-12: the double hash pass cost ~20-25 ms per recorded frame and made
+# 30 fps recording unsustainable.
+_FACTORY_PREVALIDATED = object()
+
+
 @dataclass(frozen=True)
 class ImmutableCameraFrame:
     """A detached RGB-D camera frame whose arrays cannot be made writeable."""
@@ -159,8 +168,9 @@ class ImmutableCameraFrame:
     camera_host_monotonic_ns: int
     rgb_sha256: str
     depth_sha256: str
+    prevalidated: InitVar[object] = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, prevalidated: object = None) -> None:
         _require(self.status == "OK", "camera frame status is not OK")
         _require(
             type(self.index) is int and self.index >= 0,
@@ -220,14 +230,15 @@ class ImmutableCameraFrame:
         frozen_depth = _hard_readonly_array(self.depth)
         object.__setattr__(self, "frame", frozen_rgb)
         object.__setattr__(self, "depth", frozen_depth)
-        _require(
-            self.rgb_sha256 == _array_sha256(frozen_rgb),
-            "camera RGB SHA-256 does not match frame bytes",
-        )
-        _require(
-            self.depth_sha256 == _array_sha256(frozen_depth),
-            "camera depth SHA-256 does not match depth bytes",
-        )
+        if prevalidated is not _FACTORY_PREVALIDATED:
+            _require(
+                self.rgb_sha256 == _array_sha256(frozen_rgb),
+                "camera RGB SHA-256 does not match frame bytes",
+            )
+            _require(
+                self.depth_sha256 == _array_sha256(frozen_depth),
+                "camera depth SHA-256 does not match depth bytes",
+            )
 
     @classmethod
     def from_camera_frame(
@@ -270,6 +281,7 @@ class ImmutableCameraFrame:
             else 0,
             rgb_sha256=_array_sha256(frame.frame),
             depth_sha256=_array_sha256(frame.depth),
+            prevalidated=_FACTORY_PREVALIDATED,
         )
 
 
@@ -991,6 +1003,7 @@ class FrameEvidenceBundle:
     robot_trajectory_sha256: str
     robot_exact_action_sha256: str
     bundle_id: str
+    prevalidated: InitVar[object] = None
 
     @property
     def index(self) -> int:
@@ -1016,7 +1029,11 @@ class FrameEvidenceBundle:
     def robot_exact_action_count(self) -> int:
         return len(self.robot_trajectory.records)
 
-    def __post_init__(self) -> None:
+    def __post_init__(self, prevalidated: object = None) -> None:
+        if prevalidated is _FACTORY_PREVALIDATED:
+            # build() just performed these exact validations and digests on
+            # these exact snapshot objects (owner-authorized de-dup).
+            return
         _require(
             isinstance(self.camera_frame, ImmutableCameraFrame),
             "immutable camera frame is missing",
@@ -1145,6 +1162,7 @@ class FrameEvidenceBundle:
             robot_trajectory_sha256=trajectory_digest,
             robot_exact_action_sha256=action_digest,
             bundle_id=bundle_id,
+            prevalidated=_FACTORY_PREVALIDATED,
         )
 
     def canonical_metadata(self) -> Dict[str, object]:
