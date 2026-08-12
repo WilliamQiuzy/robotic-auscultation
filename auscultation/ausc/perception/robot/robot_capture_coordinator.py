@@ -66,6 +66,11 @@ class RobotCaptureNotReady(RobotCaptureCoordinatorError):
     """A retryable ordering/readiness gate has not yet passed."""
 
 
+class SessionScopedEvidenceError(RobotCaptureCoordinatorError):
+    """Per-frame session-integrity failure: costs the session, not the coordinator."""
+
+
+
 @dataclass(frozen=True)
 class RobotCameraArmPermit:
     """Proof that recorded post-Start telemetry covers the camera pre-roll."""
@@ -1093,7 +1098,7 @@ class ProductionRobotCaptureCoordinator:
                     self._pending_exposure is not None
                     and exposure != self._pending_exposure
                 ):
-                    raise RobotCaptureCoordinatorError(
+                    raise SessionScopedEvidenceError(
                         "the pending camera frame must be retried before any later frame"
                     )
                 if (
@@ -1111,7 +1116,7 @@ class ProductionRobotCaptureCoordinator:
                     now_ns - exposure.camera_host_monotonic_ns
                     > self.contract.max_staleness_ns
                 ):
-                    raise RobotCaptureCoordinatorError(
+                    raise SessionScopedEvidenceError(
                         "camera frame was not bracketed within the live staleness bound"
                     )
                 first = self._active_first_record
@@ -1169,10 +1174,44 @@ class ProductionRobotCaptureCoordinator:
                 return inputs
         except RobotCaptureNotReady:
             raise
+        except (SessionScopedEvidenceError, RobotCaptureError) as exc:
+            # An ENVIRONMENTAL per-frame session failure (stale bracketing,
+            # pending-frame ordering, capture write error) invalidates THIS
+            # session under the gapless-recording doctrine — it does not
+            # corrupt the coordinator, the receiver, or the telemetry stream.
+            # 2026-08-11: latching here required a full disable/bring-up after
+            # every armed-session failure (50 ms activation staleness bound vs
+            # loaded-loop frame latency). Abort the session cleanly, restart
+            # advisory continuity, and stay available for the next Start.
+            # Protocol violations (pre-authorization frames, invalid camera
+            # evidence) still latch below: they indicate caller bugs.
+            reason = f"{type(exc).__name__}: {exc}"
+            with self._lock:
+                capture = self._active_capture
+                if capture is not None:
+                    try:
+                        capture.abort(f"frame evidence failure: {reason}")
+                    except Exception:
+                        pass
+                    self._clear_active_session_state_locked()
+                self._preflight_stream = ExactControlStateStream(
+                    self.contract, absorb_bounded_holes=True,
+                )
+                self._recent_wire.clear()
+            print(
+                "[robot] armed-session frame-evidence failure aborted the "
+                f"session (coordinator kept): {reason}",
+                flush=True,
+            )
+            if isinstance(exc, RobotCaptureCoordinatorError):
+                raise
+            raise RobotCaptureCoordinatorError(
+                f"robot frame evidence failed: {exc}"
+            ) from exc
         except RobotCaptureCoordinatorError as exc:
             self._latch_fault(str(exc))
             raise
-        except (RobotCaptureError, RobotTelemetryError, ValueError, TypeError) as exc:
+        except (RobotTelemetryError, ValueError, TypeError) as exc:
             self._latch_fault(f"robot frame evidence failed: {exc}")
             raise RobotCaptureCoordinatorError(
                 f"robot frame evidence failed: {exc}"

@@ -1074,3 +1074,47 @@ def test_camera_armed_refusal_still_latches(
         receiver.push(duplicate)
     assert coordinator.faulted is True
     assert len(aborts) == 1
+
+
+def test_armed_frame_evidence_failure_aborts_session_but_keeps_coordinator(
+    tmp_path: Path,
+) -> None:
+    """2026-08-11: a stale frame bracket during an armed session latched the
+    coordinator permanently. Session integrity failures cost the session only."""
+
+    aborts = []
+    coordinator, receiver, clock, _session_dir = _start(
+        tmp_path, callback=aborts.append
+    )
+    _warm_and_arm(coordinator, receiver, clock)
+
+    # Query far past the 50 ms staleness bound relative to frame arrival.
+    clock.now_ns = 1_050_000_000 + 500_000_000
+    with pytest.raises(RobotCaptureCoordinatorError, match="staleness"):
+        coordinator.build_frame_evidence_inputs(
+            frame_index=0,
+            camera_host_t_s=1.050,
+            camera_device_t_ms=1.0,
+        )
+    assert coordinator.faulted is False
+    assert coordinator.recording is False
+    assert coordinator.abort_session("cleanup") is False
+
+    # Fresh preflight + a new session start succeed on the same coordinator.
+    for envelope_seq, first_tick, timestamp_ns in (
+        (17, 170, 1_540_000_000),
+        (18, 180, 1_550_000_000),
+        (19, 190, 1_560_000_000),
+    ):
+        receiver.push(
+            _wire(
+                envelope_seq=envelope_seq,
+                first_tick=first_tick,
+                first_observation_ns=timestamp_ns,
+            )
+        )
+    clock.now_ns = 1_575_000_000
+    fresh = tmp_path / "session2"
+    fresh.mkdir()
+    coordinator.start_session(fresh)
+    assert coordinator.recording is True
