@@ -5282,7 +5282,15 @@ class Collector:
         if self.fake or self._model_worker is None:
             return latest_frame, current_tracking
         if not model_result_updated:
-            return None
+            result_age = self._model_worker.health().get("last_result_age_s")
+            if result_age is not None and result_age <= self.max_tracking_age_s:
+                # A fresh result-owned preview is imminent; keep exact pairing.
+                return None
+            # Model results stale or absent (warm-up, WAITING_ROBOT, latched
+            # coordinator fault): the camera is healthy, so keep the doctor
+            # video live on the latest frame. effective_tracking age-gates the
+            # points, so no stale overlay can land on a mismatched frame.
+            return latest_frame, current_tracking
         pending, self._pending_model_preview = self._pending_model_preview, None
         if pending is None:
             return latest_frame, current_tracking
@@ -5489,7 +5497,8 @@ class Collector:
                         )
                     self._model_status = "ROBOT_EVIDENCE_RETRY"
                     self._pending_model_frame = None
-                    continue
+                    # No continue: fall through so the preview stage still runs
+                    # every frame — video must never starve on robot-side faults.
                 else:
                     if self._model_worker is None and self._fatal_error is None:
                         try:
@@ -5516,7 +5525,8 @@ class Collector:
                                 )
                             self._model_status = "MODEL_RETRY"
                             self._pending_model_frame = None
-                            continue
+                            # No continue: fall through to the preview stage
+                            # (worker is None, so the submit below is skipped).
                     if self._model_worker is not None:
                         bound_frame = getattr(
                             model_input, "camera_frame", pending_model_frame,

@@ -369,9 +369,14 @@ def test_async_model_preview_uses_its_exact_source_frame_not_newer_camera_frame(
         def latest():
             return model_result
 
-        @staticmethod
-        def health():
-            return {"status": "OK", "error": None}
+        health_age = 0.0
+
+        @classmethod
+        def health(cls):
+            return {
+                "status": "OK", "error": None,
+                "last_result_age_s": cls.health_age,
+            }
 
     collector.fake = False
     collector._model_worker = Worker()
@@ -391,11 +396,24 @@ def test_async_model_preview_uses_its_exact_source_frame_not_newer_camera_frame(
         assert preview_tracking["frame_index"] == source.index
         assert preview_tracking["reason"] == "TRACKING"
         assert [point["name"] for point in preview_tracking["points"]] == ["R1"]
+        # Fresh model result imminent: hold the preview for exact pairing.
+        Worker.health_age = 0.0
         assert collector._select_preview_source(
             newer,
             collector._latest_tracking,
             model_result_updated=False,
         ) is None
+        # Model results stale (starved worker / latched robot fault): the
+        # camera is healthy, so the preview falls back to the live frame
+        # instead of freezing the video (2026-08-11 incident).
+        Worker.health_age = 999.0
+        fallback = collector._select_preview_source(
+            newer,
+            collector._latest_tracking,
+            model_result_updated=False,
+        )
+        assert fallback is not None
+        assert fallback[0] is newer
     finally:
         collector._model_worker = None
         collector.shutdown()
