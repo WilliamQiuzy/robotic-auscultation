@@ -355,9 +355,6 @@ def main(argv: "list[str] | None" = None) -> int:
     return 0
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
 
 def _assert_amended_equivalence(
     source: Mapping, new: Mapping, plans,
@@ -394,3 +391,6 @@ def _assert_amended_equivalence(
         raise ActivationBoundsAmendmentError(
             "pair contract identity must not change"
         )
+
+if __name__ == "__main__":
+    raise SystemExit(main())
