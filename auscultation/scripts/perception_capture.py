@@ -452,10 +452,14 @@ class _PinnedFfmpegConcatStitcher:
 class _SegmentValidationWorker:
     """Validate sealed five-second segments without blocking camera disk ingress."""
 
-    def __init__(self, validator, mode_probe, negotiated_mode, *, capacity=2):  # noqa: ANN001
+    def __init__(
+        self, validator, mode_probe, negotiated_mode, *, capacity=2,
+        recording_frame_divisor=1,
+    ):  # noqa: ANN001
         self._validator = validator
         self._mode_probe = mode_probe
         self._negotiated_mode = negotiated_mode
+        self._recording_frame_divisor = int(recording_frame_divisor)
         self._queue: queue.Queue = queue.Queue(maxsize=int(capacity))
         self._sentinel = object()
         self._lock = threading.Lock()
@@ -492,7 +496,10 @@ class _SegmentValidationWorker:
                 mode = None
                 if self._negotiated_mode is not None:
                     mode = dict(self._mode_probe(path))
-                    expected_fps = float(self._negotiated_mode["fps"])
+                    expected_fps = (
+                        float(self._negotiated_mode["fps"])
+                        / self._recording_frame_divisor
+                    )
                     actual_fps = float(mode["fps"])
                     expected_size = (
                         int(self._negotiated_mode["width"]),
@@ -878,6 +885,7 @@ class DiagnosticPerceptionCapture:
         *,
         fps: float,
         provenance: Mapping[str, object],
+        recording_frame_divisor: int = 1,
         writer_factory: Callable | None = None,
         video_validator: Callable[[Path], int] | None = None,
         video_mode_probe: Callable[[Path], Mapping[str, object]] | None = None,
@@ -901,6 +909,12 @@ class DiagnosticPerceptionCapture:
         self.fps = float(fps)
         if not np.isfinite(self.fps) or self.fps <= 0:
             raise ValueError("fps must be finite and positive")
+        # 15 fps recording (2026-08-12): self.fps is the DELIVERED (recorded)
+        # rate; the camera keeps capturing at fps * divisor. Recorded camera
+        # indices stride by the divisor, anchored at start boundary + 1.
+        if type(recording_frame_divisor) is not int or recording_frame_divisor < 1:
+            raise ValueError("recording_frame_divisor must be an integer >= 1")
+        self.recording_frame_divisor = recording_frame_divisor
         self.provenance = _validated_provenance(provenance)
         negotiated_mode = self.provenance["camera"].get("negotiated_mode")
         self.negotiated_mode = (
@@ -913,10 +927,16 @@ class DiagnosticPerceptionCapture:
                 raise ValueError("negotiated camera FPS must be finite and positive") from exc
             if not np.isfinite(negotiated_fps) or negotiated_fps <= 0:
                 raise ValueError("negotiated camera FPS must be finite and positive")
-            if not np.isclose(self.fps, negotiated_fps, rtol=0.0, atol=1e-6):
+            if not np.isclose(
+                self.fps * self.recording_frame_divisor,
+                negotiated_fps,
+                rtol=0.0,
+                atol=1e-6,
+            ):
                 raise ValueError(
-                    f"capture fps {self.fps} does not match negotiated camera FPS "
-                    f"{negotiated_fps}"
+                    f"capture fps {self.fps} x divisor "
+                    f"{self.recording_frame_divisor} does not match negotiated "
+                    f"camera FPS {negotiated_fps}"
                 )
         self._writer_factory = writer_factory or _default_writer_factory
         self._video_validator = video_validator or _default_video_validator
@@ -1074,6 +1094,7 @@ class DiagnosticPerceptionCapture:
         self._segment_validator = _SegmentValidationWorker(
             self._video_validator, self._video_mode_probe, self.negotiated_mode,
             capacity=2,
+            recording_frame_divisor=self.recording_frame_divisor,
         )
         self._rgb_fp = self._rgb_partial.open("x", newline="", encoding="utf-8")
         self._rgb_csv = csv.writer(self._rgb_fp)
@@ -1106,6 +1127,8 @@ class DiagnosticPerceptionCapture:
             "started_host_t": self._clock(),
             "started_utc_ns": self._wall_time_ns(),
             "requested_fps": self.fps,
+            "recording_frame_divisor": self.recording_frame_divisor,
+            "camera_native_fps": self.fps * self.recording_frame_divisor,
             "depth_storage": depth_codec.DEPTH_STORAGE_ID,
             "depth_contract": {
                 "dtype": "uint16",
@@ -1892,7 +1915,7 @@ class DiagnosticPerceptionCapture:
                         raise RuntimeError(
                             "robot frame index does not close on camera capture"
                         )
-                    expected_index += 1
+                    expected_index += self.recording_frame_divisor
                     seen += 1
         except RuntimeError:
             raise
@@ -1904,7 +1927,8 @@ class DiagnosticPerceptionCapture:
         if (
             seen != summary["frame_count"]
             or seen != self._n_rgb
-            or expected_index - 1 != self._last_frame_index
+            or expected_index - self.recording_frame_divisor
+            != self._last_frame_index
         ):
             raise RuntimeError("robot frame index count does not close on camera capture")
 
@@ -2343,7 +2367,14 @@ class DiagnosticPerceptionCapture:
                 )
             self._max_host_gap_s = max(self._max_host_gap_s, gap)
         if self._last_frame_index is not None:
-            self._missing_camera_indexes += max(0, index - self._last_frame_index - 1)
+            step = index - self._last_frame_index
+            divisor = self.recording_frame_divisor
+            if step % divisor != 0:
+                # Off-phase frame: cannot belong to the divisor-strided
+                # recording set; count it as coverage damage (fail at seal).
+                self._missing_camera_indexes += 1
+            else:
+                self._missing_camera_indexes += max(0, step // divisor - 1)
         if self._first_host_t is None:
             self._first_host_t = host_t
             self._first_frame_index = index
@@ -3185,7 +3216,10 @@ class DiagnosticPerceptionCapture:
                     or len(digest) != 64
                     or any(ch not in "0123456789abcdef" for ch in digest)
                     or rel != f"depth/depth_{index:06d}{depth_codec.DEPTH_SUFFIX}"
-                    or (last_index is not None and index != last_index + 1)
+                    or (
+                        last_index is not None
+                        and index != last_index + self.recording_frame_divisor
+                    )
                 ):
                     raise RuntimeError(
                         f"depth integrity contract failed at line {line_number}"
@@ -3367,7 +3401,7 @@ class DiagnosticPerceptionCapture:
                 "observed_timeline_fps": timeline["observed_fps"],
             }
         try:
-            expected_fps = float(expected["fps"])
+            expected_fps = float(expected["fps"]) / self.recording_frame_divisor
             expected_width = int(expected["width"])
             expected_height = int(expected["height"])
         except (KeyError, TypeError, ValueError) as exc:
@@ -3423,6 +3457,7 @@ class DiagnosticPerceptionCapture:
             "max_host_gap_s": timeline["max_host_gap_s"],
             "max_host_gap_tolerance_s": max_gap_tolerance,
             "camera_indexes_contiguous": timeline["camera_index_coverage_complete"],
+            "recording_frame_divisor": self.recording_frame_divisor,
         }
 
     def _timeline_summary(self) -> dict:
@@ -3575,7 +3610,10 @@ class DiagnosticPerceptionCapture:
                 raise RuntimeError(
                     "RGB timestamp/tracker frame indexes are incomplete or misaligned"
                 )
-            if last_rgb is not None and rgb_index != last_rgb + 1:
+            if (
+                last_rgb is not None
+                and rgb_index != last_rgb + self.recording_frame_divisor
+            ):
                 raise RuntimeError("RGB frame indexes are not contiguous")
             if first_rgb is None:
                 first_rgb = rgb_index

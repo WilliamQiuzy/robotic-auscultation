@@ -462,3 +462,46 @@ def test_end_boundary_rejects_dead_or_too_old_camera_before_sealing(monkeypatch)
     )
     with pytest.raises(RuntimeError, match="snapshot is stale"):
         stream.latch_end_boundary(timeout_s=0.1)
+
+
+def test_recording_frame_divisor_keeps_interval_anchored_phase():
+    """Divisor 2: only every 2nd frame after the Start boundary enters the
+    delivery FIFO, first delivered is ALWAYS boundary+1 regardless of the
+    boundary index parity, and skipped frames never count as overflow."""
+
+    from ausc.perception.camera_stream import CameraStream
+
+    stream = CameraStream(
+        backend="fake", width=64, height=48, fps=30,
+        recording_frame_divisor=2,
+    )
+    try:
+        stream.start()
+        # Wait until some frames have been produced, then arm the interval.
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            frame = stream.latest_frame()
+            if frame is not None and frame.index >= 3:
+                break
+            time.sleep(0.01)
+        boundary = stream.begin_delivery_interval()
+        anchor = boundary.proof["phase_anchor_index"]
+        assert anchor == boundary.proof["start_boundary_frame_index"] + 1
+        assert boundary.proof["recording_frame_divisor"] == 2
+
+        collected = []
+        deadline = time.monotonic() + 5.0
+        while len(collected) < 5 and time.monotonic() < deadline:
+            collected.extend(stream.drain_delivery())
+            time.sleep(0.01)
+        assert len(collected) >= 5
+        indexes = [frame.index for frame in collected]
+        assert indexes[0] == anchor
+        assert all(
+            later - earlier == 2
+            for earlier, later in zip(indexes, indexes[1:])
+        )
+        health = stream.delivery_health()
+        assert int(health.get("interval_overflow_frames", -1)) == 0
+    finally:
+        stream.stop()

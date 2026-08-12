@@ -102,6 +102,9 @@ class ServiceSpec:
     diagnostic_fps: float = 20.0
     minimum_free_gib: float = 50.0
     maximum_tracking_age_ms: float = 2000.0
+    # 15 fps recording (owner-authorized 2026-08-12): camera captures at 30,
+    # every 2nd frame enters the recorded set (phase-anchored at boundary+1).
+    recording_frame_divisor: int = 2
     capture_queue_frames: int = 8
     camera_delivery_frames: int = 32
     camera_reopen_interval_s: float = 2.0
@@ -647,6 +650,8 @@ def bind_releases(spec: ServiceSpec) -> ReleaseBindings:
         raise UnitContractError("minimum free disk reserve must be at least 50 GiB")
     if float(spec.maximum_tracking_age_ms) != 2000.0:
         raise UnitContractError("maximum tracking age must be exactly 2000 ms")
+    if type(spec.recording_frame_divisor) is not int or spec.recording_frame_divisor != 2:
+        raise UnitContractError("recording frame divisor must be exactly 2")
 
     code_release = _immutable_directory(spec.code_release, "code release", code_id)
     runtime_release = _immutable_directory(
@@ -865,6 +870,7 @@ def collector_argv(bindings: ReleaseBindings) -> List[str]:
         "--diagnostic-fps", _number(spec.diagnostic_fps),
         "--diagnostic-min-free-gib", _number(spec.minimum_free_gib),
         "--max-tracking-age-ms", _number(spec.maximum_tracking_age_ms),
+        "--recording-frame-divisor", str(int(spec.recording_frame_divisor)),
         "--capture-queue-frames", str(spec.capture_queue_frames),
         "--camera-delivery-frames", str(spec.camera_delivery_frames),
         "--camera-reopen-interval-s", _number(spec.camera_reopen_interval_s),

@@ -261,6 +261,7 @@ def test_renders_reproducible_unit_from_real_cli_contract(deployment: dict) -> N
     assert "TimeoutStopSec=3600s" in text
     assert "--diagnostic-min-free-gib 50" in text
     assert "--max-tracking-age-ms 2000" in text
+    assert "--recording-frame-divisor 2" in text
     assert "--audio-device usb-serial:Y77BQVG17CD6E1" in text
     assert "--bind 127.0.0.1" in text
 
@@ -277,6 +278,7 @@ def test_renders_reproducible_unit_from_real_cli_contract(deployment: dict) -> N
     assert args.bind == "127.0.0.1"
     assert args.diagnostic_min_free_gib == 50.0
     assert args.max_tracking_age_ms == 2000.0
+    assert args.recording_frame_divisor == 2
     assert args.posterior_gate_checkpoint
     assert args.posterior_gate_checkpoint_sha256
     assert args.posterior_gate_release_id

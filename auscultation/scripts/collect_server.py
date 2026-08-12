@@ -667,6 +667,7 @@ def perception_stage_snapshot(
 
 def validate_capture_boundary_closure(
     boundary, *, n_rgb_frames, expected_fps, final_frame_range=None,
+    recording_frame_divisor=1,
 ):
     """Prove Start/End, camera FIFO, disk FIFO, and final indexes are one interval."""
 
@@ -680,8 +681,13 @@ def validate_capture_boundary_closure(
         raise RuntimeError("capture boundary closure metadata is incomplete") from exc
     if count <= 0 or not math.isfinite(fps) or fps <= 0:
         raise RuntimeError("capture boundary count/FPS is invalid")
+    divisor = int(recording_frame_divisor)
+    if divisor < 1:
+        raise RuntimeError("recording frame divisor is invalid")
+    # 15 fps recording (2026-08-12): the delivered set is every Nth captured
+    # frame anchored at boundary+1, so recorded indices stride by the divisor.
     expected_first = start_index + 1
-    expected_last = expected_first + count - 1
+    expected_last = expected_first + (count - 1) * divisor
     end = boundary.get("camera_end_boundary_proof")
     camera = boundary.get("camera_delivery_fifo")
     ingress = boundary.get("capture_ingress_fifo")
@@ -737,7 +743,9 @@ def validate_capture_boundary_closure(
         camera_first != expected_first
         or camera_last != expected_last
         or camera_delivered_last != expected_last
-        or snapshot_index != expected_last
+        # The End snapshot is the camera's full-rate latest frame; with a
+        # divisor it may be up to divisor-1 indices past the last KEPT frame.
+        or not (0 <= snapshot_index - expected_last < divisor)
     ):
         raise RuntimeError("camera FIFO/index closure does not match the End snapshot")
     ingress_ok = (
@@ -1092,6 +1100,7 @@ class Collector:
         depth_compression_ratio=8.0,
         non_depth_capture_bytes_per_s=12_000_000,
         max_tracking_age_s=0.25,
+        recording_frame_divisor=1,
         capture_queue_frames=8,
         camera_delivery_frames=32,
         camera_reopen_interval_s=2.0,
@@ -1231,6 +1240,9 @@ class Collector:
         self.capture_rate_margin = max(1.0, float(capture_rate_margin))
         self.depth_compression_ratio = max(1.0, float(depth_compression_ratio))
         self.non_depth_capture_bytes_per_s = max(0.0, float(non_depth_capture_bytes_per_s))
+        if type(recording_frame_divisor) is not int or recording_frame_divisor < 1:
+            raise ValueError("recording_frame_divisor must be an integer >= 1")
+        self.recording_frame_divisor = recording_frame_divisor
         self.max_tracking_age_s = float(max_tracking_age_s)
         if not math.isfinite(self.max_tracking_age_s) or self.max_tracking_age_s <= 0:
             raise ValueError("max_tracking_age_s must be finite and positive")
@@ -1667,7 +1679,8 @@ class Collector:
         )
         return capture_cls(
             session_dir,
-            fps=self._negotiated_camera_fps(),
+            fps=self._negotiated_camera_fps() / self.recording_frame_divisor,
+            recording_frame_divisor=self.recording_frame_divisor,
             provenance=self._provenance,
             recording_boundary=self._recording_boundary,
             ffmpeg_path=self.ffmpeg_path,
@@ -4334,6 +4347,7 @@ class Collector:
                             end_boundary,
                             n_rgb_frames=int(ingress_health.get("accepted", -1)),
                             expected_fps=self._negotiated_camera_fps(),
+                            recording_frame_divisor=self.recording_frame_divisor,
                         )
                     except Exception as exc:
                         reason = (
@@ -4439,6 +4453,7 @@ class Collector:
             factory = self._camera_factory
         camera_options = {
             "delivery_capacity_frames": self.camera_delivery_frames,
+            "recording_frame_divisor": self.recording_frame_divisor,
         }
         if not self.fake:
             camera_options.update({
@@ -4809,6 +4824,7 @@ class Collector:
                 "backend": self.camera_backend,
                 "camera_id": actual_camera_id or self.camera_id or "synthetic",
                 "negotiated_mode": negotiated or {"source": "synthetic"},
+                "recording_frame_divisor": self.recording_frame_divisor,
             },
             "model": {
                 "release_id": self.model_release_id,
@@ -4895,11 +4911,13 @@ class Collector:
                 )
             elif (
                 self._record_last_camera_index is not None
-                and index != self._record_last_camera_index + 1
+                and index
+                != self._record_last_camera_index + self.recording_frame_divisor
             ):
                 failure_reason = (
                     "camera index gap at capture boundary: expected "
-                    f"{self._record_last_camera_index + 1}, got {index}"
+                    f"{self._record_last_camera_index + self.recording_frame_divisor},"
+                    f" got {index}"
                 )
             elif self._ingress_worker.submit(bundle):
                 self._record_last_camera_index = index
@@ -5423,8 +5441,24 @@ class Collector:
                         self._submit_camera_capture(detached)
                     # Latest-only inference may discard an older pending frame,
                     # but the selected frame itself cannot run until its exact
-                    # same-frame OpenArm mask bundle exists.
-                    self._pending_model_frame = detached
+                    # same-frame OpenArm mask bundle exists. During RECORDING
+                    # with a frame divisor, persisted evidence only exists for
+                    # kept-phase frames — latching a skipped-phase frame would
+                    # spin the RECORDING model branch on RobotCaptureNotReady
+                    # forever (evidence.index can never match).
+                    boundary = self._recording_boundary
+                    if (
+                        self.recording_frame_divisor > 1
+                        and self.platform.state is CollectionState.RECORDING
+                        and boundary is not None
+                    ):
+                        anchor = int(boundary["camera_start_boundary_index"]) + 1
+                        if (
+                            int(detached.index) - anchor
+                        ) % self.recording_frame_divisor == 0:
+                            self._pending_model_frame = detached
+                    else:
+                        self._pending_model_frame = detached
             model_input_submitted = False
             gate_testing = (
                 self._safe_stop_gate is not None
@@ -5843,6 +5877,7 @@ class Collector:
             n_rgb_frames=n_rgb,
             expected_fps=self._negotiated_camera_fps(),
             final_frame_range=result.get("frame_index_range"),
+            recording_frame_divisor=self.recording_frame_divisor,
         )
         if boundary.get("index_closure") != closure:
             raise RuntimeError("diagnostic capture boundary closure proof changed")
@@ -7442,6 +7477,7 @@ def build_parser():
     )
     ap.add_argument("--controller-readiness-timeout-s", type=float, default=15.0)
     ap.add_argument("--max-tracking-age-ms", type=float, default=250.0)
+    ap.add_argument("--recording-frame-divisor", type=int, default=1)
     ap.add_argument("--capture-queue-frames", type=int, default=8)
     ap.add_argument(
         "--camera-delivery-frames", type=int, default=32,
@@ -7811,6 +7847,7 @@ def main(argv=None):
             depth_compression_ratio=a.depth_compression_ratio,
             non_depth_capture_bytes_per_s=a.non_depth_capture_bytes_per_s,
             max_tracking_age_s=a.max_tracking_age_ms / 1000.0,
+            recording_frame_divisor=a.recording_frame_divisor,
             capture_queue_frames=a.capture_queue_frames,
             camera_delivery_frames=a.camera_delivery_frames,
             camera_reopen_interval_s=a.camera_reopen_interval_s,

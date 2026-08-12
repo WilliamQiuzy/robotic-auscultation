@@ -188,6 +188,7 @@ class CameraStream:
         rgb: bool = True,
         stale_timeout_ms: float = 500.0,
         delivery_capacity_frames: int = DEFAULT_DELIVERY_CAPACITY_FRAMES,
+        recording_frame_divisor: int = 1,
     ) -> None:
         self.backend = backend
         self.index = int(index)
@@ -208,6 +209,17 @@ class CameraStream:
         self.rgb = rgb
         self.stale_timeout_s = stale_timeout_ms / 1000.0
         self.delivery_capacity_frames = int(delivery_capacity_frames)
+        # Recording-set subsampling (2026-08-12, owner-authorized 15 fps
+        # recording): only every Nth captured frame enters the lossless
+        # delivery FIFO, phase-anchored per interval at the Start boundary
+        # (start_boundary_index + 1) so the first delivered frame is always
+        # boundary+1 regardless of boundary parity. Default 1 keeps every
+        # other consumer of this class (record_session.py strict-contiguous
+        # policy, all existing tests) byte-identical.
+        if type(recording_frame_divisor) is not int or recording_frame_divisor < 1:
+            raise ValueError("recording frame divisor must be an integer >= 1")
+        self.recording_frame_divisor = recording_frame_divisor
+        self._delivery_phase_anchor = 1
         if self.delivery_capacity_frames <= 0:
             raise ValueError("camera delivery FIFO capacity must be positive")
         self._cap = None          # cv2 VideoCapture (avfoundation)
@@ -554,7 +566,15 @@ class CameraStream:
                         or host_arrival_t <= self._end_boundary_t
                     )
                 )
-                if inside_delivery_interval and self._delivery_accepting:
+                on_recording_phase = (
+                    (int(published.index) - self._delivery_phase_anchor)
+                    % self.recording_frame_divisor == 0
+                )
+                if (
+                    inside_delivery_interval
+                    and self._delivery_accepting
+                    and on_recording_phase
+                ):
                     if len(self._delivery_queue) >= self.delivery_capacity_frames:
                         self._delivery_overflow_total += 1
                         self._delivery_interval_overflow += 1
@@ -572,7 +592,11 @@ class CameraStream:
                         self._delivery_max_depth = max(
                             self._delivery_max_depth, len(self._delivery_queue),
                         )
-                elif inside_delivery_interval and self._delivery_interval_overflow:
+                elif (
+                    inside_delivery_interval
+                    and on_recording_phase
+                    and self._delivery_interval_overflow
+                ):
                     self._delivery_rejected_after_overflow += 1
 
             if self._end_boundary_target_id == inflight_id:
@@ -662,6 +686,9 @@ class CameraStream:
                 self._condition.wait(timeout=remaining)
 
             snapshot = self._delivery_start_boundary_snapshot
+            self._delivery_phase_anchor = (
+                0 if snapshot is None else int(snapshot.index)
+            ) + 1
             interval_id = int(self._delivery_interval_id)
             start_t = float(self._delivery_start_t)
             return CameraStartBoundary(
@@ -687,6 +714,8 @@ class CameraStream:
                     ),
                     "capacity": self.delivery_capacity_frames,
                     "overflow_baseline": self._delivery_overflow_total,
+                    "recording_frame_divisor": self.recording_frame_divisor,
+                    "phase_anchor_index": self._delivery_phase_anchor,
                 },
             )
 

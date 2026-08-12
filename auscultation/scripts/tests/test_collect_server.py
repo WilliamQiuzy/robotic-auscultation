@@ -1844,6 +1844,7 @@ def test_fake_collector_passes_requested_mode_to_the_synthetic_camera(tmp_path):
             "camera_id": None,
             "rgb": True,
             "delivery_capacity_frames": 32,
+            "recording_frame_divisor": 1,
             "width": 640,
             "height": 480,
             "fps": 20,
@@ -8495,3 +8496,84 @@ def test_prewarm_exercises_full_path_with_correct_contracts(tmp_path):
         assert calls == {"detect": 2, "assess": 2}   # both passes, both models
     finally:
         c.shutdown()
+
+
+def _strided_boundary_fixture():
+    """Divisor-2 recording: kept indices 10, 12, 14; End snapshot at 15
+    (a full-rate camera frame one index past the last kept frame)."""
+
+    return {
+        "camera_start_boundary_index": 9,
+        "camera_end_boundary_proof": {
+            "boundary_latched_atomically": True,
+            "post_boundary_overwrite_prevented": True,
+            "snapshot_frame_index": 15,
+            "snapshot_age_s": 0.03,
+            "max_snapshot_age_s": 0.1,
+            "thread_alive_at_boundary": True,
+            "thread_error_at_boundary": None,
+        },
+        "camera_delivery_fifo": {
+            "status": "OK",
+            "thread_alive": True,
+            "frame_fresh": True,
+            "interval_active": False,
+            "accepting": False,
+            "queue_depth": 0,
+            "interval_overflow_frames": 0,
+            "interval_enqueued_frames": 3,
+            "interval_delivered_frames": 3,
+            "first_enqueued_frame_index": 10,
+            "last_enqueued_frame_index": 14,
+            "last_delivered_frame_index": 14,
+        },
+        "capture_ingress_fifo": {
+            "status": "OK",
+            "thread_alive": True,
+            "interval_active": False,
+            "queue_depth": 0,
+            "overflow_rejections": 0,
+            "abandoned_after_error": 0,
+            "accepted": 3,
+            "processed": 3,
+            "first_accepted_index": 10,
+            "last_accepted_index": 14,
+            "last_completed_index": 14,
+        },
+        "last_submitted_camera_index": 14,
+        "last_completed_camera_index": 14,
+    }
+
+
+def test_end_boundary_closure_divisor_two_strided_indices():
+    server = _load_collect_server()
+
+    proof = server.validate_capture_boundary_closure(
+        _strided_boundary_fixture(),
+        n_rgb_frames=3,
+        expected_fps=30.0,
+        final_frame_range={"first_frame_index": 10, "last_frame_index": 14},
+        recording_frame_divisor=2,
+    )
+    assert proof["closed"] is True
+    assert proof["first_frame_index"] == 10
+    assert proof["last_frame_index"] == 14
+
+    # Snapshot may trail up to divisor-1 past the last kept frame — but no more.
+    over = _strided_boundary_fixture()
+    over["camera_end_boundary_proof"]["snapshot_frame_index"] = 16
+    with pytest.raises(RuntimeError, match="closure"):
+        server.validate_capture_boundary_closure(
+            over,
+            n_rgb_frames=3,
+            expected_fps=30.0,
+            recording_frame_divisor=2,
+        )
+
+    # A strided fixture must FAIL at divisor 1 (proves the check still bites).
+    with pytest.raises(RuntimeError):
+        server.validate_capture_boundary_closure(
+            _strided_boundary_fixture(),
+            n_rgb_frames=3,
+            expected_fps=30.0,
+        )

@@ -48,6 +48,25 @@ AUTHENTICITY_SCHEMA_VERSION = "wam_training_authenticity_v2"
 FINALIZATION_SCHEMA_VERSION = "wam_session_finalization_v2"
 
 MANIFEST_NAME = "manifest.json"
+
+
+def _session_recording_frame_divisor(session: "Path") -> int:
+    """Recorded camera indices stride by this divisor (15 fps recording,
+    2026-08-12): read from the captured manifest metadata; absent -> 1."""
+
+    import json as _json
+
+    try:
+        with open(session / MANIFEST_NAME, "r", encoding="utf-8") as handle:
+            manifest = _json.load(handle)
+        value = manifest.get("metadata", {}).get("recording_frame_divisor", 1)
+    except (OSError, ValueError):
+        return 1
+    if type(value) is not int or value < 1:
+        raise TrainingFinalizationError(
+            "recording frame divisor in the session manifest is invalid"
+        )
+    return value
 AUTHENTICITY_NAME = "TRAINING_AUTHENTICITY.json"
 FINALIZATION_NAME = "FINALIZATION.json"
 COMPONENT_DIR = "authenticity"
@@ -1194,11 +1213,12 @@ def verify_recorded_handeye_frame_evidence(
         raise TrainingFinalizationError(
             "tracker hand-eye evidence RGB frame index is invalid"
         ) from exc
+    stride = _session_recording_frame_divisor(session)
     if (
         not rgb_indexes
         or len(set(rgb_indexes)) != len(rgb_indexes)
         or any(
-            current != previous + 1
+            current != previous + stride
             for previous, current in zip(rgb_indexes, rgb_indexes[1:])
         )
     ):
@@ -2225,6 +2245,7 @@ def verify_depth_session_authenticity(
         )
     activated_depth_scale = float(expected_depth_scale_mm)
     session = Path(session_dir)
+    depth_stride = _session_recording_frame_divisor(session)
     timeline_path = session / "depth" / "depth_times.csv"
     timeline_raw = _stable_regular_bytes(
         timeline_path, label="depth session timeline", maximum_bytes=64 * 1024 * 1024
@@ -2285,7 +2306,10 @@ def verify_depth_session_authenticity(
                               f"depth/depth_{frame_index:06d}.npy")
         if (
             frame_index < 0
-            or (previous_index is not None and frame_index != previous_index + 1)
+            or (
+                previous_index is not None
+                and frame_index != previous_index + depth_stride
+            )
             or not math.isfinite(host_time)
             or (previous_time is not None and host_time <= previous_time)
             or not math.isfinite(device_time_ms)
