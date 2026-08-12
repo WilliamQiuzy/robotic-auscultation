@@ -52,6 +52,14 @@ _MAX_LINKS = 64
 _MAX_VERTICES_PER_COMPONENT = 8_192
 _MAX_TOTAL_VERTICES = 65_536
 _MAX_DILATION_KERNEL_RADIUS_PX = 256
+# Owner-authorized 2026-08-12: above this uncertainty radius the component
+# falls into the conservative full-mask hatch instead of dilating. A link
+# approaching the camera (routine during real auscultation teleop) drove
+# radius toward the 256 px kernel cap, where a single 1080p dilate cost
+# 300+ ms and aborted the armed session on the staleness bound. Full-mask
+# is a strict SUPERSET (never under-masks the arm) with sub-ms cost, and
+# an arm that close genuinely dominates the view.
+_FULL_MASK_COST_HATCH_RADIUS_PX = 96
 _PROVISIONAL_HAND_EYE_RUN_RE = re.compile(
     r"^handeye_left_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}$"
 )
@@ -2018,7 +2026,7 @@ class ProductionRobotMaskProvider:
         )
         if (
             nominal_outside
-            or raw_radius_px > _MAX_DILATION_KERNEL_RADIUS_PX
+            or raw_radius_px > _FULL_MASK_COST_HATCH_RADIUS_PX
         ):
             mask[:] = True
             return True

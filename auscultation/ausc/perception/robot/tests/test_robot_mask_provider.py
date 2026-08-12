@@ -1054,3 +1054,36 @@ def test_bucketed_deferred_dilation_is_byte_identical_to_sequential():
 
         assert np.array_equal(mask_seq, mask_bkt), f"case {case} mask differs"
         assert any_seq == any_bkt, f"case {case} any-flags differ"
+
+
+def test_cost_hatch_threshold_is_owner_authorized_value():
+    import ausc.perception.robot.robot_mask_provider as mask_module
+
+    assert mask_module._FULL_MASK_COST_HATCH_RADIUS_PX == 96
+    assert (
+        mask_module._FULL_MASK_COST_HATCH_RADIUS_PX
+        < mask_module._MAX_DILATION_KERNEL_RADIUS_PX
+    )
+
+
+def test_radius_above_cost_hatch_takes_full_mask(monkeypatch):
+    """Owner-authorized 2026-08-12: radii above the cost hatch previously
+    dilated with huge kernels (300+ ms live, killed armed sessions); they now
+    take the conservative full-mask hatch. The fixture's profile safety
+    bounds cap reachable radii ~50 px, so the threshold is patched down to
+    prove the branch wiring; the production value is pinned by the test
+    above."""
+
+    import ausc.perception.robot.robot_mask_provider as mask_module
+
+    profile = _profile(
+        metric_error=0.04, timing_s=0.002, projection_px=5.0, sigma=6.0,
+    )
+    provider = _provider(profile=profile)
+    baseline = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert not baseline.mask.all()  # partial dilated mask below the hatch
+
+    monkeypatch.setattr(mask_module, "_FULL_MASK_COST_HATCH_RADIUS_PX", 5)
+    hatched = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert hatched.mask.all()
+    assert hatched.masked_pixel_count > baseline.masked_pixel_count
