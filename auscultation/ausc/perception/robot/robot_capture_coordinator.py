@@ -295,9 +295,11 @@ class ProductionRobotCaptureCoordinator:
             receiver = self._receiver_factory(
                 sink=self,
                 abort_callback=self._receiver_fault,
-                # strict reference-provenance bound only while actually
-                # recording; advisory otherwise (see robot_socket_receiver)
-                reference_strict_supplier=lambda: bool(self.recording),
+                # strict reference-provenance bound only once the camera is
+                # ARMED (recorded frames exist); advisory during the pre-arm
+                # Start warm-up — 2026-08-11: keying this on session-open let
+                # 3 invalid reference ticks latch the receiver mid-Start.
+                reference_strict_supplier=lambda: bool(self.camera_arm_authorized),
                 **self._receiver_kwargs,
             )
         except Exception as exc:
