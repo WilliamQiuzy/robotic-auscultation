@@ -862,3 +862,139 @@ def test_mask_accepts_uncertain_reference_ticks():
     trajectory = replace(trajectory, records=softened)
     packet = _provider().build(exposure=_exposure(), trajectory=trajectory)
     assert packet is not None
+
+
+def test_point_sigma_batched_is_bit_identical_to_reference():
+    """Permanent oracle: the batched gufunc path must equal the verbatim
+    scalar loop bit-for-bit (float.hex) across randomized geometry."""
+
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+    )
+
+    rng = np.random.default_rng(20260812)
+    for case in range(1000):
+        count = int(rng.integers(1, 40))
+        vertices = np.column_stack((
+            rng.uniform(-1.5, 1.5, count),
+            rng.uniform(-1.5, 1.5, count),
+            rng.uniform(0.05, 3.0, count),
+        )).astype(np.float64)
+        # random rotation via QR; random PSD 6x6 covariance
+        q, _ = np.linalg.qr(rng.normal(size=(3, 3)))
+        if np.linalg.det(q) < 0:
+            q[:, 0] = -q[:, 0]
+        a = rng.normal(scale=rng.uniform(1e-6, 1e-2), size=(6, 6))
+        covariance = a @ a.T
+        ref = ProductionRobotMaskProvider._point_sigma_reference(
+            vertices, q, covariance,
+        )
+        fast = ProductionRobotMaskProvider._point_sigma_batched(
+            vertices, q, covariance,
+        )
+        assert float(fast).hex() == float(ref).hex(), (
+            f"case {case}: {float(fast).hex()} != {float(ref).hex()}"
+        )
+
+
+def test_point_sigma_batched_empty_matches_reference():
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+    )
+
+    empty = np.zeros((0, 3), dtype=np.float64)
+    eye = np.eye(3)
+    cov = np.eye(6) * 1e-6
+    assert ProductionRobotMaskProvider._point_sigma_reference(
+        empty, eye, cov,
+    ) == ProductionRobotMaskProvider._point_sigma_batched(empty, eye, cov)
+
+
+def test_point_sigma_batched_error_parity_with_reference():
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+        RobotMaskProviderError,
+    )
+
+    eye = np.eye(3)
+    nan_vertices = np.array([[0.1, 0.2, float("nan")]], dtype=np.float64)
+    cov = np.eye(6) * 1e-6
+    outcomes = []
+    for fn in (
+        ProductionRobotMaskProvider._point_sigma_reference,
+        ProductionRobotMaskProvider._point_sigma_batched,
+    ):
+        try:
+            fn(nan_vertices, eye, cov)
+            outcomes.append(("ok", None))
+        except Exception as exc:  # noqa: BLE001 - parity check
+            outcomes.append((type(exc).__name__, str(exc)[:60]))
+    # Both paths must fail the same way (build() converts either identically).
+    assert outcomes[0] == outcomes[1], outcomes
+    assert outcomes[0][0] != "ok"
+    del RobotMaskProviderError  # imported for symmetry; parity is type-based
+
+
+def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
+    """The ROI-cropped paint+dilate must reproduce the original full-frame
+    algorithm byte-for-byte, including hulls crossing or fully outside the
+    frame and degenerate 1-2 point hulls."""
+
+    import cv2
+
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+    )
+
+    class _Holder:
+        _dilation_kernels: dict = {}
+        _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
+
+    def reference(mask, hull, radius_px):
+        component = np.zeros_like(mask, dtype=np.uint8)
+        if len(hull) >= 3:
+            cv2.fillConvexPoly(component, hull.astype(np.int32), 1)
+        elif len(hull) == 2:
+            cv2.line(
+                component,
+                tuple(int(v) for v in hull[0]),
+                tuple(int(v) for v in hull[1]),
+                1,
+                1,
+            )
+        else:
+            cv2.circle(
+                component, tuple(int(v) for v in hull[0]), 0, 1, -1,
+            )
+        if radius_px > 0:
+            kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE,
+                (2 * radius_px + 1, 2 * radius_px + 1),
+            )
+            component = cv2.dilate(component, kernel, iterations=1)
+        mask |= component.astype(np.bool_)
+        return bool(np.any(component))
+
+    rng = np.random.default_rng(20260812)
+    height, width = 108, 192
+    holder = _Holder()
+    for case in range(400):
+        count = int(rng.integers(1, 12))
+        # Spread hull points inside, near-edge, and far outside the frame.
+        scale = rng.choice([0.5, 1.0, 2.5])
+        offset = rng.uniform(-80, 80, size=2)
+        points = (
+            rng.uniform(0, 1, size=(count, 2)) * [width, height] * scale
+            + offset
+        )
+        raw_hull = cv2.convexHull(
+            np.rint(points).astype(np.int32).reshape((-1, 1, 2))
+        ).reshape((-1, 2))
+        radius = int(rng.choice([0, 1, 3, 10, 25, 53]))
+        mask_ref = np.zeros((height, width), dtype=np.bool_)
+        mask_roi = np.zeros((height, width), dtype=np.bool_)
+        any_ref = reference(mask_ref, raw_hull, radius)
+        any_roi = holder._paint_dilated_hull(mask_roi, raw_hull, radius)
+        assert np.array_equal(mask_ref, mask_roi), f"case {case} mask differs"
+        assert any_ref == any_roi, f"case {case} any differs"

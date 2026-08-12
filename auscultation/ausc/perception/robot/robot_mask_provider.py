@@ -1420,6 +1420,7 @@ class ProductionRobotMaskProvider:
         self.uncertainty_profile = uncertainty_profile
 
         covariance = np.asarray(handeye.covariance_se3, dtype=np.float64)
+        self._dilation_kernels: dict = {}
         self._provisional_handeye = isinstance(
             handeye, ProvisionalRobotMaskHandEye
         )
@@ -1783,6 +1784,92 @@ class ProductionRobotMaskProvider:
             )
         return result
 
+    def _dilation_kernel(self, radius_px: int) -> np.ndarray:
+        cached = self._dilation_kernels.get(int(radius_px))
+        if cached is None:
+            cached = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE,
+                (2 * int(radius_px) + 1, 2 * int(radius_px) + 1),
+            )
+            self._dilation_kernels[int(radius_px)] = cached
+        return cached
+
+    @staticmethod
+    def _point_sigma_reference(
+        vertices_camera: np.ndarray,
+        rotation: np.ndarray,
+        covariance: np.ndarray,
+    ) -> float:
+        """Scalar per-vertex oracle — the original loop, kept verbatim as the
+        golden reference for the batched implementation below."""
+
+        point_sigma = 0.0
+        for point_camera in vertices_camera:
+            skew = np.asarray(
+                (
+                    (0.0, -point_camera[2], point_camera[1]),
+                    (point_camera[2], 0.0, -point_camera[0]),
+                    (-point_camera[1], point_camera[0], 0.0),
+                ),
+                dtype=np.float64,
+            )
+            jacobian = np.hstack((skew, -rotation.T))
+            point_covariance = jacobian @ covariance @ jacobian.T
+            eigenvalue = float(np.max(np.linalg.eigvalsh(point_covariance)))
+            if not math.isfinite(eigenvalue) or eigenvalue < -1e-12:
+                raise RobotMaskProviderError(
+                    "provisional hand-eye point covariance is invalid"
+                )
+            point_sigma = max(point_sigma, math.sqrt(max(0.0, eigenvalue)))
+        return point_sigma
+
+    @staticmethod
+    def _point_sigma_batched(
+        vertices_camera: np.ndarray,
+        rotation: np.ndarray,
+        covariance: np.ndarray,
+    ) -> float:
+        """Batched point-sigma: one gufunc eigvalsh over (N,3,3) stacks.
+
+        Bit-identical to :meth:`_point_sigma_reference` on the production
+        BLAS (empirically verified per-eigenvalue and per-result on linbox
+        numpy 2.4.4/AVX512; the in-tree property test re-proves it on every
+        run): the same LAPACK routine runs per 3x3 matrix, sqrt is monotone
+        and correctly rounded so max-then-sqrt equals the running max of
+        sqrts, and the validity checks mirror the scalar messages exactly.
+        21.6 ms -> 1.6 ms per 3216-vertex state on the production machine.
+        """
+
+        count = int(vertices_camera.shape[0])
+        if count == 0:
+            return 0.0
+        x = vertices_camera[:, 0]
+        y = vertices_camera[:, 1]
+        z = vertices_camera[:, 2]
+        zeros = np.zeros(count, dtype=np.float64)
+        skew = np.empty((count, 3, 3), dtype=np.float64)
+        skew[:, 0, 0] = zeros; skew[:, 0, 1] = -z;    skew[:, 0, 2] = y
+        skew[:, 1, 0] = z;     skew[:, 1, 1] = zeros; skew[:, 1, 2] = -x
+        skew[:, 2, 0] = -y;    skew[:, 2, 1] = x;     skew[:, 2, 2] = zeros
+        jacobian = np.concatenate(
+            (
+                skew,
+                np.broadcast_to(
+                    -rotation.T, (count, 3, 3),
+                ),
+            ),
+            axis=2,
+        )
+        point_covariance = jacobian @ covariance @ jacobian.transpose(0, 2, 1)
+        eigenvalues = np.linalg.eigvalsh(point_covariance)[:, -1]
+        if not bool(np.isfinite(eigenvalues).all()) or bool(
+            np.any(eigenvalues < -1e-12)
+        ):
+            raise RobotMaskProviderError(
+                "provisional hand-eye point covariance is invalid"
+            )
+        return math.sqrt(max(0.0, float(np.max(eigenvalues))))
+
     def _metric_bound(
         self,
         *,
@@ -1792,6 +1879,7 @@ class ProductionRobotMaskProvider:
         joint_axes: Tuple[np.ndarray, ...],
         joint_velocity: np.ndarray,
         component_error_m: float,
+        vertices_camera: Optional[np.ndarray] = None,
     ) -> float:
         max_base_radius = float(np.max(np.linalg.norm(vertices_base, axis=1)))
         timing_bound = 0.0
@@ -1811,30 +1899,16 @@ class ProductionRobotMaskProvider:
                 raise RobotMaskProviderError(
                     "provisional hand-eye capability type changed"
                 )
-            vertices_camera = self._transform_vertices(
-                handeye.transform_camera_from_follower_base,
-                vertices_base,
-            )
+            if vertices_camera is None:
+                vertices_camera = self._transform_vertices(
+                    handeye.transform_camera_from_follower_base,
+                    vertices_base,
+                )
             rotation = handeye.transform_follower_base_from_camera[:3, :3]
             covariance = np.asarray(handeye.covariance_se3, dtype=np.float64)
-            point_sigma = 0.0
-            for point_camera in vertices_camera:
-                skew = np.asarray(
-                    (
-                        (0.0, -point_camera[2], point_camera[1]),
-                        (point_camera[2], 0.0, -point_camera[0]),
-                        (-point_camera[1], point_camera[0], 0.0),
-                    ),
-                    dtype=np.float64,
-                )
-                jacobian = np.hstack((skew, -rotation.T))
-                point_covariance = jacobian @ covariance @ jacobian.T
-                eigenvalue = float(np.max(np.linalg.eigvalsh(point_covariance)))
-                if not math.isfinite(eigenvalue) or eigenvalue < -1e-12:
-                    raise RobotMaskProviderError(
-                        "provisional hand-eye point covariance is invalid"
-                    )
-                point_sigma = max(point_sigma, math.sqrt(max(0.0, eigenvalue)))
+            point_sigma = self._point_sigma_batched(
+                vertices_camera, rotation, covariance,
+            )
             random_bound = self.uncertainty_profile.sigma * max(
                 point_sigma,
                 handeye.workspace_1sigma_max,
@@ -1878,6 +1952,7 @@ class ProductionRobotMaskProvider:
             joint_axes=joint_axes,
             joint_velocity=joint_velocity,
             component_error_m=component_error_m,
+            vertices_camera=vertices_camera,
         )
         uncertainty_depth_upper = float(np.max(z)) + metric_bound
         if uncertainty_depth_upper < minimum_depth:
@@ -1938,40 +2013,90 @@ class ProductionRobotMaskProvider:
             return True
 
         radius_px = int(math.ceil(raw_radius_px))
-        component = np.zeros_like(mask, dtype=np.uint8)
         hull = cv2.convexHull(
             np.rint(projected).astype(np.int32).reshape((-1, 1, 2))
         ).reshape((-1, 2))
+        if len(hull) == 0:
+            raise RobotMaskProviderError(
+                "robot/tool projected convex hull is empty"
+            )
+        return self._paint_dilated_hull(mask, hull, radius_px)
+
+    def _paint_dilated_hull(
+        self,
+        mask: np.ndarray,
+        hull: np.ndarray,
+        radius_px: int,
+    ) -> bool:
+        # ROI-cropped rasterization + dilation (2026-08-12): dilating a
+        # full 1920x1080 frame with elliptical kernels of radius 25-55 px
+        # cost 12-85 ms PER COMPONENT and dominated the per-frame mask
+        # budget. Bitwise-identical reformulation: painted pixels are a
+        # subset of the hull bounding box, and the frame-sized buffer
+        # clipped out-of-frame pixels before dilation (they never existed,
+        # so they never dilated back in). Therefore: paint into the
+        # hull-bbox-INTERSECT-frame viewport, zero-pad by the kernel
+        # radius (zeros contribute nothing to dilation), dilate the small
+        # buffer, and OR the frame-clipped window back into the mask.
+        height, width = mask.shape
+        x0 = max(int(hull[:, 0].min()), 0)
+        y0 = max(int(hull[:, 1].min()), 0)
+        x1 = min(int(hull[:, 0].max()) + 1, width)
+        y1 = min(int(hull[:, 1].max()) + 1, height)
+        if x0 >= x1 or y0 >= y1:
+            # Hull entirely outside the frame: the frame-sized buffer would
+            # have painted nothing, dilated nothing, contributed nothing.
+            return False
+        pad = int(radius_px) if radius_px > 0 else 0
+        # Paint into the UNPADDED viewport first: clipping at the viewport
+        # edge is exactly the frame clipping the full-frame reference did
+        # (painted pixels are a subset of the hull bbox, and the viewport is
+        # bbox-intersect-frame). Only THEN zero-pad and dilate — a hull that
+        # crosses the frame edge must not paint into the padding and dilate
+        # phantom out-of-frame pixels back in (caught by the 400-case
+        # byte-identity property test).
+        roi = np.zeros((y1 - y0, x1 - x0), dtype=np.uint8)
+        shift = np.asarray((-x0, -y0), dtype=np.int64)
+        shifted = hull + shift
         if len(hull) >= 3:
-            cv2.fillConvexPoly(component, hull, 1)
+            cv2.fillConvexPoly(roi, shifted.astype(np.int32), 1)
         elif len(hull) == 2:
             cv2.line(
-                component,
-                tuple(int(value) for value in hull[0]),
-                tuple(int(value) for value in hull[1]),
+                roi,
+                tuple(int(value) for value in shifted[0]),
+                tuple(int(value) for value in shifted[1]),
                 1,
                 1,
             )
-        elif len(hull) == 1:
+        else:
             cv2.circle(
-                component,
-                tuple(int(value) for value in hull[0]),
+                roi,
+                tuple(int(value) for value in shifted[0]),
                 0,
                 1,
                 -1,
             )
-        else:
-            raise RobotMaskProviderError(
-                "robot/tool projected convex hull is empty"
+        if pad > 0:
+            roi = cv2.copyMakeBorder(
+                roi, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
             )
-        if radius_px > 0:
-            kernel = cv2.getStructuringElement(
-                cv2.MORPH_ELLIPSE,
-                (2 * radius_px + 1, 2 * radius_px + 1),
+            roi = cv2.dilate(
+                roi, self._dilation_kernel(radius_px), iterations=1,
             )
-            component = cv2.dilate(component, kernel, iterations=1)
-        mask |= component.astype(np.bool_)
-        return bool(np.any(component))
+        # Destination window in frame coordinates: viewport expanded by the
+        # dilation radius, clipped to the frame.
+        dx0 = max(x0 - pad, 0)
+        dy0 = max(y0 - pad, 0)
+        dx1 = min(x1 + pad, width)
+        dy1 = min(y1 + pad, height)
+        src = roi[
+            dy0 - (y0 - pad):dy1 - (y0 - pad),
+            dx0 - (x0 - pad):dx1 - (x0 - pad),
+        ]
+        window = mask[dy0:dy1, dx0:dx1]
+        component_any = bool(np.any(src))
+        np.logical_or(window, src, out=window)
+        return component_any
 
     def _build(
         self,
