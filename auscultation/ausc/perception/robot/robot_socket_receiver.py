@@ -532,6 +532,10 @@ class RobotSocketHealth:
     preflight_ready: bool
     publisher_hole_count: int = 0    # absorbed bounded publisher holes (QC signal)
     missed_envelope_total: int = 0   # envelopes skipped inside absorbed holes
+    # Publisher's cumulative nonblocking-sendto failure counter from the last
+    # accepted envelope. Climbing WITH holes = drops at the send syscall;
+    # flat while holes climb = the publisher never attempted those slots.
+    publisher_send_failure_count: Optional[int] = None
 
     @property
     def last_seq(self) -> Optional[int]:
@@ -1689,6 +1693,10 @@ class RobotSocketReceiver:
                 preflight_ready=preflight_ready,
                 publisher_hole_count=self._publisher_hole_count,
                 missed_envelope_total=self._missed_envelope_total,
+                publisher_send_failure_count=(
+                    None if envelope is None
+                    else envelope.socket_send_failure_count
+                ),
             )
 
     def _unlink_owned_socket(self) -> None:

@@ -198,7 +198,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/robot/robot_capture_coordinator.py": "7221050adf93fdf8c7ddabb4a52eae79024eaa40bee8863b7a10cb88ca16a503",
     "auscultation/ausc/perception/robot/robot_mask_provider.py": "d059490d55fe637cf6849ebf6404b2dd45352050cf5f8cbc28b56a360daa5fee",
     "auscultation/ausc/perception/robot/robot_session_capture.py": "8e07e732605fd325e17a7e1ba9076e95122cc0fb88f4dd0680b484d497fc8d72",
-    "auscultation/ausc/perception/robot/robot_socket_receiver.py": "7e73f09babdb7d7aa77587212bd742a8a4ef19b9a077129c4d907d79c082e6ba",
+    "auscultation/ausc/perception/robot/robot_socket_receiver.py": "8a1453529aa3f4a16f043e577e7b5584c9576d0d63b70bec2838ef86cc9a6b0b",
     "auscultation/ausc/perception/robot/robot_state_stream.py": "da2ec5e0d8179382e32669df4c3f4dde01d7f79fda374400df6e7b29fa054d3f",
     "auscultation/ausc/perception/robot/trusted_controller_companion.py": "bd29b75e305ad5b3a7bddf285f8df479e995d75de4f1012418ca132db4d8b930",
     "auscultation/ausc/perception/tracking/__init__.py": "e135d34389019e483400c79b001d9b9e84d13a0cacebe1585174cad2048bccd6",
