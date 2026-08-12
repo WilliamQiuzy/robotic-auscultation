@@ -975,3 +975,58 @@ def test_renew_receiver_clears_a_prior_fault(tmp_path: Path) -> None:
     coordinator.renew_receiver()
     assert coordinator.faulted is False
     assert coordinator.receiver is not first
+
+
+def test_advisory_preflight_refusal_reseeds_stream_without_latching(
+    tmp_path: Path,
+) -> None:
+    """2026-08-11 incident: a preflight-stream refusal outside recording must
+    reseed the advisory stream and keep the coordinator + receiver alive."""
+
+    aborts = []
+    coordinator, receiver, _clock = _new_coordinator(
+        tmp_path, callback=aborts.append
+    )
+    coordinator.start_receiver()
+    _preflight(receiver)
+
+    # A duplicated envelope (seq 12 again) is a non-absorbable shape: the
+    # pre-fix coordinator latched permanently here.
+    duplicate = _wire(
+        envelope_seq=12, first_tick=120, first_observation_ns=990_000_000,
+    )
+    envelope = receiver.push(duplicate)
+    assert envelope.envelope_seq == 12
+    assert coordinator.faulted is False
+    assert aborts == []
+
+    # The reseeded stream continues validating from the reseed baseline.
+    follow_up = receiver.push(
+        _wire(
+            envelope_seq=13, first_tick=130, first_observation_ns=1_000_000_000,
+        )
+    )
+    assert follow_up.envelope_seq == 13
+    assert coordinator.faulted is False
+
+    # A genuinely malformed payload still latches through the fresh stream.
+    with pytest.raises(RobotCaptureCoordinatorError):
+        receiver.push(b'{"schema": "bogus"}')
+    assert coordinator.faulted is True
+
+
+def test_preflight_refusal_during_recording_still_latches(
+    tmp_path: Path,
+) -> None:
+    aborts = []
+    coordinator, receiver, _clock, _session_dir = _start(
+        tmp_path, callback=aborts.append
+    )
+
+    duplicate = _wire(
+        envelope_seq=12, first_tick=120, first_observation_ns=990_000_000,
+    )
+    with pytest.raises(RobotCaptureCoordinatorError):
+        receiver.push(duplicate)
+    assert coordinator.faulted is True
+    assert len(aborts) == 1

@@ -329,7 +329,7 @@ def test_preview_overlay_is_fail_closed_when_tracking_belongs_to_an_older_frame(
     assert future["points"] == []
 
 
-def test_async_model_preview_uses_its_exact_source_frame_not_newer_camera_frame(
+def test_preview_always_uses_live_camera_frame_never_paired_source(
     tmp_path,
 ):
     server = _load_collect_server()
@@ -396,36 +396,29 @@ def test_async_model_preview_uses_its_exact_source_frame_not_newer_camera_frame(
     try:
         assert collector._consume_model_result() is True
 
+        # Live-frame preview contract (2026-08-11): the preview always shows
+        # the newest camera frame regardless of result cadence — the paired
+        # source frame is never selected (at ~1 s/frame inference, pairing
+        # froze the doctor video and structurally tripped the Start
+        # freshness gate). Overlay honesty is enforced downstream by
+        # tracking_for_preview_frame's bounded lag + effective_tracking ages.
         selected = collector._select_preview_source(
             newer,
             collector._latest_tracking,
             model_result_updated=True,
         )
-
         assert selected is not None
-        preview_frame, preview_tracking = selected
-        assert preview_frame is source
-        assert preview_tracking["frame_index"] == source.index
-        assert preview_tracking["reason"] == "TRACKING"
-        assert [point["name"] for point in preview_tracking["points"]] == ["R1"]
-        # Fresh model result imminent: hold the preview for exact pairing.
-        Worker.health_age = 0.0
-        assert collector._select_preview_source(
-            newer,
-            collector._latest_tracking,
-            model_result_updated=False,
-        ) is None
-        # Model results stale (starved worker / latched robot fault): the
-        # camera is healthy, so the preview falls back to the live frame
-        # instead of freezing the video (2026-08-11 incident).
-        Worker.health_age = 999.0
-        fallback = collector._select_preview_source(
+        assert selected[0] is newer
+        # The retained pairing clone is released, not published.
+        assert collector._pending_model_preview is None
+
+        live = collector._select_preview_source(
             newer,
             collector._latest_tracking,
             model_result_updated=False,
         )
-        assert fallback is not None
-        assert fallback[0] is newer
+        assert live is not None
+        assert live[0] is newer
     finally:
         collector._model_worker = None
         collector.shutdown()

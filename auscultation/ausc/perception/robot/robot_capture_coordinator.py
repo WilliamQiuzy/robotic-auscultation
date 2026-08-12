@@ -251,6 +251,8 @@ class ProductionRobotCaptureCoordinator:
 
         self._lock = threading.RLock()
         self._preflight_stream = ExactControlStateStream(contract, absorb_bounded_holes=True)
+        self._preflight_reseed_count = 0
+        self._last_preflight_reseed_reason = None
         self._recent_wire: Deque[
             Tuple[RobotControlEnvelope, bytes]
         ] = deque()
@@ -585,7 +587,41 @@ class ProductionRobotCaptureCoordinator:
                     raise RobotTelemetryError(
                         "robot-state datagram must be one JSONL-safe line"
                     )
-                envelope = self._preflight_stream.ingest_datagram(payload)
+                try:
+                    envelope = self._preflight_stream.ingest_datagram(payload)
+                except Exception as preflight_exc:
+                    if self._active_capture is not None:
+                        # Recording: the strict session stream is the
+                        # authority and a preflight refusal must abort.
+                        raise
+                    # Advisory-only refusal (2026-08-11 incident, twice): the
+                    # receiver validated and forwarded this datagram but the
+                    # preflight stream refused it — a one-envelope state
+                    # divergence that permanently latched the coordinator
+                    # every few minutes of arm-up. Reseed the advisory stream
+                    # and revalidate from this very datagram; a payload the
+                    # fresh stream also refuses is genuinely malformed and
+                    # latches below. History restarts honestly: the preflight
+                    # continuity window is cleared, so bring-up/session
+                    # preflight waits for a fresh continuous run.
+                    self._preflight_stream = ExactControlStateStream(
+                        self.contract, absorb_bounded_holes=True,
+                    )
+                    self._recent_wire.clear()
+                    self._preflight_reseed_count += 1
+                    reason = f"{type(preflight_exc).__name__}: {preflight_exc}"
+                    if (
+                        reason != self._last_preflight_reseed_reason
+                        or self._preflight_reseed_count % 50 == 1
+                    ):
+                        print(
+                            "[robot] advisory preflight stream reseed "
+                            f"#{self._preflight_reseed_count} "
+                            f"(receiver kept): {reason}",
+                            flush=True,
+                        )
+                    self._last_preflight_reseed_reason = reason
+                    envelope = self._preflight_stream.ingest_datagram(payload)
                 capture = self._active_capture
                 if capture is not None:
                     captured_envelope = capture.ingest_datagram(payload)

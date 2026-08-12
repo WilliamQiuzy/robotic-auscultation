@@ -5291,40 +5291,15 @@ class Collector:
 
         if self.fake or self._model_worker is None:
             return latest_frame, current_tracking
-        if not model_result_updated:
-            result_age = self._model_worker.health().get("last_result_age_s")
-            if result_age is not None and result_age <= self.max_tracking_age_s:
-                # A fresh result-owned preview is imminent; keep exact pairing.
-                return None
-            # Model results stale or absent (warm-up, WAITING_ROBOT, latched
-            # coordinator fault): the camera is healthy, so keep the doctor
-            # video live on the latest frame. effective_tracking age-gates the
-            # points, so no stale overlay can land on a mismatched frame.
-            return latest_frame, current_tracking
-        pending, self._pending_model_preview = self._pending_model_preview, None
-        if pending is None:
-            return latest_frame, current_tracking
-        source_frame, source_tracking = pending
-        if int(source_tracking.get("frame_index", -1)) != int(source_frame.index):
-            return latest_frame, {
-                "frame_index": int(latest_frame.index),
-                "back_present": False,
-                "initialized": False,
-                "constellation_valid": False,
-                "reason": "MODEL_SOURCE_FRAME_MISMATCH",
-                "points": [],
-            }
-        source_depth_plausible = depth_back_plausible(
-            source_frame.depth, source_frame.depth_scale,
-        )
-        source_effective = effective_tracking(
-            source_tracking,
-            expected_names=self.point_names,
-            now=time.monotonic(),
-            max_age_s=self.max_tracking_age_s,
-            current_depth_plausible=source_depth_plausible,
-        )
-        return source_frame, source_effective
+        # Live-frame preview, unconditionally. On this box the full landmark
+        # step runs at ~1 s/frame (measured 2026-08-11: landmark 508 ms +
+        # gate/mask 294 ms), so result-owned pairing pins preview_age at
+        # 1-2 s — structurally tripping the 2.0 s Start freshness gate and
+        # freezing the doctor video at inference cadence. The overlay is
+        # honesty-bounded instead: tracking_for_preview_frame allows at most
+        # 90 frames of lag and effective_tracking age-gates every point.
+        self._pending_model_preview = None
+        return latest_frame, current_tracking
 
     def _loop(self):
         configuration_blockers = self._configuration_blockers()
