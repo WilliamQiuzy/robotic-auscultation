@@ -1447,6 +1447,8 @@ class Collector:
         self._last_robot_evidence_retry_reason = None
         self._last_evidence_build_ms = None
         self._last_recorded_evidence_report_t = 0.0
+        self._last_mask_build_ms = None
+        self._last_bundle_factory_ms = None
         self._camera_stale_since = None   # STALE hysteresis anchor (see camera loop)
         # Session quality flags (2026-08-11 operator policy): derivative
         # failures (model worker, tracking association, audio end-verification)
@@ -4930,10 +4932,13 @@ class Collector:
             )
         exposure = inputs.camera_exposure
         trajectory = inputs.robot_trajectory
+        _mask_t0 = time.monotonic()
         robot_mask = mask_provider.build(
             exposure=exposure,
             trajectory=trajectory,
         )
+        self._last_mask_build_ms = (time.monotonic() - _mask_t0) * 1000.0
+        _factory_t0 = time.monotonic()
         evidence = self._frame_evidence_bundle_factory(
             camera_frame=frame,
             camera_id=exposure.camera_id,
@@ -4947,6 +4952,7 @@ class Collector:
                 mask_provider, "activated_identity", None,
             ),
         )
+        self._last_bundle_factory_ms = (time.monotonic() - _factory_t0) * 1000.0
         bound_frame = getattr(evidence, "camera_frame", None)
         if (
             bound_frame is None
@@ -4984,9 +4990,11 @@ class Collector:
             self._last_recorded_evidence_report_t = _t2
             print(
                 "[record-evidence] frame %d age_at_bracket=%.0fms "
-                "bracket=%.0fms bundle=%.0fms" % (
+                "bracket=%.0fms bundle=%.0fms (mask=%.0fms factory=%.0fms)" % (
                     int(frame.index), _frame_age_ms,
                     (_t1 - _t0) * 1000.0, (_t2 - _t1) * 1000.0,
+                    self._last_mask_build_ms or -1.0,
+                    self._last_bundle_factory_ms or -1.0,
                 ),
                 flush=True,
             )
