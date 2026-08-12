@@ -590,8 +590,8 @@ class ProductionRobotCaptureCoordinator:
                 try:
                     envelope = self._preflight_stream.ingest_datagram(payload)
                 except Exception as preflight_exc:
-                    if self._active_capture is not None:
-                        # Recording: the strict session stream is the
+                    if self._camera_arm_permit is not None:
+                        # Camera armed: the strict session stream is the
                         # authority and a preflight refusal must abort.
                         raise
                     # Advisory-only refusal (2026-08-11 incident, twice): the
@@ -624,11 +624,48 @@ class ProductionRobotCaptureCoordinator:
                     envelope = self._preflight_stream.ingest_datagram(payload)
                 capture = self._active_capture
                 if capture is not None:
-                    captured_envelope = capture.ingest_datagram(payload)
-                    if captured_envelope != envelope:
-                        raise RobotCaptureError(
-                            "session capture changed the validated control envelope"
+                    try:
+                        captured_envelope = capture.ingest_datagram(payload)
+                        if captured_envelope != envelope:
+                            raise RobotCaptureError(
+                                "session capture changed the validated "
+                                "control envelope"
+                            )
+                    except Exception as capture_exc:
+                        if self._camera_arm_permit is not None:
+                            # Camera armed: recorded telemetry is strict and
+                            # a refusal is a permanent integrity fault.
+                            raise
+                        # Pre-arm strict window (2026-08-11, three latches in
+                        # one evening): Start opened the session capture, an
+                        # absorbed-hole-shaped datagram arrived while camera
+                        # arm was still pending, and the strict stream latched
+                        # the coordinator permanently even though the session
+                        # had recorded nothing and was about to be aborted.
+                        # Zero data is at stake: abort only this never-armed
+                        # session, restart advisory continuity, and keep the
+                        # coordinator + receiver alive so the operator's next
+                        # Start can succeed.
+                        try:
+                            capture.abort(
+                                "pre-arm telemetry refusal: "
+                                f"{capture_exc}"
+                            )
+                        except Exception:
+                            pass
+                        self._clear_active_session_state_locked()
+                        self._preflight_stream = ExactControlStateStream(
+                            self.contract, absorb_bounded_holes=True,
                         )
+                        self._recent_wire.clear()
+                        self._preflight_reseed_count += 1
+                        print(
+                            "[robot] pre-arm session refusal aborted the "
+                            "warming session (coordinator kept): "
+                            f"{type(capture_exc).__name__}: {capture_exc}",
+                            flush=True,
+                        )
+                        return envelope
                     if self._active_first_envelope is None:
                         self._active_first_envelope = envelope
                         self._active_first_record = envelope.records[0]
@@ -1201,6 +1238,20 @@ class ProductionRobotCaptureCoordinator:
             f"robot session End failed: {failure}"
         ) from failure
 
+    def _clear_active_session_state_locked(self) -> None:
+        self._active_capture = None
+        self._active_session_dir = None
+        self._active_first_envelope = None
+        self._active_last_envelope = None
+        self._active_first_record = None
+        self._active_last_record = None
+        self._active_envelope_count = 0
+        self._active_control_tick_count = 0
+        self._camera_arm_permit = None
+        self._pending_exposure = None
+        self._last_frame_inputs = None
+        self._last_summary = None
+
     def abort_session(self, reason: object) -> bool:
         """Close one incomplete sidecar without poisoning idle reception.
 
@@ -1225,18 +1276,7 @@ class ProductionRobotCaptureCoordinator:
             except RobotCaptureError:
                 pass
             finally:
-                self._active_capture = None
-                self._active_session_dir = None
-                self._active_first_envelope = None
-                self._active_last_envelope = None
-                self._active_first_record = None
-                self._active_last_record = None
-                self._active_envelope_count = 0
-                self._active_control_tick_count = 0
-                self._camera_arm_permit = None
-                self._pending_exposure = None
-                self._last_frame_inputs = None
-                self._last_summary = None
+                self._clear_active_session_state_locked()
             return True
 
     def __enter__(self) -> "ProductionRobotCaptureCoordinator":

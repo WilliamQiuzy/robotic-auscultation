@@ -1015,16 +1015,60 @@ def test_advisory_preflight_refusal_reseeds_stream_without_latching(
     assert coordinator.faulted is True
 
 
-def test_preflight_refusal_during_recording_still_latches(
+def test_prearm_session_refusal_aborts_session_but_keeps_coordinator(
     tmp_path: Path,
 ) -> None:
+    """2026-08-11: Start opened the strict capture, a non-absorbable datagram
+    arrived before camera arm, and the coordinator latched permanently with
+    zero recorded data at stake. Pre-arm refusals now cost only the warming
+    session."""
+
     aborts = []
-    coordinator, receiver, _clock, _session_dir = _start(
+    coordinator, receiver, clock, _session_dir = _start(
         tmp_path, callback=aborts.append
     )
 
     duplicate = _wire(
         envelope_seq=12, first_tick=120, first_observation_ns=990_000_000,
+    )
+    envelope = receiver.push(duplicate)
+    assert envelope.envelope_seq == 12
+    assert coordinator.faulted is False
+    assert aborts == []
+    # The warming session is gone; a later abort finds nothing to close.
+    assert coordinator.abort_session("cleanup") is False
+
+    # A fresh preflight run authorizes a brand-new session.
+    for envelope_seq, first_tick, timestamp_ns in (
+        (13, 130, 1_000_000_000),
+        (14, 140, 1_010_000_000),
+        (15, 150, 1_020_000_000),
+    ):
+        receiver.push(
+            _wire(
+                envelope_seq=envelope_seq,
+                first_tick=first_tick,
+                first_observation_ns=timestamp_ns,
+            )
+        )
+    clock.now_ns = 1_040_000_000
+    fresh_dir = tmp_path / "session2"
+    fresh_dir.mkdir()
+    coordinator.start_session(fresh_dir)
+    assert coordinator.recording is True
+
+
+def test_camera_armed_refusal_still_latches(
+    tmp_path: Path,
+) -> None:
+    aborts = []
+    coordinator, receiver, clock, _session_dir = _start(
+        tmp_path, callback=aborts.append
+    )
+    _warm_and_arm(coordinator, receiver, clock)
+
+    duplicate = _wire(
+        envelope_seq=16, first_tick=160, first_observation_ns=1_040_000_000,
     )
     with pytest.raises(RobotCaptureCoordinatorError):
         receiver.push(duplicate)
