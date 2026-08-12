@@ -1544,6 +1544,16 @@ class ProductionRobotMaskProvider:
         ):
             raise RobotMaskProviderError(
                 "robot trajectory does not bracket the exact exposure interval"
+                " (exposure lower/nominal/upper="
+                f"{exposure.exposure_lower_monotonic_ns}/"
+                f"{exposure.exposure_nominal_monotonic_ns}/"
+                f"{exposure.exposure_upper_monotonic_ns}"
+                f" trajectory lnu={trajectory.exposure_lower_ns}/"
+                f"{trajectory.exposure_nominal_ns}/{trajectory.exposure_upper_ns}"
+                f" records={len(trajectory.records)}"
+                f" before={trajectory.before.monotonic_ns}"
+                f" after={trajectory.after.monotonic_ns}"
+                f" max_gap_ns={trajectory.max_gap_ns})"
             )
         previous = None
         publisher_identity = trajectory.publisher_identity
