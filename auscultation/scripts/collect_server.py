@@ -1446,6 +1446,7 @@ class Collector:
         self._model_inference_grace_s = 3.0
         self._last_robot_evidence_retry_reason = None
         self._last_evidence_build_ms = None
+        self._last_recorded_evidence_report_t = 0.0
         self._camera_stale_since = None   # STALE hysteresis anchor (see camera loop)
         # Session quality flags (2026-08-11 operator policy): derivative
         # failures (model worker, tracking association, audio end-verification)
@@ -4969,12 +4970,26 @@ class Collector:
             raise RuntimeError(
                 "camera frame has no device timestamp for robot synchronization"
             )
+        _t0 = time.monotonic()
+        _frame_age_ms = (_t0 - float(frame.t)) * 1000.0
         inputs = coordinator.build_frame_evidence_inputs(
             frame_index=int(frame.index),
             camera_host_t_s=float(frame.t),
             camera_device_t_ms=float(device_t_ms),
         )
+        _t1 = time.monotonic()
         evidence = self._build_robot_bundle_from_inputs(frame, inputs)
+        _t2 = time.monotonic()
+        if _t2 - self._last_recorded_evidence_report_t >= 1.0:
+            self._last_recorded_evidence_report_t = _t2
+            print(
+                "[record-evidence] frame %d age_at_bracket=%.0fms "
+                "bracket=%.0fms bundle=%.0fms" % (
+                    int(frame.index), _frame_age_ms,
+                    (_t1 - _t0) * 1000.0, (_t2 - _t1) * 1000.0,
+                ),
+                flush=True,
+            )
         return evidence, dict(inputs.persisted_index)
 
     def _model_input_for_frame(self, frame):
