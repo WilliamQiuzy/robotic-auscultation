@@ -998,3 +998,59 @@ def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
         any_roi = holder._paint_dilated_hull(mask_roi, raw_hull, radius)
         assert np.array_equal(mask_ref, mask_roi), f"case {case} mask differs"
         assert any_ref == any_roi, f"case {case} any differs"
+
+
+def test_bucketed_deferred_dilation_is_byte_identical_to_sequential():
+    """Dilation distributes over union: accumulating same-radius fills and
+    dilating once must equal per-component dilation byte-for-byte, across
+    random multi-hull scenes with mixed radii and edge-crossing hulls."""
+
+    import cv2
+
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+    )
+
+    class _Holder:
+        _dilation_kernels: dict = {}
+        _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
+        _flush_deferred_dilations = (
+            ProductionRobotMaskProvider._flush_deferred_dilations
+        )
+
+    rng = np.random.default_rng(20260813)
+    height, width = 108, 192
+    holder = _Holder()
+    for case in range(120):
+        ops = []
+        for _ in range(int(rng.integers(2, 10))):
+            count = int(rng.integers(1, 10))
+            scale = rng.choice([0.4, 1.0, 2.0])
+            offset = rng.uniform(-60, 60, size=2)
+            points = (
+                rng.uniform(0, 1, size=(count, 2)) * [width, height] * scale
+                + offset
+            )
+            hull = cv2.convexHull(
+                np.rint(points).astype(np.int32).reshape((-1, 1, 2))
+            ).reshape((-1, 2))
+            radius = int(rng.choice([0, 2, 2, 7, 7, 15]))
+            ops.append((hull, radius))
+
+        mask_seq = np.zeros((height, width), dtype=np.bool_)
+        any_seq = [
+            holder._paint_dilated_hull(mask_seq, hull, radius)
+            for hull, radius in ops
+        ]
+
+        mask_bkt = np.zeros((height, width), dtype=np.bool_)
+        deferred: dict = {}
+        any_bkt = [
+            holder._paint_dilated_hull(mask_bkt, hull, radius, deferred)
+            for hull, radius in ops
+        ]
+        holder._flush_deferred_dilations(mask_bkt, deferred)
+
+        assert np.array_equal(mask_seq, mask_bkt), f"case {case} mask differs"
+        assert any_seq == any_bkt, f"case {case} any-flags differ"

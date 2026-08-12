@@ -1938,6 +1938,7 @@ class ProductionRobotMaskProvider:
         joint_axes: Tuple[np.ndarray, ...],
         joint_velocity: np.ndarray,
         component_error_m: float,
+        deferred: Optional[dict] = None,
     ) -> bool:
         vertices_camera = self._transform_vertices(
             self.handeye.transform_camera_from_follower_base,
@@ -2020,13 +2021,14 @@ class ProductionRobotMaskProvider:
             raise RobotMaskProviderError(
                 "robot/tool projected convex hull is empty"
             )
-        return self._paint_dilated_hull(mask, hull, radius_px)
+        return self._paint_dilated_hull(mask, hull, radius_px, deferred)
 
     def _paint_dilated_hull(
         self,
         mask: np.ndarray,
         hull: np.ndarray,
         radius_px: int,
+        deferred: Optional[dict] = None,
     ) -> bool:
         # ROI-cropped rasterization + dilation (2026-08-12): dilating a
         # full 1920x1080 frame with elliptical kernels of radius 25-55 px
@@ -2076,6 +2078,31 @@ class ProductionRobotMaskProvider:
                 1,
                 -1,
             )
+        component_any = bool(np.any(roi))
+        if pad > 0 and deferred is not None:
+            # Radius-bucketed deferral (2026-08-12, owner-authorized): binary
+            # dilation distributes over union for the same structuring
+            # element, so every fill sharing an integer radius is accumulated
+            # and dilated ONCE at flush time — byte-identical to dilating each
+            # component separately (multi-op property test) at a fraction of
+            # the dilate cost.
+            if not component_any:
+                return False
+            bucket = deferred.get(pad)
+            if bucket is None:
+                bucket = {
+                    "acc": np.zeros((height, width), dtype=np.uint8),
+                    "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                }
+                deferred[pad] = bucket
+            else:
+                bucket["x0"] = min(bucket["x0"], x0)
+                bucket["y0"] = min(bucket["y0"], y0)
+                bucket["x1"] = max(bucket["x1"], x1)
+                bucket["y1"] = max(bucket["y1"], y1)
+            acc_window = bucket["acc"][y0:y1, x0:x1]
+            np.bitwise_or(acc_window, roi, out=acc_window)
+            return True
         if pad > 0:
             roi = cv2.copyMakeBorder(
                 roi, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
@@ -2098,6 +2125,32 @@ class ProductionRobotMaskProvider:
         np.logical_or(window, src, out=window)
         return component_any
 
+    def _flush_deferred_dilations(
+        self, mask: np.ndarray, deferred: dict,
+    ) -> None:
+        height, width = mask.shape
+        for radius_px, bucket in sorted(deferred.items()):
+            x0, y0 = bucket["x0"], bucket["y0"]
+            x1, y1 = bucket["x1"], bucket["y1"]
+            pad = int(radius_px)
+            roi = cv2.copyMakeBorder(
+                bucket["acc"][y0:y1, x0:x1],
+                pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
+            )
+            roi = cv2.dilate(
+                roi, self._dilation_kernel(radius_px), iterations=1,
+            )
+            dx0 = max(x0 - pad, 0)
+            dy0 = max(y0 - pad, 0)
+            dx1 = min(x1 + pad, width)
+            dy1 = min(y1 + pad, height)
+            src = roi[
+                dy0 - (y0 - pad):dy1 - (y0 - pad),
+                dx0 - (x0 - pad):dx1 - (x0 - pad),
+            ]
+            window = mask[dy0:dy1, dx0:dx1]
+            np.logical_or(window, src, out=window)
+
     def _build(
         self,
         *,
@@ -2110,6 +2163,7 @@ class ProductionRobotMaskProvider:
             (self.projection.height, self.projection.width), dtype=np.bool_
         )
         any_geometric_pixels = False
+        deferred_dilations: dict = {}
         sample_times = {
             trajectory.exposure_lower_ns,
             trajectory.exposure_nominal_ns,
@@ -2153,6 +2207,7 @@ class ProductionRobotMaskProvider:
                     component_error_m=(
                         self.uncertainty_profile.link_geometry_error_m
                     ),
+                    deferred=deferred_dilations,
                 )
             tool_transform = (
                 transforms[self.tool.parent_link_index]
@@ -2173,7 +2228,9 @@ class ProductionRobotMaskProvider:
                 component_error_m=(
                     self.uncertainty_profile.tool_geometry_error_m
                 ),
+                deferred=deferred_dilations,
             )
+        self._flush_deferred_dilations(mask, deferred_dilations)
 
         learned_pixels = False
         if learned_mask is not None:
