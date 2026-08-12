@@ -5004,10 +5004,12 @@ class Collector:
         _t1 = time.monotonic()
         evidence = self._build_robot_bundle_from_inputs(frame, inputs)
         _t2 = time.monotonic()
-        if _t2 - self._last_recorded_evidence_report_t >= 1.0:
+        _spike = _frame_age_ms > 80.0 or (_t2 - _t0) * 1000.0 > 80.0
+        if _spike or _t2 - self._last_recorded_evidence_report_t >= 1.0:
             self._last_recorded_evidence_report_t = _t2
             print(
-                "[record-evidence] frame %d age_at_bracket=%.0fms "
+                ("[record-evidence-SPIKE]" if _spike else "[record-evidence]")
+                + " frame %d age_at_bracket=%.0fms "
                 "bracket=%.0fms bundle=%.0fms (mask=%.0fms factory=%.0fms)" % (
                     int(frame.index), _frame_age_ms,
                     (_t1 - _t0) * 1000.0, (_t2 - _t1) * 1000.0,
