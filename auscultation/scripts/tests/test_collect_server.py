@@ -8600,3 +8600,34 @@ def test_abort_with_boundary_closed_closes_the_ingress_interval(tmp_path):
         collector._ingress_worker.close_interval()
     finally:
         collector.shutdown()
+
+
+def test_update_provenance_preserves_force_and_audio_sections(tmp_path):
+    """2026-08-13 incident: the camera/model/runtime rebuild dropped the
+    startup force/audio sections, so the first advisory force failure at End
+    KeyError'd and stranded a 14-minute session in RECORDING."""
+
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    try:
+        collector._provenance["force"] = {"advisory": True, "available": True}
+        collector._provenance["audio"] = {"single_owner": True}
+        collector._update_provenance()
+        assert collector._provenance["force"] == {
+            "advisory": True, "available": True,
+        }
+        assert collector._provenance["audio"] == {"single_owner": True}
+        assert "camera" in collector._provenance
+
+        # And the preserve path survives a provenance missing "force".
+        collector._provenance.pop("force", None)
+        event = collector._preserve_advisory_force_failure(
+            "end_or_bind", RuntimeError("hall serial flap"),
+        )
+        assert event["reason"].endswith("hall serial flap")
+        assert collector._provenance["force"]["last_capture_status"] == "DEGRADED"
+    finally:
+        collector.shutdown()

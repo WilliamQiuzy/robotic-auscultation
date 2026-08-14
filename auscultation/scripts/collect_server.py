@@ -3174,7 +3174,7 @@ class Collector:
                             f"{name}: {type(exc).__name__}: {exc}"
                         )
         self._force_advisory_events.append(event)
-        self._provenance["force"].update({
+        self._provenance.setdefault("force", {}).update({
             "advisory": True,
             "last_capture_status": "DEGRADED",
             "last_capture_error": event["reason"],
@@ -4246,7 +4246,19 @@ class Collector:
                             f"{type(exc).__name__}: {exc}"
                         )
                         self._force_last_summary = None
-                        self._preserve_advisory_force_failure("end_or_bind", exc)
+                        try:
+                            self._preserve_advisory_force_failure(
+                                "end_or_bind", exc,
+                            )
+                        except Exception as preserve_exc:  # noqa: BLE001
+                            # Advisory bookkeeping must NEVER kill End (the
+                            # 2026-08-13 KeyError did exactly that).
+                            print(
+                                "[force] advisory failure preservation "
+                                f"failed (End continues): "
+                                f"{type(preserve_exc).__name__}: {preserve_exc}",
+                                flush=True,
+                            )
                         end_boundary.pop("force", None)
                         end_boundary.pop("force_sync", None)
                         end_boundary["force_advisory"] = copy.deepcopy(
@@ -4829,7 +4841,19 @@ class Collector:
             raise RuntimeError(
                 f"Orbbec serial mismatch: requested {self.camera_id!r}, got {actual_camera_id!r}"
             )
+        # Rebuild ONLY the camera/model/runtime sections; every other section
+        # (force, audio, ...) created at startup or by channel owners must
+        # survive. 2026-08-13: the full-dict rebuild silently dropped the
+        # "force" section, so the FIRST advisory force failure at End
+        # KeyError'd inside _preserve_advisory_force_failure and killed the
+        # End handler thread, stranding a 14-minute session in RECORDING.
+        preserved_sections = {
+            key: value
+            for key, value in getattr(self, "_provenance", {}).items()
+            if key not in ("camera", "model", "runtime")
+        }
         self._provenance = {
+            **preserved_sections,
             "camera": {
                 "backend": self.camera_backend,
                 "camera_id": actual_camera_id or self.camera_id or "synthetic",
