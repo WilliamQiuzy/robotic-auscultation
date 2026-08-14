@@ -444,6 +444,11 @@ _BACK_MASK_ARTIFACT = "back_mask"
 _BACK_MASK_SCHEMA = "wam_posterior_back_mask_activation_v1"
 _BOX_FIELD = "maximum_box_pixels"
 _FRAME_FIELD = "maximum_frame_pixels"
+_IDENTITY_ARTIFACT = "occlusion_identity"
+_IDENTITY_SCHEMAS = (
+    "wam_activated_occlusion_identity_v2",
+    "wam_activated_occlusion_identity_v1",
+)
 
 
 def amend_back_mask_box_budget(
@@ -555,11 +560,27 @@ def amend_back_mask_box_budget(
         for name in sorted(artifacts)
     ]
 
-    # --- Amend exactly ONE field inside the back_mask payload --------------- #
+    # --- Amend the back_mask budget AND the occlusion_identity cross-pin ---- #
+    # The loader re-derives the back_mask config's content-addressed identity
+    # (semantic sha + release id) and asserts the occlusion_identity artifact
+    # records the same values, so both artifacts must move together — the
+    # first deployment of this amendment changed only back_mask and the
+    # collector refused to start ('activated occlusion identity mismatches
+    # back_mask_release_id', 2026-08-14). Identities are derived through the
+    # REAL provider config class, never re-implemented here.
+    from .tracking.posterior_back_mask_provider import PosteriorBackMaskConfig
+
     amended_plans = []
     source_back_mask_payload = None
     amended_back_mask_payload = None
+    old_config_identity = None
+    new_config_identity = None
+    identity_plan_index = None
     for plan in plans:
+        if plan.name == _IDENTITY_ARTIFACT:
+            identity_plan_index = len(amended_plans)
+            amended_plans.append(plan)
+            continue
         if plan.name != _BACK_MASK_ARTIFACT:
             amended_plans.append(plan)
             continue
@@ -597,6 +618,13 @@ def amend_back_mask_box_budget(
             )
         new_config = dict(config)
         new_config[_BOX_FIELD] = amended_px
+        try:
+            old_config_identity = PosteriorBackMaskConfig.create(**config)
+            new_config_identity = PosteriorBackMaskConfig.create(**new_config)
+        except Exception as exc:
+            raise ActivationBoundsAmendmentError(
+                f"back_mask config does not build through the real provider: {exc}"
+            ) from exc
         new_payload = {"config": new_config, "schema": _BACK_MASK_SCHEMA}
         new_payload_bytes = canonical_json_bytes(new_payload)
         new_payload_sha = _sha256(new_payload_bytes)
@@ -620,6 +648,60 @@ def amend_back_mask_box_budget(
         raise ActivationBoundsAmendmentError(
             "back_mask artifact is missing from the activation"
         )
+    if identity_plan_index is None:
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity artifact is missing from the activation"
+        )
+
+    identity_plan = amended_plans[identity_plan_index]
+    if identity_plan.action != "relocate":
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity artifact must be a relocated in-release payload"
+        )
+    identity_payload = _strict_json_loads(
+        identity_plan.payload_bytes, label="occlusion_identity payload"
+    )
+    if (
+        not isinstance(identity_payload, dict)
+        or identity_payload.get("schema") not in _IDENTITY_SCHEMAS
+    ):
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity payload schema is unsupported"
+        )
+    if (
+        identity_payload.get("back_mask_release_id")
+        != old_config_identity.release_id
+        or identity_payload.get("back_mask_sha256")
+        != old_config_identity.semantic_sha256
+    ):
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity does not record the source back_mask identity"
+        )
+    new_identity_payload = dict(identity_payload)
+    new_identity_payload["back_mask_release_id"] = (
+        new_config_identity.release_id
+    )
+    new_identity_payload["back_mask_sha256"] = (
+        new_config_identity.semantic_sha256
+    )
+    new_identity_bytes = canonical_json_bytes(new_identity_payload)
+    new_identity_sha = _sha256(new_identity_bytes)
+    new_identity_marker = canonical_json_bytes({
+        "artifact_sha256": new_identity_sha,
+        "schema": ARTIFACT_COMPLETION_SCHEMA,
+        "status": "COMPLETE",
+    })
+    new_identity_entry = dict(identity_plan.entry)
+    new_identity_entry["sha256"] = new_identity_sha
+    new_identity_entry["complete_sha256"] = _sha256(new_identity_marker)
+    amended_plans[identity_plan_index] = dataclasses.replace(
+        identity_plan,
+        entry=new_identity_entry,
+        payload_bytes=new_identity_bytes,
+        marker_bytes=new_identity_marker,
+    )
+    source_identity_payload = identity_payload
+    amended_identity_payload = new_identity_payload
     plans = amended_plans
 
     pair_entry = manifest["openarm_pair"]
@@ -654,6 +736,8 @@ def amend_back_mask_box_budget(
         plans,
         source_back_mask_payload,
         amended_back_mask_payload,
+        source_identity_payload,
+        amended_identity_payload,
     )
 
     inventory = {
@@ -676,6 +760,16 @@ def amend_back_mask_box_budget(
         ),
         "previous_value_px": expected_previous_px,
         "amended_value_px": amended_px,
+        "cross_pin_updates": {
+            "artifacts.occlusion_identity.back_mask_release_id": {
+                "previous": old_config_identity.release_id,
+                "amended": new_config_identity.release_id,
+            },
+            "artifacts.occlusion_identity.back_mask_sha256": {
+                "previous": old_config_identity.semantic_sha256,
+                "amended": new_config_identity.semantic_sha256,
+            },
+        },
         "amendment_reason": amendment_reason,
         "amender_code_sha256": amender_code_sha256,
         "amender_code_release": amender_code_release,
@@ -721,8 +815,10 @@ def _assert_box_amended_equivalence(
     plans,
     source_payload: Mapping,
     new_payload: Mapping,
+    source_identity: Mapping,
+    new_identity: Mapping,
 ) -> None:
-    """Everything except the single amended budget must be semantically equal."""
+    """Everything except the amended budget and its cross-pin must be equal."""
 
     for key in _MANIFEST_KEYS - {"artifacts", "openarm_pair"}:
         if source[key] != new[key]:
@@ -731,10 +827,10 @@ def _assert_box_amended_equivalence(
             )
     for p in plans:
         s, n = source["artifacts"][p.name], new["artifacts"][p.name]
-        if p.name == _BACK_MASK_ARTIFACT:
+        if p.name in (_BACK_MASK_ARTIFACT, _IDENTITY_ARTIFACT):
             if s["sha256"] == n["sha256"]:
                 raise ActivationBoundsAmendmentError(
-                    "back_mask payload SHA did not change"
+                    f"{p.name} payload SHA did not change"
                 )
             continue
         if s["sha256"] != n["sha256"]:
@@ -756,6 +852,17 @@ def _assert_box_amended_equivalence(
     if source_config != new_config:
         raise ActivationBoundsAmendmentError(
             "back_mask config changed beyond the amended budget"
+        )
+    src_ident = dict(source_identity)
+    new_ident = dict(new_identity)
+    for field in ("back_mask_release_id", "back_mask_sha256"):
+        if src_ident.pop(field) == new_ident.pop(field):
+            raise ActivationBoundsAmendmentError(
+                f"occlusion_identity {field} did not change"
+            )
+    if src_ident != new_ident:
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity changed beyond the back_mask cross-pin"
         )
 
 

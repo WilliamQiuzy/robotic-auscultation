@@ -225,23 +225,43 @@ def _hash(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def _derived_config_identity(config):
+    from ausc.perception.tracking.posterior_back_mask_provider import (
+        PosteriorBackMaskConfig,
+    )
+
+    return PosteriorBackMaskConfig.create(**config)
+
+
 def _build_box_source(tmp_path):
-    """The refinalizer fixture with a REAL-shaped back_mask payload."""
+    """The refinalizer fixture with REAL-shaped back_mask and
+    occlusion_identity payloads whose cross-pin matches the derived config
+    identity (the loader asserts this equality at activation time)."""
     src = _build_source(tmp_path)
-    payload_bytes = canonical_json_bytes(_REAL_BACK_MASK_PAYLOAD)
-    ppath = src / "artifacts" / "back_mask.json"
-    ppath.write_bytes(payload_bytes)
-    marker = {
-        "artifact_sha256": _hash(payload_bytes),
-        "schema": "wam_production_runtime_artifact_completion_v1",
-        "status": "COMPLETE",
+    derived = _derived_config_identity(_REAL_BACK_MASK_PAYLOAD["config"])
+    replacements = {
+        "back_mask": _REAL_BACK_MASK_PAYLOAD,
+        "occlusion_identity": {
+            "schema": "wam_activated_occlusion_identity_v2",
+            "camera_id": "CL-TEST",
+            "back_mask_release_id": derived.release_id,
+            "back_mask_sha256": derived.semantic_sha256,
+            "other_pin": "untouched-value",
+        },
     }
-    marker_bytes = canonical_json_bytes(marker)
-    (src / "markers" / "back_mask.COMPLETE").write_bytes(marker_bytes)
     manifest = json.loads((src / "activation.json").read_text())
-    entry = manifest["artifacts"]["back_mask"]
-    entry["sha256"] = _hash(payload_bytes)
-    entry["complete_sha256"] = _hash(marker_bytes)
+    for name, payload in replacements.items():
+        payload_bytes = canonical_json_bytes(payload)
+        (src / "artifacts" / f"{name}.json").write_bytes(payload_bytes)
+        marker_bytes = canonical_json_bytes({
+            "artifact_sha256": _hash(payload_bytes),
+            "schema": "wam_production_runtime_artifact_completion_v1",
+            "status": "COMPLETE",
+        })
+        (src / "markers" / f"{name}.COMPLETE").write_bytes(marker_bytes)
+        entry = manifest["artifacts"][name]
+        entry["sha256"] = _hash(payload_bytes)
+        entry["complete_sha256"] = _hash(marker_bytes)
     manifest_bytes = canonical_json_bytes(manifest)
     (src / "activation.json").write_bytes(manifest_bytes)
     (src / "COMPLETE").write_bytes(canonical_json_bytes({
@@ -304,7 +324,7 @@ def test_box_amendment_other_artifacts_verbatim(tmp_path):
     dest = _amend_box(src, tmp_path / "releases")
     src_manifest = json.loads((src / "activation.json").read_text())
     for name, src_entry in src_manifest["artifacts"].items():
-        if name in ("back_mask", "handeye"):
+        if name in ("back_mask", "handeye", "occlusion_identity"):
             continue
         assert (dest / "artifacts" / f"{name}.json").read_bytes() == Path(
             src_entry["path"]).read_bytes()
@@ -359,3 +379,60 @@ def test_box_amendment_source_never_mutated(tmp_path):
         for p in sorted(src.rglob("*")) if p.is_file()
     }
     assert before == after
+
+
+def test_box_amendment_rewrites_the_occlusion_identity_cross_pin(tmp_path):
+    """The loader re-derives the back_mask identity from config content and
+    asserts occlusion_identity records it; the amendment must move both
+    (first deployment without this refused to start: 'activated occlusion
+    identity mismatches back_mask_release_id')."""
+    src = _build_box_source(tmp_path)
+    dest = _amend_box(src, tmp_path / "releases")
+    identity = json.loads(
+        (dest / "artifacts" / "occlusion_identity.json").read_text()
+    )
+    new_payload = json.loads(
+        (dest / "artifacts" / "back_mask.json").read_text()
+    )
+    derived = _derived_config_identity(new_payload["config"])
+    assert identity["back_mask_release_id"] == derived.release_id
+    assert identity["back_mask_sha256"] == derived.semantic_sha256
+    assert identity["other_pin"] == "untouched-value"
+    manifest = json.loads((dest / "activation.json").read_text())
+    entry = manifest["artifacts"]["occlusion_identity"]
+    ident_bytes = (dest / "artifacts" / "occlusion_identity.json").read_bytes()
+    assert entry["sha256"] == _hash(ident_bytes)
+    prov = json.loads((dest / BOX_AMENDMENT_PROVENANCE_FILE).read_text())
+    pins = prov["cross_pin_updates"]
+    assert pins["artifacts.occlusion_identity.back_mask_release_id"][
+        "amended"] == derived.release_id
+
+
+def test_box_amendment_refuses_a_stale_identity_cross_pin(tmp_path):
+    """If occlusion_identity does not record the SOURCE config's derived
+    identity, the package is already inconsistent — refuse, never guess."""
+    src = _build_box_source(tmp_path)
+    ident_path = src / "artifacts" / "occlusion_identity.json"
+    payload = json.loads(ident_path.read_text())
+    payload["back_mask_release_id"] = "back_mask-" + "0" * 20
+    payload_bytes = canonical_json_bytes(payload)
+    ident_path.write_bytes(payload_bytes)
+    marker_bytes = canonical_json_bytes({
+        "artifact_sha256": _hash(payload_bytes),
+        "schema": "wam_production_runtime_artifact_completion_v1",
+        "status": "COMPLETE",
+    })
+    (src / "markers" / "occlusion_identity.COMPLETE").write_bytes(marker_bytes)
+    manifest = json.loads((src / "activation.json").read_text())
+    entry = manifest["artifacts"]["occlusion_identity"]
+    entry["sha256"] = _hash(payload_bytes)
+    entry["complete_sha256"] = _hash(marker_bytes)
+    manifest_bytes = canonical_json_bytes(manifest)
+    (src / "activation.json").write_bytes(manifest_bytes)
+    (src / "COMPLETE").write_bytes(canonical_json_bytes({
+        "activation_sha256": _hash(manifest_bytes),
+        "schema": "wam_production_runtime_activation_completion_v1",
+        "status": "COMPLETE",
+    }))
+    with pytest.raises(Exception, match="source back_mask identity"):
+        _amend_box(src, tmp_path / "releases")
