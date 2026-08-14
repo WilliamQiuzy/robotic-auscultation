@@ -663,7 +663,13 @@ def test_geometry_behind_or_straddling_the_near_plane_is_clipped_not_rejected():
     assert packet is not None
 
 
-def test_raw_uncertainty_intersection_uses_full_mask_without_giant_kernel():
+def test_offscreen_geometry_paints_local_reach_not_full_mask():
+    """2026-08-14: the nominal-outside full-mask fallback is GONE. Off-frame
+    geometry whose uncertainty disc reaches the frame paints its honest local
+    reach (extended-coordinate rasterization); it must produce a non-empty,
+    non-full mask instead of blinding the whole frame — the crude fallback
+    fired on every real frame (arm's lower links are always off-camera) and
+    zeroed points across three sealed sessions."""
     geometry = _geometry()
     tool = _tool()
     handeye = _handeye(x=0.5, covariance_scale=1e-5)
@@ -692,9 +698,9 @@ def test_raw_uncertainty_intersection_uses_full_mask_without_giant_kernel():
         trajectory=_trajectory(),
     )
 
-    assert packet.masked_pixel_count == projection.width * projection.height
-    assert packet.mask.all()
     assert packet.reason == "interval_swept_openarm_robot_tool_mask"
+    assert 0 < packet.masked_pixel_count
+    assert packet.masked_pixel_count == int(np.count_nonzero(packet.mask))
 
 
 @pytest.mark.parametrize(
@@ -936,9 +942,12 @@ def test_point_sigma_batched_error_parity_with_reference():
 
 
 def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
-    """The ROI-cropped paint+dilate must reproduce the original full-frame
-    algorithm byte-for-byte, including hulls crossing or fully outside the
-    frame and degenerate 1-2 point hulls."""
+    """The banded paint+dilate must reproduce the EXTENDED reference
+    byte-for-byte: fill the hull in unclipped coordinates, dilate, then crop
+    to the frame. Off-frame fill within dilation reach therefore contributes
+    (2026-08-14 semantics — the crude nominal-outside full-mask fallback this
+    replaces blinded perception), including hulls crossing or fully outside
+    the frame and degenerate 1-2 point hulls."""
 
     import cv2
 
@@ -950,29 +959,52 @@ def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
         _dilation_kernels: dict = {}
         _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
         _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
+        _paint_pyramid_dilated = (
+            ProductionRobotMaskProvider._paint_pyramid_dilated
+        )
+        _pyramid_factor = staticmethod(
+            ProductionRobotMaskProvider._pyramid_factor
+        )
 
     def reference(mask, hull, radius_px):
-        component = np.zeros_like(mask, dtype=np.uint8)
+        height, width = mask.shape
+        margin = max(int(radius_px), 0) + 1
+        # Enlarge the reference canvas to hold the WHOLE hull so the
+        # reference itself never clips fill: this is the true
+        # infinite-plane fill-dilate-crop semantics.
+        margin_x = margin + max(
+            0, -int(hull[:, 0].min()), int(hull[:, 0].max()) + 1 - width,
+        )
+        margin_y = margin + max(
+            0, -int(hull[:, 1].min()), int(hull[:, 1].max()) + 1 - height,
+        )
+        canvas = np.zeros(
+            (height + 2 * margin_y, width + 2 * margin_x), dtype=np.uint8
+        )
+        shifted = hull + [margin_x, margin_y]
         if len(hull) >= 3:
-            cv2.fillConvexPoly(component, hull.astype(np.int32), 1)
+            cv2.fillConvexPoly(canvas, shifted.astype(np.int32), 1)
         elif len(hull) == 2:
             cv2.line(
-                component,
-                tuple(int(v) for v in hull[0]),
-                tuple(int(v) for v in hull[1]),
+                canvas,
+                tuple(int(v) for v in shifted[0]),
+                tuple(int(v) for v in shifted[1]),
                 1,
                 1,
             )
         else:
             cv2.circle(
-                component, tuple(int(v) for v in hull[0]), 0, 1, -1,
+                canvas, tuple(int(v) for v in shifted[0]), 0, 1, -1,
             )
         if radius_px > 0:
             kernel = cv2.getStructuringElement(
                 cv2.MORPH_ELLIPSE,
                 (2 * radius_px + 1, 2 * radius_px + 1),
             )
-            component = cv2.dilate(component, kernel, iterations=1)
+            canvas = cv2.dilate(canvas, kernel, iterations=1)
+        component = canvas[
+            margin_y:margin_y + height, margin_x:margin_x + width,
+        ]
         mask |= component.astype(np.bool_)
         return bool(np.any(component))
 
@@ -1198,3 +1230,88 @@ def test_pyramid_factor_bounds_coarse_kernel_radius():
     assert factor(65) == _PYRAMID_DILATION_FACTOR
     assert factor(256) == _PYRAMID_DILATION_FACTOR
     assert factor(2048) == 32
+
+
+def test_pathological_giant_hull_cut_path_is_conservative_superset():
+    """Hulls whose bbox exceeds the extended-canvas budget (near-plane
+    perspective blow-ups) take the cut-and-inflate path: the painted frame
+    window must contain every pixel of the true infinite-plane reference
+    (loss would blind perception; bounded overshoot is the accepted cost)."""
+
+    import cv2
+
+    from ausc.perception.robot.robot_mask_provider import (
+        _EXTENDED_CANVAS_AREA_FACTOR,
+        ProductionRobotMaskProvider,
+    )
+
+    class _Holder:
+        _dilation_kernels: dict = {}
+        _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
+        _paint_pyramid_dilated = (
+            ProductionRobotMaskProvider._paint_pyramid_dilated
+        )
+        _pyramid_factor = staticmethod(
+            ProductionRobotMaskProvider._pyramid_factor
+        )
+
+    def reference(mask, hull, radius_px):
+        height, width = mask.shape
+        margin = max(int(radius_px), 0) + 1
+        margin_x = margin + max(
+            0, -int(hull[:, 0].min()), int(hull[:, 0].max()) + 1 - width,
+        )
+        margin_y = margin + max(
+            0, -int(hull[:, 1].min()), int(hull[:, 1].max()) + 1 - height,
+        )
+        canvas = np.zeros(
+            (height + 2 * margin_y, width + 2 * margin_x), dtype=np.uint8
+        )
+        cv2.fillConvexPoly(
+            canvas, (hull + [margin_x, margin_y]).astype(np.int32), 1,
+        )
+        if radius_px > 0:
+            kernel = cv2.getStructuringElement(
+                cv2.MORPH_ELLIPSE,
+                (2 * radius_px + 1, 2 * radius_px + 1),
+            )
+            canvas = cv2.dilate(canvas, kernel, iterations=1)
+        component = canvas[
+            margin_y:margin_y + height, margin_x:margin_x + width,
+        ]
+        mask |= component.astype(np.bool_)
+
+    rng = np.random.default_rng(20260815)
+    height, width = 108, 192
+    budget = _EXTENDED_CANVAS_AREA_FACTOR * height * width
+    holder = _Holder()
+    tested = 0
+    for case in range(40):
+        # Giant triangle: two far vertices force a bbox beyond the budget,
+        # one near vertex keeps fill within reach of the frame.
+        far = rng.uniform(2000, 3000, size=(2, 2)) * rng.choice(
+            [-1.0, 1.0], size=(2, 2)
+        )
+        near = rng.uniform(-40, 40, size=(1, 2)) + [width / 2, height / 2]
+        pts = np.vstack([far, near])
+        hull = cv2.convexHull(
+            np.rint(pts).astype(np.int32).reshape((-1, 1, 2))
+        ).reshape((-1, 2))
+        bbox_area = (
+            (int(hull[:, 0].max()) + 1 - int(hull[:, 0].min()))
+            * (int(hull[:, 1].max()) + 1 - int(hull[:, 1].min()))
+        )
+        if bbox_area <= budget:
+            continue
+        tested += 1
+        radius = int(rng.choice([5, 30, 90]))
+        mask_ref = np.zeros((height, width), dtype=np.bool_)
+        mask_cut = np.zeros((height, width), dtype=np.bool_)
+        reference(mask_ref, hull, radius)
+        holder._paint_dilated_hull(mask_cut, hull, radius)
+        missing = mask_ref & ~mask_cut
+        assert not missing.any(), (
+            f"case {case}: cut path misses {int(missing.sum())} px"
+        )
+    assert tested >= 20, f"only {tested} giant-bbox cases exercised"

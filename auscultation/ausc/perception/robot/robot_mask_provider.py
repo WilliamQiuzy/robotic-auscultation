@@ -70,6 +70,7 @@ _MAX_DILATION_KERNEL_RADIUS_PX = 256
 _PYRAMID_DILATION_MIN_RADIUS_PX = 64
 _PYRAMID_DILATION_FACTOR = 4
 _PYRAMID_COARSE_RADIUS_TARGET = 64
+_EXTENDED_CANVAS_AREA_FACTOR = 16
 _FULL_MASK_COST_HATCH_RADIUS_PX = 2048
 _PROVISIONAL_HAND_EYE_RUN_RE = re.compile(
     r"^handeye_left_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}$"
@@ -2029,16 +2030,18 @@ class ProductionRobotMaskProvider:
         ):
             return False
 
-        nominal_outside = (
-            float(np.max(u)) < 0.0
-            or float(np.min(u)) >= mask.shape[1]
-            or float(np.max(v)) < 0.0
-            or float(np.min(v)) >= mask.shape[0]
-        )
-        if (
-            nominal_outside
-            or raw_radius_px > _FULL_MASK_COST_HATCH_RADIUS_PX
-        ):
+        # 2026-08-14 (third sealed forensics): the former nominal-outside
+        # full-mask branch fired on EVERY frame — the arm's lower links are
+        # always outside the camera view while their uncertainty discs touch
+        # it, so the mask was the full frame regardless of both hatch
+        # revisions and perception stayed blind (constant all-True mask sha
+        # across sessions). The painter now rasterizes in extended hull
+        # coordinates (off-frame fill exists before dilation, only the
+        # frame-intersecting window is written back), which is exactly
+        # conservative for off-frame geometry, so no full-mask fallback is
+        # needed for it. Only a radius so large the dilated disc spans the
+        # frame anyway still short-circuits to the honest full mask.
+        if raw_radius_px > _FULL_MASK_COST_HATCH_RADIUS_PX:
             mask[:] = True
             return True
 
@@ -2070,22 +2073,41 @@ class ProductionRobotMaskProvider:
         # radius (zeros contribute nothing to dilation), dilate the small
         # buffer, and OR the frame-clipped window back into the mask.
         height, width = mask.shape
-        x0 = max(int(hull[:, 0].min()), 0)
-        y0 = max(int(hull[:, 1].min()), 0)
-        x1 = min(int(hull[:, 0].max()) + 1, width)
-        y1 = min(int(hull[:, 1].max()) + 1, height)
-        if x0 >= x1 or y0 >= y1:
-            # Hull entirely outside the frame: the frame-sized buffer would
-            # have painted nothing, dilated nothing, contributed nothing.
-            return False
         pad = int(radius_px) if radius_px > 0 else 0
-        # Paint into the UNPADDED viewport first: clipping at the viewport
-        # edge is exactly the frame clipping the full-frame reference did
-        # (painted pixels are a subset of the hull bbox, and the viewport is
-        # bbox-intersect-frame). Only THEN zero-pad and dilate — a hull that
-        # crosses the frame edge must not paint into the padding and dilate
-        # phantom out-of-frame pixels back in (caught by the 400-case
-        # byte-identity property test).
+        # EXTENDED viewport (2026-08-14): rasterize in hull coordinates so
+        # off-frame fill EXISTS before dilation and its in-frame reach is
+        # painted — the exact conservative semantics for links outside the
+        # camera view (whose crude full-mask fallback blinded perception
+        # across three sealed sessions).
+        #
+        # Two tiers. Normal hulls rasterize on their FULL bounding box: the
+        # polygon never touches the canvas edge, so the fill is byte-exact
+        # versus the infinite-plane reference (OpenCV geometrically clips
+        # polygons against the canvas with integer rounding, which perturbs
+        # rasterization along the whole cut edge — cutting is NOT crop-safe).
+        # Only pathological hulls (near-plane perspective blow-ups, bbox area
+        # beyond the canvas budget) are cut to the pad-reach band, then
+        # safety-inflated by 1 px so rounding artifacts can only ADD pixels:
+        # strictly conservative, never blinding.
+        band = pad + 2
+        bx0 = int(hull[:, 0].min())
+        by0 = int(hull[:, 1].min())
+        bx1 = int(hull[:, 0].max()) + 1
+        by1 = int(hull[:, 1].max()) + 1
+        x0 = max(bx0, -band)
+        y0 = max(by0, -band)
+        x1 = min(bx1, width + band)
+        y1 = min(by1, height + band)
+        if x0 >= x1 or y0 >= y1:
+            # Hull entirely beyond dilation reach of the frame.
+            return False
+        clipped = (x0, y0, x1, y1) != (bx0, by0, bx1, by1)
+        if clipped and (
+            (bx1 - bx0) * (by1 - by0)
+            <= _EXTENDED_CANVAS_AREA_FACTOR * height * width
+        ):
+            x0, y0, x1, y1 = bx0, by0, bx1, by1
+            clipped = False
         roi = np.zeros((y1 - y0, x1 - x0), dtype=np.uint8)
         shift = np.asarray((-x0, -y0), dtype=np.int64)
         shifted = hull + shift
@@ -2107,18 +2129,29 @@ class ProductionRobotMaskProvider:
                 1,
                 -1,
             )
+        if clipped and pad > 0:
+            # Cut-polygon rasterization can lose up to 1 px along the cut
+            # edge; a 3x3 inflate turns any loss into (bounded) overshoot.
+            roi = cv2.dilate(
+                roi, np.ones((3, 3), dtype=np.uint8), iterations=1,
+            )
         component_any = bool(np.any(roi))
         if pad > _PYRAMID_DILATION_MIN_RADIUS_PX:
             return self._paint_pyramid_dilated(
                 mask, roi, x0, y0, x1, y1, pad, component_any,
             )
-        if pad > 0 and deferred is not None:
+        canvas_interior = (
+            x0 >= 0 and y0 >= 0 and x1 <= width and y1 <= height
+        )
+        if pad > 0 and deferred is not None and canvas_interior:
             # Radius-bucketed deferral (2026-08-12, owner-authorized): binary
             # dilation distributes over union for the same structuring
             # element, so every fill sharing an integer radius is accumulated
             # and dilated ONCE at flush time — byte-identical to dilating each
             # component separately (multi-op property test) at a fraction of
-            # the dilate cost.
+            # the dilate cost. The accumulator is frame-sized, so only
+            # interior canvases may enter; extended (edge/off-frame) canvases
+            # take the direct path below, which handles their coordinates.
             if not component_any:
                 return False
             bucket = deferred.get(pad)
@@ -2149,6 +2182,8 @@ class ProductionRobotMaskProvider:
         dy0 = max(y0 - pad, 0)
         dx1 = min(x1 + pad, width)
         dy1 = min(y1 + pad, height)
+        if dx0 >= dx1 or dy0 >= dy1:
+            return False
         src = roi[
             dy0 - (y0 - pad):dy1 - (y0 - pad),
             dx0 - (x0 - pad):dx1 - (x0 - pad),
