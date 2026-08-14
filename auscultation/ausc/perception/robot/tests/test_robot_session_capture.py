@@ -1146,3 +1146,62 @@ def test_public_validator_rejects_symlinked_artifact_even_when_bytes_match(
 
     with pytest.raises(RobotCaptureError, match="symlink|regular file|no-follow"):
         validate_robot_capture_artifacts(tmp_path, _contract())
+
+
+def test_start_baseline_allows_envelope_straddle_and_bounds_it():
+    """2026-08-13 first real End: the first persisted envelope straddles the
+    start instant (~10-16 ms of publisher history), so its first record
+    legitimately precedes start. The old check required start <= first
+    record observation and failed every production session."""
+
+    import ausc.perception.robot.robot_session_capture as cap
+
+    from types import SimpleNamespace
+
+    def fake_record(tick, obs_ns):
+        return SimpleNamespace(
+            schema=cap.EXACT_CONTROL_RECORD_SCHEMA_V4,
+            control_tick_seq=tick,
+            observation_monotonic_ns=obs_ns,
+            feedback_snapshot_monotonic_ns=obs_ns,
+            publisher_identity=(4242, "proc-start-991"),
+            follower_arm_state_rx_motor_ids=(1, 2, 3, 4, 5, 6, 7),
+            follower_gripper_state_rx_motor_id=8,
+            follower_arm_state_rx_counters=(10,) * 7,
+            follower_gripper_state_rx_counter=10,
+            follower_arm_state_rx_generations=(10,) * 7,
+            follower_gripper_state_rx_generation=10,
+            follower_arm_state_rx_monotonic_ns=(obs_ns,) * 7,
+            follower_gripper_state_rx_monotonic_ns=obs_ns,
+            follower_arm_state_rx_last_gap_ns=(1_000_000,) * 7,
+            follower_gripper_state_rx_last_gap_ns=1_000_000,
+            follower_arm_state_rx_gap_violation_counts=(0,) * 7,
+            follower_gripper_state_rx_gap_violation_count=0,
+        )
+
+    def make(first_obs_offset_ns):
+        start_ns = 1_000_000_000_000
+        baseline_record = fake_record(100, start_ns - 5_000_000)
+        first_record = fake_record(110, start_ns + first_obs_offset_ns)
+        baseline = cap._feedback_start_baseline_payload(
+            baseline_record, start_monotonic_ns=start_ns,
+        )
+        return baseline, first_record
+
+    # Straddle within one envelope span: PASSES now.
+    baseline, first = make(-12_000_000)
+    cap._validate_feedback_start_baseline(baseline, first)
+
+    # Starting promptly after start: PASSES.
+    baseline, first = make(5_000_000)
+    cap._validate_feedback_start_baseline(baseline, first)
+
+    # Too far before start (recording claims history it cannot have): FAILS.
+    baseline, first = make(-100_000_000)
+    with pytest.raises(cap.RobotCaptureError, match="baseline identity"):
+        cap._validate_feedback_start_baseline(baseline, first)
+
+    # Recording began too long after start: FAILS.
+    baseline, first = make(50_000_000)
+    with pytest.raises(cap.RobotCaptureError, match="baseline identity"):
+        cap._validate_feedback_start_baseline(baseline, first)

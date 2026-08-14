@@ -1599,9 +1599,29 @@ def _validate_feedback_start_baseline(
         != value["observation_monotonic_ns"]
         or not value["observation_monotonic_ns"]
         <= value["start_monotonic_ns"]
-        <= first_record.observation_monotonic_ns
+        # Persistence opens at start(); the first persisted ENVELOPE almost
+        # always straddles the start instant (each envelope carries ~10-16 ms
+        # of publisher history), so the first persisted record legitimately
+        # precedes start by up to one envelope span. The synthetic tests
+        # aligned envelope boundaries to start and hid this; the first real
+        # End (2026-08-13) failed here on every session. Bound the straddle
+        # instead of forbidding it: the recording must begin within one
+        # envelope span before start and within the 20 ms feedback gap bound
+        # after it.
+        or not (
+            value["start_monotonic_ns"] - 40_000_000
+            <= first_record.observation_monotonic_ns
+            <= value["start_monotonic_ns"] + 20_000_000
+        )
     ):
-        raise RobotCaptureError("v4 feedback Start baseline identity is invalid")
+        raise RobotCaptureError(
+            "v4 feedback Start baseline identity is invalid"
+            f" (baseline_obs={value.get('observation_monotonic_ns')}"
+            f" start={value.get('start_monotonic_ns')}"
+            f" first_record_obs={first_record.observation_monotonic_ns}"
+            f" schema_ok={value.get('schema') == FEEDBACK_START_BASELINE_SCHEMA}"
+            f" identity_ok={value.get('publisher_identity') == first_record.publisher_identity})"
+        )
     expected_motor_ids = list(first_record.follower_arm_state_rx_motor_ids) + [
         first_record.follower_gripper_state_rx_motor_id
     ]
@@ -1624,15 +1644,26 @@ def _validate_feedback_start_baseline(
         or value["generations"] != value["counters"]
     ):
         raise RobotCaptureError("v4 feedback Start baseline vectors are invalid")
-    first_snapshot = _feedback_snapshot_payload(first_record)
-    for field in ("counters", "monotonic_ns", "gap_violation_counts"):
-        if any(
-            baseline > observed
-            for baseline, observed in zip(value[field], first_snapshot[field])
-        ):
-            raise RobotCaptureError(
-                f"v4 feedback Start baseline {field} exceeds first captured record"
-            )
+    # The baseline is taken from the LATEST preflight record at start(); the
+    # first PERSISTED record usually predates it (the first persisted envelope
+    # straddles the start instant with ~10-16 ms of publisher history). The
+    # baseline-must-not-exceed-first checks are therefore only meaningful when
+    # the first record is at/after the baseline observation; in the straddle
+    # case, monotone feedback progress is still enforced end-side against the
+    # LAST record by _evaluate_v4_feedback (counters/violations deltas).
+    if (
+        first_record.observation_monotonic_ns
+        >= value["observation_monotonic_ns"]
+    ):
+        first_snapshot = _feedback_snapshot_payload(first_record)
+        for field in ("counters", "monotonic_ns", "gap_violation_counts"):
+            if any(
+                baseline > observed
+                for baseline, observed in zip(value[field], first_snapshot[field])
+            ):
+                raise RobotCaptureError(
+                    f"v4 feedback Start baseline {field} exceeds first captured record"
+                )
     return value
 
 
