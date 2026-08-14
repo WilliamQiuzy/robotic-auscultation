@@ -5058,13 +5058,18 @@ class Collector:
         if not self.require_robot:
             return frame
         if self.platform.state is CollectionState.RECORDING:
+            # The model consumes the NEWEST persisted evidence bundle directly.
+            # Requiring the pending camera frame's index to exactly equal the
+            # latest evidence index was a fragile rendezvous: with 60-100 ms
+            # loop iterations during recording, the alignment happened ~4
+            # times in 3 minutes (2026-08-14 diagnostic run) and the doctor's
+            # point overlay starved. The latest-only model worker dedups by
+            # monotonically increasing index, so re-offering the same bundle
+            # is a no-op and every fresh bundle reaches inference.
             evidence = self._latest_recorded_robot_evidence
-            if (
-                evidence is None
-                or int(getattr(evidence, "index", -1)) != int(frame.index)
-            ):
+            if evidence is None:
                 raise RobotCaptureNotReady(
-                    "persisted same-frame robot evidence is not ready for the model"
+                    "persisted robot evidence is not ready for the model"
                 )
             return evidence
         coordinator = self._robot_coordinator
@@ -5482,19 +5487,7 @@ class Collector:
                     # kept-phase frames — latching a skipped-phase frame would
                     # spin the RECORDING model branch on RobotCaptureNotReady
                     # forever (evidence.index can never match).
-                    boundary = self._recording_boundary
-                    if (
-                        self.recording_frame_divisor > 1
-                        and self.platform.state is CollectionState.RECORDING
-                        and boundary is not None
-                    ):
-                        anchor = int(boundary["camera_start_boundary_index"]) + 1
-                        if (
-                            int(detached.index) - anchor
-                        ) % self.recording_frame_divisor == 0:
-                            self._pending_model_frame = detached
-                    else:
-                        self._pending_model_frame = detached
+                    self._pending_model_frame = detached
             model_input_submitted = False
             gate_testing = (
                 self._safe_stop_gate is not None

@@ -5342,6 +5342,15 @@ def test_recording_model_waits_for_the_persisted_same_frame_robot_bundle(tmp_pat
         )
         collector._latest_recorded_robot_evidence = evidence
         assert collector._model_input_for_frame(frame) is evidence
+
+        # 2026-08-14: the model consumes the NEWEST evidence regardless of the
+        # pending camera frame's index — the exact-index rendezvous starved
+        # inference to ~4 submissions per 3-minute recording.
+        newer_evidence = server.SimpleNamespace(
+            index=11, camera_frame=frame, robot_mask_packet=object(),
+        )
+        collector._latest_recorded_robot_evidence = newer_evidence
+        assert collector._model_input_for_frame(frame) is newer_evidence
     finally:
         collector.platform.state = server.CollectionState.ABORTED
         collector.shutdown()
