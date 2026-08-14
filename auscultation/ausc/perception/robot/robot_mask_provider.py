@@ -52,14 +52,19 @@ _MAX_LINKS = 64
 _MAX_VERTICES_PER_COMPONENT = 8_192
 _MAX_TOTAL_VERTICES = 65_536
 _MAX_DILATION_KERNEL_RADIUS_PX = 256
-# Owner-authorized 2026-08-12: above this uncertainty radius the component
-# falls into the conservative full-mask hatch instead of dilating. A link
-# approaching the camera (routine during real auscultation teleop) drove
-# radius toward the 256 px kernel cap, where a single 1080p dilate cost
-# 300+ ms and aborted the armed session on the staleness bound. Full-mask
-# is a strict SUPERSET (never under-masks the arm) with sub-ms cost, and
-# an arm that close genuinely dominates the view.
-_FULL_MASK_COST_HATCH_RADIUS_PX = 96
+# 2026-08-14: the 96 px full-mask cost hatch (previous revision) fired on
+# EVERY frame of the real seated pose (610/610 in the sealed diagnostic
+# session) and blinded the whole perception stack: a full robot mask makes
+# the patient's back invisible downstream (NO_BACK, zero published points).
+# Large radii now use a CONSERVATIVE PYRAMID dilation instead: max-pool the
+# fill 4x, dilate at coarse scale with radius ceil(r/4)+1, upsample nearest.
+# Provably a superset of the exact dilation (disc radius (ceil(r/4)+1)*4
+# >= r + 4 covers both the scaled radius and the <=3 px quantization) at
+# ~1/256 of the cost, and it stays LOCAL. The full-mask hatch returns to
+# its original role: nominal-outside or radius beyond the 256 px cap.
+_PYRAMID_DILATION_MIN_RADIUS_PX = 64
+_PYRAMID_DILATION_FACTOR = 4
+_FULL_MASK_COST_HATCH_RADIUS_PX = _MAX_DILATION_KERNEL_RADIUS_PX
 _PROVISIONAL_HAND_EYE_RUN_RE = re.compile(
     r"^handeye_left_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}$"
 )
@@ -2097,6 +2102,10 @@ class ProductionRobotMaskProvider:
                 -1,
             )
         component_any = bool(np.any(roi))
+        if pad > _PYRAMID_DILATION_MIN_RADIUS_PX:
+            return self._paint_pyramid_dilated(
+                mask, roi, x0, y0, x1, y1, pad, component_any,
+            )
         if pad > 0 and deferred is not None:
             # Radius-bucketed deferral (2026-08-12, owner-authorized): binary
             # dilation distributes over union for the same structuring
@@ -2142,6 +2151,54 @@ class ProductionRobotMaskProvider:
         component_any = bool(np.any(src))
         np.logical_or(window, src, out=window)
         return component_any
+
+    def _paint_pyramid_dilated(
+        self, mask, roi, x0, y0, x1, y1, pad, component_any,
+    ) -> bool:
+        """Conservative-superset dilation for large radii at ~1/256 cost.
+
+        Max-pool the viewport fill by the pyramid factor, dilate at coarse
+        scale with radius ceil(pad/f)+1, upsample nearest, OR the
+        frame-clipped window back. Every fine pixel within ``pad`` of a fill
+        pixel is covered because the coarse disc maps to a fine disc of
+        radius (ceil(pad/f)+1)*f >= pad + f, absorbing the <=f-1 px cell
+        quantization (superset property-proved in tests).
+        """
+
+        if not component_any:
+            return False
+        height, width = mask.shape
+        f = _PYRAMID_DILATION_FACTOR
+        rh, rw = roi.shape
+        pad_h = (-rh) % f
+        pad_w = (-rw) % f
+        if pad_h or pad_w:
+            roi = cv2.copyMakeBorder(
+                roi, 0, pad_h, 0, pad_w, cv2.BORDER_CONSTANT, value=0,
+            )
+        coarse = roi.reshape(
+            roi.shape[0] // f, f, roi.shape[1] // f, f,
+        ).max(axis=(1, 3))
+        rc = -(-pad // f) + 1
+        coarse = cv2.copyMakeBorder(
+            coarse, rc, rc, rc, rc, cv2.BORDER_CONSTANT, value=0,
+        )
+        coarse = cv2.dilate(
+            coarse, self._dilation_kernel(rc), iterations=1,
+        )
+        fine = np.repeat(np.repeat(coarse, f, axis=0), f, axis=1)
+        # Fine origin relative to the frame: viewport origin shifted by the
+        # coarse border in fine units.
+        fx0 = x0 - rc * f
+        fy0 = y0 - rc * f
+        dx0 = max(fx0, 0)
+        dy0 = max(fy0, 0)
+        dx1 = min(fx0 + fine.shape[1], width)
+        dy1 = min(fy0 + fine.shape[0], height)
+        src = fine[dy0 - fy0:dy1 - fy0, dx0 - fx0:dx1 - fx0]
+        window = mask[dy0:dy1, dx0:dx1]
+        np.logical_or(window, src, out=window)
+        return True
 
     def _flush_deferred_dilations(
         self, mask: np.ndarray, deferred: dict,

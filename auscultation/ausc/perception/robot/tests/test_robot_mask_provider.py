@@ -1059,11 +1059,15 @@ def test_bucketed_deferred_dilation_is_byte_identical_to_sequential():
 def test_cost_hatch_threshold_is_owner_authorized_value():
     import ausc.perception.robot.robot_mask_provider as mask_module
 
-    assert mask_module._FULL_MASK_COST_HATCH_RADIUS_PX == 96
+    # 2026-08-14: the 96px full-mask hatch blinded perception (610/610 full
+    # masks in the real seated pose); large radii now use the conservative
+    # pyramid path and the hatch returns to the 256px kernel cap.
     assert (
         mask_module._FULL_MASK_COST_HATCH_RADIUS_PX
-        < mask_module._MAX_DILATION_KERNEL_RADIUS_PX
+        == mask_module._MAX_DILATION_KERNEL_RADIUS_PX
     )
+    assert mask_module._PYRAMID_DILATION_MIN_RADIUS_PX == 64
+    assert mask_module._PYRAMID_DILATION_FACTOR == 4
 
 
 def test_radius_above_cost_hatch_takes_full_mask(monkeypatch):
@@ -1087,3 +1091,77 @@ def test_radius_above_cost_hatch_takes_full_mask(monkeypatch):
     hatched = provider.build(exposure=_exposure(), trajectory=_trajectory())
     assert hatched.mask.all()
     assert hatched.masked_pixel_count > baseline.masked_pixel_count
+
+
+def test_pyramid_dilation_is_conservative_superset_of_exact():
+    """Large-radius dilation via the coarse pyramid must contain every pixel
+    the exact dilation would set (superset), across random hulls including
+    frame-edge crossings, while staying local (never the trivial full mask
+    unless the exact dilation is near-full too)."""
+
+    import cv2
+
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+    )
+
+    class _Holder:
+        _dilation_kernels: dict = {}
+        _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
+        _paint_pyramid_dilated = (
+            ProductionRobotMaskProvider._paint_pyramid_dilated
+        )
+
+    def exact_reference(mask, hull, radius_px):
+        component = np.zeros_like(mask, dtype=np.uint8)
+        if len(hull) >= 3:
+            cv2.fillConvexPoly(component, hull.astype(np.int32), 1)
+        elif len(hull) == 2:
+            cv2.line(
+                component,
+                tuple(int(v) for v in hull[0]),
+                tuple(int(v) for v in hull[1]),
+                1, 1,
+            )
+        else:
+            cv2.circle(component, tuple(int(v) for v in hull[0]), 0, 1, -1)
+        kernel = cv2.getStructuringElement(
+            cv2.MORPH_ELLIPSE, (2 * radius_px + 1, 2 * radius_px + 1),
+        )
+        component = cv2.dilate(component, kernel, iterations=1)
+        mask |= component.astype(np.bool_)
+
+    rng = np.random.default_rng(20260814)
+    height, width = 270, 480
+    holder = _Holder()
+    for case in range(60):
+        count = int(rng.integers(1, 10))
+        scale = rng.choice([0.3, 0.8, 1.5])
+        offset = rng.uniform(-120, 120, size=2)
+        points = (
+            rng.uniform(0, 1, size=(count, 2)) * [width, height] * scale
+            + offset
+        )
+        hull = cv2.convexHull(
+            np.rint(points).astype(np.int32).reshape((-1, 1, 2))
+        ).reshape((-1, 2))
+        radius = int(rng.choice([65, 96, 150, 255]))
+
+        mask_exact = np.zeros((height, width), dtype=np.bool_)
+        exact_reference(mask_exact, hull, radius)
+
+        mask_pyr = np.zeros((height, width), dtype=np.bool_)
+        holder._paint_dilated_hull(mask_pyr, hull, radius)
+
+        missing = mask_exact & ~mask_pyr
+        assert not missing.any(), (
+            f"case {case}: pyramid mask misses {int(missing.sum())} exact px"
+        )
+        # Local, not trivially full: overshoot bounded by pyramid granularity.
+        extra = int((mask_pyr & ~mask_exact).sum())
+        exact_count = int(mask_exact.sum())
+        if exact_count and exact_count < mask_exact.size * 0.7:
+            assert extra <= mask_exact.size * 0.25, (
+                f"case {case}: pyramid overshoot {extra}px is not local"
+            )
