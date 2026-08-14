@@ -965,6 +965,12 @@ def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
         _pyramid_factor = staticmethod(
             ProductionRobotMaskProvider._pyramid_factor
         )
+        _rasterize_coarse_hull = staticmethod(
+            ProductionRobotMaskProvider._rasterize_coarse_hull
+        )
+        _finish_coarse_canvas = staticmethod(
+            ProductionRobotMaskProvider._finish_coarse_canvas
+        )
 
     def reference(mask, hull, radius_px):
         height, width = mask.shape
@@ -1148,6 +1154,12 @@ def test_pyramid_dilation_is_conservative_superset_of_exact():
         _pyramid_factor = staticmethod(
             ProductionRobotMaskProvider._pyramid_factor
         )
+        _rasterize_coarse_hull = staticmethod(
+            ProductionRobotMaskProvider._rasterize_coarse_hull
+        )
+        _finish_coarse_canvas = staticmethod(
+            ProductionRobotMaskProvider._finish_coarse_canvas
+        )
 
     def exact_reference(mask, hull, radius_px):
         component = np.zeros_like(mask, dtype=np.uint8)
@@ -1255,6 +1267,12 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
         _pyramid_factor = staticmethod(
             ProductionRobotMaskProvider._pyramid_factor
         )
+        _rasterize_coarse_hull = staticmethod(
+            ProductionRobotMaskProvider._rasterize_coarse_hull
+        )
+        _finish_coarse_canvas = staticmethod(
+            ProductionRobotMaskProvider._finish_coarse_canvas
+        )
 
     def reference(mask, hull, radius_px):
         height, width = mask.shape
@@ -1315,3 +1333,61 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
             f"case {case}: cut path misses {int(missing.sum())} px"
         )
     assert tested >= 20, f"only {tested} giant-bbox cases exercised"
+
+
+def test_pyramid_bucketing_is_byte_identical_to_sequential():
+    """Euclidean-disc dilation distributes over union: accumulating
+    same-(factor, radius) coarse fills and finishing once must equal
+    per-component pyramid painting byte-for-byte."""
+
+    import cv2
+
+    from ausc.perception.robot.robot_mask_provider import (
+        ProductionRobotMaskProvider,
+    )
+
+    class _Holder:
+        _dilation_kernels: dict = {}
+        _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
+        _paint_pyramid_dilated = (
+            ProductionRobotMaskProvider._paint_pyramid_dilated
+        )
+        _pyramid_factor = staticmethod(
+            ProductionRobotMaskProvider._pyramid_factor
+        )
+        _rasterize_coarse_hull = staticmethod(
+            ProductionRobotMaskProvider._rasterize_coarse_hull
+        )
+        _finish_coarse_canvas = staticmethod(
+            ProductionRobotMaskProvider._finish_coarse_canvas
+        )
+        _flush_deferred_dilations = (
+            ProductionRobotMaskProvider._flush_deferred_dilations
+        )
+
+    rng = np.random.default_rng(20260816)
+    height, width = 108, 192
+    holder = _Holder()
+    for case in range(60):
+        ops = []
+        for _ in range(int(rng.integers(2, 8))):
+            center = rng.uniform(-150, 350, size=2)
+            points = rng.normal(center, 40, size=(6, 2))
+            hull = cv2.convexHull(
+                np.rint(points).astype(np.int32).reshape((-1, 1, 2))
+            ).reshape((-1, 2))
+            radius = int(rng.choice([65, 70, 96, 96, 150, 300]))
+            ops.append((hull, radius))
+
+        mask_seq = np.zeros((height, width), dtype=np.bool_)
+        for hull, radius in ops:
+            holder._paint_dilated_hull(mask_seq, hull, radius)
+
+        mask_bkt = np.zeros((height, width), dtype=np.bool_)
+        deferred: dict = {}
+        for hull, radius in ops:
+            holder._paint_dilated_hull(mask_bkt, hull, radius, deferred)
+        holder._flush_deferred_dilations(mask_bkt, deferred)
+
+        assert np.array_equal(mask_seq, mask_bkt), f"case {case} differs"

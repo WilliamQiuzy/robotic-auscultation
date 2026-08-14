@@ -2074,6 +2074,32 @@ class ProductionRobotMaskProvider:
         # buffer, and OR the frame-clipped window back into the mask.
         height, width = mask.shape
         pad = int(radius_px) if radius_px > 0 else 0
+        if pad > _PYRAMID_DILATION_MIN_RADIUS_PX:
+            # Large radii never rasterize at fine resolution: the pyramid
+            # paints from the hull directly on the coarse grid (the fine
+            # fill below cost 242-471 ms across the real pose's off-frame
+            # links and aborted armed sessions on the staleness bound).
+            # With a deferral dict, same-scale components accumulate on one
+            # shared coarse canvas and pay for the distance transform,
+            # upsample, and frame OR exactly once per (factor, radius)
+            # bucket — dilation distributes over union (byte-identity test).
+            if deferred is None:
+                return self._paint_pyramid_dilated(mask, hull, pad)
+            f = self._pyramid_factor(pad)
+            rc = -(-pad // f) + 2
+            key = ("pyramid", f, rc)
+            bucket = deferred.get(key)
+            if bucket is None:
+                ch = -(-mask.shape[0] // f)
+                cw = -(-mask.shape[1] // f)
+                bucket = {
+                    "canvas": np.zeros(
+                        (ch + 2 * rc, cw + 2 * rc), dtype=np.uint8,
+                    ),
+                }
+                deferred[key] = bucket
+            self._rasterize_coarse_hull(bucket["canvas"], hull, f, rc)
+            return True
         # EXTENDED viewport (2026-08-14): rasterize in hull coordinates so
         # off-frame fill EXISTS before dilation and its in-frame reach is
         # painted — the exact conservative semantics for links outside the
@@ -2136,10 +2162,6 @@ class ProductionRobotMaskProvider:
                 roi, np.ones((3, 3), dtype=np.uint8), iterations=1,
             )
         component_any = bool(np.any(roi))
-        if pad > _PYRAMID_DILATION_MIN_RADIUS_PX:
-            return self._paint_pyramid_dilated(
-                mask, roi, x0, y0, x1, y1, pad, component_any,
-            )
         canvas_interior = (
             x0 >= 0 and y0 >= 0 and x1 <= width and y1 <= height
         )
@@ -2201,59 +2223,99 @@ class ProductionRobotMaskProvider:
             -(-int(pad) // _PYRAMID_COARSE_RADIUS_TARGET),
         )
 
-    def _paint_pyramid_dilated(
-        self, mask, roi, x0, y0, x1, y1, pad, component_any,
-    ) -> bool:
-        """Conservative-superset dilation for large radii at ~1/f^2 cost.
-
-        Max-pool the viewport fill by the adaptive pyramid factor, dilate at
-        coarse scale with radius ceil(pad/f)+1, upsample nearest, OR the
-        frame-clipped window back. Every fine pixel within ``pad`` of a fill
-        pixel is covered because the coarse disc maps to a fine disc of
-        radius (ceil(pad/f)+1)*f >= pad + f, absorbing the <=f-1 px cell
-        quantization (superset property-proved in tests).
-        """
-
-        if not component_any:
-            return False
-        height, width = mask.shape
-        f = self._pyramid_factor(pad)
-        rh, rw = roi.shape
-        pad_h = (-rh) % f
-        pad_w = (-rw) % f
-        if pad_h or pad_w:
-            roi = cv2.copyMakeBorder(
-                roi, 0, pad_h, 0, pad_w, cv2.BORDER_CONSTANT, value=0,
+    @staticmethod
+    def _rasterize_coarse_hull(canvas, hull, f, rc) -> None:
+        """Fill one hull on the shared coarse canvas (floor-divided)."""
+        coarse_hull = np.floor_divide(
+            np.asarray(hull, dtype=np.int64), f,
+        ) + rc
+        if len(coarse_hull) >= 3:
+            cv2.fillConvexPoly(canvas, coarse_hull.astype(np.int32), 1)
+        elif len(coarse_hull) == 2:
+            cv2.line(
+                canvas,
+                tuple(int(value) for value in coarse_hull[0]),
+                tuple(int(value) for value in coarse_hull[1]),
+                1,
+                1,
             )
-        coarse = roi.reshape(
-            roi.shape[0] // f, f, roi.shape[1] // f, f,
-        ).max(axis=(1, 3))
-        rc = -(-pad // f) + 1
-        coarse = cv2.copyMakeBorder(
-            coarse, rc, rc, rc, rc, cv2.BORDER_CONSTANT, value=0,
+        else:
+            cv2.circle(
+                canvas,
+                tuple(int(value) for value in coarse_hull[0]),
+                0,
+                1,
+                -1,
+            )
+
+    @staticmethod
+    def _finish_coarse_canvas(mask, canvas, f, rc) -> bool:
+        """Inflate, exact-Euclidean dilate, upsample, OR into the frame.
+
+        cv2.dilate with a large elliptical kernel is O(N*k^2) and cost tens
+        of ms per component; distanceTransform(DIST_MASK_PRECISE) gives the
+        exact Euclidean disc in O(N), and the closed disc of radius rc
+        contains the rasterized MORPH_ELLIPSE kernel of the same radius, so
+        coverage can only grow (superset property tests).
+        """
+        height, width = mask.shape
+        canvas = cv2.dilate(
+            canvas, np.ones((3, 3), dtype=np.uint8), iterations=1,
         )
-        coarse = cv2.dilate(
-            coarse, self._dilation_kernel(rc), iterations=1,
+        if not np.any(canvas):
+            return False
+        inverted = (canvas == 0).astype(np.uint8)
+        distance = cv2.distanceTransform(
+            inverted, cv2.DIST_L2, cv2.DIST_MASK_PRECISE,
         )
-        fine = np.repeat(np.repeat(coarse, f, axis=0), f, axis=1)
-        # Fine origin relative to the frame: viewport origin shifted by the
-        # coarse border in fine units.
-        fx0 = x0 - rc * f
-        fy0 = y0 - rc * f
+        coverage = (distance <= float(rc)).astype(np.uint8)
+        fine = cv2.resize(
+            coverage,
+            (coverage.shape[1] * f, coverage.shape[0] * f),
+            interpolation=cv2.INTER_NEAREST,
+        )
+        fx0 = -rc * f
+        fy0 = -rc * f
         dx0 = max(fx0, 0)
         dy0 = max(fy0, 0)
         dx1 = min(fx0 + fine.shape[1], width)
         dy1 = min(fy0 + fine.shape[0], height)
+        if dx0 >= dx1 or dy0 >= dy1:
+            return False
         src = fine[dy0 - fy0:dy1 - fy0, dx0 - fx0:dx1 - fx0]
         window = mask[dy0:dy1, dx0:dx1]
-        np.logical_or(window, src, out=window)
-        return True
+        painted = bool(np.any(src))
+        np.logical_or(window, src.astype(np.bool_), out=window)
+        return painted
+
+    def _paint_pyramid_dilated(self, mask, hull, pad) -> bool:
+        """Conservative-superset dilation for one large-radius component.
+
+        Direct coarse rasterization + exact-Euclidean coarse dilation +
+        nearest upsample (see the coarse helpers for the full cost and
+        conservatism rationale; property-proved superset in tests).
+        """
+
+        f = self._pyramid_factor(pad)
+        rc = -(-pad // f) + 2
+        ch = -(-mask.shape[0] // f)
+        cw = -(-mask.shape[1] // f)
+        canvas = np.zeros((ch + 2 * rc, cw + 2 * rc), dtype=np.uint8)
+        self._rasterize_coarse_hull(canvas, hull, f, rc)
+        return self._finish_coarse_canvas(mask, canvas, f, rc)
 
     def _flush_deferred_dilations(
         self, mask: np.ndarray, deferred: dict,
     ) -> None:
         height, width = mask.shape
-        for radius_px, bucket in sorted(deferred.items()):
+        for key, bucket in sorted(
+            deferred.items(), key=lambda item: str(item[0]),
+        ):
+            if isinstance(key, tuple) and key[0] == "pyramid":
+                _tag, f, rc = key
+                self._finish_coarse_canvas(mask, bucket["canvas"], f, rc)
+                continue
+            radius_px = key
             x0, y0 = bucket["x0"], bucket["y0"]
             x1, y1 = bucket["x1"], bucket["y1"]
             pad = int(radius_px)
