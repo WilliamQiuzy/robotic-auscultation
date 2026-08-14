@@ -5350,6 +5350,15 @@ def test_recording_model_waits_for_the_persisted_same_frame_robot_bundle(tmp_pat
             index=11, camera_frame=frame, robot_mask_packet=object(),
         )
         collector._latest_recorded_robot_evidence = newer_evidence
+        # Inference throttle (2026-08-14): immediate re-offers inside the
+        # minimum interval are refused so back-to-back ~750 ms inferences
+        # cannot starve the recorded-evidence thread's GIL share...
+        with pytest.raises(server.RobotCaptureNotReady, match="throttle"):
+            collector._model_input_for_frame(frame)
+        # ...and once the interval elapses the NEWEST evidence flows.
+        collector._recording_model_submit_monotonic -= (
+            server._RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S + 0.01
+        )
         assert collector._model_input_for_frame(frame) is newer_evidence
     finally:
         collector.platform.state = server.CollectionState.ABORTED

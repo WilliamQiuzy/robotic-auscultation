@@ -41,6 +41,7 @@ from urllib.parse import parse_qs, urlsplit
 _ROBOT_SUMMARY_SCHEMA_V3 = "wam_openarm_exact_control_capture_summary_v3"
 _ROBOT_SUMMARY_SCHEMA_V4 = "wam_openarm_exact_control_capture_summary_v4"
 _ROBOT_ENVELOPE_SCHEMA_V4 = "wam_openarm_control_envelope_v4"
+_RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S = 1.0
 _ROBOT_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 _ROBOT_TX_STATUS_SEMANTICS = (
     "linux_socketcan_full_frame_write_tx_enqueue_not_motor_ack"
@@ -1516,6 +1517,7 @@ class Collector:
         self._camera_delivery_enabled = False
         self._pending_delivery_frame = None
         self._latest_recorded_robot_evidence = None
+        self._recording_model_submit_monotonic = None
         self._pending_model_frame = None
         self._pending_model_preview = None
         self._completion_proof_cache = None
@@ -3229,6 +3231,7 @@ class Collector:
         self._camera_delivery_interval_id = None
         self._pending_delivery_frame = None
         self._latest_recorded_robot_evidence = None
+        self._recording_model_submit_monotonic = None
 
     def _camera_delivery_overflow_reason(self, health):
         overflow = int(health.get("overflow_frames", 0) or 0)
@@ -3796,6 +3799,7 @@ class Collector:
                 self._camera_delivery_interval_id = None
                 self._pending_delivery_frame = None
                 self._latest_recorded_robot_evidence = None
+                self._recording_model_submit_monotonic = None
                 self._pending_model_frame = None
                 self._force_advisory_events = []
                 result = self.platform.control(action)
@@ -4560,6 +4564,7 @@ class Collector:
         self._pending_model_frame = None
         self._pending_model_preview = None
         self._latest_recorded_robot_evidence = None
+        self._recording_model_submit_monotonic = None
         self._last_camera_index = -1
         self._last_result_index = -1
         if model_exited and preview_exited:
@@ -5071,6 +5076,26 @@ class Collector:
                 raise RobotCaptureNotReady(
                     "persisted robot evidence is not ready for the model"
                 )
+            # Inference GIL pressure throttle (2026-08-14): back-to-back
+            # ~750 ms landmark inferences contend with the recorded-evidence
+            # thread and stretch mask builds from ~50 ms to ~280 ms about
+            # once per inference cycle; the resulting >100 ms average
+            # per-frame cost diverges the ingress queue until the staleness
+            # bound aborts the session. During recording, offer the model at
+            # most one bundle per interval — the doctor's overlay refreshes
+            # ~1 fps (alignment-sufficient) and the evidence path keeps its
+            # headroom. Lifts when perception leaves the collector's GIL.
+            now_monotonic = time.monotonic()
+            last = self._recording_model_submit_monotonic
+            if (
+                last is not None
+                and now_monotonic - last
+                < _RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S
+            ):
+                raise RobotCaptureNotReady(
+                    "recording inference throttle interval is open"
+                )
+            self._recording_model_submit_monotonic = now_monotonic
             return evidence
         coordinator = self._robot_coordinator
         if coordinator is None:
