@@ -41,7 +41,7 @@ from urllib.parse import parse_qs, urlsplit
 _ROBOT_SUMMARY_SCHEMA_V3 = "wam_openarm_exact_control_capture_summary_v3"
 _ROBOT_SUMMARY_SCHEMA_V4 = "wam_openarm_exact_control_capture_summary_v4"
 _ROBOT_ENVELOPE_SCHEMA_V4 = "wam_openarm_control_envelope_v4"
-_RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S = 1.0
+_RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S = 1.5
 _ROBOT_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 _ROBOT_TX_STATUS_SEMANTICS = (
     "linux_socketcan_full_frame_write_tx_enqueue_not_motor_ack"
@@ -7676,6 +7676,15 @@ def _load_dormant_controller_launch(args, *, production_runtime, loader=None):
 
 
 def main(argv=None):
+    # GIL preemption interval 5 ms -> 1 ms (2026-08-14): the landmark
+    # inference thread's numpy/torch dispatch chunks hold the GIL long
+    # enough to stretch the recorded-evidence thread's many-small-op mask
+    # builds from ~50 ms to ~350 ms about once per 30-50 s; two such spikes
+    # in one drain window exceed even the 500 ms staleness bound. Faster
+    # forced handoffs bound each wait at ~1 ms. Scheduling-only: no
+    # recorded value depends on it.
+    sys.setswitchinterval(0.001)
+
     parser = build_parser()
     a = parser.parse_args(argv)
     if not a.fake and any((

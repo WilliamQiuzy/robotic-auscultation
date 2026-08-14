@@ -1116,8 +1116,15 @@ class ProductionRobotCaptureCoordinator:
                     now_ns - exposure.camera_host_monotonic_ns
                     > self.contract.max_staleness_ns
                 ):
+                    age_ms = (
+                        now_ns - exposure.camera_host_monotonic_ns
+                    ) / 1e6
+                    bound_ms = self.contract.max_staleness_ns / 1e6
                     raise SessionScopedEvidenceError(
-                        "camera frame was not bracketed within the live staleness bound"
+                        "camera frame was not bracketed within the live "
+                        "staleness bound: frame_index="
+                        f"{exposure.frame_index} age_ms={age_ms:.1f} "
+                        f"bound_ms={bound_ms:.1f}"
                     )
                 first = self._active_first_record
                 last = self._active_last_record
