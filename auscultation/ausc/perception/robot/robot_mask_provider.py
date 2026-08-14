@@ -57,14 +57,20 @@ _MAX_DILATION_KERNEL_RADIUS_PX = 256
 # session) and blinded the whole perception stack: a full robot mask makes
 # the patient's back invisible downstream (NO_BACK, zero published points).
 # Large radii now use a CONSERVATIVE PYRAMID dilation instead: max-pool the
-# fill 4x, dilate at coarse scale with radius ceil(r/4)+1, upsample nearest.
-# Provably a superset of the exact dilation (disc radius (ceil(r/4)+1)*4
-# >= r + 4 covers both the scaled radius and the <=3 px quantization) at
-# ~1/256 of the cost, and it stays LOCAL. The full-mask hatch returns to
-# its original role: nominal-outside or radius beyond the 256 px cap.
+# fill by factor f, dilate at coarse scale with radius ceil(r/f)+1, upsample
+# nearest. Provably a superset of the exact dilation (disc radius
+# (ceil(r/f)+1)*f >= r + f covers both the scaled radius and the <=f-1 px
+# quantization) at ~1/f^2 of the cost, and it stays LOCAL. The factor is
+# ADAPTIVE (2026-08-14 second sealed forensics: the real seated pose drives
+# radii past 256 px, so a fixed hatch at the kernel cap still produced the
+# full-frame mask on every sampled frame): f = max(4, ceil(r/64)) keeps the
+# coarse kernel radius <= 65 regardless of r, so any radius is cheap. The
+# full-mask hatch survives only as a sentinel where full frame is honest:
+# nominal-outside, or a radius so large the disc spans the frame anyway.
 _PYRAMID_DILATION_MIN_RADIUS_PX = 64
 _PYRAMID_DILATION_FACTOR = 4
-_FULL_MASK_COST_HATCH_RADIUS_PX = _MAX_DILATION_KERNEL_RADIUS_PX
+_PYRAMID_COARSE_RADIUS_TARGET = 64
+_FULL_MASK_COST_HATCH_RADIUS_PX = 2048
 _PROVISIONAL_HAND_EYE_RUN_RE = re.compile(
     r"^handeye_left_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}$"
 )
@@ -2152,13 +2158,21 @@ class ProductionRobotMaskProvider:
         np.logical_or(window, src, out=window)
         return component_any
 
+    @staticmethod
+    def _pyramid_factor(pad: int) -> int:
+        """Adaptive pyramid factor: coarse kernel radius stays <= target+1."""
+        return max(
+            _PYRAMID_DILATION_FACTOR,
+            -(-int(pad) // _PYRAMID_COARSE_RADIUS_TARGET),
+        )
+
     def _paint_pyramid_dilated(
         self, mask, roi, x0, y0, x1, y1, pad, component_any,
     ) -> bool:
-        """Conservative-superset dilation for large radii at ~1/256 cost.
+        """Conservative-superset dilation for large radii at ~1/f^2 cost.
 
-        Max-pool the viewport fill by the pyramid factor, dilate at coarse
-        scale with radius ceil(pad/f)+1, upsample nearest, OR the
+        Max-pool the viewport fill by the adaptive pyramid factor, dilate at
+        coarse scale with radius ceil(pad/f)+1, upsample nearest, OR the
         frame-clipped window back. Every fine pixel within ``pad`` of a fill
         pixel is covered because the coarse disc maps to a fine disc of
         radius (ceil(pad/f)+1)*f >= pad + f, absorbing the <=f-1 px cell
@@ -2168,7 +2182,7 @@ class ProductionRobotMaskProvider:
         if not component_any:
             return False
         height, width = mask.shape
-        f = _PYRAMID_DILATION_FACTOR
+        f = self._pyramid_factor(pad)
         rh, rw = roi.shape
         pad_h = (-rh) % f
         pad_w = (-rw) % f

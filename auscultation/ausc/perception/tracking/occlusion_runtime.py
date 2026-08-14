@@ -1521,7 +1521,19 @@ class OcclusionRuntime:
                 camera_profile_sha256=observation.camera_profile_sha256,
                 activated_identity=self.activated_identity,
             )
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as exc:
+            # Diagnosability rule (third armed abort, commit 7cd3867): never
+            # swallow the comparison that failed. Same-message dedup keeps the
+            # journal quiet while the failure class persists.
+            message = f"{type(exc).__name__}: {exc}"
+            if message != getattr(
+                self, "_last_invalid_evidence_message", None,
+            ):
+                self._last_invalid_evidence_message = message
+                print(
+                    f"[occlusion] evidence invalid: {message}",
+                    flush=True,
+                )
             return self._failed_frame(observation, "INVALID_OCCLUSION_EVIDENCE")
 
         timestamp = float(observation.camera_host_t_s)

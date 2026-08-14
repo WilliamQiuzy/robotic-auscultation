@@ -1060,14 +1060,15 @@ def test_cost_hatch_threshold_is_owner_authorized_value():
     import ausc.perception.robot.robot_mask_provider as mask_module
 
     # 2026-08-14: the 96px full-mask hatch blinded perception (610/610 full
-    # masks in the real seated pose); large radii now use the conservative
-    # pyramid path and the hatch returns to the 256px kernel cap.
-    assert (
-        mask_module._FULL_MASK_COST_HATCH_RADIUS_PX
-        == mask_module._MAX_DILATION_KERNEL_RADIUS_PX
-    )
+    # masks in the real seated pose), and the second sealed forensics showed
+    # the real pose drives radii past the 256px kernel cap too, so a hatch at
+    # the cap STILL produced full-frame masks. The adaptive pyramid handles
+    # any radius locally; the hatch survives only as a far sentinel where a
+    # full frame is honest (the dilated disc spans the frame anyway).
+    assert mask_module._FULL_MASK_COST_HATCH_RADIUS_PX == 2048
     assert mask_module._PYRAMID_DILATION_MIN_RADIUS_PX == 64
     assert mask_module._PYRAMID_DILATION_FACTOR == 4
+    assert mask_module._PYRAMID_COARSE_RADIUS_TARGET == 64
 
 
 def test_radius_above_cost_hatch_takes_full_mask(monkeypatch):
@@ -1112,6 +1113,9 @@ def test_pyramid_dilation_is_conservative_superset_of_exact():
         _paint_pyramid_dilated = (
             ProductionRobotMaskProvider._paint_pyramid_dilated
         )
+        _pyramid_factor = staticmethod(
+            ProductionRobotMaskProvider._pyramid_factor
+        )
 
     def exact_reference(mask, hull, radius_px):
         component = np.zeros_like(mask, dtype=np.uint8)
@@ -1146,7 +1150,7 @@ def test_pyramid_dilation_is_conservative_superset_of_exact():
         hull = cv2.convexHull(
             np.rint(points).astype(np.int32).reshape((-1, 1, 2))
         ).reshape((-1, 2))
-        radius = int(rng.choice([65, 96, 150, 255]))
+        radius = int(rng.choice([65, 96, 150, 255, 300, 420]))
 
         mask_exact = np.zeros((height, width), dtype=np.bool_)
         exact_reference(mask_exact, hull, radius)
@@ -1165,3 +1169,32 @@ def test_pyramid_dilation_is_conservative_superset_of_exact():
             assert extra <= mask_exact.size * 0.25, (
                 f"case {case}: pyramid overshoot {extra}px is not local"
             )
+
+
+def test_pyramid_factor_bounds_coarse_kernel_radius():
+    """The adaptive factor must keep the coarse kernel radius <= target+1 for
+    every radius up to the full-mask sentinel, and stay at the base factor for
+    the tested small-radius regime."""
+
+    from ausc.perception.robot.robot_mask_provider import (
+        _FULL_MASK_COST_HATCH_RADIUS_PX,
+        _PYRAMID_COARSE_RADIUS_TARGET,
+        _PYRAMID_DILATION_FACTOR,
+        _PYRAMID_DILATION_MIN_RADIUS_PX,
+        ProductionRobotMaskProvider,
+    )
+
+    factor = ProductionRobotMaskProvider._pyramid_factor
+    for pad in range(
+        _PYRAMID_DILATION_MIN_RADIUS_PX + 1,
+        _FULL_MASK_COST_HATCH_RADIUS_PX + 1,
+    ):
+        f = factor(pad)
+        assert f >= _PYRAMID_DILATION_FACTOR
+        coarse_radius = -(-pad // f) + 1
+        assert coarse_radius <= _PYRAMID_COARSE_RADIUS_TARGET + 1, (
+            f"pad={pad}: coarse radius {coarse_radius} exceeds the bound"
+        )
+    assert factor(65) == _PYRAMID_DILATION_FACTOR
+    assert factor(256) == _PYRAMID_DILATION_FACTOR
+    assert factor(2048) == 32
