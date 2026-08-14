@@ -42,6 +42,7 @@ _ROBOT_SUMMARY_SCHEMA_V3 = "wam_openarm_exact_control_capture_summary_v3"
 _ROBOT_SUMMARY_SCHEMA_V4 = "wam_openarm_exact_control_capture_summary_v4"
 _ROBOT_ENVELOPE_SCHEMA_V4 = "wam_openarm_control_envelope_v4"
 _RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S = 1.5
+_RECORDING_MODEL_START_GRACE_S = 8.0
 _ROBOT_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 _ROBOT_TX_STATUS_SEMANTICS = (
     "linux_socketcan_full_frame_write_tx_enqueue_not_motor_ack"
@@ -5086,6 +5087,19 @@ class Collector:
             # ~1 fps (alignment-sufficient) and the evidence path keeps its
             # headroom. Lifts when perception leaves the collector's GIL.
             now_monotonic = time.monotonic()
+            boundary = self._recording_boundary
+            if boundary is not None and (
+                now_monotonic - float(boundary["start_host_t_s"])
+                < _RECORDING_MODEL_START_GRACE_S
+            ):
+                # Start-grace (2026-08-14, enriched-abort forensics
+                # age_ms=523.6 vs bound_ms=500.0 seconds after Start):
+                # the delivery backlog drains through its most fragile
+                # window right after Start; keep inference GIL churn out
+                # of it entirely. The overlay appears ~8 s in.
+                raise RobotCaptureNotReady(
+                    "recording inference start-grace interval is open"
+                )
             last = self._recording_model_submit_monotonic
             if (
                 last is not None
