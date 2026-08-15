@@ -2195,9 +2195,7 @@ class ProductionRobotMaskProvider:
             roi = cv2.copyMakeBorder(
                 roi, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
             )
-            roi = cv2.dilate(
-                roi, self._dilation_kernel(radius_px), iterations=1,
-            )
+            roi = self._euclidean_dilate(roi, radius_px)
         # Destination window in frame coordinates: viewport expanded by the
         # dilation radius, clipped to the frame.
         dx0 = max(x0 - pad, 0)
@@ -2247,6 +2245,25 @@ class ProductionRobotMaskProvider:
                 1,
                 -1,
             )
+
+    @staticmethod
+    def _euclidean_dilate(filled: np.ndarray, radius_px: int) -> np.ndarray:
+        """Exact-Euclidean binary dilation via distance transform.
+
+        O(N) regardless of radius, replacing O(N*k^2) elliptical-kernel
+        cv2.dilate (the 129^2 kernels of the <=64 px buckets cost 30-80 ms
+        per flush on frame-sized accumulators and consumed the recording
+        drain margin). The closed Euclidean disc contains the rasterized
+        MORPH_ELLIPSE kernel of the same radius, so coverage only grows —
+        the same conservative direction as the pyramid path.
+        """
+        if radius_px <= 0:
+            return filled
+        inverted = (filled == 0).astype(np.uint8)
+        distance = cv2.distanceTransform(
+            inverted, cv2.DIST_L2, cv2.DIST_MASK_PRECISE,
+        )
+        return (distance <= float(radius_px)).astype(np.uint8)
 
     @staticmethod
     def _finish_coarse_canvas(mask, canvas, f, rc) -> bool:
@@ -2323,9 +2340,7 @@ class ProductionRobotMaskProvider:
                 bucket["acc"][y0:y1, x0:x1],
                 pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
             )
-            roi = cv2.dilate(
-                roi, self._dilation_kernel(radius_px), iterations=1,
-            )
+            roi = self._euclidean_dilate(roi, radius_px)
             dx0 = max(x0 - pad, 0)
             dy0 = max(y0 - pad, 0)
             dx1 = min(x1 + pad, width)

@@ -958,6 +958,9 @@ def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
     class _Holder:
         _dilation_kernels: dict = {}
         _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _euclidean_dilate = staticmethod(
+            ProductionRobotMaskProvider._euclidean_dilate
+        )
         _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
         _paint_pyramid_dilated = (
             ProductionRobotMaskProvider._paint_pyramid_dilated
@@ -1003,11 +1006,14 @@ def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
                 canvas, tuple(int(v) for v in shifted[0]), 0, 1, -1,
             )
         if radius_px > 0:
-            kernel = cv2.getStructuringElement(
-                cv2.MORPH_ELLIPSE,
-                (2 * radius_px + 1, 2 * radius_px + 1),
+            # 2026-08-15 semantics: exact-Euclidean disc (distance transform)
+            # replaced the rasterized MORPH_ELLIPSE kernel — a superset, and
+            # O(N) at any radius.
+            inverted = (canvas == 0).astype(np.uint8)
+            distance = cv2.distanceTransform(
+                inverted, cv2.DIST_L2, cv2.DIST_MASK_PRECISE,
             )
-            canvas = cv2.dilate(canvas, kernel, iterations=1)
+            canvas = (distance <= float(radius_px)).astype(np.uint8)
         component = canvas[
             margin_y:margin_y + height, margin_x:margin_x + width,
         ]
@@ -1052,6 +1058,9 @@ def test_bucketed_deferred_dilation_is_byte_identical_to_sequential():
     class _Holder:
         _dilation_kernels: dict = {}
         _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _euclidean_dilate = staticmethod(
+            ProductionRobotMaskProvider._euclidean_dilate
+        )
         _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
         _flush_deferred_dilations = (
             ProductionRobotMaskProvider._flush_deferred_dilations
@@ -1147,6 +1156,9 @@ def test_pyramid_dilation_is_conservative_superset_of_exact():
     class _Holder:
         _dilation_kernels: dict = {}
         _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _euclidean_dilate = staticmethod(
+            ProductionRobotMaskProvider._euclidean_dilate
+        )
         _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
         _paint_pyramid_dilated = (
             ProductionRobotMaskProvider._paint_pyramid_dilated
@@ -1174,10 +1186,11 @@ def test_pyramid_dilation_is_conservative_superset_of_exact():
             )
         else:
             cv2.circle(component, tuple(int(v) for v in hull[0]), 0, 1, -1)
-        kernel = cv2.getStructuringElement(
-            cv2.MORPH_ELLIPSE, (2 * radius_px + 1, 2 * radius_px + 1),
+        inverted = (component == 0).astype(np.uint8)
+        distance = cv2.distanceTransform(
+            inverted, cv2.DIST_L2, cv2.DIST_MASK_PRECISE,
         )
-        component = cv2.dilate(component, kernel, iterations=1)
+        component = (distance <= float(radius_px)).astype(np.uint8)
         mask |= component.astype(np.bool_)
 
     rng = np.random.default_rng(20260814)
@@ -1260,6 +1273,9 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
     class _Holder:
         _dilation_kernels: dict = {}
         _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _euclidean_dilate = staticmethod(
+            ProductionRobotMaskProvider._euclidean_dilate
+        )
         _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
         _paint_pyramid_dilated = (
             ProductionRobotMaskProvider._paint_pyramid_dilated
@@ -1290,11 +1306,11 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
             canvas, (hull + [margin_x, margin_y]).astype(np.int32), 1,
         )
         if radius_px > 0:
-            kernel = cv2.getStructuringElement(
-                cv2.MORPH_ELLIPSE,
-                (2 * radius_px + 1, 2 * radius_px + 1),
+            inverted = (canvas == 0).astype(np.uint8)
+            distance = cv2.distanceTransform(
+                inverted, cv2.DIST_L2, cv2.DIST_MASK_PRECISE,
             )
-            canvas = cv2.dilate(canvas, kernel, iterations=1)
+            canvas = (distance <= float(radius_px)).astype(np.uint8)
         component = canvas[
             margin_y:margin_y + height, margin_x:margin_x + width,
         ]
@@ -1349,6 +1365,9 @@ def test_pyramid_bucketing_is_byte_identical_to_sequential():
     class _Holder:
         _dilation_kernels: dict = {}
         _dilation_kernel = ProductionRobotMaskProvider._dilation_kernel
+        _euclidean_dilate = staticmethod(
+            ProductionRobotMaskProvider._euclidean_dilate
+        )
         _paint_dilated_hull = ProductionRobotMaskProvider._paint_dilated_hull
         _paint_pyramid_dilated = (
             ProductionRobotMaskProvider._paint_pyramid_dilated
