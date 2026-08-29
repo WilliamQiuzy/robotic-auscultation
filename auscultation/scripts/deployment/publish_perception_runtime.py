@@ -185,7 +185,7 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = (
 # safely pin its own bytes, so it remains the externally reviewed and pinned
 # build/verify trust root rather than pretending a circular self-hash is proof.
 REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
-    "auscultation/ausc/audio/audio_stream.py": "91781c9564f41545ea3330dc38645fffe055961140bea412202cd933d290402a",
+    "auscultation/ausc/audio/audio_stream.py": "7471a502e0a32adf0c2505e9fb08b89a8029beb240d1f6090e0a4e3b039dd4c3",
     "auscultation/ausc/models/iuv_model.py": "2bd72dc0a33e06e29c88e64480ad20b5586e361a8d7d6958e66fd08aea127cbf",
     "auscultation/ausc/perception/camera_stream.py": "063eed1449a29aff2fe56d24c958e9d4dac811d8206b3f719b32a25ff7c6d5ee",
     "auscultation/ausc/perception/depth_codec.py": "7ff7ff8b2746a5913cf14e3ba89b908c3068ede9a5572c9427358c39fd820ead",
@@ -197,9 +197,9 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/robot/openarm_pair_activation.py": "52ac7798fd9cd800118d94bed4a4efd08b5fdd651d8d701095058e0aeeb5f1c9",
     "auscultation/ausc/perception/robot/robot_capture_coordinator.py": "9ef78a1de63e641655ebf66376e439f02932d8b1eac74fff207c3d9eb5cd6f6d",
     "auscultation/ausc/perception/robot/robot_mask_provider.py": "9f460a00f6d020096c38c1bb2e42a79e61007715bda9a96c6b88d0b82b8d6655",
-    "auscultation/ausc/perception/robot/robot_session_capture.py": "1e09e43a3e86505d06c133aa4a4e26e870a7f481415470780f20644eae844f0e",
+    "auscultation/ausc/perception/robot/robot_session_capture.py": "8afecec81c18250b3cd616fb604aca0d576fbaf3a804995c0bde91e52ea2353d",
     "auscultation/ausc/perception/robot/robot_socket_receiver.py": "8a1453529aa3f4a16f043e577e7b5584c9576d0d63b70bec2838ef86cc9a6b0b",
-    "auscultation/ausc/perception/robot/robot_state_stream.py": "da2ec5e0d8179382e32669df4c3f4dde01d7f79fda374400df6e7b29fa054d3f",
+    "auscultation/ausc/perception/robot/robot_state_stream.py": "766034c6698a62e2bb23924b1412af502eac2b225ddf98982a368c1b735d701a",
     "auscultation/ausc/perception/robot/trusted_controller_companion.py": "bd29b75e305ad5b3a7bddf285f8df479e995d75de4f1012418ca132db4d8b930",
     "auscultation/ausc/perception/tracking/__init__.py": "e135d34389019e483400c79b001d9b9e84d13a0cacebe1585174cad2048bccd6",
     "auscultation/ausc/perception/tracking/back_mask_packet.py": "4aba720dcefa8f80c6baf3558e58e4d0ee34b7727ee385fca1344d97d26df4e0",
@@ -218,9 +218,9 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/tracking/runtime.py": "47f35928e9f94691ec5ea35ba8f73c1957dc5fed637be729ca68d247dfb81187",
     "auscultation/ausc/realtime_q.py": "b9a7640c8a7efa8f3a6b13f5a3ee6cf858c3adc590f2fd3ac6beba84a55c3067",
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
-    "auscultation/mechanical_sensor/force_feedback/force_capture.py": "b0adb862198587ba6a294801ad4800d41360b751b9e30cf7f087526464cb39e2",
+    "auscultation/mechanical_sensor/force_feedback/force_capture.py": "de2f00dac4dc134e3844ab73d9514b2fca556867ef639eea6b11e9a9f2ede57e",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
-    "auscultation/scripts/collect_server.py": "c89995f20279c234f810feebe030f0b6477a8056d676458722d570830bda56d3",
+    "auscultation/scripts/collect_server.py": "2cf1219fb03065891a65717285b5b3815263f508d1c12d04780fa36dd8fb8376",
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",
@@ -230,7 +230,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",
     "auscultation/scripts/perception_capture.py": "d73fc89e9c48a56964e568d559789724dc2de74d92aa5270bdf02f2eb65a4f44",
     "auscultation/scripts/perception_worker.py": "ba58f97d3913f39f766999a81ff960bc5af1d5c630eb6bfee66e27676facd92e",
-    "auscultation/scripts/posterior_gate.py": "47693f1605f041471f0159d70ba73269f845c7b3774dcec24c129cbe129f50c4",
+    "auscultation/scripts/posterior_gate.py": "602a58cc2ee8311eb1015d20ee74225d6e378cee873279b303abfdfcc8779077",
 }
 
 RUNTIME_CAPABILITIES = {
