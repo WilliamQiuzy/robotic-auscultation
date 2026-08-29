@@ -47,6 +47,7 @@ from .robot_state_stream import (
     FEEDBACK_LIVENESS_SEMANTICS,
     FEEDBACK_MAX_AGE_NS,
     FEEDBACK_MAX_GAP_NS,
+    FEEDBACK_TOLERATED_GAP_CEILING_NS,
     MOTOR_ACK_UNOBSERVABLE_REASON,
     SOCKETCAN_TX_ENQUEUE_SEMANTICS,
     SOCKETCAN_TX_STATUS_REASON,
@@ -1672,7 +1673,12 @@ def _evaluate_v4_feedback(
     replay: "ExactCaptureReplayStats",
     *,
     end_monotonic_ns: int,
+    gap_violation_tolerance: object = 0,
 ) -> Dict[str, object]:
+    if not _is_int(gap_violation_tolerance) or gap_violation_tolerance < 0:
+        raise RobotCaptureError(
+            "v4 feedback gap-violation tolerance must be a non-negative integer"
+        )
     baseline = _validate_feedback_start_baseline(
         baseline_value, replay.first_record
     )
@@ -1704,15 +1710,26 @@ def _evaluate_v4_feedback(
     all_ticks_fresh = (
         replay.feedback_all_ticks_fresh and max_age_ns <= FEEDBACK_MAX_AGE_NS
     )
+    violation_total = int(sum(violation_delta))
+    # A declared tolerance keeps the raw per-motor deltas on the record while
+    # bounding both the count and the worst tolerated gap; tolerance 0 is the
+    # historical exact rule.
+    gap_ceiling_ns = (
+        FEEDBACK_MAX_GAP_NS
+        if violation_total == 0
+        else FEEDBACK_TOLERATED_GAP_CEILING_NS
+    )
     gap_clean = (
-        all(delta == 0 for delta in violation_delta)
-        and replay.feedback_max_last_gap_ns <= FEEDBACK_MAX_GAP_NS
+        violation_total <= int(gap_violation_tolerance)
+        and replay.feedback_max_last_gap_ns <= gap_ceiling_ns
     )
     return {
         "feedback_start_baseline": dict(baseline),
         "capture_end_monotonic_ns": end_monotonic_ns,
         "feedback_counter_progress_all_motors": counter_progress,
         "feedback_gap_violation_count_delta": violation_delta,
+        "feedback_gap_violation_total": violation_total,
+        "feedback_gap_violation_tolerance": int(gap_violation_tolerance),
         "feedback_all_ticks_fresh": all_ticks_fresh,
         "feedback_max_observed_age_ns": max_age_ns,
         "feedback_max_observed_gap_ns": replay.feedback_max_last_gap_ns,
@@ -1989,9 +2006,18 @@ class RobotSessionCapture:
         *,
         preflight_min_envelopes: int = 11,
         preflight_duration_ns: int = 100_000_000,
+        feedback_gap_violation_tolerance: int = 0,
     ) -> None:
         if not isinstance(contract, RobotStateContract):
             raise TypeError("contract must be RobotStateContract")
+        if (
+            type(feedback_gap_violation_tolerance) is not int
+            or feedback_gap_violation_tolerance < 0
+        ):
+            raise TypeError(
+                "feedback_gap_violation_tolerance must be a non-negative integer"
+            )
+        self._feedback_gap_violation_tolerance = feedback_gap_violation_tolerance
         if (
             contract.side != "left"
             or contract.leader_can_interface != "can1"
@@ -2530,6 +2556,7 @@ class RobotSessionCapture:
                 self._feedback_start_baseline,
                 replay,
                 end_monotonic_ns=self._capture_end_monotonic_ns,
+                gap_violation_tolerance=self._feedback_gap_violation_tolerance,
             )
             feedback_clean = bool(feedback_evaluation["feedback_clean"])
         else:
@@ -3835,6 +3862,13 @@ def validate_robot_capture_artifacts(
             summary.get("feedback_start_baseline"),
             replay,
             end_monotonic_ns=summary.get("capture_end_monotonic_ns"),
+            # Replay recomputes with the tolerance the capture DECLARED; the
+            # outer validators separately pin that declaration to the
+            # operator-configured value so a session cannot smuggle a larger
+            # tolerance past the receipt police.
+            gap_violation_tolerance=summary.get(
+                "feedback_gap_violation_tolerance", 0
+            ),
         )
         feedback_clean = bool(feedback_evaluation["feedback_clean"])
     else:

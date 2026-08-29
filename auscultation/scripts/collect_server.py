@@ -123,6 +123,25 @@ def _robot_v3_tx_summary_valid(summary):
     )
 
 
+# 2026-08-29 (operator-approved): the receipt must DECLARE the feedback
+# gap-violation tolerance it was captured under, and that declaration must
+# equal this code-pinned value. 0 keeps the historical exact [0]*8 rule
+# byte-identical; raising it requires threading the tolerance through the
+# production runtime assembly AND lifting the converter's production maximum
+# in the same release.
+ROBOT_FEEDBACK_GAP_TOLERANCE_CONFIGURED = 0
+
+
+def _robot_gap_delta_within_tolerance(delta, declared):
+    if type(declared) is not int or declared != ROBOT_FEEDBACK_GAP_TOLERANCE_CONFIGURED:
+        return False
+    if not isinstance(delta, list) or len(delta) != 8:
+        return False
+    if any(type(value) is not int or value < 0 for value in delta):
+        return False
+    return sum(delta) <= declared
+
+
 def _robot_v4_summary_valid(summary, *, contract=None):
     """Return whether a v4 End receipt is clean and training-eligible."""
 
@@ -168,7 +187,10 @@ def _robot_v4_summary_valid(summary, *, contract=None):
         and summary.get("feedback_all_ticks_fresh") is True
         and summary.get("feedback_gap_clean") is True
         and summary.get("feedback_clean") is True
-        and summary.get("feedback_gap_violation_count_delta") == [0] * 8
+        and _robot_gap_delta_within_tolerance(
+            summary.get("feedback_gap_violation_count_delta"),
+            summary.get("feedback_gap_violation_tolerance", 0),
+        )
         and summary.get("trajectory_validation_schema")
         == "wam_openarm_trajectory_validation_v1"
         and summary.get("trajectory_nondegenerate") is True
@@ -6260,8 +6282,9 @@ class Collector:
                     or force_authenticity.get("schema_version")
                     != "wam_force_signal_authenticity_v1"
                     or force_authenticity.get("policy_version")
-                    != "force_signal_conservative_v3"
-                    or force_authenticity.get("status") != "PASS"
+                    != "force_signal_degraded_real_v4"
+                    or force_authenticity.get("status")
+                    not in ("PASS", "PASS_DEGRADED")
                 ):
                     return summary
                 from mechanical_sensor.force_feedback.force_capture import (

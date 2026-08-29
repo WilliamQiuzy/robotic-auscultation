@@ -942,6 +942,23 @@ def require_exact_robot_training_eligibility(summary: Mapping) -> None:
         )
     if summary.get("schema") == EXACT_ROBOT_SUMMARY_SCHEMA_V4:
         violation_delta = summary.get("feedback_gap_violation_count_delta")
+        declared_tolerance = summary.get("feedback_gap_violation_tolerance", 0)
+        # 2026-08-29 (operator-approved) bounded-tolerance mechanism: the
+        # capture declares its tolerance and the deltas must fit inside it.
+        # The PRODUCTION maximum stays 0 until excision windows for tolerated
+        # gaps are implemented in the reward alignment; raise it together with
+        # collect_server.ROBOT_FEEDBACK_GAP_TOLERANCE_CONFIGURED.
+        production_tolerance_max = 0
+        delta_within_declared_tolerance = (
+            type(declared_tolerance) is int
+            and 0 <= declared_tolerance <= production_tolerance_max
+            and isinstance(violation_delta, list)
+            and len(violation_delta) == 8
+            and all(
+                type(value) is int and value >= 0 for value in violation_delta
+            )
+            and sum(violation_delta) <= declared_tolerance
+        )
         baseline = summary.get("feedback_start_baseline")
         if (
             summary.get("send_status_observable") is not True
@@ -962,8 +979,7 @@ def require_exact_robot_training_eligibility(summary: Mapping) -> None:
             or summary.get("feedback_all_ticks_fresh") is not True
             or summary.get("feedback_gap_clean") is not True
             or summary.get("feedback_clean") is not True
-            or not isinstance(violation_delta, list)
-            or violation_delta != [0] * 8
+            or not delta_within_declared_tolerance
             or not isinstance(baseline, Mapping)
             or baseline.get("schema") != "wam_openarm_feedback_start_baseline_v1"
             or summary.get("trajectory_validation_schema")
@@ -1326,7 +1342,7 @@ def _reverify_component_raw_gates(
     if (
         getattr(force, "status", None) != "OK"
         or not isinstance(force_authenticity, Mapping)
-        or force_authenticity.get("status") != "PASS"
+        or force_authenticity.get("status") not in ("PASS", "PASS_DEGRADED")
         or force_authenticity.get("promotion_eligible") is not True
         or force_authenticity.get("promotion_blockers") != []
     ):

@@ -87,6 +87,10 @@ FEEDBACK_LIVENESS_SEMANTICS = (
 )
 FEEDBACK_MAX_AGE_NS = 20_000_000
 FEEDBACK_MAX_GAP_NS = 20_000_000
+# 2026-08-29 (operator-approved): when a bounded feedback-gap tolerance is
+# declared, each tolerated gap must still stay under this ceiling — a 25 ms
+# scheduling blip is tolerable evidence, a multi-second CAN outage never is.
+FEEDBACK_TOLERATED_GAP_CEILING_NS = 100_000_000
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _START_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.:/-]{1,128}$")
