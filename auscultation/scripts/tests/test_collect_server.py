@@ -8649,3 +8649,44 @@ def test_update_provenance_preserves_force_and_audio_sections(tmp_path):
         assert collector._provenance["force"]["last_capture_status"] == "DEGRADED"
     finally:
         collector.shutdown()
+
+
+def test_displayable_points_show_partial_verified_and_amber_unverified():
+    """2026-08-29 operator-display policy: the task gate stays all-or-nothing,
+    but the HUMAN display shows the verified subset plus explicitly
+    unverified detector-only points (robot-band-withheld L5/R5) — hiding
+    eight verified landmarks from a doctor because two are uncertain starved
+    the alignment workflow (live UI showed 0 points while the tracker held 8)."""
+    server = _load_collect_server()
+    names = [f"P{i}" for i in range(10)]
+    tracking = {
+        "back_present": True,
+        "initialized": True,
+        "reason": "TRACKING",
+        "points": [
+            {
+                "name": name,
+                "pixel": [100.0 + i, 200.0],
+                "status": "TRACKING",
+                "measured": True,
+                "position_std": 0.001,
+            }
+            for i, name in enumerate(names[:8])
+        ],
+        "display_only_points": [
+            {"name": names[8], "pixel": [500.0, 600.0], "display_only": True},
+            {"name": names[9], "pixel": [520.0, 640.0], "display_only": True},
+            # junk rows must be ignored
+            {"name": "P0", "pixel": [1.0, 1.0], "display_only": True},
+            {"name": "bad", "pixel": [float("nan"), 1.0], "display_only": True},
+        ],
+    }
+    # task gate: still refuses a partial constellation
+    assert server.visible_tracking_points(tracking, expected_names=names) == []
+    verified, unverified = server.displayable_tracking_points(
+        tracking, expected_names=names,
+    )
+    assert [p["name"] for p in verified] == names[:8]
+    assert [p["name"] for p in unverified] == [names[8], names[9]]
+    # duplicate-name display-only entry for a verified point was dropped
+    assert all(p["name"] != "P0" for p in unverified)

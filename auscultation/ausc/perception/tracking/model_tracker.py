@@ -194,6 +194,13 @@ class MTOutput:
     sim3_translation_camera_from_patient_m: np.ndarray = field(
         default_factory=lambda: np.zeros(3, dtype=np.float64)
     )
+    # DISPLAY-ONLY metadata (2026-08-29): the detector's structure-fitted
+    # full-frame pixels for all 10 landmarks from THIS frame's accepted
+    # detection (None when no detection was accepted). Never used by the
+    # occlusion/publication chain — it lets the operator console render
+    # never-initialized (e.g. robot-band-withheld) points in a distinct
+    # unverified style instead of hiding anatomy from a human reader.
+    detector_pixels: Optional[np.ndarray] = None
 
 
 def _umeyama(src: np.ndarray, dst: np.ndarray, w: np.ndarray):
@@ -450,6 +457,7 @@ class ModelBasedTracker:
             # evidence of presence, but production uses NormalsDetector's explicit boolean.
             self._frame_back_present = True
         full = det.crop.det_to_full(det.xy_det)
+        self._frame_detector_pixels_full = np.array(full, copy=True)
         if robot_mask is not None:
             self._frame_robot_occluded = self._robot_mask_association_flags(
                 full, depth, robot_mask,
@@ -937,6 +945,19 @@ class ModelBasedTracker:
 
     def process(self, rgb, depth, t: float = 0.0, depth_scale: Optional[float] = None,
                 *, robot_mask=None) -> MTOutput:
+        output = self._process_frame(
+            rgb, depth, t=t, depth_scale=depth_scale, robot_mask=robot_mask,
+        )
+        pixels = getattr(self, "_frame_detector_pixels_full", None)
+        output.detector_pixels = (
+            None if pixels is None else np.array(pixels, copy=True)
+        )
+        return output
+
+    def _process_frame(self, rgb, depth, t: float = 0.0,
+                       depth_scale: Optional[float] = None,
+                       *, robot_mask=None) -> MTOutput:
+        self._frame_detector_pixels_full = None
         self._frame_robot_occluded.fill(False)
         self._frame_pose_measured = False
         self._frame_pose_support.fill(False)

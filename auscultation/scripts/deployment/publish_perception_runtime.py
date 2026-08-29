@@ -208,7 +208,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/tracking/experimental_visibility_geometry.py": "ebe51a692a2e871e47415cb6dbecbb96d14bb7f410deceb2d8b1e485c4d52e33",
     "auscultation/ausc/perception/tracking/geometry.py": "588491d220873e5b4d838d20e08e995f4c5f3cca3876ba61cc906fa74e3f6c4f",
     "auscultation/ausc/perception/tracking/geometry_channel_packet.py": "67f184e1bb3be1d8d7a7ef83e5a9b078745ddbe65d5432a2588b4d2b263695bc",
-    "auscultation/ausc/perception/tracking/model_tracker.py": "72243d4a65ec6fb2f969cf2d0e771007b11ff06c91f849df7010da031aadf788",
+    "auscultation/ausc/perception/tracking/model_tracker.py": "97f16be56a13a33c1e358cdfe1a1d5232e1ff4cbd518a031066a8460684a91a9",
     "auscultation/ausc/perception/tracking/occlusion_runtime.py": "227a890cdf42fadd949110d3c10f5e74c379462c16507d25b843b6fc84e59539",
     "auscultation/ausc/perception/tracking/patient_frame_evidence.py": "c3958cf6a5aa5b8d6f856900598b2c402101c78be866e4393db75743fa0f7639",
     "auscultation/ausc/perception/tracking/patient_pose_provider.py": "a4c0da10e99b91c3e0ba414ab5eaf1469bc77becf167fe2c65f23fdcea8ff589",
@@ -220,7 +220,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "de2f00dac4dc134e3844ab73d9514b2fca556867ef639eea6b11e9a9f2ede57e",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
-    "auscultation/scripts/collect_server.py": "2cf1219fb03065891a65717285b5b3815263f508d1c12d04780fa36dd8fb8376",
+    "auscultation/scripts/collect_server.py": "cab1d1bfd9896ab4b22c5c639c57a4bac8d4e6cb99731a8cbef465f5c0a363e1",
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",
@@ -229,7 +229,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/scripts/deployment/verify_perception_environment.py": "cae1a043fcdafc5252a2f476791bdabb87c6f7e19affb228b3fcd22e4f82bf97",
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",
     "auscultation/scripts/perception_capture.py": "d73fc89e9c48a56964e568d559789724dc2de74d92aa5270bdf02f2eb65a4f44",
-    "auscultation/scripts/perception_worker.py": "ba58f97d3913f39f766999a81ff960bc5af1d5c630eb6bfee66e27676facd92e",
+    "auscultation/scripts/perception_worker.py": "efad781966f46504b8cc70ad0f36667c42c9b8620e27aa44d1a6dd1eece598ac",
     "auscultation/scripts/posterior_gate.py": "602a58cc2ee8311eb1015d20ee74225d6e378cee873279b303abfdfcc8779077",
 }
 

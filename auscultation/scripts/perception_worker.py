@@ -479,6 +479,31 @@ def tracker_result_to_dict(output):
             "robot_occluded": robot_occluded,
             "direct_geometry_accepted": direct_geometry_accepted,
         })
+    # DISPLAY-ONLY channel (2026-08-29): landmarks the vetted chain withheld
+    # (never-initialized under the robot uncertainty band, e.g. L5/R5 with a
+    # near-camera shoulder) still get the detector's structure-fitted pixel so
+    # the operator console can render them in an explicit unverified style.
+    # Anything downstream of display MUST ignore this key.
+    display_only = []
+    detector_pixels = getattr(output, "detector_pixels", None)
+    if detector_pixels is not None:
+        vetted_names = {entry["name"] for entry in points}
+        order = tuple(getattr(output, "point_order", ())) or tuple(
+            str(getattr(point, "name")) for point in getattr(output, "points", ())
+        )
+        for index, name in enumerate(order):
+            if name in vetted_names or index >= len(detector_pixels):
+                continue
+            candidate = [float(value) for value in detector_pixels[index][:2]]
+            if len(candidate) == 2 and all(
+                math.isfinite(value) for value in candidate
+            ):
+                display_only.append({
+                    "name": str(name),
+                    "pixel": candidate,
+                    "display_only": True,
+                    "reason": "UNVERIFIED_DETECTOR_ONLY",
+                })
     support = [
         bool(value) for value in getattr(output, "pose_support_mask", ())
     ]
@@ -526,6 +551,7 @@ def tracker_result_to_dict(output):
         "sim3_scale": scale if math.isfinite(scale) and scale > 0.0 else None,
         "sim3_translation_camera_from_patient_m": translation,
         "points": points,
+        "display_only_points": display_only,
     }
 
 

@@ -472,6 +472,51 @@ def visible_tracking_points(
     return [by_name[name] for name in expected]
 
 
+def displayable_tracking_points(tracking, *, expected_names=None):
+    """Display-layer selection (2026-08-29, operator-display policy).
+
+    The task-control gate (:func:`visible_tracking_points`) keeps its
+    all-or-nothing constellation rule — targeting a point requires the full
+    verified set. The HUMAN display is different: hiding eight verified
+    landmarks because two sit inside the robot uncertainty band starves the
+    doctor of anatomy a machine reader never needed protected. This returns
+    (verified, unverified): verified points individually vetted exactly as
+    before but WITHOUT the full-constellation requirement; unverified points
+    from the tracker's display-only detector channel, to be rendered in an
+    explicitly distinct style and never consumed by anything but pixels on
+    the operator console.
+    """
+    verified = visible_tracking_points(tracking)
+    if expected_names is not None:
+        expected = {str(name) for name in expected_names}
+        seen = set()
+        filtered = []
+        for point in verified:
+            name = str(point.get("name", ""))
+            if name in expected and name not in seen:
+                seen.add(name)
+                filtered.append(point)
+        verified = filtered
+    if not isinstance(tracking, dict):
+        return verified, []
+    verified_names = {str(point.get("name", "")) for point in verified}
+    unverified = []
+    for raw in tracking.get("display_only_points") or []:
+        if not isinstance(raw, dict) or raw.get("display_only") is not True:
+            continue
+        name = str(raw.get("name", ""))
+        if name in verified_names:
+            continue
+        try:
+            pixel = [float(raw["pixel"][0]), float(raw["pixel"][1])]
+        except (KeyError, TypeError, ValueError, IndexError):
+            continue
+        if not all(math.isfinite(value) for value in pixel):
+            continue
+        unverified.append({"name": name, "pixel": pixel})
+    return verified, unverified
+
+
 def draw_tracking_overlay(
     frame, tracking, *, active_name, completed_names=(), expected_names=None,
 ):
@@ -479,7 +524,23 @@ def draw_tracking_overlay(
     import cv2
 
     completed = set(completed_names)
-    for point in visible_tracking_points(tracking, expected_names=expected_names):
+    verified_points, unverified_points = displayable_tracking_points(
+        tracking, expected_names=expected_names,
+    )
+    for raw in unverified_points:
+        px, py = (int(round(value)) for value in raw["pixel"])
+        amber = (0, 180, 255)
+        for segment in range(0, 16, 2):
+            cv2.ellipse(
+                frame, (px, py), (10, 10), 0,
+                segment * 360 / 16, (segment + 1) * 360 / 16, amber, 2,
+            )
+        cv2.circle(frame, (px, py), 2, amber, -1)
+        cv2.putText(
+            frame, f"{raw['name']} ?", (px - 30, py - 18),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, amber, 1,
+        )
+    for point in verified_points:
         name = str(point.get("name", ""))
         px, py = (int(round(value)) for value in point["pixel"])
         if name in completed:
