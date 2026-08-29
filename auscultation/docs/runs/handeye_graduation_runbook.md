@@ -13,6 +13,12 @@
 
 ## 前置条件(到场前确认)
 
+0. **打印标定帽**(会前一天):`mechanical_sensor/generated/handeye_tip_cap/
+   handeye_calibration_tip_cap_v1.stl`(锥尖朝上打印,套筒腔内加支撑;PETG/PLA,
+   0.2mm 层高 4 壁)。卡套在听诊头 Ø46 圆柱上,尖端在膜片下 15mm 轴线上。
+   为什么必须:R4 用平膜片点触,RMS 9.26mm(门槛 3mm 的三倍)——接触/点击歧义
+   ~±20mm 是主误差源;求解器自估 tip_offset,帽子只需刚性+尖端唯一,打印公差
+   不敏感。
 1. 刚性非人体 3D 夹具在位(点触标定专用)。
 2. 相机自标定后未移动(相机↔底座刚性连接;若动过一切作废)。
 3. 相机延迟标定(camera latency)在有效期(preflight 会查)。
