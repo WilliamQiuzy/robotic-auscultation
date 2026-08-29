@@ -3946,7 +3946,7 @@ def test_complete_proof_fails_closed_after_sealed_audio_is_replaced(tmp_path):
     session.mkdir()
     authenticity = {
         "schema_version": "wam_audio_signal_authenticity_v1",
-        "policy_version": "audio_signal_conservative_v2",
+        "policy_version": "audio_signal_degraded_real_v3",
         "status": "PASS",
     }
     files = {

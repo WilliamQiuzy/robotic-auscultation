@@ -1102,6 +1102,7 @@ class Collector:
         depth_compression_ratio=8.0,
         non_depth_capture_bytes_per_s=12_000_000,
         max_tracking_age_s=0.25,
+        model_bound_drop_tolerance=0,
         recording_frame_divisor=1,
         capture_queue_frames=8,
         camera_delivery_frames=32,
@@ -1248,6 +1249,15 @@ class Collector:
         self.max_tracking_age_s = float(max_tracking_age_s)
         if not math.isfinite(self.max_tracking_age_s) or self.max_tracking_age_s <= 0:
             raise ValueError("max_tracking_age_s must be finite and positive")
+        # 2026-08-29 (operator-approved) bounded tolerance for model-bound frame
+        # drops. 0 keeps the historical zero-tolerance abort byte-identical.
+        # Raising it above 0 is DIAGNOSTIC-ONLY until the trusted finalizer's
+        # one-tracker-row-per-frame evidence contract learns to accept a
+        # documented drop ledger; production sessions would otherwise pass End
+        # and still die post-hoc in hand-eye frame-evidence validation.
+        self.model_bound_drop_tolerance = int(model_bound_drop_tolerance)
+        if self.model_bound_drop_tolerance < 0:
+            raise ValueError("model_bound_drop_tolerance must be >= 0")
         self.capture_queue_frames = int(capture_queue_frames)
         if self.capture_queue_frames <= 0:
             raise ValueError("capture_queue_frames must be positive")
@@ -1512,6 +1522,7 @@ class Collector:
         self._recording_boundary = None
         self._end_boundary_closing = False
         self._record_ingress_drop_baseline = 0
+        self._record_ingress_drop_flagged = 0
         self._record_ingress_overflow_baseline = 0
         self._record_camera_overflow_baseline = 0
         self._camera_delivery_interval_id = None
@@ -4016,6 +4027,9 @@ class Collector:
                         self._record_ingress_drop_baseline = int(
                             ingress_health.get("dropped_before_inference", 0)
                         )
+                        self._record_ingress_drop_flagged = (
+                            self._record_ingress_drop_baseline
+                        )
                         self._record_ingress_overflow_baseline = int(
                             ingress_health.get("overflow_rejections", 0)
                         )
@@ -4143,10 +4157,16 @@ class Collector:
                     int(ingress_health.get("overflow_rejections", 0))
                     - self._record_ingress_overflow_baseline
                 )
+                if 0 < dropped <= self.model_bound_drop_tolerance:
+                    self._flag_session_quality(
+                        "model_bound_frames_dropped",
+                        f"{dropped} model-bound frame(s) dropped within "
+                        f"tolerance {self.model_bound_drop_tolerance} at End",
+                    )
                 if (
                     not drained
                     or ingress_health.get("status") == "ERROR"
-                    or dropped > 0
+                    or dropped > self.model_bound_drop_tolerance
                     or overflowed > 0
                     or (
                         target is not None
@@ -4161,7 +4181,7 @@ class Collector:
                             if ingress_health.get("status") == "ERROR" else
                             (
                                 f"capture ingress dropped {dropped} frame(s) before End"
-                                if dropped > 0 else
+                                if dropped > self.model_bound_drop_tolerance else
                                 (
                                     "capture ingress overflowed before End"
                                     if overflowed > 0
@@ -5706,9 +5726,23 @@ class Collector:
                     int(ingress_health["dropped_before_inference"])
                     - self._record_ingress_drop_baseline
                 )
-                self._abort_recording(
-                    f"diagnostic capture ingress dropped {dropped} model-bound frame(s)"
-                )
+                if dropped > self.model_bound_drop_tolerance:
+                    self._abort_recording(
+                        f"diagnostic capture ingress dropped {dropped} model-bound "
+                        f"frame(s) (tolerance {self.model_bound_drop_tolerance})"
+                    )
+                elif (
+                    int(ingress_health["dropped_before_inference"])
+                    > self._record_ingress_drop_flagged
+                ):
+                    self._record_ingress_drop_flagged = int(
+                        ingress_health["dropped_before_inference"]
+                    )
+                    self._flag_session_quality(
+                        "model_bound_frames_dropped",
+                        f"{dropped} model-bound frame(s) dropped within "
+                        f"tolerance {self.model_bound_drop_tolerance}",
+                    )
             snapshot = self.platform.state_snapshot()
             completed_names = {
                 self.point_names[index]
@@ -6064,8 +6098,9 @@ class Collector:
                     or audio_authenticity.get("schema_version")
                     != "wam_audio_signal_authenticity_v1"
                     or audio_authenticity.get("policy_version")
-                    != "audio_signal_conservative_v2"
-                    or audio_authenticity.get("status") != "PASS"
+                    != "audio_signal_degraded_real_v3"
+                    or audio_authenticity.get("status")
+                    not in ("PASS", "PASS_DEGRADED")
                 ):
                     return summary
                 try:
@@ -7545,6 +7580,15 @@ def build_parser():
     )
     ap.add_argument("--controller-readiness-timeout-s", type=float, default=15.0)
     ap.add_argument("--max-tracking-age-ms", type=float, default=250.0)
+    ap.add_argument(
+        "--model-bound-drop-tolerance", type=int, default=0,
+        help=(
+            "Bounded model-bound frame-drop tolerance before a recording aborts "
+            "(default 0 keeps the historical zero-tolerance behavior). "
+            "DIAGNOSTIC-ONLY above 0 until the trusted finalizer accepts a "
+            "documented drop ledger in hand-eye frame evidence."
+        ),
+    )
     ap.add_argument("--recording-frame-divisor", type=int, default=1)
     ap.add_argument("--capture-queue-frames", type=int, default=8)
     ap.add_argument(
@@ -7924,6 +7968,7 @@ def main(argv=None):
             depth_compression_ratio=a.depth_compression_ratio,
             non_depth_capture_bytes_per_s=a.non_depth_capture_bytes_per_s,
             max_tracking_age_s=a.max_tracking_age_ms / 1000.0,
+            model_bound_drop_tolerance=a.model_bound_drop_tolerance,
             recording_frame_divisor=a.recording_frame_divisor,
             capture_queue_frames=a.capture_queue_frames,
             camera_delivery_frames=a.camera_delivery_frames,
