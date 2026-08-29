@@ -272,3 +272,93 @@ def test_direct_disable_timeout_raises():
     disable = make_subprocess_direct_disable(("disable.sh",), run=timeout_run, timeout_s=5.0)
     with pytest.raises(ControllerLaunchError, match="timed out"):
         disable("estop")
+
+
+def test_reap_kills_stale_binary_processes_and_spares_others(tmp_path):
+    """Bring-up reap: processes running the sealed controller binary are
+    terminated (the arm is operator-disabled at every bring-up, so they are
+    inert socket-holders); unrelated processes are untouched. Linux-only —
+    inert where /proc is absent."""
+    import os
+    import shutil
+    import subprocess
+    import sys
+    import time as _time
+
+    from ausc.perception.robot.controller_launch import (
+        reap_stale_controller_processes,
+    )
+
+    if not os.path.isdir("/proc"):
+        assert reap_stale_controller_processes("/nonexistent") == ()
+        return
+
+    sleep_bin = shutil.which("sleep")
+    fake_controller = tmp_path / "unilateral_control"
+    shutil.copy(sleep_bin, fake_controller)
+    fake_controller.chmod(0o755)
+    stale = subprocess.Popen([str(fake_controller), "60"], start_new_session=True)
+    bystander = subprocess.Popen([sleep_bin, "60"], start_new_session=True)
+    try:
+        _time.sleep(0.2)
+        reaped = reap_stale_controller_processes(fake_controller)
+        assert stale.pid in reaped
+        deadline = _time.monotonic() + 5
+        while stale.poll() is None and _time.monotonic() < deadline:
+            _time.sleep(0.05)
+        assert stale.poll() is not None, "stale controller survived reap"
+        assert bystander.poll() is None, "bystander was killed"
+    finally:
+        for proc in (stale, bystander):
+            try:
+                proc.kill()
+            except OSError:
+                pass
+
+
+def test_apply_controller_scheduling_reports_not_raises():
+    """Scheduling application never raises: a running non-RT controller is
+    strictly better than no controller."""
+    import subprocess
+    import sys
+
+    from ausc.perception.robot.controller_launch import (
+        apply_controller_scheduling,
+    )
+
+    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])
+    try:
+        outcome = apply_controller_scheduling(child.pid, rt_priority=50)
+        assert set(outcome) == {"affinity", "rt"}
+        # RT will fail without RLIMIT_RTPRIO (and on macOS entirely): the
+        # failure must be a recorded string, never an exception.
+        assert outcome["rt"] == 50 or str(outcome["rt"]).startswith("failed:")
+    finally:
+        child.kill()
+
+
+def test_launcher_runs_reap_and_scheduling_hooks(monkeypatch):
+    import types
+
+    import ausc.perception.robot.controller_launch as cl
+
+    calls = {"reap": [], "sched": []}
+    monkeypatch.setattr(
+        cl, "reap_stale_controller_processes",
+        lambda path, **k: calls["reap"].append(str(path)) or (),
+    )
+    monkeypatch.setattr(
+        cl, "apply_controller_scheduling",
+        lambda pid, **k: calls["sched"].append(pid) or {"affinity": None, "rt": None},
+    )
+
+    class FakeProc:
+        pid = 4242
+        def poll(self): return None
+
+    launch = cl.make_subprocess_launcher(
+        ("/fake/unilateral_control", "arg"), popen=lambda *a, **k: FakeProc(),
+    )
+    launch()
+    assert calls["reap"] == ["/fake/unilateral_control"]
+    assert calls["sched"] == [4242]

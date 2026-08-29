@@ -18,6 +18,7 @@ import os
 import shlex
 import signal
 import subprocess
+import time
 from typing import Callable, Optional, Sequence
 
 
@@ -76,6 +77,108 @@ class SubprocessLaunchedController:
                 pass
 
 
+CONTROLLER_RT_PRIORITY = 50
+CONTROLLER_CPU_AFFINITY = (28, 29, 30, 31)
+
+
+def reap_stale_controller_processes(
+    binary_path, *, sigterm_grace_s: float = 2.0,
+) -> tuple:
+    """Kill lingering controller processes from previous collector instances.
+
+    The collector unit runs KillMode=mixed with a one-hour stop timeout BY
+    DESIGN: a service restart must never hard-kill a controller that may be
+    holding a powered arm (gravity compensation would vanish and the arm
+    would drop). The cost is orphan accumulation: 2026-08-29 four concurrent
+    controllers fought over can1/can3 and latched the telemetry receiver
+    with tick-gap/sequence faults.
+
+    This reap runs ONLY on the bring-up launch path, whose precondition is
+    an operator-disabled arm (motors torque-off), so any lingering
+    controller is inert software holding sockets — never a live commander.
+    Matching is by resolved /proc/<pid>/exe against the sealed controller
+    binary, which can never touch the other arm's (differently released)
+    controller.
+    """
+    target = os.path.realpath(os.fspath(binary_path))
+    reaped = []
+    if not os.path.isdir("/proc"):
+        return tuple(reaped)  # Linux-only mechanism; inert elsewhere (tests)
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        pid = int(entry)
+        if pid == os.getpid():
+            continue
+        try:
+            exe = os.path.realpath("/proc/%d/exe" % pid)
+        except OSError:
+            continue
+        if exe != target:
+            continue
+        reaped.append(pid)
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+        except (ProcessLookupError, PermissionError, OSError):
+            try:
+                os.kill(pid, signal.SIGTERM)
+            except OSError:
+                continue
+    if reaped:
+        deadline = time.monotonic() + sigterm_grace_s
+        while time.monotonic() < deadline:
+            if not any(os.path.isdir("/proc/%d" % pid) for pid in reaped):
+                break
+            time.sleep(0.05)
+        for pid in reaped:
+            if os.path.isdir("/proc/%d" % pid):
+                try:
+                    os.killpg(os.getpgid(pid), signal.SIGKILL)
+                except (ProcessLookupError, PermissionError, OSError):
+                    try:
+                        os.kill(pid, signal.SIGKILL)
+                    except OSError:
+                        pass
+    return tuple(reaped)
+
+
+def apply_controller_scheduling(
+    pid: int,
+    *,
+    rt_priority: int = CONTROLLER_RT_PRIORITY,
+    cpu_affinity: tuple = CONTROLLER_CPU_AFFINITY,
+) -> dict:
+    """Pin and RT-schedule a just-launched controller before it threads out.
+
+    Called immediately after fork, before the exec'd binary spawns worker
+    threads: CPU affinity and the SCHED_FIFO policy are both inherited by
+    every later thread, so one early call replaces the racy external
+    pin-after-birth sentinel (an unpinned controller wobbled its 1 kHz tick
+    stream to 9.5 ms gaps and latched the receiver on 2026-08-29).
+
+    SCHED_FIFO needs RLIMIT_RTPRIO >= rt_priority (unit: LimitRTPRIO); the
+    failure is reported, never raised — a running non-RT controller is
+    strictly better than no controller, and the external sentinel remains a
+    fallback.
+    """
+    outcome = {"affinity": None, "rt": None}
+    try:
+        affinity = tuple(cpu for cpu in cpu_affinity if cpu < os.cpu_count())
+        if affinity:
+            os.sched_setaffinity(pid, affinity)
+            outcome["affinity"] = affinity
+    except (OSError, AttributeError) as exc:
+        outcome["affinity"] = f"failed: {exc}"
+    try:
+        os.sched_setscheduler(
+            pid, os.SCHED_FIFO, os.sched_param(int(rt_priority))
+        )
+        outcome["rt"] = int(rt_priority)
+    except (OSError, AttributeError) as exc:
+        outcome["rt"] = f"failed: {exc}"
+    return outcome
+
+
 def make_subprocess_launcher(
     command: Sequence[str],
     *,
@@ -83,6 +186,8 @@ def make_subprocess_launcher(
     env: Optional[dict] = None,
     popen: Callable[..., subprocess.Popen] = subprocess.Popen,
     pre_launch_validate: Optional[Callable[[], None]] = None,
+    reap_stale: bool = True,
+    scheduling: bool = True,
 ) -> Callable[[], SubprocessLaunchedController]:
     """Return a launch_controller() that starts ``command`` in a new session."""
 
@@ -93,6 +198,14 @@ def make_subprocess_launcher(
     def launch() -> SubprocessLaunchedController:
         if pre_launch_validate is not None:
             pre_launch_validate()
+        if reap_stale:
+            reaped = reap_stale_controller_processes(argv[0])
+            if reaped:
+                print(
+                    "[controller-launch] reaped stale controller processes "
+                    f"(operator-disabled arm): {list(reaped)}",
+                    flush=True,
+                )
         try:
             process = popen(
                 list(argv),
@@ -103,6 +216,13 @@ def make_subprocess_launcher(
             )
         except OSError as exc:
             raise ControllerLaunchError(f"teleop launch failed: {exc}") from exc
+        if scheduling:
+            outcome = apply_controller_scheduling(process.pid)
+            print(
+                f"[controller-launch] scheduling pid={process.pid} "
+                f"affinity={outcome['affinity']} rt={outcome['rt']}",
+                flush=True,
+            )
         return SubprocessLaunchedController(process)
 
     return launch

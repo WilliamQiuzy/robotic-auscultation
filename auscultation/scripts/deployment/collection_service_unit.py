@@ -1087,6 +1087,14 @@ def render_unit(bindings: ReleaseBindings) -> bytes:
             "TimeoutStartSec=600s",
             "TimeoutStopSec=3600s",
             "KillMode=mixed",
+            # Allow the collector to grant its just-launched controller
+            # SCHED_FIFO 50 before the binary threads out (see
+            # controller_launch.apply_controller_scheduling). Effective only
+            # once the user manager's hard RLIMIT_RTPRIO admits it
+            # (system drop-in for user@1000.service); harmless otherwise —
+            # systemd clamps with a warning and the external pin fallback
+            # still applies.
+            "LimitRTPRIO=50",
             "NoNewPrivileges=true",
             "UMask=0077",
             "StandardOutput=journal",
