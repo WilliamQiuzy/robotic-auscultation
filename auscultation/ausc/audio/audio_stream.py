@@ -53,7 +53,11 @@ STATUS_OK = "OK"
 STATUS_STALE = "STALE"      # stream alive but last block is older than stale_timeout
 STATUS_NO_DATA = "NO_DATA"  # nothing captured yet (or fewer than requested samples)
 AUDIO_SIGNAL_AUTHENTICITY_SCHEMA_VERSION = "wam_audio_signal_authenticity_v1"
-AUDIO_SIGNAL_AUTHENTICITY_POLICY_VERSION = "audio_signal_conservative_v2"
+# v3 (2026-08-29, operator-approved): only fabrication-class evidence (all-zero /
+# constant PCM) rejects a session. Degraded-but-real evidence (frozen dropouts,
+# low AC energy, clipping, DC offset) is preserved as a ledger so downstream
+# reward/Q layers can mask windows instead of voiding doctor-confirmed sessions.
+AUDIO_SIGNAL_AUTHENTICITY_POLICY_VERSION = "audio_signal_degraded_real_v3"
 _AUDIO_AUTHENTICITY_POLICY = {
     "distinct_value_count_cap": 1_024,
     "freeze_block_duration_ms": 50,
@@ -69,6 +73,7 @@ _AUDIO_AUTHENTICITY_POLICY = {
     # but rejects USB/digital dithering such as {-1, 0, 1} that previously
     # looked non-constant while carrying no usable acoustic information.
     "minimum_effective_ac_rms_pcm": 2.0,
+    "degraded_region_ledger_cap": 64,
 }
 
 
@@ -186,6 +191,30 @@ class AudioSignalAuthenticityAccumulator:
         self._previous_block: bytes | None = None
         self._identical_block_run = 0
         self._longest_identical_block_run = 0
+        self._block_count = 0
+        self._frozen_regions: list[dict[str, object]] = []
+        self._frozen_regions_truncated = False
+
+    def _close_frozen_run(self) -> None:
+        run = self._identical_block_run
+        if run <= 0:
+            return
+        duration_s = run * self.block_samples / float(self.sample_rate)
+        if (
+            run >= int(_AUDIO_AUTHENTICITY_POLICY["freeze_min_blocks"])
+            and duration_s >= float(_AUDIO_AUTHENTICITY_POLICY["freeze_min_duration_s"])
+        ):
+            cap = int(_AUDIO_AUTHENTICITY_POLICY["degraded_region_ledger_cap"])
+            if len(self._frozen_regions) < cap:
+                start_sample = (self._block_count - run) * self.block_samples
+                self._frozen_regions.append({
+                    "start_sample": int(start_sample),
+                    "start_s": round(start_sample / float(self.sample_rate), 9),
+                    "n_blocks": int(run),
+                    "duration_s": round(duration_s, 9),
+                })
+            else:
+                self._frozen_regions_truncated = True
 
     def update(self, samples: np.ndarray) -> None:
         values = np.asarray(samples, dtype="<i2").reshape(-1)
@@ -224,8 +253,10 @@ class AudioSignalAuthenticityAccumulator:
             if raw == self._previous_block:
                 self._identical_block_run += 1
             else:
+                self._close_frozen_run()
                 self._previous_block = raw
                 self._identical_block_run = 1
+            self._block_count += 1
             self._longest_identical_block_run = max(
                 self._longest_identical_block_run,
                 self._identical_block_run,
@@ -253,6 +284,9 @@ class AudioSignalAuthenticityAccumulator:
             / float(self.sample_rate)
         )
 
+        self._close_frozen_run()
+
+        # Fabrication-class evidence: the bytes cannot be a real capture. Hard fail.
         if self._all_zero:
             raise AudioSignalAuthenticityError(
                 "audio signal authenticity failed: all-zero PCM"
@@ -261,21 +295,29 @@ class AudioSignalAuthenticityAccumulator:
             raise AudioSignalAuthenticityError(
                 "audio signal authenticity failed: constant PCM"
             )
+
+        # Degraded-but-real evidence: preserved as a ledger, never voids the session.
+        checks = {
+            "all_zero": "PASS",
+            "constant_pcm": "PASS",
+            "minimum_effective_ac_energy": "PASS",
+            "repeated_frozen_blocks": "PASS",
+            "severe_clipping": "PASS",
+            "severe_dc": "PASS",
+        }
+        degradations: list[str] = []
         if ac_rms_pcm < float(
             _AUDIO_AUTHENTICITY_POLICY["minimum_effective_ac_rms_pcm"]
         ):
-            raise AudioSignalAuthenticityError(
-                "audio signal authenticity failed: effective AC energy is below "
-                "the conservative PCM floor"
-            )
+            checks["minimum_effective_ac_energy"] = "DEGRADED"
+            degradations.append("minimum_effective_ac_energy")
         if (
             duration_s >= float(_AUDIO_AUTHENTICITY_POLICY["clipping_min_duration_s"])
             and clipped_fraction
             >= float(_AUDIO_AUTHENTICITY_POLICY["clipping_min_fraction"])
         ):
-            raise AudioSignalAuthenticityError(
-                "audio signal authenticity failed: severe clipping"
-            )
+            checks["severe_clipping"] = "DEGRADED"
+            degradations.append("severe_clipping")
         if (
             duration_s >= float(_AUDIO_AUTHENTICITY_POLICY["dc_min_duration_s"])
             and abs(mean_pcm) / 32_767.0
@@ -283,30 +325,17 @@ class AudioSignalAuthenticityAccumulator:
             and mean_to_rms_ratio
             >= float(_AUDIO_AUTHENTICITY_POLICY["dc_min_mean_to_rms_ratio"])
         ):
-            raise AudioSignalAuthenticityError(
-                "audio signal authenticity failed: severe DC offset"
-            )
-        if (
-            self._longest_identical_block_run
-            >= int(_AUDIO_AUTHENTICITY_POLICY["freeze_min_blocks"])
-            and repeated_duration_s
-            >= float(_AUDIO_AUTHENTICITY_POLICY["freeze_min_duration_s"])
-        ):
-            raise AudioSignalAuthenticityError(
-                "audio signal authenticity failed: repeated frozen blocks"
-            )
+            checks["severe_dc"] = "DEGRADED"
+            degradations.append("severe_dc")
+        if self._frozen_regions or self._frozen_regions_truncated:
+            checks["repeated_frozen_blocks"] = "DEGRADED"
+            degradations.append("repeated_frozen_blocks")
         return {
             "schema_version": AUDIO_SIGNAL_AUTHENTICITY_SCHEMA_VERSION,
             "policy_version": AUDIO_SIGNAL_AUTHENTICITY_POLICY_VERSION,
-            "status": "PASS",
-            "checks": {
-                "all_zero": "PASS",
-                "constant_pcm": "PASS",
-                "minimum_effective_ac_energy": "PASS",
-                "repeated_frozen_blocks": "PASS",
-                "severe_clipping": "PASS",
-                "severe_dc": "PASS",
-            },
+            "status": "PASS_DEGRADED" if degradations else "PASS",
+            "degradations": degradations,
+            "checks": checks,
             "policy": dict(_AUDIO_AUTHENTICITY_POLICY),
             "evidence": {
                 "n_samples": self.n_samples,
@@ -322,6 +351,8 @@ class AudioSignalAuthenticityAccumulator:
                 "mean_to_rms_ratio": round(mean_to_rms_ratio, 9),
                 "longest_identical_block_run": self._longest_identical_block_run,
                 "longest_identical_block_run_s": round(repeated_duration_s, 9),
+                "frozen_regions": [dict(region) for region in self._frozen_regions],
+                "frozen_regions_truncated": self._frozen_regions_truncated,
             },
         }
 

@@ -92,44 +92,66 @@ def test_audio_authenticity_rejects_all_zero_and_constant_pcm(
     assert metadata["status"] == "interrupted"
 
 
-def test_audio_authenticity_rejects_repeated_frozen_callback_blocks(tmp_path):
+def test_frozen_dropout_degrades_with_region_ledger_but_preserves_the_session(tmp_path):
     rng = np.random.default_rng(71)
     one_block = rng.integers(-2_000, 2_001, size=800).astype(np.float32) / 32_767.0
     signal = np.tile(one_block, 40)
 
-    with pytest.raises(RuntimeError, match="authenticity.*repeated frozen blocks"):
-        _record_pcm_signal(tmp_path, signal)
+    summary = _record_pcm_signal(tmp_path, signal)
 
-    assert not (tmp_path / "audio.wav").exists()
+    assert (tmp_path / "audio.wav").exists()
+    receipt = summary.signal_authenticity
+    assert receipt["status"] == "PASS_DEGRADED"
+    assert receipt["degradations"] == ["repeated_frozen_blocks"]
+    assert receipt["checks"]["repeated_frozen_blocks"] == "DEGRADED"
+    regions = receipt["evidence"]["frozen_regions"]
+    assert regions == [{
+        "start_sample": 0,
+        "start_s": 0.0,
+        "n_blocks": 40,
+        "duration_s": 2.0,
+    }]
+    assert receipt["evidence"]["frozen_regions_truncated"] is False
 
 
-def test_audio_authenticity_rejects_lsb_scale_random_noise(tmp_path):
+def test_lsb_scale_random_noise_degrades_instead_of_voiding_the_session(tmp_path):
     pcm = np.tile(np.asarray([-1, 0, 1], dtype=np.int16), 16_000)
     signal = pcm.astype(np.float32) / 32_767.0
 
-    with pytest.raises(RuntimeError, match="authenticity.*effective AC energy"):
-        _record_pcm_signal(tmp_path, signal)
+    summary = _record_pcm_signal(tmp_path, signal)
 
-    assert not (tmp_path / "audio.wav").exists()
+    assert (tmp_path / "audio.wav").exists()
+    receipt = summary.signal_authenticity
+    assert receipt["status"] == "PASS_DEGRADED"
+    assert receipt["degradations"] == ["minimum_effective_ac_energy"]
+    assert receipt["checks"]["minimum_effective_ac_energy"] == "DEGRADED"
 
 
-def test_audio_authenticity_rejects_severe_clipping(tmp_path):
+def test_severe_clipping_degrades_instead_of_voiding_the_session(tmp_path):
     signal = np.tile(np.asarray([-1.0, 1.0], dtype=np.float32), 16_000)
 
-    with pytest.raises(RuntimeError, match="authenticity.*severe clipping"):
-        _record_pcm_signal(tmp_path, signal)
+    summary = _record_pcm_signal(tmp_path, signal)
 
-    assert not (tmp_path / "audio.wav").exists()
+    assert (tmp_path / "audio.wav").exists()
+    receipt = summary.signal_authenticity
+    # The period-2 square wave also repeats bit-identical 50 ms blocks, so the
+    # frozen-block ledger fires alongside clipping; both stay non-fatal.
+    assert receipt["status"] == "PASS_DEGRADED"
+    assert receipt["degradations"] == ["severe_clipping", "repeated_frozen_blocks"]
+    assert receipt["checks"]["severe_clipping"] == "DEGRADED"
 
 
-def test_audio_authenticity_rejects_severe_dc_offset(tmp_path):
+def test_severe_dc_offset_degrades_instead_of_voiding_the_session(tmp_path):
     phase = np.arange(32_000, dtype=np.float32)
     signal = 0.5 + 0.01 * np.sin(2.0 * np.pi * phase / 127.0)
 
-    with pytest.raises(RuntimeError, match="authenticity.*severe DC"):
-        _record_pcm_signal(tmp_path, signal)
+    summary = _record_pcm_signal(tmp_path, signal)
 
-    assert not (tmp_path / "audio.wav").exists()
+    assert (tmp_path / "audio.wav").exists()
+    receipt = summary.signal_authenticity
+    assert receipt["status"] == "PASS_DEGRADED"
+    assert receipt["degradations"] == ["severe_dc"]
+    assert receipt["checks"]["severe_dc"] == "DEGRADED"
 
 
 def test_quiet_varying_audio_is_not_misclassified_and_receipt_is_versioned(tmp_path):
@@ -142,8 +164,10 @@ def test_quiet_varying_audio_is_not_misclassified_and_receipt_is_versioned(tmp_p
     metadata = json.loads((tmp_path / "audio_capture.json").read_text())
     receipt = metadata["signal_authenticity"]
     assert receipt["schema_version"] == "wam_audio_signal_authenticity_v1"
-    assert receipt["policy_version"] == "audio_signal_conservative_v2"
+    assert receipt["policy_version"] == "audio_signal_degraded_real_v3"
     assert receipt["status"] == "PASS"
+    assert receipt["degradations"] == []
+    assert receipt["evidence"]["frozen_regions"] == []
     assert receipt["checks"] == {
         "all_zero": "PASS",
         "constant_pcm": "PASS",
