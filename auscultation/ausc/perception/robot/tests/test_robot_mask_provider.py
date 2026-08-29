@@ -1040,8 +1040,42 @@ def test_roi_dilated_paint_is_byte_identical_to_full_frame_reference():
         mask_roi = np.zeros((height, width), dtype=np.bool_)
         any_ref = reference(mask_ref, raw_hull, radius)
         any_roi = holder._paint_dilated_hull(mask_roi, raw_hull, radius)
-        assert np.array_equal(mask_ref, mask_roi), f"case {case} mask differs"
-        assert any_ref == any_roi, f"case {case} any differs"
+        band = radius + 2
+        in_band = (
+            raw_hull[:, 0].min() >= -band
+            and raw_hull[:, 1].min() >= -band
+            and raw_hull[:, 0].max() < width + band
+            and raw_hull[:, 1].max() < height + band
+        )
+        if in_band:
+            # Hull fits the banded canvas uncut: byte-exact contract.
+            assert np.array_equal(mask_ref, mask_roi), f"case {case} differs"
+            assert any_ref == any_roi, f"case {case} any differs"
+        else:
+            # Beyond-band hulls are cut and safety-inflated by 1 px
+            # (2026-08-29: the full-bbox rescue tier cost multi-megapixel
+            # private canvases): never a lost pixel. Overshoot comes only
+            # from the cut region (which lives outside the frame band), so
+            # it is confined to the border band of width radius+2 plus a
+            # 3 px rasterization ring — the frame interior beyond the band
+            # keeps the exact-model guarantee.
+            missing = mask_ref & ~mask_roi
+            assert not missing.any(), f"case {case} misses pixels"
+            ring = cv2.dilate(
+                mask_ref.astype(np.uint8),
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7)),
+            ).astype(np.bool_)
+            allowed = ring
+            allowed[:band, :] = True
+            allowed[-band:, :] = True
+            allowed[:, :band] = True
+            allowed[:, -band:] = True
+            extra = mask_roi & ~allowed
+            assert not extra.any(), (
+                f"case {case} overshoot beyond border band + 3px ring"
+            )
+            if any_ref:
+                assert any_roi, f"case {case} any-flag lost coverage"
 
 
 def test_bucketed_deferred_dilation_is_byte_identical_to_sequential():
@@ -1266,7 +1300,6 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
     import cv2
 
     from ausc.perception.robot.robot_mask_provider import (
-        _EXTENDED_CANVAS_AREA_FACTOR,
         ProductionRobotMaskProvider,
     )
 
@@ -1318,7 +1351,6 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
 
     rng = np.random.default_rng(20260815)
     height, width = 108, 192
-    budget = _EXTENDED_CANVAS_AREA_FACTOR * height * width
     holder = _Holder()
     tested = 0
     for case in range(40):
@@ -1332,12 +1364,6 @@ def test_pathological_giant_hull_cut_path_is_conservative_superset():
         hull = cv2.convexHull(
             np.rint(pts).astype(np.int32).reshape((-1, 1, 2))
         ).reshape((-1, 2))
-        bbox_area = (
-            (int(hull[:, 0].max()) + 1 - int(hull[:, 0].min()))
-            * (int(hull[:, 1].max()) + 1 - int(hull[:, 1].min()))
-        )
-        if bbox_area <= budget:
-            continue
         tested += 1
         radius = int(rng.choice([5, 30, 90]))
         mask_ref = np.zeros((height, width), dtype=np.bool_)
@@ -1410,3 +1436,91 @@ def test_pyramid_bucketing_is_byte_identical_to_sequential():
         holder._flush_deferred_dilations(mask_bkt, deferred)
 
         assert np.array_equal(mask_seq, mask_bkt), f"case {case} differs"
+
+
+def test_anisotropic_expansion_covers_sampled_displacements():
+    """Soundness of the 2026-08-29 anisotropic model: for random rigid
+    displacements of every component within the metric bound, every displaced
+    vertex's projection must land inside the painted mask (or outside the
+    frame). The bound cube contains the bound ball, so translating all
+    vertices by any ||d|| <= bound is a reachable-set member."""
+
+    provider = _provider()
+    exposure = _exposure()
+    packet = provider.build(exposure=exposure, trajectory=_trajectory())
+    mask = packet.mask
+    P = provider.projection
+    rng = np.random.default_rng(20260829)
+
+    trajectory = _trajectory()
+    state = trajectory.sample_observation_at(trajectory.exposure_nominal_ns)
+    transforms, joint_origins, joint_axes = provider._forward_kinematics(state)
+    checked = 0
+    for link_index, (link, transform) in enumerate(
+        zip(provider.geometry.links, transforms)
+    ):
+        vertices_base = provider._transform_vertices(
+            transform, link.vertices_link_m
+        )
+        vertices_camera = provider._transform_vertices(
+            provider.handeye.transform_camera_from_follower_base,
+            vertices_base,
+        )
+        bound = provider._metric_bound(
+            vertices_base=vertices_base,
+            ancestor_joints=provider._ancestor_joint_indices[link_index],
+            joint_origins=joint_origins,
+            joint_axes=joint_axes,
+            joint_velocity=np.zeros(7),
+            component_error_m=(
+                provider.uncertainty_profile.link_geometry_error_m
+            ),
+            vertices_camera=vertices_camera,
+        )
+        for _ in range(40):
+            direction = rng.normal(size=3)
+            direction /= np.linalg.norm(direction)
+            displaced = vertices_camera + direction * bound * rng.uniform(0, 1)
+            z = displaced[:, 2]
+            keep = z > P.min_projection_depth_m
+            if not keep.any():
+                continue
+            u = P.fx * displaced[keep, 0] / z[keep] + P.cx
+            v = P.fy * displaced[keep, 1] / z[keep] + P.cy
+            ui = np.rint(u).astype(int)
+            vi = np.rint(v).astype(int)
+            inside = (ui >= 0) & (ui < P.width) & (vi >= 0) & (vi < P.height)
+            if not inside.any():
+                continue
+            checked += 1
+            assert bool(mask[vi[inside], ui[inside]].all()), (
+                f"link{link_index}: displaced projection escapes the mask"
+            )
+    assert checked >= 30, f"only {checked} displaced projections landed in-frame"
+
+
+def test_near_frustum_component_paints_border_strip_not_center():
+    """The isotropic disc model painted an 860px fan across the patient's back
+    from shoulder links parked centimetres BESIDE the lens (2026-08-29 sealed
+    forensics, coverage 68%). The anisotropic model must confine such a
+    component's possible-occlusion region to the image border it could
+    actually cross, leaving the frame centre untouched."""
+
+    geometry = _geometry()
+    tool = _tool(outside=True)
+    projection = _projection()
+    profile = _profile()
+    # Component beside the right image border: x placed so the nominal hull
+    # projects just outside u = width, at a depth of ~12 cm.
+    handeye = _handeye(x=-1.08, z=-0.88)  # link chain z=1.0 -> camera z=0.12
+    provider = _provider(
+        geometry=geometry, tool=tool, handeye=handeye,
+        projection=projection, profile=profile,
+    )
+    packet = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    mask = packet.mask
+    height, width = mask.shape
+    centre = mask[height // 4: 3 * height // 4, width // 4: 3 * width // 4]
+    assert not centre.any(), (
+        f"near-frustum component leaked {int(centre.sum())} px into the centre"
+    )

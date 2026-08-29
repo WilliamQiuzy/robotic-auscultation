@@ -70,7 +70,15 @@ _MAX_DILATION_KERNEL_RADIUS_PX = 256
 _PYRAMID_DILATION_MIN_RADIUS_PX = 64
 _PYRAMID_DILATION_FACTOR = 4
 _PYRAMID_COARSE_RADIUS_TARGET = 64
-_EXTENDED_CANVAS_AREA_FACTOR = 16
+_CUBE_CORNER_SIGNS = np.array(
+    [
+        (sx, sy, sz)
+        for sx in (-1.0, 1.0)
+        for sy in (-1.0, 1.0)
+        for sz in (-1.0, 1.0)
+    ],
+    dtype=np.float64,
+)
 _FULL_MASK_COST_HATCH_RADIUS_PX = 2048
 _PROVISIONAL_HAND_EYE_RUN_RE = re.compile(
     r"^handeye_left_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}$"
@@ -1988,25 +1996,67 @@ class ProductionRobotMaskProvider:
         uncertainty_depth_upper = float(np.max(z)) + metric_bound
         if uncertainty_depth_upper < minimum_depth:
             return False          # entirely behind/too close: cannot occlude the image
+        # ANISOTROPIC uncertainty (2026-08-29, fourth sealed forensics): the
+        # former isotropic pixel-disc model dilated the nominal projection by
+        # bound*fx/depth_lower in EVERY direction. For the shoulder links —
+        # mechanically parked centimetres beside the lens, 8 mm outside the
+        # viewing wedge with a 38 mm bound — that disc reached 860 px and
+        # fanned across the patient's back, permanently blocking tracker
+        # initialization, even though a near-camera object crossing the
+        # frustum edge by <= bound can physically occlude only a thin strip
+        # along the image BORDER (the frustum boundary maps to the image
+        # border). The uncertainty is therefore applied in METRIC SPACE
+        # instead: expand the vertex set by the +/-bound cube (a superset of
+        # the +/-bound ball, which by the metric-bound construction contains
+        # every reachable vertex position), then clip and project the
+        # expanded hull exactly. Convexity survives perspective projection
+        # for z > 0, so the painted hull contains every possible projection;
+        # the remaining pixel dilation covers only rasterization epsilon.
+        offsets = metric_bound * _CUBE_CORNER_SIGNS
+        vertices_camera = (
+            vertices_camera[:, None, :] + offsets[None, :, :]
+        ).reshape(-1, 3)
+        z = vertices_camera[:, 2]
         # Near-plane clipping (2026-08-11): vertices at/behind the plane cannot
-        # occlude the image. A component STRADDLING the plane (proximal links
-        # physically mounted beside the camera, live on this rig) used to
-        # reject EVERY bracket — the tracker could never start. Project only
-        # the in-front vertices; a link close to the lens then projects to a
-        # huge hull and falls into the conservative full-mask hatch below,
-        # which is the correct occlusion semantics.
+        # occlude the image; project only the in-front part of the expanded
+        # hull. Cutting a convex set with a half-space keeps it convex, and
+        # dropping behind-plane EXPANDED vertices only shrinks the painted
+        # hull toward that cut: edges crossing the plane project inside the
+        # hull of the surviving vertices' projections as z -> minimum_depth
+        # from above, and the base+projection epsilon covers the residual.
         in_front = z > minimum_depth
         if not bool(np.any(in_front)):
             return False
+        straddling = not bool(np.all(in_front))
+        expanded_all = vertices_camera
         vertices_camera = vertices_camera[in_front]
         z = z[in_front]
-        uncertainty_depth_lower = max(
-            float(np.min(z)) - metric_bound, minimum_depth,
-        )
 
         u = self.projection.fx * vertices_camera[:, 0] / z + self.projection.cx
         v = self.projection.fy * vertices_camera[:, 1] / z + self.projection.cy
         projected = np.column_stack((u, v))
+        if straddling:
+            # A straddling hull's clip section (edges crossing z=minimum_depth)
+            # projects outside the hull of the surviving in-front projections.
+            # Every crossing point is a convex combination of its edge
+            # endpoints CLAMPED to the near plane, so appending the
+            # near-plane-clamped projections of ALL expanded vertices makes
+            # the painted hull a proven superset of the true clipped
+            # projection (extreme points of hull-cap-halfspace are original
+            # in-front vertices plus edge crossings; both land inside).
+            clamped_u = (
+                self.projection.fx * expanded_all[:, 0] / minimum_depth
+                + self.projection.cx
+            )
+            clamped_v = (
+                self.projection.fy * expanded_all[:, 1] / minimum_depth
+                + self.projection.cy
+            )
+            projected = np.concatenate(
+                (projected, np.column_stack((clamped_u, clamped_v))), axis=0,
+            )
+            u = projected[:, 0]
+            v = projected[:, 1]
         if not np.isfinite(projected).all() or np.max(np.abs(projected)) > 1e7:
             raise RobotMaskProviderError(
                 "robot/tool projection is non-finite or numerically unsafe"
@@ -2014,9 +2064,6 @@ class ProductionRobotMaskProvider:
         raw_radius_px = (
             self.uncertainty_profile.base_dilation_px
             + self.uncertainty_profile.projection_error_px
-            + max(self.projection.fx, self.projection.fy)
-            * metric_bound
-            / uncertainty_depth_lower
         )
         if not math.isfinite(raw_radius_px) or raw_radius_px < 0.0:
             raise RobotMaskProviderError(
@@ -2128,12 +2175,13 @@ class ProductionRobotMaskProvider:
             # Hull entirely beyond dilation reach of the frame.
             return False
         clipped = (x0, y0, x1, y1) != (bx0, by0, bx1, by1)
-        if clipped and (
-            (bx1 - bx0) * (by1 - by0)
-            <= _EXTENDED_CANVAS_AREA_FACTOR * height * width
-        ):
-            x0, y0, x1, y1 = bx0, by0, bx1, by1
-            clipped = False
+        # 2026-08-29: the former full-bbox rescue tier (uncut canvas whenever
+        # the bbox fit a 16x-frame budget, to keep byte-exactness) is gone —
+        # with the anisotropic model's ~2 px radii it paid multi-megapixel
+        # private canvases per straddling component (~150 ms/frame) to avoid
+        # a 1 px conservative inflate. Every out-of-band hull now takes the
+        # banded cut + inflate, so all canvases are frame-band sized and
+        # every component shares the per-radius bucket flush.
         roi = np.zeros((y1 - y0, x1 - x0), dtype=np.uint8)
         shift = np.asarray((-x0, -y0), dtype=np.int64)
         shifted = hull + shift
@@ -2155,42 +2203,71 @@ class ProductionRobotMaskProvider:
                 1,
                 -1,
             )
-        if clipped and pad > 0:
-            # Cut-polygon rasterization can lose up to 1 px along the cut
-            # edge; a 3x3 inflate turns any loss into (bounded) overshoot.
+        if clipped:
+            # Cut-polygon rasterization (OpenCV clips geometrically with
+            # integer rounding) can lose up to 1 px anywhere along a cut
+            # polygon's edges — including radius-0 fills (2026-08-29
+            # property-test counterexample: 40 lost pixels along a long
+            # shallow edge). A 3x3 inflate turns every such loss into
+            # bounded, conservative overshoot regardless of radius.
             roi = cv2.dilate(
                 roi, np.ones((3, 3), dtype=np.uint8), iterations=1,
             )
         component_any = bool(np.any(roi))
-        canvas_interior = (
-            x0 >= 0 and y0 >= 0 and x1 <= width and y1 <= height
-        )
-        if pad > 0 and deferred is not None and canvas_interior:
+        if pad > 0 and deferred is not None:
             # Radius-bucketed deferral (2026-08-12, owner-authorized): binary
             # dilation distributes over union for the same structuring
             # element, so every fill sharing an integer radius is accumulated
             # and dilated ONCE at flush time — byte-identical to dilating each
             # component separately (multi-op property test) at a fraction of
-            # the dilate cost. The accumulator is frame-sized, so only
-            # interior canvases may enter; extended (edge/off-frame) canvases
-            # take the direct path below, which handles their coordinates.
+            # the dilate cost. 2026-08-29: the accumulator is EXTENDED by the
+            # band margin on every side, so straddling/edge components enter
+            # the bucket too — the interior-only gate forced each of them
+            # down the direct path, paying a private frame-sized Euclidean
+            # dilation (27 x ~5 ms per recorded frame in the anisotropic
+            # model, versus one shared transform per bucket here).
             if not component_any:
                 return False
-            bucket = deferred.get(pad)
-            if bucket is None:
-                bucket = {
-                    "acc": np.zeros((height, width), dtype=np.uint8),
-                    "x0": x0, "y0": y0, "x1": x1, "y1": y1,
-                }
-                deferred[pad] = bucket
-            else:
-                bucket["x0"] = min(bucket["x0"], x0)
-                bucket["y0"] = min(bucket["y0"], y0)
-                bucket["x1"] = max(bucket["x1"], x1)
-                bucket["y1"] = max(bucket["y1"], y1)
-            acc_window = bucket["acc"][y0:y1, x0:x1]
-            np.bitwise_or(acc_window, roi, out=acc_window)
-            return True
+            margin = pad + 2
+            # Full-bbox-tier canvases (kept uncut to avoid polygon-clip
+            # artifacts) can exceed the banded accumulator; those rare
+            # components fall through to the direct path below instead.
+            fits_bucket = (
+                x0 >= -margin and y0 >= -margin
+                and x1 <= width + margin and y1 <= height + margin
+            )
+            if fits_bucket:
+                bucket = deferred.get(pad)
+                if bucket is None:
+                    bucket = {
+                        "acc": np.zeros(
+                            (height + 2 * margin, width + 2 * margin),
+                            dtype=np.uint8,
+                        ),
+                        "margin": margin,
+                        "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                    }
+                    deferred[pad] = bucket
+                else:
+                    bucket["x0"] = min(bucket["x0"], x0)
+                    bucket["y0"] = min(bucket["y0"], y0)
+                    bucket["x1"] = max(bucket["x1"], x1)
+                    bucket["y1"] = max(bucket["y1"], y1)
+                acc_window = bucket["acc"][
+                    y0 + margin:y1 + margin, x0 + margin:x1 + margin,
+                ]
+                np.bitwise_or(acc_window, roi, out=acc_window)
+                # Exact contribution flag (byte-parity with the direct
+                # path): True iff some fill pixel lies within Euclidean
+                # distance pad of a frame lattice pixel.
+                fy_idx, fx_idx = np.nonzero(roi)
+                if fy_idx.size == 0:
+                    return False
+                px = fx_idx + x0
+                py = fy_idx + y0
+                dx = np.maximum(np.maximum(-px, px - (width - 1)), 0)
+                dy = np.maximum(np.maximum(-py, py - (height - 1)), 0)
+                return bool(np.any(dx * dx + dy * dy <= pad * pad))
         if pad > 0:
             roi = cv2.copyMakeBorder(
                 roi, pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
@@ -2333,11 +2410,14 @@ class ProductionRobotMaskProvider:
                 self._finish_coarse_canvas(mask, bucket["canvas"], f, rc)
                 continue
             radius_px = key
+            margin = bucket["margin"]
             x0, y0 = bucket["x0"], bucket["y0"]
             x1, y1 = bucket["x1"], bucket["y1"]
             pad = int(radius_px)
             roi = cv2.copyMakeBorder(
-                bucket["acc"][y0:y1, x0:x1],
+                bucket["acc"][
+                    y0 + margin:y1 + margin, x0 + margin:x1 + margin,
+                ],
                 pad, pad, pad, pad, cv2.BORDER_CONSTANT, value=0,
             )
             roi = self._euclidean_dilate(roi, radius_px)
@@ -2345,6 +2425,8 @@ class ProductionRobotMaskProvider:
             dy0 = max(y0 - pad, 0)
             dx1 = min(x1 + pad, width)
             dy1 = min(y1 + pad, height)
+            if dx0 >= dx1 or dy0 >= dy1:
+                continue
             src = roi[
                 dy0 - (y0 - pad):dy1 - (y0 - pad),
                 dx0 - (x0 - pad):dx1 - (x0 - pad),
