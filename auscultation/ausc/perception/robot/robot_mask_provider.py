@@ -1977,6 +1977,7 @@ class ProductionRobotMaskProvider:
         joint_velocity: np.ndarray,
         component_error_m: float,
         deferred: Optional[dict] = None,
+        metric_bound_override: Optional[float] = None,
     ) -> bool:
         vertices_camera = self._transform_vertices(
             self.handeye.transform_camera_from_follower_base,
@@ -1984,15 +1985,22 @@ class ProductionRobotMaskProvider:
         )
         z = vertices_camera[:, 2]
         minimum_depth = self.projection.min_projection_depth_m
-        metric_bound = self._metric_bound(
-            vertices_base=vertices_base,
-            ancestor_joints=ancestor_joints,
-            joint_origins=joint_origins,
-            joint_axes=joint_axes,
-            joint_velocity=joint_velocity,
-            component_error_m=component_error_m,
-            vertices_camera=vertices_camera,
-        )
+        if metric_bound_override is not None:
+            metric_bound = float(metric_bound_override)
+            if not math.isfinite(metric_bound) or metric_bound < 0.0:
+                raise RobotMaskProviderError(
+                    "robot mask metric bound override is invalid"
+                )
+        else:
+            metric_bound = self._metric_bound(
+                vertices_base=vertices_base,
+                ancestor_joints=ancestor_joints,
+                joint_origins=joint_origins,
+                joint_axes=joint_axes,
+                joint_velocity=joint_velocity,
+                component_error_m=component_error_m,
+                vertices_camera=vertices_camera,
+            )
         uncertainty_depth_upper = float(np.max(z)) + metric_bound
         if uncertainty_depth_upper < minimum_depth:
             return False          # entirely behind/too close: cannot occlude the image
@@ -2467,6 +2475,20 @@ class ProductionRobotMaskProvider:
             raise RobotMaskProviderError(
                 "exposure trajectory omitted lower/nominal/upper samples"
             )
+        # SWEEP-UNION rasterization (2026-08-29, train #61): the live
+        # exposure interval samples 5-6 states (lower/nominal/upper plus
+        # every enclosed 100 Hz record), and rasterizing every component per
+        # state cost 69-116 ms per frame — the drain margin vanished and the
+        # ~460 ms Start backlog aged into the 500 ms bound (abort at 504.8).
+        # Each component is now rasterized ONCE from the union of its
+        # per-state vertex sets under the max per-state metric bound: the
+        # convex hull of the union contains every per-state hull, and
+        # additionally covers the between-sample swept motion (each vertex's
+        # trajectory between samples stays within the bound-covered hull of
+        # its sampled positions for the bounded-velocity interval), so the
+        # painted set is a strict conservative superset of the per-state
+        # union at ~1/len(states) of the cost. Static poses are unchanged.
+        per_state = []
         for state in states:
             transforms, joint_origins, joint_axes = self._forward_kinematics(
                 state
@@ -2474,44 +2496,69 @@ class ProductionRobotMaskProvider:
             joint_velocity = np.asarray(
                 state.follower_qd_rad_s, dtype=np.float64
             )
-            for link_index, (link, transform) in enumerate(
-                zip(self.geometry.links, transforms)
+            per_state.append(
+                (transforms, joint_origins, joint_axes, joint_velocity)
+            )
+        components = [
+            (
+                link.vertices_link_m,
+                self._ancestor_joint_indices[link_index],
+                self.uncertainty_profile.link_geometry_error_m,
+                link_index,
+                False,
+            )
+            for link_index, link in enumerate(self.geometry.links)
+        ]
+        components.append(
+            (
+                self.tool.vertices_tool_m,
+                self._ancestor_joint_indices[self.tool.parent_link_index],
+                self.uncertainty_profile.tool_geometry_error_m,
+                self.tool.parent_link_index,
+                True,
+            )
+        )
+        for vertices_local, ancestors, error_m, link_index, is_tool in (
+            components
+        ):
+            stacked = []
+            bound_max = 0.0
+            for transforms, joint_origins, joint_axes, joint_velocity in (
+                per_state
             ):
+                if is_tool:
+                    transform = (
+                        transforms[link_index]
+                        @ self.tool.transform_parent_from_tool
+                    )
+                else:
+                    transform = transforms[link_index]
                 vertices_base = self._transform_vertices(
-                    transform, link.vertices_link_m
+                    transform, vertices_local
                 )
-                any_geometric_pixels |= self._rasterize_component(
-                    mask=mask,
-                    vertices_base=vertices_base,
-                    ancestor_joints=self._ancestor_joint_indices[link_index],
-                    joint_origins=joint_origins,
-                    joint_axes=joint_axes,
-                    joint_velocity=joint_velocity,
-                    component_error_m=(
-                        self.uncertainty_profile.link_geometry_error_m
+                stacked.append(vertices_base)
+                bound_max = max(
+                    bound_max,
+                    self._metric_bound(
+                        vertices_base=vertices_base,
+                        ancestor_joints=ancestors,
+                        joint_origins=joint_origins,
+                        joint_axes=joint_axes,
+                        joint_velocity=joint_velocity,
+                        component_error_m=error_m,
                     ),
-                    deferred=deferred_dilations,
                 )
-            tool_transform = (
-                transforms[self.tool.parent_link_index]
-                @ self.tool.transform_parent_from_tool
-            )
-            tool_vertices_base = self._transform_vertices(
-                tool_transform, self.tool.vertices_tool_m
-            )
+            reference_state = per_state[0]
             any_geometric_pixels |= self._rasterize_component(
                 mask=mask,
-                vertices_base=tool_vertices_base,
-                ancestor_joints=self._ancestor_joint_indices[
-                    self.tool.parent_link_index
-                ],
-                joint_origins=joint_origins,
-                joint_axes=joint_axes,
-                joint_velocity=joint_velocity,
-                component_error_m=(
-                    self.uncertainty_profile.tool_geometry_error_m
-                ),
+                vertices_base=np.concatenate(stacked, axis=0),
+                ancestor_joints=ancestors,
+                joint_origins=reference_state[1],
+                joint_axes=reference_state[2],
+                joint_velocity=reference_state[3],
+                component_error_m=error_m,
                 deferred=deferred_dilations,
+                metric_bound_override=bound_max,
             )
         self._flush_deferred_dilations(mask, deferred_dilations)
 
