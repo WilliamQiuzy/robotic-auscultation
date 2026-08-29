@@ -215,7 +215,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/tracking/posterior_back_mask_provider.py": "7f97668e9fff41ca3eab945a5133f62beacd9535cd23010dde7bc75fa5d941f3",
     "auscultation/ausc/perception/tracking/production_evidence_capture.py": "8421cc914c500b621d1c4f0f28582891cfd1f3f4fda8f28db145d4d1c235df84",
     "auscultation/ausc/perception/tracking/production_geometry_gate.py": "48111d9c1253d192370aa2080042bc159f58ef9a55d0724f39e0a8bd046cdc85",
-    "auscultation/ausc/perception/tracking/runtime.py": "47f35928e9f94691ec5ea35ba8f73c1957dc5fed637be729ca68d247dfb81187",
+    "auscultation/ausc/perception/tracking/runtime.py": "32798f783e5201f3c94abc32839a6abedf54738ca0d2e4839c963447cc49179a",
     "auscultation/ausc/realtime_q.py": "b9a7640c8a7efa8f3a6b13f5a3ee6cf858c3adc590f2fd3ac6beba84a55c3067",
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "de2f00dac4dc134e3844ab73d9514b2fca556867ef639eea6b11e9a9f2ede57e",

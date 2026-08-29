@@ -42,6 +42,14 @@ class RuntimeFrame:
     sim3_translation_camera_from_patient_m: Optional[
         Tuple[float, float, float]
     ]
+    # DISPLAY-ONLY passthrough (2026-08-29): the detector's structure-fitted
+    # full-frame pixels for all landmarks, carried verbatim from
+    # MTOutput.detector_pixels so the operator console can render withheld
+    # points in an explicit unverified style. Never consumed downstream.
+    detector_pixels: Optional[Tuple[Tuple[float, float], ...]] = None
+    # Canonical landmark order (all 10 names, matching detector_pixels rows),
+    # independent of which points are currently visible.
+    point_order: Tuple[str, ...] = ()
 
 
 def runtime_frame(output) -> RuntimeFrame:
@@ -122,6 +130,13 @@ def runtime_frame(output) -> RuntimeFrame:
         and scale > 0.0
         and np.isfinite(uncertainty)
     )
+    detector_pixels = None
+    raw_detector_pixels = getattr(output, "detector_pixels", None)
+    if raw_detector_pixels is not None:
+        rows = []
+        for row in np.asarray(raw_detector_pixels, dtype=float).reshape(-1, 2):
+            rows.append((float(row[0]), float(row[1])))
+        detector_pixels = tuple(rows)
     return RuntimeFrame(
         back_present=bool(output.back_present),
         reason=str(output.reason),
@@ -137,4 +152,8 @@ def runtime_frame(output) -> RuntimeFrame:
         sim3_rotation_camera_from_patient=rotation,
         sim3_scale=scale,
         sim3_translation_camera_from_patient_m=translation,
+        detector_pixels=detector_pixels,
+        point_order=tuple(
+            str(getattr(point, "name", "")) for point in output.points
+        ),
     )
