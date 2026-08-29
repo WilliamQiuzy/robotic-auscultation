@@ -157,7 +157,11 @@ def test_all_zero_force_signal_fails_closed_without_completion_marker(
     assert not (tmp_path / capture.COMPLETE_NAME).exists()
 
 
-def test_short_near_zero_force_signal_fails_closed(tmp_path: Path) -> None:
+def test_short_near_zero_force_signal_degrades_instead_of_failing(
+    tmp_path: Path,
+) -> None:
+    # 2026-08-29 (operator-approved, P0-4): an unloaded advisory Hall channel
+    # is a real capture state, not a session-voiding fault.
     recorder = _recorder(tmp_path)
     recorder.start()
     for index, raw in enumerate((30_000, 30_001, 30_002)):
@@ -168,10 +172,13 @@ def test_short_near_zero_force_signal_fails_closed(tmp_path: Path) -> None:
             force_n=0.001 + index * 0.0001,
         ))
 
-    with pytest.raises(capture.ForceCaptureError, match="near-zero"):
-        recorder.finish(t_end=10.02)
+    summary = recorder.finish(t_end=10.02)
 
-    assert not (tmp_path / capture.COMPLETE_NAME).exists()
+    receipt = summary.signal_authenticity
+    assert receipt["status"] == "INSUFFICIENT_EVIDENCE"
+    assert "near_zero_response" in receipt["degradations"]
+    assert receipt["checks"]["near_zero_response"] == "DEGRADED"
+    assert (tmp_path / capture.COMPLETE_NAME).exists()
 
 
 def test_short_constant_nonzero_force_is_insufficient_for_promotion(
@@ -223,7 +230,7 @@ def test_all_zero_raw_adc_fails_even_if_recorded_force_is_nonzero(
     assert not (tmp_path / capture.COMPLETE_NAME).exists()
 
 
-def test_long_bit_identical_force_fails_and_short_steady_is_not_promotable(
+def test_long_bit_identical_force_degrades_and_short_steady_is_not_promotable(
     tmp_path: Path,
 ) -> None:
     short_session = tmp_path / "short-steady"
@@ -253,10 +260,16 @@ def test_long_bit_identical_force_fails_and_short_steady_is_not_promotable(
         if index % 16 == 15:
             frozen._queue.join()
 
-    with pytest.raises(capture.ForceCaptureError, match="authenticity.*frozen"):
-        frozen.finish(t_end=16.0)
+    frozen_summary = frozen.finish(t_end=16.0)
 
-    assert not (frozen_session / capture.COMPLETE_NAME).exists()
+    receipt = frozen_summary.signal_authenticity
+    assert receipt["status"] == "PASS_DEGRADED"
+    assert "digital_freeze" in receipt["degradations"]
+    assert receipt["checks"]["digital_freeze"] == "DEGRADED"
+    (region,) = receipt["evidence"]["frozen_regions"]
+    assert region["n_samples"] == 601
+    assert region["duration_s"] == pytest.approx(6.0, abs=0.02)
+    assert (frozen_session / capture.COMPLETE_NAME).exists()
 
 
 def test_force_conversion_pinned_while_raw_adc_moves_fails_closed(
@@ -306,8 +319,10 @@ def test_dynamic_force_signal_publishes_versioned_authenticity_receipt(
     metadata = json.loads((tmp_path / "force_capture.json").read_text())
     receipt = metadata["signal_authenticity"]
     assert receipt["schema_version"] == "wam_force_signal_authenticity_v1"
-    assert receipt["policy_version"] == "force_signal_conservative_v3"
+    assert receipt["policy_version"] == "force_signal_degraded_real_v4"
     assert receipt["status"] == "PASS"
+    assert receipt["degradations"] == []
+    assert receipt["evidence"]["frozen_regions"] == []
     assert receipt["promotion_eligible"] is False
     assert receipt["checks"] == {
         "all_zero": "PASS",
@@ -322,7 +337,9 @@ def test_dynamic_force_signal_publishes_versioned_authenticity_receipt(
     assert capture.verify_force_capture(tmp_path).signal_authenticity == receipt
 
 
-def test_long_near_constant_force_response_fails_closed(tmp_path: Path) -> None:
+def test_long_near_constant_force_response_degrades_with_ledger(
+    tmp_path: Path,
+) -> None:
     recorder = _recorder(tmp_path)
     recorder.start()
     for index in range(601):
@@ -338,10 +355,14 @@ def test_long_near_constant_force_response_fails_closed(tmp_path: Path) -> None:
         if index % 16 == 15:
             recorder._queue.join()
 
-    with pytest.raises(capture.ForceCaptureError, match="near-constant"):
-        recorder.finish(t_end=16.0)
+    summary = recorder.finish(t_end=16.0)
 
-    assert not (tmp_path / capture.COMPLETE_NAME).exists()
+    receipt = summary.signal_authenticity
+    assert receipt["status"] == "PASS_DEGRADED"
+    assert receipt["degradations"] == ["near_constant_response"]
+    assert receipt["checks"]["near_constant_response"] == "DEGRADED"
+    assert receipt["evidence"]["frozen_regions"] == []
+    assert (tmp_path / capture.COMPLETE_NAME).exists()
 
 
 def test_calibration_artifact_is_persisted_and_every_row_is_recomputed(

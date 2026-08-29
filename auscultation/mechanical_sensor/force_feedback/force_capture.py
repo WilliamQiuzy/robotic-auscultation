@@ -39,7 +39,12 @@ except ImportError:  # pragma: no cover - exercised by legacy direct import test
 SCHEMA_VERSION = "wam_hall_force_capture_v1"
 COMPLETE_SCHEMA_VERSION = "wam_hall_force_capture_complete_v1"
 SIGNAL_AUTHENTICITY_SCHEMA_VERSION = "wam_force_signal_authenticity_v1"
-SIGNAL_AUTHENTICITY_POLICY_VERSION = "force_signal_conservative_v3"
+# v4 (2026-08-29, operator-approved): only fabrication/integrity-class evidence
+# (all-zero raw ADC, conversion pinned while raw changes) rejects a session.
+# Degraded-but-real evidence (frozen runs, near-zero, near-constant) is
+# preserved as a ledger per P0-4: the Hall channel is an advisory physician
+# reference and must never void a doctor-confirmed session.
+SIGNAL_AUTHENTICITY_POLICY_VERSION = "force_signal_degraded_real_v4"
 CALIBRATION_ARTIFACT_SCHEMA_VERSION = "wam_force_calibration_json_v1"
 COMPLETE_NAME = "FORCE_CAPTURE_COMPLETE.json"
 CSV_NAME = "force.csv"
@@ -76,6 +81,7 @@ _AUTHENTICITY_POLICY = {
     "near_constant_min_raw_span": 16,
     "near_constant_min_force_span_n": 0.01,
     "near_zero_max_abs_force_n": 0.02,
+    "degraded_region_ledger_cap": 64,
     "calibration_hall_v_tolerance": 0.000051,
     "calibration_displacement_tolerance_mm": 0.00051,
     "calibration_force_tolerance_n": 0.00051,
@@ -753,6 +759,29 @@ def _copy_and_validate_csv(
     identical_run_start: float | None = None
     longest_identical_run_samples = 0
     longest_identical_run_s = 0.0
+    frozen_regions: list[dict[str, object]] = []
+    frozen_regions_truncated = False
+
+    def _close_frozen_run(end_host: float | None) -> None:
+        nonlocal frozen_regions_truncated
+        if (
+            identical_run_start is None
+            or end_host is None
+            or identical_run_samples
+            < int(_AUTHENTICITY_POLICY["freeze_min_samples"])
+            or end_host - identical_run_start
+            < float(_AUTHENTICITY_POLICY["freeze_min_duration_s"])
+        ):
+            return
+        cap = int(_AUTHENTICITY_POLICY["degraded_region_ledger_cap"])
+        if len(frozen_regions) < cap:
+            frozen_regions.append({
+                "start_t_s": round(identical_run_start - t0, 9),
+                "duration_s": round(end_host - identical_run_start, 9),
+                "n_samples": int(identical_run_samples),
+            })
+        else:
+            frozen_regions_truncated = True
     host_limit_s = max_host_gap_ms / 1_000.0
     tolerance = 1e-12
     for row_number, row in enumerate(reader, start=2):
@@ -843,6 +872,7 @@ def _copy_and_validate_csv(
         if signature == previous_signature:
             identical_run_samples += 1
         else:
+            _close_frozen_run(last_host)
             identical_run_samples = 1
             identical_run_start = host
             previous_signature = signature
@@ -895,18 +925,13 @@ def _copy_and_validate_csv(
     assert raw_min is not None and raw_max is not None
     assert force_min is not None and force_max is not None
     duration_s = last_host - first_host
+    _close_frozen_run(last_host)
+
+    # Fabrication/integrity-class evidence: hard fail (P0-4 leaves these hard
+    # because the bytes cannot be a faithful capture of a real sensor).
     if all_zero_raw:
         raise ForceCaptureError(
             "Hall-force signal authenticity failed: all-zero raw ADC"
-        )
-    if (
-        longest_identical_run_s
-        >= float(_AUTHENTICITY_POLICY["freeze_min_duration_s"])
-        and longest_identical_run_samples
-        >= int(_AUTHENTICITY_POLICY["freeze_min_samples"])
-    ):
-        raise ForceCaptureError(
-            "Hall-force signal authenticity failed: frozen bit-identical raw ADC/force"
         )
     if (
         duration_s >= float(_AUTHENTICITY_POLICY["conversion_min_duration_s"])
@@ -921,15 +946,18 @@ def _copy_and_validate_csv(
             "Hall-force signal authenticity failed: conversion output force is pinned "
             "while raw ADC changes"
         )
+
+    # Degraded-but-real evidence: ledgered, never voids the session (the Hall
+    # channel is an advisory physician reference, never a gate).
+    degradations: list[str] = []
+    if frozen_regions or frozen_regions_truncated:
+        degradations.append("digital_freeze")
     near_zero_response = (
         max(abs(force_min), abs(force_max))
         <= float(_AUTHENTICITY_POLICY["near_zero_max_abs_force_n"])
     )
     if near_zero_response:
-        raise ForceCaptureError(
-            "Hall-force signal authenticity failed: near-zero response over the "
-            "full capture"
-        )
+        degradations.append("near_zero_response")
     if (
         duration_s
         >= float(_AUTHENTICITY_POLICY["near_constant_min_duration_s"])
@@ -941,10 +969,7 @@ def _copy_and_validate_csv(
             < float(_AUTHENTICITY_POLICY["near_constant_min_force_span_n"])
         )
     ):
-        raise ForceCaptureError(
-            "Hall-force signal authenticity failed: near-constant/near-zero "
-            "response over the full capture"
-        )
+        degradations.append("near_constant_response")
     calibration_ready = calibration is not None
     evidence_sufficient = (
         duration_s + 1e-9
@@ -958,27 +983,42 @@ def _copy_and_validate_csv(
         promotion_blockers.append(
             "pinned calibration artifact unavailable for independent recomputation"
         )
+    if not evidence_sufficient:
+        status = "INSUFFICIENT_EVIDENCE"
+    elif degradations:
+        status = "PASS_DEGRADED"
+    else:
+        status = "PASS"
     signal_authenticity = {
         "schema_version": SIGNAL_AUTHENTICITY_SCHEMA_VERSION,
         "policy_version": SIGNAL_AUTHENTICITY_POLICY_VERSION,
-        "status": "PASS" if evidence_sufficient else "INSUFFICIENT_EVIDENCE",
+        "status": status,
+        "degradations": degradations,
         "promotion_eligible": calibration_ready and evidence_sufficient,
         "promotion_blockers": promotion_blockers,
         "checks": {
             "all_zero": "PASS",
             "conversion_response": "PASS",
-            "digital_freeze": "PASS",
+            "digital_freeze": (
+                "DEGRADED" if "digital_freeze" in degradations else "PASS"
+            ),
             "minimum_evidence": (
                 "PASS" if evidence_sufficient else "INSUFFICIENT_EVIDENCE"
             ),
-            "near_zero_response": "PASS",
-            "near_constant_response": "PASS",
+            "near_zero_response": (
+                "DEGRADED" if "near_zero_response" in degradations else "PASS"
+            ),
+            "near_constant_response": (
+                "DEGRADED" if "near_constant_response" in degradations else "PASS"
+            ),
             "calibration_recomputation": (
                 "PASS" if calibration_ready else "NOT_AVAILABLE"
             ),
         },
         "policy": dict(_AUTHENTICITY_POLICY),
         "evidence": {
+            "frozen_regions": [dict(region) for region in frozen_regions],
+            "frozen_regions_truncated": frozen_regions_truncated,
             "duration_s": round(duration_s, 9),
             "n_samples": count,
             "raw_min": raw_min,

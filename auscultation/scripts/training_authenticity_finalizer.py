@@ -2730,7 +2730,10 @@ def verify_force_component(session_dir: str | Path) -> dict[str, object]:
         summary = verify_force_capture(Path(session_dir))
     except Exception as exc:
         raise TrainingFinalizationError(f"force raw replay failed: {exc}") from exc
-    if summary.status != "OK" or summary.signal_authenticity.get("status") != "PASS":
+    if summary.status != "OK" or summary.signal_authenticity.get("status") not in (
+        "PASS",
+        "PASS_DEGRADED",
+    ):
         raise TrainingFinalizationError("force raw replay is not authenticity PASS")
     return {
         "schema_version": "wam_force_component_revalidation_v1",
