@@ -27,9 +27,10 @@ evidence chain** (a gap here is unfixable after the fact):
 - camera delivery FIFO overflow, camera index gaps (lossless RGB-D contract)
 - arm/gripper TX write failures, socketcan enqueue failures (action fidelity)
 - capture boundary exact-index closure proofs (Start/End evidence)
-- robot v4 receipt: 20 ms feedback freshness/gap over 8 motors, `robot_frames ==
-  rgbd_frames` (feedback liveness contract; loosening requires a schema bump and
-  a release-train pass — documented follow-up, NOT changed here)
+- robot v4 receipt: 20 ms feedback freshness, `robot_frames == rgbd_frames`
+  (feedback liveness contract). The per-motor gap-violation `[0]*8` pin is now
+  a **declared bounded tolerance** (see §5b) — still exact at the production
+  default of 0, no schema bump.
 
 Softened in this change set (see §4-§6): model-bound inference drops, audio
 degraded-real classes, Start-path person friction.
@@ -62,12 +63,16 @@ supervisor path is terminal (§1.5), so this inconsistency has no live effect.
   old policy literal and `status == "PASS"`; now pins v3 and accepts
   `PASS_DEGRADED`.
 
-**Follow-up (recommended, not yet implemented):** force authenticity
-(`mechanical_sensor/force_feedback/force_capture.py`) has the same
-degraded-real classes (5 s freeze, near-constant, near-zero) hard-killing
-sessions via `verify_force_component`, which contradicts P0-4 ("force is
-advisory, never gates"). It should receive the identical fabrication-vs-degraded
-split once test execution is available.
+**Force channel (IMPLEMENTED, same audit):**
+`mechanical_sensor/force_feedback/force_capture.py`, policy
+`force_signal_degraded_real_v4` — hard fail keeps all-zero raw ADC and
+"conversion pinned while raw changes" (fabrication/integrity class); frozen
+runs (with a start/duration/samples region ledger), near-zero response (an
+unloaded advisory Hall channel is a real state per P0-4) and near-constant
+response degrade to `PASS_DEGRADED`. Consumers updated: finalizer
+`verify_force_component`, converter force branch, collect_server diagnostic
+seal (policy v4 pin + `PASS|PASS_DEGRADED`). `promotion_eligible` semantics
+(calibration + evidence duration) unchanged.
 
 ## 5. P1 — model-bound frame drops: bounded tolerance (IMPLEMENTED, GATED OFF)
 
@@ -84,6 +89,27 @@ zero-tolerance, byte-identical behavior):
   doctor-time-waste this audit is eliminating. Enabling tolerance for
   production requires teaching the finalizer to accept a documented drop
   ledger; that is a coupled change on the finalizer evidence contract.
+
+## 5b. Robot v4 feedback-gap bounded tolerance (IMPLEMENTED, LOCKED AT 0)
+
+No schema bump. `_evaluate_v4_feedback` gains `gap_violation_tolerance`
+(constructor default 0): `feedback_gap_clean` becomes "total violations <=
+declared tolerance AND worst gap <= ceiling", where the ceiling is the
+historical 20 ms when the count is 0 and
+`FEEDBACK_TOLERATED_GAP_CEILING_NS = 100 ms` otherwise (a 25 ms scheduling
+blip is tolerable evidence; a multi-second CAN outage never is). The summary
+now records `feedback_gap_violation_total` and
+`feedback_gap_violation_tolerance` alongside the untouched per-motor delta
+array, so the truth stays fully auditable.
+
+Consistency chain: the offline replay recomputes with the tolerance the
+capture **declared**; the receipt police then pin that declaration —
+`collect_server.ROBOT_FEEDBACK_GAP_TOLERANCE_CONFIGURED = 0` at End, and the
+converter's `production_tolerance_max = 0` at conversion — so a session cannot
+smuggle a larger tolerance. Raising the tolerance later is a single
+coordinated release: thread the value through the production runtime assembly
+and lift both pinned constants together, after reward-alignment excision
+windows exist for tolerated gaps.
 
 ## 6. P2 — Start-path person friction (IMPLEMENTED)
 
@@ -125,3 +151,8 @@ Executed on this change set:
   pre-existing failures all stub the older `_runtime_health_snapshot` Start
   probe and predate the in-flight recording-perf commits (`fed5dd3`..`a7a48cb`)
   that extended the Start path; they belong to that workstream.
+- Force/robot extension (same session): `test_force_capture.py` **34/34
+  green**; converter `test_session_to_lerobot_v2.py` **50/50 green**; robot
+  test directory **455 green / 1 red** — the one red
+  (`test_roi_dilated_paint_is_byte_identical_to_full_frame_reference`) is in
+  the mask-dilation area of commit `a7a48cb` and untouched by this audit.
