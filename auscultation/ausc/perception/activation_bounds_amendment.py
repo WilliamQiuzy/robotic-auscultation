@@ -319,7 +319,8 @@ def main(argv: "list[str] | None" = None) -> int:
     if argv is None:
         argv = _sys.argv[1:]
     box_mode = bool(argv) and argv[0] == "box-budget"
-    if box_mode:
+    handeye_mode = bool(argv) and argv[0] == "handeye-swap"
+    if box_mode or handeye_mode:
         argv = argv[1:]
     parser = argparse.ArgumentParser(
         description=(
@@ -335,6 +336,10 @@ def main(argv: "list[str] | None" = None) -> int:
     if box_mode:
         parser.add_argument("--expected-previous-px", required=True, type=int)
         parser.add_argument("--amended-px", required=True, type=int)
+    elif handeye_mode:
+        parser.add_argument("--new-handeye-release", required=True)
+        parser.add_argument("--new-handeye-artifact-sha256", required=True)
+        parser.add_argument("--new-handeye-complete-sha256", required=True)
     else:
         parser.add_argument("--expected-previous-ns", required=True, type=int)
         parser.add_argument("--amended-ns", required=True, type=int)
@@ -366,6 +371,14 @@ def main(argv: "list[str] | None" = None) -> int:
                 args.source, args.releases,
                 expected_previous_px=args.expected_previous_px,
                 amended_px=args.amended_px,
+                **common,
+            )
+        elif handeye_mode:
+            dest = amend_handeye_swap(
+                args.source, args.releases,
+                new_release_dir=args.new_handeye_release,
+                new_artifact_sha256=args.new_handeye_artifact_sha256,
+                new_complete_sha256=args.new_handeye_complete_sha256,
                 **common,
             )
         else:
@@ -864,6 +877,339 @@ def _assert_box_amended_equivalence(
         raise ActivationBoundsAmendmentError(
             "occlusion_identity changed beyond the back_mask cross-pin"
         )
+
+
+
+
+# --------------------------------------------------------------------------- #
+# hand-eye swap amendment (graduation day, prepared 2026-08-29)                #
+#                                                                              #
+# Graduating the R4 provisional hand-eye to the validated tier produces a NEW  #
+# external hand-eye release. The activation pins it twice: the manifest's      #
+# external ``handeye`` artifact entry, and FIVE derived fields inside the      #
+# ``occlusion_identity`` artifact (release id, artifact sha, capability        #
+# schema, calibration tier, policy sha). Both must move together — the same    #
+# cross-pin class that crash-looped the first box-budget deployment.  Every    #
+# derived value comes from the REAL loader (load_completed_handeye_release),   #
+# never re-implemented here.                                                   #
+# --------------------------------------------------------------------------- #
+
+HANDEYE_AMENDMENT_PROVENANCE_FILE = "HANDEYE_SWAPPED.json"
+HANDEYE_AMENDMENT_PROVENANCE_SCHEMA = (
+    "wam_activation_handeye_swap_provenance_v1"
+)
+
+_HANDEYE_ARTIFACT = "handeye"
+_IDENTITY_HANDEYE_FIELDS = (
+    "handeye_release_id",
+    "handeye_sha256",
+    "handeye_capability_schema",
+    "handeye_calibration_tier",
+    "handeye_policy_sha256",
+)
+
+
+def _derive_handeye_identity(release_dir, artifact_sha256, complete_sha256,
+                             camera_id):
+    """Derive the five identity pins through the real production loader."""
+    from .production_runtime_activation import (
+        load_completed_handeye_release,
+    )
+
+    handeye = load_completed_handeye_release(
+        release_dir,
+        expected_artifact_sha256=artifact_sha256,
+        expected_complete_sha256=complete_sha256,
+        expected_camera_id=camera_id,
+    )
+    return {
+        "handeye_release_id": handeye.handeye_release_id,
+        "handeye_sha256": handeye.handeye_sha256,
+        "handeye_capability_schema": handeye.capability_schema,
+        "handeye_calibration_tier": handeye.calibration_tier,
+        "handeye_policy_sha256": handeye.policy_sha256,
+    }
+
+
+def amend_handeye_swap(
+    source_dir: "str | Path",
+    releases_root: "str | Path",
+    *,
+    new_release_dir: "str | Path",
+    new_artifact_sha256: str,
+    new_complete_sha256: str,
+    amendment_reason: str,
+    owner_authorization: str,
+    source_run: str,
+    amender_code_sha256: str,
+    amender_code_release: str,
+    consumer_verifier: "ConsumerVerifier | None" = None,
+) -> Path:
+    """Reissue the activation with the external hand-eye release swapped."""
+
+    for label, value in (
+        ("amendment reason", amendment_reason),
+        ("owner authorization", owner_authorization),
+        ("source-run identity", source_run),
+        ("amender code release", amender_code_release),
+    ):
+        if not isinstance(value, str) or not value.strip():
+            raise ActivationBoundsAmendmentError(f"{label} is required")
+    _require_sha256(amender_code_sha256, label="amender code SHA")
+    new_artifact_sha256 = _require_sha256(
+        new_artifact_sha256, label="new hand-eye artifact SHA"
+    )
+    new_complete_sha256 = _require_sha256(
+        new_complete_sha256, label="new hand-eye COMPLETE SHA"
+    )
+    new_release = _validate_source_path(
+        new_release_dir, label="new hand-eye release", directory=True,
+    )
+    verify: ConsumerVerifier = consumer_verifier or _loader_consumer_verify
+
+    source = _validate_source_path(
+        source_dir, label="activation source", directory=True
+    )
+    releases = Path(releases_root)
+    if not releases.is_absolute():
+        raise ActivationBoundsAmendmentError("releases root must be absolute")
+
+    manifest_raw, manifest = _read_source_json(
+        source / ACTIVATION_FILE, label="activation manifest"
+    )
+    if not isinstance(manifest, dict) or frozenset(manifest) != _MANIFEST_KEYS:
+        raise ActivationBoundsAmendmentError("activation manifest keys are not exact")
+    if (
+        manifest["schema"] != ACTIVATION_SCHEMA
+        or manifest["status"] != "COMPLETE"
+        or manifest["side"] != "left"
+        or manifest["leader_can_interface"] != "can1"
+        or manifest["follower_can_interface"] != "can3"
+    ):
+        raise ActivationBoundsAmendmentError(
+            "activation must be COMPLETE left can1 leader -> can3 follower"
+        )
+    artifacts = manifest["artifacts"]
+    if not isinstance(artifacts, dict) or frozenset(artifacts) != _ARTIFACT_NAMES:
+        raise ActivationBoundsAmendmentError(
+            "activation artifacts are not exactly the 12-item allowlist"
+        )
+    source_activation_sha = _sha256(manifest_raw)
+
+    complete_raw, complete = _read_source_json(
+        source / COMPLETE_MARKER, label="top COMPLETE marker"
+    )
+    if not isinstance(complete, dict) or frozenset(complete) != _COMPLETE_KEYS:
+        raise ActivationBoundsAmendmentError("top COMPLETE marker keys are not exact")
+    if (
+        complete["activation_sha256"] != source_activation_sha
+        or complete["schema"] != ACTIVATION_COMPLETION_SCHEMA
+        or complete["status"] != "COMPLETE"
+    ):
+        raise ActivationBoundsAmendmentError(
+            "top COMPLETE marker does not bind the source manifest"
+        )
+
+    release_id = "activation-" + _sha256(
+        (
+            source_activation_sha
+            + "|handeye=" + new_artifact_sha256
+            + "|" + str(releases.resolve())
+        ).encode("utf-8")
+    )[:20]
+    dest = releases / release_id
+
+    plans = [
+        _plan_artifact(name, artifacts[name], new_root=dest)
+        for name in sorted(artifacts)
+    ]
+
+    # camera identity for the loader derivation comes from the identity
+    # artifact itself (it is the authority the loader compares against).
+    identity_plan_index = None
+    handeye_plan_index = None
+    for index, plan in enumerate(plans):
+        if plan.name == _IDENTITY_ARTIFACT:
+            identity_plan_index = index
+        elif plan.name == _HANDEYE_ARTIFACT:
+            handeye_plan_index = index
+    if identity_plan_index is None or handeye_plan_index is None:
+        raise ActivationBoundsAmendmentError(
+            "activation is missing the hand-eye or occlusion_identity artifact"
+        )
+    identity_plan = plans[identity_plan_index]
+    if identity_plan.action != "relocate":
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity artifact must be a relocated in-release payload"
+        )
+    identity_payload = _strict_json_loads(
+        identity_plan.payload_bytes, label="occlusion_identity payload"
+    )
+    if (
+        not isinstance(identity_payload, dict)
+        or identity_payload.get("schema") not in _IDENTITY_SCHEMAS
+    ):
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity payload schema is unsupported"
+        )
+    camera_id = identity_payload.get("camera_id")
+    if not isinstance(camera_id, str) or not camera_id:
+        raise ActivationBoundsAmendmentError(
+            "occlusion_identity camera identity is missing"
+        )
+
+    import dataclasses
+
+    old_entry = dict(plans[handeye_plan_index].entry)
+    old_derived = _derive_handeye_identity(
+        Path(old_entry["path"]).parent,
+        old_entry["sha256"],
+        old_entry["complete_sha256"],
+        camera_id,
+    )
+    new_derived = _derive_handeye_identity(
+        new_release, new_artifact_sha256, new_complete_sha256, camera_id,
+    )
+    if new_derived["handeye_sha256"] == old_derived["handeye_sha256"]:
+        raise ActivationBoundsAmendmentError(
+            "new hand-eye release is identical to the source; nothing to swap"
+        )
+    for field in _IDENTITY_HANDEYE_FIELDS:
+        if identity_payload.get(field) != old_derived[field]:
+            raise ActivationBoundsAmendmentError(
+                "occlusion_identity does not record the source hand-eye "
+                f"identity ({field})"
+            )
+
+    new_handeye_entry = {
+        "path": str(new_release / "handeye.json"),
+        "complete_path": str(new_release / "handeye.COMPLETE"),
+        "sha256": new_artifact_sha256,
+        "complete_sha256": new_complete_sha256,
+    }
+    plans[handeye_plan_index] = dataclasses.replace(
+        plans[handeye_plan_index], entry=new_handeye_entry,
+    )
+
+    new_identity_payload = dict(identity_payload)
+    for field in _IDENTITY_HANDEYE_FIELDS:
+        new_identity_payload[field] = new_derived[field]
+    new_identity_bytes = canonical_json_bytes(new_identity_payload)
+    new_identity_sha = _sha256(new_identity_bytes)
+    new_identity_marker = canonical_json_bytes({
+        "artifact_sha256": new_identity_sha,
+        "schema": ARTIFACT_COMPLETION_SCHEMA,
+        "status": "COMPLETE",
+    })
+    new_identity_entry = dict(identity_plan.entry)
+    new_identity_entry["sha256"] = new_identity_sha
+    new_identity_entry["complete_sha256"] = _sha256(new_identity_marker)
+    plans[identity_plan_index] = dataclasses.replace(
+        identity_plan,
+        entry=new_identity_entry,
+        payload_bytes=new_identity_bytes,
+        marker_bytes=new_identity_marker,
+    )
+
+    pair_entry = manifest["openarm_pair"]
+    if not isinstance(pair_entry, dict) or frozenset(pair_entry) != _PAIR_KEYS:
+        raise ActivationBoundsAmendmentError("openarm_pair keys are not exact")
+    _require_sha256(pair_entry["contract_sha256"], label="pair contract SHA")
+    pair_src = _validate_source_path(
+        pair_entry["release_directory"], label="openarm pair release", directory=True,
+    )
+    pair_rel = f"pairs/{pair_src.name}"
+    pair_files = _read_pair_tree(pair_src)
+    new_pair_entry = {
+        "contract_sha256": pair_entry["contract_sha256"],
+        "release_directory": str(dest / pair_rel),
+    }
+
+    new_manifest = dict(manifest)
+    new_manifest["artifacts"] = {p.name: p.entry for p in plans}
+    new_manifest["openarm_pair"] = new_pair_entry
+    new_manifest_bytes = canonical_json_bytes(new_manifest)
+    final_activation_sha = _sha256(new_manifest_bytes)
+    new_complete_bytes = canonical_json_bytes({
+        "activation_sha256": final_activation_sha,
+        "schema": ACTIVATION_COMPLETION_SCHEMA,
+        "status": "COMPLETE",
+    })
+
+    for key in _MANIFEST_KEYS - {"artifacts", "openarm_pair"}:
+        if manifest[key] != new_manifest[key]:
+            raise ActivationBoundsAmendmentError(
+                f"manifest field {key} changed unexpectedly"
+            )
+    for p in plans:
+        if p.name in (_HANDEYE_ARTIFACT, _IDENTITY_ARTIFACT):
+            continue
+        if manifest["artifacts"][p.name]["sha256"] != new_manifest["artifacts"][p.name]["sha256"]:
+            raise ActivationBoundsAmendmentError(
+                f"{p.name} payload SHA must not change"
+            )
+
+    inventory = {
+        ACTIVATION_FILE: final_activation_sha,
+        COMPLETE_MARKER: _sha256(new_complete_bytes),
+    }
+    for p in plans:
+        if p.action == "relocate":
+            inventory[p.payload_rel] = p.entry["sha256"]
+            inventory[p.marker_rel] = p.entry["complete_sha256"]
+    for rel, data in pair_files:
+        inventory[f"{pair_rel}/{rel}"] = _sha256(data)
+
+    provenance = {
+        "schema": HANDEYE_AMENDMENT_PROVENANCE_SCHEMA,
+        "source_activation_sha256": source_activation_sha,
+        "final_activation_sha256": final_activation_sha,
+        "amended_field": "artifacts.handeye (external release swap)",
+        "previous_entry": old_entry,
+        "amended_entry": new_handeye_entry,
+        "cross_pin_updates": {
+            f"artifacts.occlusion_identity.{field}": {
+                "previous": old_derived[field],
+                "amended": new_derived[field],
+            }
+            for field in _IDENTITY_HANDEYE_FIELDS
+        },
+        "amendment_reason": amendment_reason,
+        "amender_code_sha256": amender_code_sha256,
+        "amender_code_release": amender_code_release,
+        "owner_authorization": owner_authorization,
+        "source_run": source_run,
+        "release_id": release_id,
+        "release_directory": str(dest),
+        "kept_external_artifacts": sorted(
+            p.name for p in plans if p.action == "keep"
+        ),
+        "relocated_artifacts": sorted(
+            p.name for p in plans if p.action == "relocate"
+        ),
+        "inventory": inventory,
+    }
+    prov_bytes = canonical_json_bytes(provenance)
+
+    all_files = {
+        ACTIVATION_FILE: new_manifest_bytes,
+        COMPLETE_MARKER: new_complete_bytes,
+        HANDEYE_AMENDMENT_PROVENANCE_FILE: prov_bytes,
+    }
+    for p in plans:
+        if p.action == "relocate":
+            all_files[p.payload_rel] = p.payload_bytes
+            all_files[p.marker_rel] = p.marker_bytes
+    for rel, data in pair_files:
+        all_files[f"{pair_rel}/{rel}"] = data
+
+    if dest.exists():
+        return _reuse_or_refuse_amended(
+            dest, all_files, provenance, final_activation_sha, verify,
+            provenance_file=HANDEYE_AMENDMENT_PROVENANCE_FILE,
+        )
+    _materialize(releases, dest, all_files, final_activation_sha, verify)
+    return dest
 
 
 if __name__ == "__main__":

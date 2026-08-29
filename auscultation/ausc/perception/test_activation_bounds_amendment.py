@@ -436,3 +436,156 @@ def test_box_amendment_refuses_a_stale_identity_cross_pin(tmp_path):
     }))
     with pytest.raises(Exception, match="source back_mask identity"):
         _amend_box(src, tmp_path / "releases")
+
+
+# --------------------------------------------------------------------------- #
+# hand-eye swap amendment                                                      #
+# --------------------------------------------------------------------------- #
+
+import ausc.perception.activation_bounds_amendment as _abam
+from ausc.perception.activation_bounds_amendment import (  # noqa: E402
+    HANDEYE_AMENDMENT_PROVENANCE_FILE,
+    HANDEYE_AMENDMENT_PROVENANCE_SCHEMA,
+    amend_handeye_swap,
+)
+
+_OLD_DERIVED = {
+    "handeye_release_id": "handeye-" + "a" * 20,
+    "handeye_sha256": None,  # filled by _build_handeye_source from the fixture
+    "handeye_capability_schema": "wam_provisional_robot_mask_handeye_capability_v1",
+    "handeye_calibration_tier": "PROVISIONAL_USER_ACCEPTED_5MM",
+    "handeye_policy_sha256": "b" * 64,
+}
+_NEW_DERIVED = {
+    "handeye_release_id": "handeye-" + "c" * 20,
+    "handeye_sha256": None,  # filled by _swap from the fake release content
+    "handeye_capability_schema": "wam_provisional_robot_mask_handeye_capability_v1",
+    "handeye_calibration_tier": "VALIDATED_3MM",
+    "handeye_policy_sha256": "d" * 64,
+}
+
+_HE_AUTH = dict(
+    amendment_reason="hand-eye graduated to the validated tier on the fixture",
+    owner_authorization="op:qz graduation session",
+    source_run="handeye_left_20260901T000000Z_deadbeef",
+    amender_code_sha256="e" * 64,
+    amender_code_release="code_release-" + "f" * 20,
+)
+
+
+def _build_handeye_source(tmp_path):
+    """Box-source fixture whose occlusion_identity ALSO carries the five
+    hand-eye pins matching the (fake) old derivation, and whose external
+    hand-eye artifact sha matches _OLD_DERIVED."""
+    src = _build_box_source(tmp_path)
+    manifest = json.loads((src / "activation.json").read_text())
+    # the old derivation binds to the fixture's REAL external handeye sha
+    _OLD_DERIVED["handeye_sha256"] = manifest["artifacts"]["handeye"]["sha256"]
+    ident_path = src / "artifacts" / "occlusion_identity.json"
+    ident = json.loads(ident_path.read_text())
+    ident.update(_OLD_DERIVED)
+    ident_bytes = canonical_json_bytes(ident)
+    ident_path.write_bytes(ident_bytes)
+    marker_bytes = canonical_json_bytes({
+        "artifact_sha256": _hash(ident_bytes),
+        "schema": "wam_production_runtime_artifact_completion_v1",
+        "status": "COMPLETE",
+    })
+    (src / "markers" / "occlusion_identity.COMPLETE").write_bytes(marker_bytes)
+    entry = manifest["artifacts"]["occlusion_identity"]
+    entry["sha256"] = _hash(ident_bytes)
+    entry["complete_sha256"] = _hash(marker_bytes)
+    manifest_bytes = canonical_json_bytes(manifest)
+    (src / "activation.json").write_bytes(manifest_bytes)
+    (src / "COMPLETE").write_bytes(canonical_json_bytes({
+        "activation_sha256": _hash(manifest_bytes),
+        "schema": "wam_production_runtime_activation_completion_v1",
+        "status": "COMPLETE",
+    }))
+    return src
+
+
+def _fake_derive(release_dir, artifact_sha256, complete_sha256, camera_id):
+    if artifact_sha256 == _OLD_DERIVED["handeye_sha256"]:
+        return dict(_OLD_DERIVED)
+    return dict(_NEW_DERIVED)
+
+
+def _swap(src, releases, tmp_path, monkeypatch, **over):
+    monkeypatch.setattr(_abam, "_derive_handeye_identity", _fake_derive)
+    new_rel = tmp_path / "handeye_new"
+    new_rel.mkdir(exist_ok=True)
+    payload_bytes = canonical_json_bytes({"T": [4.0, 5.0, 6.0]})
+    (new_rel / "handeye.json").write_bytes(payload_bytes)
+    marker_bytes = canonical_json_bytes({"status": "COMPLETE"})
+    (new_rel / "handeye.COMPLETE").write_bytes(marker_bytes)
+    _NEW_DERIVED["handeye_sha256"] = _hash(payload_bytes)
+    kw = dict(
+        _HE_AUTH,
+        new_release_dir=new_rel,
+        new_artifact_sha256=_hash(payload_bytes),
+        new_complete_sha256=_hash(marker_bytes),
+        consumer_verifier=_verify,
+    )
+    kw.update(over)
+    return amend_handeye_swap(src, releases, **kw)
+
+
+def test_handeye_swap_moves_entry_and_all_five_pins(tmp_path, monkeypatch):
+    src = _build_handeye_source(tmp_path)
+    dest = _swap(src, tmp_path / "releases", tmp_path, monkeypatch)
+    manifest = json.loads((dest / "activation.json").read_text())
+    he = manifest["artifacts"]["handeye"]
+    assert he["sha256"] == _NEW_DERIVED["handeye_sha256"]
+    assert he["path"].endswith("handeye_new/handeye.json")
+    ident = json.loads((dest / "artifacts" / "occlusion_identity.json").read_text())
+    for field, value in _NEW_DERIVED.items():
+        assert ident[field] == value, field
+    assert ident["other_pin"] == "untouched-value"
+    verify_relocated_release(dest)
+    prov = json.loads((dest / HANDEYE_AMENDMENT_PROVENANCE_FILE).read_text())
+    assert prov["schema"] == HANDEYE_AMENDMENT_PROVENANCE_SCHEMA
+    assert prov["cross_pin_updates"][
+        "artifacts.occlusion_identity.handeye_calibration_tier"]["amended"] == "VALIDATED_3MM"
+
+
+def test_handeye_swap_refuses_stale_identity_pins(tmp_path, monkeypatch):
+    src = _build_handeye_source(tmp_path)
+    ident_path = src / "artifacts" / "occlusion_identity.json"
+    ident = json.loads(ident_path.read_text())
+    ident["handeye_policy_sha256"] = "0" * 64
+    ident_bytes = canonical_json_bytes(ident)
+    ident_path.write_bytes(ident_bytes)
+    marker_bytes = canonical_json_bytes({
+        "artifact_sha256": _hash(ident_bytes),
+        "schema": "wam_production_runtime_artifact_completion_v1",
+        "status": "COMPLETE",
+    })
+    (src / "markers" / "occlusion_identity.COMPLETE").write_bytes(marker_bytes)
+    manifest = json.loads((src / "activation.json").read_text())
+    entry = manifest["artifacts"]["occlusion_identity"]
+    entry["sha256"] = _hash(ident_bytes)
+    entry["complete_sha256"] = _hash(marker_bytes)
+    manifest_bytes = canonical_json_bytes(manifest)
+    (src / "activation.json").write_bytes(manifest_bytes)
+    (src / "COMPLETE").write_bytes(canonical_json_bytes({
+        "activation_sha256": _hash(manifest_bytes),
+        "schema": "wam_production_runtime_activation_completion_v1",
+        "status": "COMPLETE",
+    }))
+    with pytest.raises(Exception, match="source hand-eye"):
+        _swap(src, tmp_path / "releases", tmp_path, monkeypatch)
+
+
+def test_handeye_swap_refuses_identical_release(tmp_path, monkeypatch):
+    src = _build_handeye_source(tmp_path)
+    with pytest.raises(Exception, match="nothing to swap"):
+        _swap(src, tmp_path / "releases", tmp_path, monkeypatch,
+              new_artifact_sha256=_OLD_DERIVED["handeye_sha256"])
+
+
+def test_handeye_swap_idempotent(tmp_path, monkeypatch):
+    src = _build_handeye_source(tmp_path)
+    a = _swap(src, tmp_path / "releases", tmp_path, monkeypatch)
+    b = _swap(src, tmp_path / "releases", tmp_path, monkeypatch)
+    assert a == b
