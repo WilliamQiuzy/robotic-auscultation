@@ -270,7 +270,9 @@ def test_person_gate_exception_clears_an_existing_operator_confirmation():
     assert snapshot["reason"] == "PERSON_GATE_ERROR"
 
 
-def test_one_valid_person_plus_one_malformed_detection_fails_closed():
+def test_one_dominant_person_plus_one_malformed_detection_stays_present():
+    # 2026-08-29 (operator-approved): a glitched detection row is recorded but
+    # no longer voids a clean dominant patient; fail-closed survives below.
     malformed = {
         "box": [10.0, 10.0, 600.0, 900.0],
         "box_confidence": float("nan"),
@@ -280,9 +282,52 @@ def test_one_valid_person_plus_one_malformed_detection_fails_closed():
         [_person(), malformed], image_shape=(1000, 1000),
     )
 
+    assert result["person_present"] is True
+    assert result["reason"] == "ONE_PERSON"
+    assert result["invalid_detections"] == 1
+    assert result["bystander_people"] == 0
+
+
+def test_malformed_detection_without_a_dominant_person_still_fails_closed():
+    malformed = {
+        "box": [10.0, 10.0, 600.0, 900.0],
+        "box_confidence": float("nan"),
+    }
+
+    result = select_single_person([malformed], image_shape=(1000, 1000))
+
     assert result["person_present"] is False
     assert result["reason"] == "PERSON_DETECTION_INVALID"
     assert result["invalid_detections"] == 1
+
+
+def test_distant_bystander_no_longer_voids_a_dominant_patient():
+    # A colleague passing 4-5 m behind the patient projects to a small but
+    # confidently detected box; the dominant patient must stay confirmable.
+    bystander = {
+        "box": [40.0, 40.0, 160.0, 160.0],  # 1.44% of the frame
+        "box_confidence": 0.55,
+    }
+
+    result = select_single_person(
+        [_person(), bystander], image_shape=(1000, 1000),
+    )
+
+    assert result["person_present"] is True
+    assert result["reason"] == "ONE_PERSON"
+    assert result["bystander_people"] == 1
+
+
+def test_two_dominant_people_are_still_ambiguous():
+    shifted = dict(_person())
+    shifted["box"] = [500.0, 100.0, 900.0, 800.0]
+
+    result = select_single_person(
+        [_person(), shifted], image_shape=(1000, 1000),
+    )
+
+    assert result["person_present"] is False
+    assert result["reason"] == "AMBIGUOUS_PEOPLE"
 
 
 def test_confirmation_requires_the_displayed_preview_frame_and_a_newer_model_frame():

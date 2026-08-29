@@ -51,12 +51,18 @@ def select_single_person(
     image_shape: Sequence[int],
     min_box_confidence: float = 0.20,
     min_box_area_fraction: float = 0.01,
+    ambiguity_min_area_fraction: float = 0.05,
 ) -> dict:
     """Return one box-backed person decision without inferring orientation.
 
     The thresholds deliberately operate on the detector box only.  Face,
     shoulder and hip keypoints are ignored because they are not dependable in
     the deployed rear-view camera geometry.
+
+    2026-08-29 (operator-approved): one dominant person plus distant
+    bystanders (< ambiguity_min_area_fraction of the frame) is still a
+    single-person scene, and malformed detection rows no longer void a clean
+    dominant decision; both facts stay on the record for audit.
     """
 
     try:
@@ -67,11 +73,14 @@ def select_single_person(
         raise ValueError("image_shape must contain positive height and width")
     confidence_floor = float(min_box_confidence)
     area_floor = float(min_box_area_fraction)
+    ambiguity_floor = float(ambiguity_min_area_fraction)
     if (
         not math.isfinite(confidence_floor)
         or not 0.0 <= confidence_floor <= 1.0
         or not math.isfinite(area_floor)
         or not 0.0 < area_floor <= 1.0
+        or not math.isfinite(ambiguity_floor)
+        or not area_floor <= ambiguity_floor <= 1.0
     ):
         raise ValueError("person box thresholds are invalid")
 
@@ -111,6 +120,23 @@ def select_single_person(
         "invalid_detections": invalid,
         "frame_shape": [height, width],
     }
+    dominant = [
+        candidate for candidate in candidates
+        if candidate["box_area_fraction"] >= ambiguity_floor
+    ]
+    selected = None
+    if len(dominant) == 1:
+        selected = dominant[0]
+    elif not dominant and len(candidates) == 1:
+        selected = candidates[0]
+    if selected is not None:
+        return {
+            "person_present": True,
+            "reason": "ONE_PERSON",
+            **base,
+            "bystander_people": len(candidates) - 1,
+            **selected,
+        }
     if invalid:
         return {
             "person_present": False,
@@ -123,17 +149,10 @@ def select_single_person(
             "reason": "NO_PERSON",
             **base,
         }
-    if len(candidates) != 1:
-        return {
-            "person_present": False,
-            "reason": "AMBIGUOUS_PEOPLE",
-            **base,
-        }
     return {
-        "person_present": True,
-        "reason": "ONE_PERSON",
+        "person_present": False,
+        "reason": "AMBIGUOUS_PEOPLE",
         **base,
-        **candidates[0],
     }
 
 
@@ -195,12 +214,15 @@ class OperatorConfirmedBackGate:
         self,
         person_gate,
         *,
-        max_missed_frames: int = 5,
+        # 2026-08-29 (operator-approved): 10 missed frames (~1.4-2 s of detector
+        # flicker at the deployed model rate) and a 0.25 area-ratio floor keep a
+        # confirmed patient who leans forward from losing the confirmation.
+        max_missed_frames: int = 10,
         max_observation_age_s: float = 1.25,
         max_preview_lag_frames: int = 30,
         min_iou: float = 0.20,
         max_center_shift_fraction: float = 0.20,
-        min_area_ratio: float = 0.35,
+        min_area_ratio: float = 0.25,
         max_area_ratio: float = 3.0,
         clock=time.monotonic,
     ) -> None:
