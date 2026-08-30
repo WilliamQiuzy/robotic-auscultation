@@ -1216,3 +1216,25 @@ def test_production_pre_tracker_failure_has_no_display_annex():
     assert result["points"] == []
     assert not result.get("display_only_points")
     assert tracker.calls == []           # tracker never ran: nothing to show
+
+
+def test_production_not_ready_occlusion_frame_carries_display_only_annex():
+    """The not-ready branch (safe_frame.reason rides through, e.g.
+    INCOMPLETE_OCCLUSION_SAFE_CONSTELLATION) was the second preview-starving
+    exit found by the soak rig; it must carry the same amber-only annex."""
+    from dataclasses import replace as dc_replace
+
+    bundle = _production_bundle()
+    not_ready = dc_replace(
+        _safe_frame(), reason="INCOMPLETE_OCCLUSION_SAFE_CONSTELLATION",
+    )
+    processor, _tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=_OcclusionRuntime(not_ready),
+    )
+    result = processor(bundle)
+    assert result["reason"] == "INCOMPLETE_OCCLUSION_SAFE_CONSTELLATION"
+    assert result["points"] == []
+    annex = result.get("display_only_points")
+    assert isinstance(annex, list) and len(annex) == 1
+    assert annex[0]["name"] == "R1"
+    assert annex[0]["display_only"] is True

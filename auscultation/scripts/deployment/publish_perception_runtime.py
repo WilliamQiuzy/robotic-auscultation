@@ -229,7 +229,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/scripts/deployment/verify_perception_environment.py": "cae1a043fcdafc5252a2f476791bdabb87c6f7e19affb228b3fcd22e4f82bf97",
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",
     "auscultation/scripts/perception_capture.py": "d73fc89e9c48a56964e568d559789724dc2de74d92aa5270bdf02f2eb65a4f44",
-    "auscultation/scripts/perception_worker.py": "0549541046f829d3ee5acfdc73840e3b1e42802013b33bcb24c6cad9aca0c2e1",
+    "auscultation/scripts/perception_worker.py": "27154d7b19b82480fa07cbd60543a9144ac950cc7bd85b38a47d5644b0dce8cc",
     "auscultation/scripts/posterior_gate.py": "76e498d3ced1ff163529de818f8f6516058d0cb511c561d01e52b82fa0e67ea4",
 }
 

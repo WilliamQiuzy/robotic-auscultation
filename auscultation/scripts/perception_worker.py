@@ -1144,6 +1144,14 @@ class TrackerProcessor:
             result["detector_confidence"] = float(
                 getattr(landmark_frame, "detector_confidence", 0.0)
             )
+            # 2026-08-30 soak forensics (second exit): this not-ready branch
+            # (INVALID_OCCLUSION_EVIDENCE / INCOMPLETE_OCCLUSION_SAFE_
+            # CONSTELLATION rides safe_frame.reason) produced the bulk of
+            # recording-phase frames and equally starved the operator
+            # preview; it carries the same display-only annex.
+            annex = self._display_only_annex(landmark_frame)
+            if annex:
+                result["display_only_points"] = annex
             return self._with_metadata(result, metadata), None
         names = tuple(str(getattr(point, "name", "")) for point in safe_points)
         if (
