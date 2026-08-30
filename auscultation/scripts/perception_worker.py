@@ -804,6 +804,61 @@ class TrackerProcessor:
         self._consecutive_presence_misses = 0
         return "; ".join(errors) if errors else None
 
+    def _display_only_annex(self, landmark_frame):
+        """DISPLAY-ONLY annex for post-tracker production failures.
+
+        2026-08-30 (soak-rig forensics): the publication gate rightly
+        withholds task points until the full occlusion-safe constellation
+        exists, but replacing the whole result with a bare failure record
+        also starved the operator preview — the doctor saw an empty page for
+        entire recordings. Every landmark the tracker produced is therefore
+        exported as ``display_only`` (never as ``points``): the amber-only
+        display channel from the 2026-08-29 owner decision, which no
+        downstream consumer is permitted to read.
+        """
+        try:
+            serialized = tracker_result_to_dict(landmark_frame)
+        except Exception:  # noqa: BLE001 - annex must never mask the failure
+            return []
+        annex = []
+        seen = set()
+        for point in serialized.get("points") or []:
+            name = point.get("name")
+            pixel = point.get("pixel")
+            if not name or pixel is None or name in seen:
+                continue
+            seen.add(name)
+            annex.append({
+                "name": str(name),
+                "pixel": [float(pixel[0]), float(pixel[1])],
+                "display_only": True,
+                "reason": "UNPUBLISHED_TRACKER_POINT",
+            })
+        for point in serialized.get("display_only_points") or []:
+            name = point.get("name")
+            pixel = point.get("pixel")
+            if not name or pixel is None or name in seen:
+                continue
+            seen.add(name)
+            annex.append({
+                "name": str(name),
+                "pixel": [float(pixel[0]), float(pixel[1])],
+                "display_only": True,
+                "reason": str(
+                    point.get("reason", "UNVERIFIED_DETECTOR_ONLY")
+                ),
+            })
+        return annex
+
+    def _production_failure_with_display(
+        self, frame_index, reason, landmark_frame, error=None,
+    ):
+        failure = self._production_failure(frame_index, reason, error)
+        annex = self._display_only_annex(landmark_frame)
+        if annex:
+            failure["display_only_points"] = annex
+        return failure
+
     def _production_failure(self, frame_index, reason, error=None):
         reset_error = self._reset_production_state(reason)
         self._safety_reset_fault = reset_error
@@ -1346,8 +1401,8 @@ class TrackerProcessor:
                 patient_pose_packet=patient_pose_packet,
             )
         except Exception as exc:  # noqa: BLE001 - safety runtime boundary
-            return self._production_failure(
-                camera.index, "OCCLUSION_RUNTIME_ERROR", exc,
+            return self._production_failure_with_display(
+                camera.index, "OCCLUSION_RUNTIME_ERROR", landmark_frame, exc,
             )
         try:
             result, unsafe_reason = self._safe_result_to_dict(
@@ -1357,13 +1412,13 @@ class TrackerProcessor:
                 metadata=metadata,
             )
         except (AttributeError, TypeError, ValueError, OverflowError) as exc:
-            return self._production_failure(
-                camera.index, "OCCLUSION_RESULT_INVALID", exc,
+            return self._production_failure_with_display(
+                camera.index, "OCCLUSION_RESULT_INVALID", landmark_frame, exc,
             )
         stage_ms["occlusion_runtime"] = (time.monotonic() - _stage_t0) * 1000.0
         if unsafe_reason is not None:
-            return self._production_failure(
-                camera.index, unsafe_reason,
+            return self._production_failure_with_display(
+                camera.index, unsafe_reason, landmark_frame,
             )
         result["stage_timings_ms"] = {
             key: round(float(value), 1) for key, value in stage_ms.items()

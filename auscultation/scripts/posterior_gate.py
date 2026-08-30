@@ -207,6 +207,19 @@ def _boxes_match(
     )
 
 
+# 2026-08-30 (soak-rig forensics): the Start transition stalls the person
+# gate's ingest stream for >5 s (file init, boundary latch, worker rewiring),
+# which used to age out the operator confirmation on EVERY Start — recordings
+# then ran NO_BACK end to end. A confirmation is therefore HELD (active, not
+# current) while the ingest stream itself is stalled: the patient cannot be
+# proven gone when no observations arrive at all, and patient departure is
+# separately covered by the missed-frames ladder the moment the stream
+# resumes. The hold is bounded: past this many seconds of total silence the
+# confirmation clears regardless (an operator re-confirm is honest friction
+# after a stall that long).
+_CONFIRMATION_STALL_HOLD_MAX_S = 30.0
+
+
 class OperatorConfirmedBackGate:
     """Bind one explicit back confirmation to a continuous single-person track."""
 
@@ -250,6 +263,7 @@ class OperatorConfirmedBackGate:
         self._lock = threading.RLock()
         self._latest_decision = None
         self._latest_observed_at = None
+        self._latest_ingest_at = None
         self._active = False
         self._current = False
         self._confirmed_box = None
@@ -282,7 +296,21 @@ class OperatorConfirmedBackGate:
         age = self._observation_age_locked(now)
         if age > self.max_observation_age_s:
             if self._active or self._current:
-                self._clear_locked("CONFIRMATION_OBSERVATION_STALE")
+                # Distinguish a stalled INGEST STREAM (no decisions arriving
+                # at all — pipeline transition, e.g. Start) from consuming a
+                # stale backlog (decisions arriving whose frames are old).
+                # Only the latter proves the confirmation can no longer be
+                # re-verified; the former holds, bounded by the stall cap.
+                stream_alive = (
+                    self._latest_ingest_at is not None
+                    and (float(now) - float(self._latest_ingest_at))
+                    <= self.max_observation_age_s
+                )
+                if stream_alive or age > _CONFIRMATION_STALL_HOLD_MAX_S:
+                    self._clear_locked("CONFIRMATION_OBSERVATION_STALE")
+                else:
+                    self._mark_not_current_locked()
+                    self._reason = "CONFIRMATION_HELD_STREAM_STALLED"
             elif self._latest_decision is not None:
                 self._reason = "PERSON_OBSERVATION_STALE"
         return age
@@ -468,6 +496,9 @@ class OperatorConfirmedBackGate:
             self.clear_confirmation("PERSON_FRAME_TIME_INVALID")
             raise PosteriorGateError("person frame time is invalid")
         with self._lock:
+            # Any assess() call proves the ingest stream is alive, whatever
+            # the decision says — the stall-hold logic keys off this.
+            self._latest_ingest_at = now
             previous_index = (
                 None if self._latest_decision is None
                 else int(self._latest_decision.get("frame_index", -1))

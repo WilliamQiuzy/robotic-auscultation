@@ -1160,3 +1160,59 @@ def test_production_tracker_latches_failed_safety_reset_and_never_reuses_history
     assert second["points"] == []
     assert tracker.calls == []
     assert runtime.calls == []
+
+
+def test_production_unsafe_failure_carries_display_only_annex():
+    """2026-08-30 soak forensics: an occlusion-gated failure record must still
+    feed the operator display (amber-only), never the points channel."""
+    bundle = _production_bundle()
+    unsafe_runtime = _OcclusionRuntime(
+        _safe_frame(source="last_valid_bounded_freeze", robot_occluded=True)
+    )
+    processor, tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=unsafe_runtime,
+    )
+
+    result = processor(bundle)
+
+    assert result["reason"] == "UNSAFE_OCCLUDED_POINT_SOURCE"
+    assert result["points"] == []
+    annex = result.get("display_only_points")
+    assert isinstance(annex, list) and len(annex) == 1
+    assert annex[0]["name"] == "R1"
+    assert annex[0]["display_only"] is True
+    assert annex[0]["reason"] == "UNPUBLISHED_TRACKER_POINT"
+    assert annex[0]["pixel"] == [2.0, 1.0]
+
+
+def test_production_occlusion_runtime_error_carries_display_only_annex():
+    bundle = _production_bundle()
+
+    class _ExplodingRuntime(_OcclusionRuntime):
+        def advance(self, observation, *, robot_mask_packet, patient_pose_packet):
+            raise ValueError("occlusion frame does not contain every point exactly once")
+
+    processor, _tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=_ExplodingRuntime(_safe_frame()),
+    )
+    result = processor(bundle)
+    assert result["reason"] == "OCCLUSION_RUNTIME_ERROR"
+    assert result["points"] == []
+    annex = result.get("display_only_points")
+    assert isinstance(annex, list) and annex and annex[0]["display_only"] is True
+
+
+def test_production_pre_tracker_failure_has_no_display_annex():
+    """Before an authorized back exists, nothing may be drawn at all: any
+    failure BEFORE the tracker ran must carry no display annex."""
+    bundle = _production_bundle()
+    back_packet = _back_packet(bundle)
+    invalid = SimpleNamespace(**{**vars(back_packet), "status": "NO_BACK"})
+    processor, tracker, _back, _pose, _runtime = _production_processor(
+        bundle, back_provider=_BackMaskProvider(invalid),
+    )
+    result = processor(bundle)
+    assert result["reason"] in ("NO_BACK", "BACK_MASK_PACKET_INVALID")
+    assert result["points"] == []
+    assert not result.get("display_only_points")
+    assert tracker.calls == []           # tracker never ran: nothing to show
