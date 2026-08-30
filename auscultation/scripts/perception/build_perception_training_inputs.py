@@ -7,6 +7,7 @@ public API accepts a test switch, alternate hash, or verifier callback.
 
 from __future__ import annotations
 
+import argparse
 from contextlib import contextmanager
 from copy import deepcopy
 import csv
@@ -252,9 +253,72 @@ def _read_fd(descriptor: int) -> bytes:
         chunks.append(chunk)
 
 
-def _read_regular(root: Path, relative: str, field: str) -> bytes:
+def _read_regular(
+    root: Path,
+    relative: str,
+    field: str,
+    *,
+    maximum_size: Union[int, None] = None,
+) -> bytes:
     with _open_regular_no_follow(root, relative, field) as descriptor:
-        return _read_fd(descriptor)
+        if maximum_size is not None:
+            if os.fstat(descriptor).st_size > maximum_size:
+                raise InputBuildError(
+                    field + " exceeds the bounded reader hard limit"
+                )
+        payload = _read_fd(descriptor)
+    if maximum_size is not None and len(payload) > maximum_size:
+        raise InputBuildError(field + " exceeds the bounded reader hard limit")
+    return payload
+
+
+def _strict_equal(left: object, right: object) -> bool:
+    """Deep equality that never conflates JSON scalar types.
+
+    Python's ``==`` treats ``False == 0`` and ``64 == 64.0`` as equal, so a
+    resealed semantic manifest could substitute numeric types without
+    detection.  Contract comparison therefore requires the exact type at
+    every node in addition to the value.
+    """
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        if set(left.keys()) != set(right.keys()):
+            return False
+        return all(_strict_equal(left[key], right[key]) for key in left)
+    if isinstance(left, (list, tuple)):
+        if len(left) != len(right):
+            return False
+        return all(
+            _strict_equal(item, other) for item, other in zip(left, right)
+        )
+    return left == right
+
+
+def _reject_nested_output_root(
+    output_root: Union[str, Path],
+    source_roots: Sequence[Union[str, Path]],
+    field: str,
+) -> None:
+    """Fail before any write when an output root nests inside a source root.
+
+    Sealing into a source tree would let the output mutate (or be captured
+    by) the very bytes it attests, so the rejection must happen before the
+    output directory is even created.
+    """
+    output = Path(output_root)
+    if not output.is_absolute():
+        raise InputBuildError(field + " must be absolute")
+    resolved_output = output.resolve()
+    for source in source_roots:
+        resolved_source = Path(source).resolve()
+        try:
+            resolved_output.relative_to(resolved_source)
+        except ValueError:
+            continue
+        raise InputBuildError(
+            field + " must not be nested inside a source root"
+        )
 
 
 def _write_new_file(root: Path, relative: str, payload: bytes) -> None:
@@ -407,6 +471,12 @@ def _build_geometry_source_release(
 ) -> Path:
     data = _safe_root(data_root, "geometry data root")
     licenses = _safe_root(licenses_root, "geometry license cache")
+    _reject_nested_output_root(
+        releases_root, (data, licenses), "geometry releases root",
+    )
+    _reject_nested_output_root(
+        staging_root, (data, licenses), "geometry staging root",
+    )
     expected_support = _verify_geometry_expected_values(
         expected_support_sha256,
         expected_smpl_manifest_sha256,
@@ -526,12 +596,16 @@ def _build_geometry_source_release(
                 create=True,
             )
             destination = releases / manifest["release_id"]
-            artifact_contract.write_release(
-                staging,
-                manifest,
-                destination,
-                target_role="mac",
-            )
+            if not os.path.lexists(str(destination)):
+                # Content-addressed reuse: an identical rebuild lands on the
+                # same release ID and the immutable existing directory is
+                # re-verified below instead of being rewritten.
+                artifact_contract.write_release(
+                    staging,
+                    manifest,
+                    destination,
+                    target_role="mac",
+                )
         except (artifact_contract.ArtifactError, OSError) as exc:
             raise InputBuildError("geometry release could not be sealed") from exc
     _verify_geometry_source_release(
@@ -560,6 +634,10 @@ def _verify_geometry_source_release(
         envelope = artifact_contract.verify_release(release)
     except (artifact_contract.ArtifactError, OSError) as exc:
         raise InputBuildError("geometry release artifact verification failed") from exc
+    if release.name != envelope["release_id"]:
+        raise InputBuildError(
+            "geometry release directory was renamed away from its content ID"
+        )
     payload = envelope["payload"]
     if (
         payload.get("artifact_kind") != "perception_geometry_source"
@@ -858,19 +936,59 @@ def _session_source_path_closure(
     return expected, diagnostics
 
 
-def _verify_mixed_eval_release(
-    release_dir: Union[str, Path],
+# Bounded read for a detached RELEASE_MANIFEST.json snapshot: the production
+# mixed-eval manifest is a few hundred kilobytes, so anything past this bound
+# is not a manifest and must never be slurped into memory.
+_MIXED_EVAL_MANIFEST_MAX_BYTES = 8 * 1024 * 1024
+
+
+def _load_manifest_snapshot(
+    manifest_path: Union[str, Path],
+    field: str,
+) -> Tuple[dict, str]:
+    """Parse a detached release manifest and prove its internal binding.
+
+    A snapshot carries no payload tree, so trust reduces to (a) the envelope
+    binding its own canonical payload and (b) the caller pinning the file
+    hash through an expected immutable identity.
+    """
+    candidate = Path(manifest_path)
+    if not candidate.is_absolute() or candidate.name in ("", ".", ".."):
+        raise InputBuildError(field + " path must be absolute")
+    parent = _safe_root(candidate.parent, field + " parent")
+    manifest_bytes = _read_regular(
+        parent,
+        candidate.name,
+        field,
+        maximum_size=_MIXED_EVAL_MANIFEST_MAX_BYTES,
+    )
+    envelope = _parse_json_object(manifest_bytes, field)
+    payload = envelope.get("payload")
+    if type(payload) is not dict:
+        raise InputBuildError(field + " payload is invalid")
+    payload_sha256 = hashlib.sha256(
+        artifact_contract.canonical_json_bytes(payload)
+    ).hexdigest()
+    artifact_kind = payload.get("artifact_kind")
+    if type(artifact_kind) is not str or not artifact_kind:
+        raise InputBuildError(field + " artifact kind is invalid")
+    if (
+        envelope.get("schema") != artifact_contract.ENVELOPE_SCHEMA
+        or envelope.get("payload_sha256") != payload_sha256
+        or envelope.get("release_id")
+        != "%s-%s" % (artifact_kind, payload_sha256[:20])
+    ):
+        raise InputBuildError(field + " envelope does not bind its payload")
+    return envelope, hashlib.sha256(manifest_bytes).hexdigest()
+
+
+def _verify_mixed_eval_payload(
+    payload: Mapping[str, object],
+    actual_identity: Mapping[str, str],
     *,
     spec: _SessionSpec,
-    expected_identity: Mapping[str, str],
+    expected: Mapping[str, str],
 ) -> Tuple[dict, Tuple[dict, ...]]:
-    expected = _verify_expected_identity(expected_identity, "expected mixed-eval identity")
-    release = _safe_root(release_dir, "mixed-eval release")
-    try:
-        envelope = artifact_contract.verify_release(release)
-    except (artifact_contract.ArtifactError, OSError) as exc:
-        raise InputBuildError("mixed-eval artifact verification failed") from exc
-    payload = envelope["payload"]
     rows = payload.get("files")
     if (
         payload.get("artifact_kind") != "perception_eval"
@@ -879,8 +997,7 @@ def _verify_mixed_eval_release(
         or len(rows) != 1215
     ):
         raise InputBuildError("mixed-eval kind, role, or 1215-file closure is not exact")
-    actual_identity = _mixed_eval_identity(release, envelope)
-    if actual_identity != expected:
+    if dict(actual_identity) != dict(expected):
         raise InputBuildError("mixed-eval immutable identity does not match")
 
     session2_paths, _ = _session_source_path_closure(rows, 2, 2)
@@ -915,7 +1032,59 @@ def _verify_mixed_eval_release(
         sorted(row["path"] for row in selected)
     ):
         raise InputBuildError("mixed-eval selected member list is not exact")
-    return actual_identity, selected
+    return dict(actual_identity), selected
+
+
+def _verify_mixed_eval_release(
+    release_dir: Union[str, Path],
+    *,
+    spec: _SessionSpec,
+    expected_identity: Mapping[str, str],
+) -> Tuple[dict, Tuple[dict, ...]]:
+    expected = _verify_expected_identity(expected_identity, "expected mixed-eval identity")
+    release = _safe_root(release_dir, "mixed-eval release")
+    try:
+        envelope = artifact_contract.verify_release(release)
+    except (artifact_contract.ArtifactError, OSError) as exc:
+        raise InputBuildError("mixed-eval artifact verification failed") from exc
+    actual_identity = _mixed_eval_identity(release, envelope)
+    return _verify_mixed_eval_payload(
+        envelope["payload"],
+        actual_identity,
+        spec=spec,
+        expected=expected,
+    )
+
+
+def _verify_mixed_eval_manifest_snapshot(
+    mixed_eval_manifest: Union[str, Path],
+    *,
+    spec: _SessionSpec,
+    expected_identity: Mapping[str, str],
+) -> Tuple[dict, Tuple[dict, ...]]:
+    """Verify mixed-eval membership from a detached manifest snapshot.
+
+    The annotation stage runs on hosts that hold the label and the manifest
+    but not the multi-gigabyte mixed-eval payload tree; the expected
+    immutable identity (payload hash, release ID, manifest hash) pins the
+    snapshot to the exact sealed release without touching payload bytes.
+    """
+    expected = _verify_expected_identity(expected_identity, "expected mixed-eval identity")
+    envelope, manifest_sha256 = _load_manifest_snapshot(
+        mixed_eval_manifest,
+        "mixed-eval manifest snapshot",
+    )
+    actual_identity = {
+        "payload_sha256": envelope["payload_sha256"],
+        "release_id": envelope["release_id"],
+        "release_manifest_sha256": manifest_sha256,
+    }
+    return _verify_mixed_eval_payload(
+        envelope["payload"],
+        actual_identity,
+        spec=spec,
+        expected=expected,
+    )
 
 
 def _annotation_semantic(
@@ -990,7 +1159,7 @@ def _read_absolute_regular_file(path: Union[str, Path], field: str) -> bytes:
 def _build_annotation_release(
     *,
     label_path: Union[str, Path],
-    mixed_eval_release: Union[str, Path],
+    mixed_eval_manifest: Union[str, Path],
     releases_root: Union[str, Path],
     staging_root: Union[str, Path],
     spec: _SessionSpec,
@@ -1001,8 +1170,8 @@ def _build_annotation_release(
     if label_sha256 != spec.label_sha256:
         raise InputBuildError("annotation label SHA-256 is not the fixed local label")
     _, frames = _validate_label_bytes(label_bytes, spec)
-    source_identity, selected = _verify_mixed_eval_release(
-        mixed_eval_release,
+    source_identity, selected = _verify_mixed_eval_manifest_snapshot(
+        mixed_eval_manifest,
         spec=spec,
         expected_identity=expected_mixed_eval_identity,
     )
@@ -1015,6 +1184,7 @@ def _build_annotation_release(
         spec=spec,
     )
     semantic_bytes = _canonical_json_bytes(semantic)
+    freshly_written = False
     with _owned_staging(staging_root, ".annotation-%d-" % spec.session_number) as staging:
         _write_new_file(staging, spec.label_path, label_bytes)
         _write_new_file(
@@ -1035,27 +1205,41 @@ def _build_annotation_release(
                 create=True,
             )
             destination = releases / manifest["release_id"]
-            artifact_contract.write_release(
-                staging,
-                manifest,
-                destination,
-                target_role="mac",
-            )
+            if not os.path.lexists(str(destination)):
+                # A repeat build of identical content lands on the same
+                # content-addressed ID; the sealed release is immutable, so
+                # the existing directory is simply re-verified below and
+                # returned instead of being rewritten.
+                artifact_contract.write_release(
+                    staging,
+                    manifest,
+                    destination,
+                    target_role="mac",
+                )
+                freshly_written = True
         except (artifact_contract.ArtifactError, OSError) as exc:
             raise InputBuildError("annotation release could not be sealed") from exc
-    _verify_annotation_release(
-        destination,
-        mixed_eval_release=mixed_eval_release,
-        spec=spec,
-        expected_mixed_eval_identity=expected_mixed_eval_identity,
-    )
+    try:
+        _verify_annotation_release(
+            destination,
+            mixed_eval_manifest=mixed_eval_manifest,
+            spec=spec,
+            expected_mixed_eval_identity=expected_mixed_eval_identity,
+        )
+    except InputBuildError:
+        if freshly_written:
+            # Specialized verification is part of the seal: a release this
+            # build created but could not fully verify is never published.
+            # Pre-existing directories are left untouched as evidence.
+            shutil.rmtree(str(destination), ignore_errors=True)
+        raise
     return destination
 
 
 def _verify_annotation_release(
     release_dir: Union[str, Path],
     *,
-    mixed_eval_release: Union[str, Path],
+    mixed_eval_manifest: Union[str, Path],
     spec: _SessionSpec,
     expected_mixed_eval_identity: Mapping[str, str],
 ) -> dict:
@@ -1064,6 +1248,10 @@ def _verify_annotation_release(
         envelope = artifact_contract.verify_release(release)
     except (artifact_contract.ArtifactError, OSError) as exc:
         raise InputBuildError("annotation artifact verification failed") from exc
+    if release.name != envelope["release_id"]:
+        raise InputBuildError(
+            "annotation release directory was renamed away from its content ID"
+        )
     payload = envelope["payload"]
     rows = payload.get("files")
     if (
@@ -1079,8 +1267,8 @@ def _verify_annotation_release(
     if label_sha256 != spec.label_sha256:
         raise InputBuildError("sealed annotation label SHA-256 is not exact")
     _, frames = _validate_label_bytes(label_bytes, spec)
-    source_identity, selected = _verify_mixed_eval_release(
-        mixed_eval_release,
+    source_identity, selected = _verify_mixed_eval_manifest_snapshot(
+        mixed_eval_manifest,
         spec=spec,
         expected_identity=expected_mixed_eval_identity,
     )
@@ -1101,7 +1289,7 @@ def _verify_annotation_release(
         selected_members=selected,
         spec=spec,
     )
-    if semantic != expected_semantic:
+    if not _strict_equal(semantic, expected_semantic):
         raise InputBuildError("annotation semantic manifest contract is not exact")
     identity = _release_identity(release, envelope)
     return {
@@ -1154,20 +1342,22 @@ def _production_session3_spec() -> _SessionSpec:
         source_frames_sha256=(
             "8499809fcfd2ce096264a574f97121fd8904ef36dc804dc37ff104d06ff5dd9f"
         ),
-        subject_pseudonym="heldout-subject-001",
+        # 2026-08-29: Session 3 is the SAME subject in a different garment
+        # (within-subject cross-garment holdout), not a held-out person.
+        subject_pseudonym="same-subject-001",
         width_px=1920,
     )
 
 
 def build_session2_annotation_release(
     label_path: Union[str, Path],
-    mixed_eval_release: Union[str, Path],
+    mixed_eval_manifest: Union[str, Path],
     releases_root: Union[str, Path],
 ) -> Path:
     """Build the fixed Session-2 dark annotation release on the Mac."""
     return _build_annotation_release(
         label_path=label_path,
-        mixed_eval_release=mixed_eval_release,
+        mixed_eval_manifest=mixed_eval_manifest,
         releases_root=releases_root,
         staging_root=DEFAULT_STAGING_ROOT,
         spec=_production_session2_spec(),
@@ -1177,13 +1367,13 @@ def build_session2_annotation_release(
 
 def build_session3_annotation_release(
     label_path: Union[str, Path],
-    mixed_eval_release: Union[str, Path],
+    mixed_eval_manifest: Union[str, Path],
     releases_root: Union[str, Path],
 ) -> Path:
     """Build the fixed Session-3 yellow annotation release on the Mac."""
     return _build_annotation_release(
         label_path=label_path,
-        mixed_eval_release=mixed_eval_release,
+        mixed_eval_manifest=mixed_eval_manifest,
         releases_root=releases_root,
         staging_root=DEFAULT_STAGING_ROOT,
         spec=_production_session3_spec(),
@@ -1193,12 +1383,12 @@ def build_session3_annotation_release(
 
 def verify_session2_annotation_release(
     release_dir: Union[str, Path],
-    mixed_eval_release: Union[str, Path],
+    mixed_eval_manifest: Union[str, Path],
 ) -> dict:
     """Verify the fixed Session-2 annotation and historical source attestation."""
     return _verify_annotation_release(
         release_dir,
-        mixed_eval_release=mixed_eval_release,
+        mixed_eval_manifest=mixed_eval_manifest,
         spec=_production_session2_spec(),
         expected_mixed_eval_identity=_production_mixed_eval_identity(),
     )
@@ -1206,12 +1396,12 @@ def verify_session2_annotation_release(
 
 def verify_session3_annotation_release(
     release_dir: Union[str, Path],
-    mixed_eval_release: Union[str, Path],
+    mixed_eval_manifest: Union[str, Path],
 ) -> dict:
     """Verify the fixed Session-3 annotation and historical source attestation."""
     return _verify_annotation_release(
         release_dir,
-        mixed_eval_release=mixed_eval_release,
+        mixed_eval_manifest=mixed_eval_manifest,
         spec=_production_session3_spec(),
         expected_mixed_eval_identity=_production_mixed_eval_identity(),
     )
@@ -1659,6 +1849,46 @@ def _frame_ledger(
     }
 
 
+@dataclass(frozen=True)
+class _H200AuthoringAuthorization:
+    """Explicit acknowledgement that a projection claims source_role=h200.
+
+    Projection releases attest H200 authorship; emitting that role from any
+    other host would forge provenance. Production acquires this token only
+    when the environment states the H200 host role; the underscored test
+    constructor exists so unit tests can exercise the sealing logic without
+    the H200 host (no public API accepts it).
+    """
+
+    authority: str
+
+    _AUTHORITIES = ("wam_host_role_environment", "test_fixture")
+
+    def __post_init__(self) -> None:
+        if self.authority not in self._AUTHORITIES:
+            raise InputBuildError("projection authoring authority is unknown")
+
+
+def _require_h200_authorization(value: object) -> "_H200AuthoringAuthorization":
+    if not isinstance(value, _H200AuthoringAuthorization):
+        raise InputBuildError(
+            "projection authoring requires an explicit H200 authorization"
+        )
+    return value
+
+
+def _production_h200_authorization() -> "_H200AuthoringAuthorization":
+    if os.environ.get("WAM_HOST_ROLE") != "h200":
+        raise InputBuildError(
+            "projection authoring requires the H200 host role environment"
+        )
+    return _H200AuthoringAuthorization(authority="wam_host_role_environment")
+
+
+def _test_h200_authorization() -> "_H200AuthoringAuthorization":
+    return _H200AuthoringAuthorization(authority="test_fixture")
+
+
 def _build_projection_release(
     *,
     mixed_eval_release: Union[str, Path],
@@ -1669,13 +1899,27 @@ def _build_projection_release(
     peer_spec: _SessionSpec,
     expected_mixed_eval_identity: Mapping[str, str],
     pins: _ProjectionPins,
+    authoring_authorization: "_H200AuthoringAuthorization",
 ) -> Path:
+    _require_h200_authorization(authoring_authorization)
     _validate_projection_pins(pins)
     if {spec.session_number, peer_spec.session_number} != {2, 3}:
         raise InputBuildError("projection requires exact Session-2/Session-3 specs")
+    _reject_nested_output_root(
+        releases_root,
+        (mixed_eval_release, annotation_release),
+        "projection releases root",
+    )
+    _reject_nested_output_root(
+        staging_root,
+        (mixed_eval_release, annotation_release),
+        "projection staging root",
+    )
     _verify_annotation_release(
         annotation_release,
-        mixed_eval_release=mixed_eval_release,
+        mixed_eval_manifest=(
+            Path(mixed_eval_release) / artifact_contract.MANIFEST_NAME
+        ),
         spec=spec,
         expected_mixed_eval_identity=expected_mixed_eval_identity,
     )
@@ -1832,23 +2076,35 @@ def _build_projection_release(
                 create=True,
             )
             destination = releases / manifest["release_id"]
-            artifact_contract.write_release(
-                staging,
-                manifest,
-                destination,
-                target_role="h200",
-            )
+            freshly_written = not os.path.lexists(str(destination))
+            if freshly_written:
+                artifact_contract.write_release(
+                    staging,
+                    manifest,
+                    destination,
+                    target_role="h200",
+                )
         except (artifact_contract.ArtifactError, OSError) as exc:
             raise InputBuildError("projection release could not be sealed") from exc
-    _verify_projection_release(
-        destination,
-        mixed_eval_release=mixed_eval_release,
-        annotation_release=annotation_release,
-        spec=spec,
-        peer_spec=peer_spec,
-        expected_mixed_eval_identity=expected_mixed_eval_identity,
-        pins=pins,
-    )
+    try:
+        _verify_projection_release(
+            destination,
+            mixed_eval_release=mixed_eval_release,
+            annotation_release=annotation_release,
+            spec=spec,
+            peer_spec=peer_spec,
+            expected_mixed_eval_identity=expected_mixed_eval_identity,
+            pins=pins,
+        )
+    except InputBuildError:
+        if freshly_written:
+            # Specialized verification is part of the seal: a projection this
+            # build created but could not fully verify is never published
+            # (2026-08-29 adversarial review: a mixed-eval mutation in the
+            # post-seal window previously left a completion-marked release
+            # behind). Pre-existing directories stay as evidence.
+            shutil.rmtree(str(destination), ignore_errors=True)
+        raise
     return destination
 
 
@@ -1867,7 +2123,9 @@ def _verify_projection_release(
         raise InputBuildError("projection verifier requires exact Session-2/Session-3 specs")
     _verify_annotation_release(
         annotation_release,
-        mixed_eval_release=mixed_eval_release,
+        mixed_eval_manifest=(
+            Path(mixed_eval_release) / artifact_contract.MANIFEST_NAME
+        ),
         spec=spec,
         expected_mixed_eval_identity=expected_mixed_eval_identity,
     )
@@ -1884,6 +2142,10 @@ def _verify_projection_release(
         envelope = artifact_contract.verify_release(release)
     except (artifact_contract.ArtifactError, OSError) as exc:
         raise InputBuildError("projection artifact verification failed") from exc
+    if release.name != envelope["release_id"]:
+        raise InputBuildError(
+            "projection release directory was renamed away from its content ID"
+        )
     payload = envelope["payload"]
     rows = payload.get("files")
     if (
@@ -2037,7 +2299,7 @@ def _verify_projection_release(
         ordered_depth=ordered_depth,
         spec=spec,
     )
-    if ledger != expected_ledger:
+    if not _strict_equal(ledger, expected_ledger):
         raise InputBuildError("projection frame ledger is not exact")
     ledger_row = by_path["ledgers/frames.json"]
     members.append(
@@ -2064,7 +2326,7 @@ def _verify_projection_release(
         partition=partition,
         spec=spec,
     )
-    if semantic != expected_semantic:
+    if not _strict_equal(semantic, expected_semantic):
         raise InputBuildError("projection semantic manifest is not exact")
     denied = set(
         partition[
@@ -2206,6 +2468,7 @@ def build_session2_projection_release(
         peer_spec=_production_session3_spec(),
         expected_mixed_eval_identity=_production_mixed_eval_identity(),
         pins=_production_projection_pins(spec, mixed_eval_release),
+        authoring_authorization=_production_h200_authorization(),
     )
 
 
@@ -2225,6 +2488,7 @@ def build_session3_projection_release(
         peer_spec=_production_session2_spec(),
         expected_mixed_eval_identity=_production_mixed_eval_identity(),
         pins=_production_projection_pins(spec, mixed_eval_release),
+        authoring_authorization=_production_h200_authorization(),
     )
 
 
@@ -2292,3 +2556,154 @@ def verify_projection_pair(
             mixed_eval_release,
         ),
     )
+
+
+def _emit_report(report: Mapping[str, object]) -> None:
+    sys.stdout.write(
+        artifact_contract.canonical_json_bytes(report).decode("utf-8")
+    )
+
+
+def main(argv: Union[Sequence[str], None] = None) -> int:
+    """CLI over the pinned public builders; emits one canonical report."""
+    parser = argparse.ArgumentParser(
+        prog="build_perception_training_inputs",
+        description=(
+            "Build or verify immutable perception-training input releases"
+        ),
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    build_geometry = commands.add_parser(
+        "build-geometry", help="seal the geometry source release",
+    )
+    build_geometry.add_argument("--data-root", required=True)
+    build_geometry.add_argument("--licenses-root", required=True)
+    build_geometry.add_argument("--releases-root", required=True)
+
+    verify_geometry = commands.add_parser(
+        "verify-geometry", help="verify a sealed geometry source release",
+    )
+    verify_geometry.add_argument("--release-dir", required=True)
+
+    for session in (2, 3):
+        build_annotation = commands.add_parser(
+            "build-session%d-annotation" % session,
+            help="seal the Session-%d annotation release" % session,
+        )
+        build_annotation.add_argument("--label-path", required=True)
+        build_annotation.add_argument("--mixed-eval-manifest", required=True)
+        build_annotation.add_argument("--releases-root", required=True)
+
+        verify_annotation = commands.add_parser(
+            "verify-session%d-annotation" % session,
+            help="verify a sealed Session-%d annotation release" % session,
+        )
+        verify_annotation.add_argument("--release-dir", required=True)
+        verify_annotation.add_argument("--mixed-eval-manifest", required=True)
+
+        build_projection = commands.add_parser(
+            "build-session%d-projection" % session,
+            help="seal the Session-%d projection release (H200 only)" % session,
+        )
+        build_projection.add_argument("--mixed-eval-release", required=True)
+        build_projection.add_argument("--annotation-release", required=True)
+        build_projection.add_argument("--releases-root", required=True)
+
+        verify_projection = commands.add_parser(
+            "verify-session%d-projection" % session,
+            help="verify a sealed Session-%d projection release" % session,
+        )
+        verify_projection.add_argument("--release-dir", required=True)
+        verify_projection.add_argument("--mixed-eval-release", required=True)
+        verify_projection.add_argument("--annotation-release", required=True)
+
+    verify_pair = commands.add_parser(
+        "verify-projection-pair",
+        help="verify the sealed Session-2/Session-3 projection pair",
+    )
+    verify_pair.add_argument("--session2-release", required=True)
+    verify_pair.add_argument("--session3-release", required=True)
+    verify_pair.add_argument("--mixed-eval-release", required=True)
+    verify_pair.add_argument("--session2-annotation-release", required=True)
+    verify_pair.add_argument("--session3-annotation-release", required=True)
+
+    args = parser.parse_args(argv)
+    if args.command == "build-geometry":
+        release = build_geometry_source_release(
+            args.data_root, args.licenses_root, args.releases_root,
+        )
+        _emit_report(verify_geometry_source_release(release))
+    elif args.command == "verify-geometry":
+        _emit_report(verify_geometry_source_release(args.release_dir))
+    elif args.command in ("build-session2-annotation", "build-session3-annotation"):
+        session = 2 if args.command == "build-session2-annotation" else 3
+        build = (
+            build_session2_annotation_release
+            if session == 2
+            else build_session3_annotation_release
+        )
+        verify = (
+            verify_session2_annotation_release
+            if session == 2
+            else verify_session3_annotation_release
+        )
+        release = build(
+            args.label_path, args.mixed_eval_manifest, args.releases_root,
+        )
+        _emit_report(verify(release, args.mixed_eval_manifest))
+    elif args.command in ("verify-session2-annotation", "verify-session3-annotation"):
+        verify = (
+            verify_session2_annotation_release
+            if args.command == "verify-session2-annotation"
+            else verify_session3_annotation_release
+        )
+        _emit_report(verify(args.release_dir, args.mixed_eval_manifest))
+    elif args.command in ("build-session2-projection", "build-session3-projection"):
+        session = 2 if args.command == "build-session2-projection" else 3
+        build = (
+            build_session2_projection_release
+            if session == 2
+            else build_session3_projection_release
+        )
+        verify = (
+            verify_session2_projection_release
+            if session == 2
+            else verify_session3_projection_release
+        )
+        release = build(
+            args.mixed_eval_release,
+            args.annotation_release,
+            args.releases_root,
+        )
+        _emit_report(
+            verify(release, args.mixed_eval_release, args.annotation_release)
+        )
+    elif args.command in ("verify-session2-projection", "verify-session3-projection"):
+        verify = (
+            verify_session2_projection_release
+            if args.command == "verify-session2-projection"
+            else verify_session3_projection_release
+        )
+        _emit_report(
+            verify(
+                args.release_dir,
+                args.mixed_eval_release,
+                args.annotation_release,
+            )
+        )
+    else:
+        _emit_report(
+            verify_projection_pair(
+                args.session2_release,
+                args.session3_release,
+                args.mixed_eval_release,
+                args.session2_annotation_release,
+                args.session3_annotation_release,
+            )
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

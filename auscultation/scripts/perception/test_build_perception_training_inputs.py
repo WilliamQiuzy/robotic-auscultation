@@ -456,7 +456,7 @@ def test_annotation_builder_binds_label_and_exact_selected_mixed_eval_members(
         session_number=session_number,
         garment=garment,
         label_sha256=hashlib.sha256(label_bytes).hexdigest(),
-        mixed_eval_manifest=mixed_release / artifact_contract.MANIFEST_NAME,
+        mixed_eval_release=mixed_release,
     )
     releases_root = tmp_path / "annotation-releases"
     staging_root = tmp_path / ".staging"
@@ -698,7 +698,7 @@ def projection_input_fixture(tmp_path_factory, mixed_eval_fixture):
             session_number=session_number,
             garment=garment,
             label_sha256=hashlib.sha256(label_bytes).hexdigest(),
-            mixed_eval_manifest=mixed_release / artifact_contract.MANIFEST_NAME,
+            mixed_eval_release=mixed_release,
         )
         annotation = builder._build_annotation_release(
             label_path=label_path,
@@ -1169,3 +1169,93 @@ def test_session3_production_subject_is_within_subject_cross_garment() -> None:
     assert builder._production_session3_spec().subject_pseudonym == (
         builder._production_session2_spec().subject_pseudonym
     )
+
+
+def test_projection_specialized_failure_never_publishes_final(
+    tmp_path: Path,
+    projection_input_fixture,
+    monkeypatch,
+) -> None:
+    _, mixed_release, mixed_identity, specs, annotations, pins = projection_input_fixture
+    releases = tmp_path / "projection-releases"
+    monkeypatch.setattr(
+        builder,
+        "_verify_projection_release",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            builder.InputBuildError("specialized projection verification failed")
+        ),
+    )
+    with pytest.raises(builder.InputBuildError):
+        builder._build_projection_release(
+            mixed_eval_release=mixed_release,
+            annotation_release=annotations[2],
+            releases_root=releases,
+            staging_root=tmp_path / ".staging",
+            spec=specs[2],
+            peer_spec=specs[3],
+            expected_mixed_eval_identity=mixed_identity,
+            pins=pins[2],
+            authoring_authorization=builder._test_h200_authorization(),
+        )
+    assert not releases.exists() or list(releases.iterdir()) == []
+
+
+def test_projection_verifier_rejects_release_renamed_away_from_content_id(
+    tmp_path: Path,
+    projection_input_fixture,
+) -> None:
+    _, mixed_release, mixed_identity, specs, annotations, pins = projection_input_fixture
+    release = builder._build_projection_release(
+        mixed_eval_release=mixed_release,
+        annotation_release=annotations[2],
+        releases_root=tmp_path / "releases",
+        staging_root=tmp_path / ".staging",
+        spec=specs[2],
+        peer_spec=specs[3],
+        expected_mixed_eval_identity=mixed_identity,
+        pins=pins[2],
+        authoring_authorization=builder._test_h200_authorization(),
+    )
+    renamed = release.with_name("perception_session2_train-" + "f" * 20)
+    release.rename(renamed)
+    with pytest.raises(builder.InputBuildError):
+        builder._verify_projection_release(
+            renamed,
+            mixed_eval_release=mixed_release,
+            annotation_release=annotations[2],
+            spec=specs[2],
+            peer_spec=specs[3],
+            expected_mixed_eval_identity=mixed_identity,
+            pins=pins[2],
+        )
+
+
+def test_projection_verifier_rejects_json_numeric_type_substitution(
+    tmp_path: Path,
+    projection_input_fixture,
+) -> None:
+    _, mixed_release, mixed_identity, specs, annotations, pins = projection_input_fixture
+    release = builder._build_projection_release(
+        mixed_eval_release=mixed_release,
+        annotation_release=annotations[2],
+        releases_root=tmp_path / "releases",
+        staging_root=tmp_path / ".staging",
+        spec=specs[2],
+        peer_spec=specs[3],
+        expected_mixed_eval_identity=mixed_identity,
+        pins=pins[2],
+        authoring_authorization=builder._test_h200_authorization(),
+    )
+    semantic = json.loads((release / canary.PERCEPTION_INPUT_NAME).read_bytes())
+    semantic["self_contained"] = 1  # bool -> int substitution
+    poisoned = _reseal_with_replaced_semantic(release, tmp_path / "poisoned", semantic)
+    with pytest.raises(builder.InputBuildError):
+        builder._verify_projection_release(
+            poisoned,
+            mixed_eval_release=mixed_release,
+            annotation_release=annotations[2],
+            spec=specs[2],
+            peer_spec=specs[3],
+            expected_mixed_eval_identity=mixed_identity,
+            pins=pins[2],
+        )
