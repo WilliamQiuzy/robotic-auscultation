@@ -283,7 +283,13 @@ def _strict_equal(left: object, right: object) -> bool:
     if type(left) is not type(right):
         return False
     if isinstance(left, dict):
-        if set(left.keys()) != set(right.keys()):
+        # Key sets must match INCLUDING key types: plain set equality hashes
+        # True == 1 and 1 == 1.0 together, so a key-type substitution would
+        # otherwise pass silently (2026-08-30 adversarial discovery).
+        if (
+            {(type(key), key) for key in left}
+            != {(type(key), key) for key in right}
+        ):
             return False
         return all(_strict_equal(left[key], right[key]) for key in left)
     if isinstance(left, (list, tuple)):

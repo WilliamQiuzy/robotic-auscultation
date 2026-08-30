@@ -1897,3 +1897,373 @@ def test_depth_veto_composes_with_interval_sweep():
     )
     assert not _interior(far.mask).any()
     assert not np.any(far.mask & ~base.mask)
+
+
+# ---------------------------------------------------------------------------
+# DEPTH VETO invariants under fuzz (2026-08-30): externally checkable
+# necessary conditions that must hold for ANY depth image and ANY pose.
+# ---------------------------------------------------------------------------
+
+
+def _component_z_uppers(provider, trajectory):
+    """Independent oracle: each component's max possible camera depth."""
+    state = trajectory.sample_observation_at(trajectory.exposure_nominal_ns)
+    transforms, joint_origins, joint_axes = provider._forward_kinematics(state)
+    uppers = []
+    specs = [
+        (link.vertices_link_m, provider._ancestor_joint_indices[i],
+         provider.uncertainty_profile.link_geometry_error_m, transforms[i])
+        for i, link in enumerate(provider.geometry.links)
+    ]
+    tool = provider.tool
+    specs.append((
+        tool.vertices_tool_m,
+        provider._ancestor_joint_indices[tool.parent_link_index],
+        provider.uncertainty_profile.tool_geometry_error_m,
+        transforms[tool.parent_link_index] @ tool.transform_parent_from_tool,
+    ))
+    for vertices_local, ancestors, error_m, transform in specs:
+        vertices_base = provider._transform_vertices(transform, vertices_local)
+        vertices_camera = provider._transform_vertices(
+            provider.handeye.transform_camera_from_follower_base, vertices_base
+        )
+        bound = provider._metric_bound(
+            vertices_base=vertices_base,
+            ancestor_joints=ancestors,
+            joint_origins=joint_origins,
+            joint_axes=joint_axes,
+            joint_velocity=np.zeros(7),
+            component_error_m=error_m,
+            vertices_camera=vertices_camera,
+        )
+        uppers.append(float(vertices_camera[:, 2].max()) + bound)
+    return uppers
+
+
+@pytest.mark.parametrize("seed", (1, 2, 3, 4))
+def test_depth_veto_invariants_hold_under_random_depth_fields(seed):
+    """For random block-structured depth (far/near/invalid patches), the veto
+    must satisfy: (a) removal only ever shrinks the geometric mask, (b) a
+    removed pixel's ENTIRE erosion neighborhood is valid depth, and (c) every
+    removed pixel's neighborhood depth exceeds even the SHALLOWEST possible
+    component reach plus margin (necessary condition of the per-pixel proof)."""
+    from ausc.perception.robot import robot_mask_provider as mask_module
+
+    rng = np.random.default_rng(20260830 + seed)
+    provider = _provider()
+    trajectory = _trajectory()
+    geo = provider.build(exposure=_exposure(), trajectory=trajectory).mask
+    depth = np.zeros((120, 160), dtype=np.uint16)
+    for _ in range(12):
+        y = rng.integers(0, 110); x = rng.integers(0, 150)
+        h = rng.integers(4, 40); w = rng.integers(4, 40)
+        depth[y:y + h, x:x + w] = rng.choice([0, 300, 900, 1500, 5000])
+    packet = provider.build(
+        exposure=_exposure(), trajectory=trajectory, aligned_depth=depth,
+    )
+    removed = geo & ~packet.mask
+    assert not np.any(packet.mask & ~geo), "veto added pixels"
+    if not removed.any():
+        return
+    min_upper = min(_component_z_uppers(provider, trajectory))
+    threshold_mm = (min_upper + mask_module._DEPTH_VETO_MARGIN_M) * 1000.0
+    r = mask_module._DEPTH_VETO_EROSION_PX
+    ys, xs = np.nonzero(removed)
+    for y, x in zip(ys, xs):
+        block = depth[max(0, y - r):y + r + 1, max(0, x - r):x + r + 1]
+        assert (block > 0).all(), "removed pixel near invalid depth"
+        assert (block.astype(np.float64) > threshold_mm).all(), (
+            "removed pixel's neighborhood does not clear even the shallowest "
+            "component bound"
+        )
+        assert r <= y < 120 - r and r <= x < 160 - r, (
+            "removed pixel inside the border no-veto ring"
+        )
+
+
+def test_depth_veto_learned_union_equality():
+    """STRONG equality: veto commutes with the learned-mask union — the final
+    mask must be exactly (geometric-after-veto) OR learned, so the veto can
+    never eat learned pixels nor spare geometric ones because of them."""
+    provider = _provider()
+    trajectory = _trajectory()
+    depth = _depth_image(_FAR_MM)
+    vetoed_only = provider.build(
+        exposure=_exposure(), trajectory=trajectory, aligned_depth=depth,
+    ).mask
+    learned = np.zeros((120, 160), dtype=np.bool_)
+    learned[30:70, 40:120] = True
+    combined = provider.build(
+        exposure=_exposure(), trajectory=trajectory,
+        aligned_depth=depth, learned_mask=learned,
+    ).mask
+    assert np.array_equal(combined, vetoed_only | learned)
+
+
+def test_depth_veto_with_straddling_near_plane_geometry():
+    """The clamped-projection border strip from a straddling hull must obey
+    the same veto invariants (subset + monotone)."""
+    handeye = _handeye(x=-1.08, z=-0.88)   # near-frustum shoulder analogue
+    provider = _provider(handeye=handeye, tool=_tool(outside=True))
+    trajectory = _trajectory()
+    geo = provider.build(exposure=_exposure(), trajectory=trajectory).mask
+    far = provider.build(
+        exposure=_exposure(), trajectory=trajectory,
+        aligned_depth=_depth_image(_FAR_MM),
+    ).mask
+    near = provider.build(
+        exposure=_exposure(), trajectory=trajectory,
+        aligned_depth=_depth_image(150),   # at the component itself
+    ).mask
+    assert not np.any(far & ~geo)
+    assert np.array_equal(near, geo)
+    assert far.sum() <= geo.sum()
+
+
+def test_depth_veto_composes_with_moving_sweep_invariants():
+    provider = _provider()
+    moving = _trajectory(start_q=-0.45, end_q=0.45)
+    geo = provider.build(exposure=_exposure(), trajectory=moving).mask
+    depth = _depth_image(_FAR_MM)
+    depth[:, :50] = 0                      # invalid stripe: never vetoed
+    packet = provider.build(
+        exposure=_exposure(), trajectory=moving, aligned_depth=depth,
+    )
+    removed = geo & ~packet.mask
+    assert not np.any(packet.mask & ~geo)
+    assert not removed[:, :52].any(), (
+        "veto fired inside/beside the invalid-depth stripe"
+    )
+
+
+def test_depth_veto_accepts_boundary_depth_scales():
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    at_max = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(40), depth_scale=100.0,   # 4.0 m: far
+    )
+    assert not _interior(at_max.mask).any()
+    tiny = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(65535), depth_scale=0.001,  # 6.5 cm: near
+    )
+    assert tiny.mask_sha256 == base.mask_sha256
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-30 workflow-discovered veto gaps: per-path z-bookkeeping under
+# heterogeneous depths/orderings, depth-ward sweeps, margin magnitude,
+# zero-radius path, straddle threshold sharpness, window-boundary shield.
+# ---------------------------------------------------------------------------
+
+
+def _two_tier_geometry(*, deep_first: bool):
+    """Chain with one tier at z=2.0 and the rest at z=1.0."""
+    links = []
+    for index in range(7):
+        if index == 0:
+            joint_zero = _transform(z=2.0 if deep_first else 1.0)
+        elif index == 3:
+            joint_zero = _transform(x=0.07, z=(-1.0 if deep_first else 1.0))
+        else:
+            joint_zero = _transform(x=0.07)
+        links.append(
+            KinematicCollisionLink(
+                name=f"openarm_left_link{index + 1}",
+                parent_index=index - 1,
+                joint_index=index,
+                transform_parent_from_joint_zero=joint_zero,
+                joint_axis=np.asarray((0.0, 0.0, 1.0)),
+                vertices_link_m=_box((0.035, 0.0, 0.0)),
+            )
+        )
+    return OpenArmCollisionGeometry.create(
+        source="official_openarm_v10_urdf_collision_meshes",
+        side="left",
+        joint_names=JOINT_NAMES,
+        urdf_sha256=SHA_A,
+        links=tuple(links),
+    )
+
+
+def test_depth_veto_pyramid_bucket_max_with_deep_tier_first():
+    """The pyramid bucket's z threshold must be the MAX over its components
+    even when the DEEP tier is painted first — a last-writer-wins regression
+    would record the shallow tier and delete provably-occludable pixels."""
+    profile = RobotMaskUncertaintyProfile.create(
+        sigma=3.0, base_dilation_px=90.0,
+        link_geometry_error_m=0.0005, tool_geometry_error_m=0.0005,
+        timing_uncertainty_s=0.0002, projection_error_px=10.0,
+    )
+    provider = _provider(
+        geometry=_two_tier_geometry(deep_first=True), profile=profile,
+    )
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    between = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(1500),   # beyond shallow, short of deep
+    )
+    assert between.mask_sha256 == base.mask_sha256
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(4000),
+    )
+    assert not _interior(far.mask).any()
+
+
+def test_depth_veto_full_mask_hatch_max_with_deep_tier_first(monkeypatch):
+    import ausc.perception.robot.robot_mask_provider as mask_module
+
+    profile = _profile(
+        metric_error=0.04, timing_s=0.002, projection_px=5.0, sigma=6.0,
+    )
+    provider = _provider(
+        geometry=_two_tier_geometry(deep_first=True), profile=profile,
+    )
+    monkeypatch.setattr(mask_module, "_FULL_MASK_COST_HATCH_RADIUS_PX", 5)
+    hatched = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert hatched.mask.all()
+    between = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(1500),
+    )
+    assert bool(between.mask.all()), (
+        "intermediate depth stripped the hatch below the deep tier's reach"
+    )
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(4000),
+    )
+    assert not _interior(far.mask).any()
+
+
+def test_depth_veto_covers_depthward_sweep_positions():
+    """A component sweeping TOWARD/AWAY from the camera during the exposure
+    must keep its swept z range protected: the threshold comes from the
+    stacked union's max depth, not the nominal state."""
+    links = []
+    for index in range(7):
+        links.append(
+            KinematicCollisionLink(
+                name=f"openarm_left_link{index + 1}",
+                parent_index=index - 1,
+                joint_index=index,
+                transform_parent_from_joint_zero=(
+                    _transform(z=1.0) if index == 0 else _transform(x=0.07)
+                ),
+                joint_axis=np.asarray(
+                    (0.0, 1.0, 0.0) if index == 0 else (0.0, 0.0, 1.0)
+                ),
+                vertices_link_m=_box((0.035, 0.0, 0.0)),
+            )
+        )
+    geometry = OpenArmCollisionGeometry.create(
+        source="official_openarm_v10_urdf_collision_meshes",
+        side="left",
+        joint_names=JOINT_NAMES,
+        urdf_sha256=SHA_A,
+        links=tuple(links),
+    )
+    provider = _provider(geometry=geometry)
+    moving = _trajectory(start_q=-0.45, end_q=0.45)   # swings chain in z
+    base = provider.build(exposure=_exposure(), trajectory=moving)
+    mid = provider.build(
+        exposure=_exposure(), trajectory=moving,
+        aligned_depth=_depth_image(1250),   # beyond nominal, within sweep
+    )
+    assert mid.mask_sha256 == base.mask_sha256, (
+        "veto fired inside the swept depth range"
+    )
+    far = provider.build(
+        exposure=_exposure(), trajectory=moving,
+        aligned_depth=_depth_image(3000),
+    )
+    assert not _interior(far.mask).any()
+
+
+def test_depth_veto_margin_magnitude_is_pinned():
+    """Bracket the 0.10 m margin: inside it proves nothing, beyond it vetoes.
+    Uses the independent z-upper oracle so a margin shrink/removal moves the
+    transition and fails one side."""
+    provider = _provider()
+    trajectory = _trajectory()
+    uppers = _component_z_uppers(provider, trajectory)
+    below = int((min(uppers) + 0.10 - 0.02) * 1000)
+    above = int((max(uppers) + 0.10 + 0.03) * 1000)
+    base = provider.build(exposure=_exposure(), trajectory=trajectory)
+    inside = provider.build(
+        exposure=_exposure(), trajectory=trajectory,
+        aligned_depth=_depth_image(below),
+    )
+    assert inside.mask_sha256 == base.mask_sha256
+    beyond = provider.build(
+        exposure=_exposure(), trajectory=trajectory,
+        aligned_depth=_depth_image(above),
+    )
+    assert not _interior(beyond.mask).any()
+
+
+def test_depth_veto_zero_radius_direct_path():
+    profile = RobotMaskUncertaintyProfile.create(
+        sigma=3.0, base_dilation_px=0.0,
+        link_geometry_error_m=0.0005, tool_geometry_error_m=0.0005,
+        timing_uncertainty_s=0.0002, projection_error_px=0.0,
+    )
+    provider = _provider(profile=profile)
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert base.masked_pixel_count > 0
+    near = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(_NEAR_MM),
+    )
+    assert near.mask_sha256 == base.mask_sha256
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(_FAR_MM),
+    )
+    assert not _interior(far.mask).any()
+    assert not np.any(far.mask & ~base.mask)
+
+
+def test_depth_veto_straddling_threshold_uses_true_component_depth():
+    """A depth reading past the near plane but SHORT of the straddling
+    component's true reach must not veto: the threshold must come from the
+    component's real z bound, not the near-plane clamp."""
+    handeye = _handeye(x=-1.08, z=-0.88)   # component at ~0.12 m camera depth
+    provider = _provider(handeye=handeye, tool=_tool(outside=True))
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    probe = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(220),   # > clamp+margin, < true bound+margin
+    )
+    assert probe.mask_sha256 == base.mask_sha256
+
+
+def test_depth_veto_window_boundary_near_reading_shields_neighbors():
+    """A valid NEAR reading lying just OUTSIDE every paint window must still
+    block vetoes within erosion reach (2026-08-30 hardening: unpainted
+    pixels are held to the shallowest masked threshold, never -inf)."""
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    ys, xs = np.nonzero(base.mask)
+    # Find a masked pixel with an unmasked 4-neighborhood pixel beside it
+    # whose zmap is unpainted: approximate by picking the mask's left edge.
+    row = int(ys[len(ys) // 2])
+    edge_x = int(xs[ys == row].min())
+    outside = (row, edge_x - 3)
+    assert not base.mask[outside]
+    depth = _depth_image(_FAR_MM)
+    depth[outside] = 200                     # near reading outside any window
+    packet = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(), aligned_depth=depth,
+    )
+    guarded = base.mask[
+        outside[0] - 2:outside[0] + 3, outside[1] - 2:outside[1] + 3,
+    ]
+    surviving = packet.mask[
+        outside[0] - 2:outside[0] + 3, outside[1] - 2:outside[1] + 3,
+    ]
+    assert bool((surviving == guarded).all()), (
+        "near reading outside the paint window failed to shield neighbors"
+    )

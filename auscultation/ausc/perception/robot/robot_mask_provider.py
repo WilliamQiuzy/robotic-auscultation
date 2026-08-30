@@ -2682,7 +2682,7 @@ class ProductionRobotMaskProvider:
         self._flush_deferred_dilations(mask, deferred_dilations, zmap)
 
         vetoed_pixel_count = 0
-        if depth_veto is not None and zmap is not None:
+        if depth_veto is not None and zmap is not None and bool(mask.any()):
             depth_raw, scale = depth_veto
             depth_m = depth_raw.astype(np.float32) * np.float32(
                 scale / 1000.0
@@ -2691,8 +2691,19 @@ class ProductionRobotMaskProvider:
             # depth exceeds the deepest possible reach of every component
             # covering it, beyond the accuracy/alignment margin. Missing
             # depth (raw 0) proves nothing and never vetoes.
+            #
+            # Pixels no component reaches carry zmap = -inf; for the EROSION
+            # NEIGHBORHOOD they must not count as trivially proven, or a
+            # valid NEAR reading just outside a paint window would fail to
+            # shield the adjacent masked pixels it warns about (2026-08-30
+            # adversarial discovery). They are held to the shallowest
+            # threshold any masked pixel carries — near readings below any
+            # component's reach then block their neighborhood, while far
+            # background beyond every reach still proves absence.
+            zmap_floor = np.float32(zmap[mask].min())
+            zref = np.where(np.isfinite(zmap), zmap, zmap_floor)
             provable = (depth_raw != 0) & (
-                depth_m > zmap + np.float32(_DEPTH_VETO_MARGIN_M)
+                depth_m > zref + np.float32(_DEPTH_VETO_MARGIN_M)
             )
             # Silhouette-edge alignment residuals can flip isolated pixels
             # to background depth; requiring the proof across the full

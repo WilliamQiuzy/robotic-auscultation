@@ -1259,3 +1259,332 @@ def test_projection_verifier_rejects_json_numeric_type_substitution(
             expected_mixed_eval_identity=mixed_identity,
             pins=pins[2],
         )
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-30 adversarial additions: snapshot envelope forgery, identity
+# pinning, strict-equality recursion, nested-output and bounded-reader edges,
+# H200 authorization, CLI dispatch.
+# ---------------------------------------------------------------------------
+
+
+def _snapshot_of(mixed_release: Path, tmp_path: Path) -> Path:
+    snapshot = tmp_path / artifact_contract.MANIFEST_NAME
+    snapshot.write_bytes(
+        (mixed_release / artifact_contract.MANIFEST_NAME).read_bytes()
+    )
+    return snapshot
+
+
+def _snapshot_identity(mixed_release: Path) -> dict:
+    manifest_bytes = (
+        mixed_release / artifact_contract.MANIFEST_NAME
+    ).read_bytes()
+    envelope = json.loads(manifest_bytes)
+    return {
+        "payload_sha256": envelope["payload_sha256"],
+        "release_id": envelope["release_id"],
+        "release_manifest_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+    }
+
+
+def _spec_for_snapshot(mixed_release):
+    document = _label_document(session_number=2, garment="dark")
+    label_bytes = json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    return _test_session_spec(
+        session_number=2,
+        garment="dark",
+        label_sha256=hashlib.sha256(label_bytes).hexdigest(),
+        mixed_eval_release=mixed_release,
+    )
+
+
+@pytest.mark.parametrize(
+    "forge",
+    ("payload_sha256", "release_id", "payload_not_dict", "duplicate_key"),
+)
+def test_snapshot_loader_rejects_forged_envelopes(
+    tmp_path: Path, mixed_eval_fixture, forge,
+) -> None:
+    mixed_release, mixed_identity = mixed_eval_fixture
+    manifest_bytes = (
+        mixed_release / artifact_contract.MANIFEST_NAME
+    ).read_bytes()
+    envelope = json.loads(manifest_bytes)
+    if forge == "payload_sha256":
+        envelope["payload_sha256"] = "0" * 64
+        forged = json.dumps(envelope).encode()
+    elif forge == "release_id":
+        envelope["release_id"] = "perception_eval-" + "0" * 20
+        forged = json.dumps(envelope).encode()
+    elif forge == "payload_not_dict":
+        envelope["payload"] = [1, 2, 3]
+        forged = json.dumps(envelope).encode()
+    else:
+        body = manifest_bytes.decode("utf-8").rstrip()
+        assert body.startswith("{")
+        forged = ('{"payload_sha256": "%s", %s' % ("1" * 64, body[1:])).encode()
+    snapshot = tmp_path / artifact_contract.MANIFEST_NAME
+    snapshot.write_bytes(forged)
+    with pytest.raises(builder.InputBuildError):
+        builder._verify_mixed_eval_manifest_snapshot(
+            snapshot,
+            spec=_spec_for_snapshot(mixed_release),
+            expected_identity=mixed_identity,
+        )
+
+
+def test_snapshot_identity_pins_exact_manifest_bytes(
+    tmp_path: Path, mixed_eval_fixture,
+) -> None:
+    """A byte-identical re-serialization with different whitespace has a
+    different manifest hash and must be rejected by the identity pin even
+    though the envelope stays internally consistent."""
+    mixed_release, mixed_identity = mixed_eval_fixture
+    manifest_bytes = (
+        mixed_release / artifact_contract.MANIFEST_NAME
+    ).read_bytes()
+    envelope = json.loads(manifest_bytes)
+    reserialized = (
+        json.dumps(envelope, sort_keys=True, separators=(",", ": ")) + "\n"
+    ).encode("utf-8")
+    assert reserialized != manifest_bytes
+    snapshot = tmp_path / artifact_contract.MANIFEST_NAME
+    snapshot.write_bytes(reserialized)
+    with pytest.raises(builder.InputBuildError):
+        builder._verify_mixed_eval_manifest_snapshot(
+            snapshot,
+            spec=_spec_for_snapshot(mixed_release),
+            expected_identity=mixed_identity,
+        )
+
+
+def test_snapshot_loader_bounds_manifest_size(tmp_path: Path) -> None:
+    snapshot = tmp_path / artifact_contract.MANIFEST_NAME
+    snapshot.write_bytes(b"{" + b" " * (8 * 1024 * 1024 + 16) + b"}")
+    with pytest.raises(builder.InputBuildError):
+        builder._load_manifest_snapshot(snapshot, "oversized snapshot")
+
+
+@pytest.mark.parametrize(
+    ("left", "right", "equal"),
+    (
+        ({"a": [1, 2]}, {"a": [1, 2]}, True),
+        ({"a": [1, 2]}, {"a": [1, 2.0]}, False),
+        ({"a": [{"b": True}]}, {"a": [{"b": 1}]}, False),
+        ({"a": {"b": 0}}, {"a": {"b": False}}, False),
+        ({"a": None}, {"a": None}, True),
+        ({"a": None}, {"a": 0}, False),
+        ({"a": [1]}, {"a": (1,)}, False),
+        ({"a": "1"}, {"a": 1}, False),
+        ({"a": 1, "b": 2}, {"a": 1}, False),
+    ),
+)
+def test_strict_equal_recursion_matrix(left, right, equal) -> None:
+    assert builder._strict_equal(left, right) is equal
+    assert builder._strict_equal(right, left) is equal
+
+
+def test_nested_output_rejects_equal_and_symlinked_roots(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    with pytest.raises(builder.InputBuildError):
+        builder._reject_nested_output_root(source, (source,), "output root")
+    alias = tmp_path / "alias"
+    alias.symlink_to(source)
+    with pytest.raises(builder.InputBuildError):
+        builder._reject_nested_output_root(
+            source / "releases", (alias,), "output root",
+        )
+    with pytest.raises(builder.InputBuildError):
+        builder._reject_nested_output_root(
+            tmp_path / "relative/../source/out", (source,), "output root",
+        )
+    builder._reject_nested_output_root(
+        tmp_path / "sibling", (source,), "output root",
+    )
+
+
+def test_bounded_reader_boundary_is_exact(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    (root / "exact.bin").write_bytes(b"1234")
+    assert builder._read_regular(root, "exact.bin", "bounded", maximum_size=4) == b"1234"
+    (root / "over.bin").write_bytes(b"12345")
+    with pytest.raises(builder.InputBuildError):
+        builder._read_regular(root, "over.bin", "bounded", maximum_size=4)
+
+
+def test_h200_authorization_requires_host_role(monkeypatch) -> None:
+    monkeypatch.delenv("WAM_HOST_ROLE", raising=False)
+    with pytest.raises(builder.InputBuildError):
+        builder._production_h200_authorization()
+    monkeypatch.setenv("WAM_HOST_ROLE", "linbox")
+    with pytest.raises(builder.InputBuildError):
+        builder._production_h200_authorization()
+    monkeypatch.setenv("WAM_HOST_ROLE", "h200")
+    token = builder._production_h200_authorization()
+    assert token.authority == "wam_host_role_environment"
+    with pytest.raises(builder.InputBuildError):
+        builder._H200AuthoringAuthorization(authority="because-i-said-so")
+    with pytest.raises(builder.InputBuildError):
+        builder._require_h200_authorization("not-a-token")
+
+
+def test_annotation_reuse_rejects_modified_sealed_byte(
+    tmp_path: Path, mixed_eval_fixture,
+) -> None:
+    mixed_release, mixed_identity = mixed_eval_fixture
+    document = _label_document(session_number=2, garment="dark")
+    label_bytes = json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    label = tmp_path / "dark.json"
+    label.write_bytes(label_bytes)
+    spec = _test_session_spec(
+        session_number=2,
+        garment="dark",
+        label_sha256=hashlib.sha256(label_bytes).hexdigest(),
+        mixed_eval_release=mixed_release,
+    )
+    kwargs = {
+        "label_path": label,
+        "mixed_eval_manifest": mixed_release / artifact_contract.MANIFEST_NAME,
+        "releases_root": tmp_path / "releases",
+        "staging_root": tmp_path / ".staging",
+        "spec": spec,
+        "expected_mixed_eval_identity": mixed_identity,
+    }
+    release = builder._build_annotation_release(**kwargs)
+    target = release / spec.label_path
+    payload = bytearray(target.read_bytes())
+    payload[0] ^= 0xFF
+    target.write_bytes(bytes(payload))
+    with pytest.raises(builder.InputBuildError):
+        builder._build_annotation_release(**kwargs)
+
+
+def test_cli_verify_geometry_dispatch(monkeypatch, capfd) -> None:
+    report = {"release_id": "x", "status": "ok"}
+    seen = []
+    monkeypatch.setattr(
+        builder,
+        "verify_geometry_source_release",
+        lambda *args: (seen.append(args), report)[1],
+    )
+    assert builder.main(["verify-geometry", "--release-dir", "/tmp/rel"]) == 0
+    assert seen == [("/tmp/rel",)]
+    assert capfd.readouterr().out == _canonical(report).decode("utf-8")
+
+
+@pytest.mark.parametrize(
+    ("left", "right"),
+    (
+        ({1: "x"}, {True: "x"}),
+        ({1: "x"}, {1.0: "x"}),
+        ({"1": "x"}, {1: "x"}),
+    ),
+)
+def test_strict_equal_rejects_key_type_substitution(left, right) -> None:
+    assert builder._strict_equal(left, right) is False
+    assert builder._strict_equal(right, left) is False
+
+
+def test_annotation_corrupt_reuse_preserves_evidence(
+    tmp_path: Path, mixed_eval_fixture,
+) -> None:
+    """A corrupt pre-existing release must survive the failed rebuild as
+    evidence — an unconditional cleanup would destroy the crime scene."""
+    mixed_release, mixed_identity = mixed_eval_fixture
+    document = _label_document(session_number=2, garment="dark")
+    label_bytes = json.dumps(document, ensure_ascii=False, indent=2).encode("utf-8") + b"\n"
+    label = tmp_path / "dark.json"
+    label.write_bytes(label_bytes)
+    spec = _test_session_spec(
+        session_number=2,
+        garment="dark",
+        label_sha256=hashlib.sha256(label_bytes).hexdigest(),
+        mixed_eval_release=mixed_release,
+    )
+    kwargs = {
+        "label_path": label,
+        "mixed_eval_manifest": mixed_release / artifact_contract.MANIFEST_NAME,
+        "releases_root": tmp_path / "releases",
+        "staging_root": tmp_path / ".staging",
+        "spec": spec,
+        "expected_mixed_eval_identity": mixed_identity,
+    }
+    release = builder._build_annotation_release(**kwargs)
+    (release / "extra.bin").write_bytes(b"tamper-evidence")
+    with pytest.raises(builder.InputBuildError):
+        builder._build_annotation_release(**kwargs)
+    assert release.is_dir()
+    assert (release / "extra.bin").read_bytes() == b"tamper-evidence"
+
+
+def test_projection_repeat_build_reuses_exact_release(
+    tmp_path: Path, projection_input_fixture,
+) -> None:
+    _, mixed_release, mixed_identity, specs, annotations, pins = projection_input_fixture
+    kwargs = {
+        "mixed_eval_release": mixed_release,
+        "annotation_release": annotations[2],
+        "releases_root": tmp_path / "releases",
+        "staging_root": tmp_path / ".staging",
+        "spec": specs[2],
+        "peer_spec": specs[3],
+        "expected_mixed_eval_identity": mixed_identity,
+        "pins": pins[2],
+        "authoring_authorization": builder._test_h200_authorization(),
+    }
+    first = builder._build_projection_release(**kwargs)
+    assert builder._build_projection_release(**kwargs) == first
+
+
+def test_cli_annotation_and_pair_dispatch(monkeypatch, capfd) -> None:
+    calls = []
+    release = Path("/tmp/perception_labels_train-feedface")
+    report = {"release_id": release.name, "selected_member_count": 605}
+    monkeypatch.setattr(
+        builder,
+        "build_session3_annotation_release",
+        lambda *args: (calls.append(("build3", args)), release)[1],
+    )
+    monkeypatch.setattr(
+        builder,
+        "verify_session3_annotation_release",
+        lambda *args: (calls.append(("verify3", args)), report)[1],
+    )
+    assert builder.main(
+        [
+            "build-session3-annotation",
+            "--label-path", "/tmp/yellow.json",
+            "--mixed-eval-manifest", "/tmp/manifest.json",
+            "--releases-root", "/tmp/releases",
+        ]
+    ) == 0
+    assert calls == [
+        ("build3", ("/tmp/yellow.json", "/tmp/manifest.json", "/tmp/releases")),
+        ("verify3", (release, "/tmp/manifest.json")),
+    ]
+    assert capfd.readouterr().out == _canonical(report).decode("utf-8")
+
+    calls.clear()
+    pair_report = {"session2_file_count": 609}
+    monkeypatch.setattr(
+        builder,
+        "verify_projection_pair",
+        lambda *args: (calls.append(("pair", args)), pair_report)[1],
+    )
+    assert builder.main(
+        [
+            "verify-projection-pair",
+            "--session2-release", "/tmp/p2",
+            "--session3-release", "/tmp/p3",
+            "--mixed-eval-release", "/tmp/mixed",
+            "--session2-annotation-release", "/tmp/a2",
+            "--session3-annotation-release", "/tmp/a3",
+        ]
+    ) == 0
+    assert calls == [
+        ("pair", ("/tmp/p2", "/tmp/p3", "/tmp/mixed", "/tmp/a2", "/tmp/a3")),
+    ]
+    assert capfd.readouterr().out == _canonical(pair_report).decode("utf-8")

@@ -377,3 +377,381 @@ def test_reconstruct_minimum_frames_enforced(_stubbed_seams):
                 minimum_frames=2,
             )
         )
+
+
+# ---------------------------------------------------------------------------
+# REAL-MACHINERY reconstruction (2026-08-30): real ExactControlRecords, real
+# BracketedExactControlTrajectory, real production bracket validator — only
+# the mask provider and bundle seal stay stubbed (covered elsewhere + linbox).
+# ---------------------------------------------------------------------------
+
+from ausc.perception.robot.robot_session_capture import (
+    _exact_action_sha256,
+    _exact_trajectory_sha256,
+    _observation_payload,
+)
+from ausc.perception.robot.robot_state_stream import (
+    EXACT_CONTROL_RECORD_SCHEMA,
+    VOID_SEND_STATUS_REASON,
+    BracketedExactControlTrajectory,
+    ExactControlRecord,
+    ExactFollowerAction,
+    RobotStateContract,
+)
+
+_SHA_A = "a" * 64
+_SHA_B = "b" * 64
+_SHA_C = "c" * 64
+_SHA_D = "d" * 64
+_SHA_E = "e" * 64
+_JOINTS = tuple("openarm_left_joint%d" % i for i in range(1, 8))
+
+
+def _real_record(seq, t_ns, q0=0.0):
+    q = (q0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    qd = (0.0,) * 7
+    return ExactControlRecord(
+        schema=EXACT_CONTROL_RECORD_SCHEMA,
+        control_tick_seq=seq,
+        observation_monotonic_ns=t_ns,
+        reference_generation=seq,
+        reference_source_monotonic_ns=t_ns - 100_000,
+        reference_snapshot_valid=True,
+        control_call_begin_monotonic_ns=t_ns + 50_000,
+        arm_call_return_monotonic_ns=t_ns + 100_000,
+        gripper_call_begin_monotonic_ns=t_ns + 110_000,
+        gripper_call_return_monotonic_ns=t_ns + 160_000,
+        control_call_end_monotonic_ns=t_ns + 170_000,
+        follower_q_rad=q,
+        follower_qd_rad_s=qd,
+        follower_gripper_q_rad=0.0,
+        follower_gripper_qd_rad_s=0.0,
+        follower_gripper_motor_q_rad=0.0,
+        follower_gripper_motor_qd_rad_s=0.0,
+        action=ExactFollowerAction(
+            arm_kp=(240.0,) * 4 + (40.0, 48.0, 40.0),
+            arm_kd=(3.0,) * 4 + (0.3, 0.3, 0.3),
+            arm_q=q,
+            arm_dq=qd,
+            arm_tau=(0.0,) * 7,
+            gripper_kp=25.0,
+            gripper_kd=0.3,
+            gripper_q=0.0,
+            gripper_dq=0.0,
+            gripper_tau=0.0,
+        ),
+        envelope_seq=10,
+        publisher_monotonic_ns=t_ns + 500_000,
+        controller_pid=456,
+        controller_start_token="openarm-left-commissioning",
+        side="left",
+        controller_mode="unilateral",
+        leader_can_interface="can1",
+        follower_can_interface="can3",
+        joint_names=_JOINTS,
+        urdf_sha256=_SHA_A,
+        joint_mapper_sha256=_SHA_C,
+        pair_contract_sha256=_SHA_D,
+        controller_binary_sha256=_SHA_E,
+        controller_source_manifest_sha256=_SHA_A,
+        follower_config_sha256=_SHA_B,
+        openarm_sdk_sha256=_SHA_C,
+        send_status_observable=False,
+        send_status_reason=VOID_SEND_STATUS_REASON,
+    )
+
+
+def _real_contract():
+    return RobotStateContract(
+        side="left",
+        controller_mode="unilateral",
+        joint_names=_JOINTS,
+        joint_position_limits_rad=tuple((-3.2, 3.2) for _ in range(7)),
+        leader_can_interface="can1",
+        follower_can_interface="can3",
+        urdf_sha256=_SHA_A,
+        joint_mapper_sha256=_SHA_C,
+        camera_profile_sha256=_SHA_B,
+        timing_artifact_sha256=_SHA_C,
+        pair_contract_sha256=_SHA_D,
+        controller_binary_sha256=_SHA_E,
+        max_abs_joint_velocity_rad_s=6.0,
+        gripper_motor_position_limits_rad=(-2.0, 2.0),
+        controller_source_manifest_sha256=_SHA_A,
+        follower_config_sha256=_SHA_B,
+        openarm_sdk_sha256=_SHA_C,
+    )
+
+
+def _real_session_fixture():
+    records = tuple(
+        _real_record(100 + i, 1_009_000_000 + i * 1_000_000) for i in range(13)
+    )
+    lo, nom, hi = 1_010_500_000, 1_015_000_000, 1_019_500_000
+    first_tick, last_tick = 101, 111
+    bracket = records[1:12]
+    trajectory = BracketedExactControlTrajectory(
+        exposure_lower_ns=lo, exposure_nominal_ns=nom, exposure_upper_ns=hi,
+        records=bracket,
+    )
+    row = {
+        "schema": "wam_openarm_exact_control_frame_evidence_v2",
+        "frame_index": 5,
+        "camera_id": "orbbec-main",
+        "camera_profile_sha256": _SHA_B,
+        "timing_artifact_sha256": _SHA_C,
+        "exposure_lower_ns": lo,
+        "exposure_nominal_ns": nom,
+        "exposure_upper_ns": hi,
+        "exact_action_tick_first": first_tick,
+        "exact_action_tick_last": last_tick,
+        "observation_tick_first": first_tick,
+        "observation_tick_last": last_tick,
+        "observation_timestamp_first_ns": bracket[0].observation_monotonic_ns,
+        "observation_timestamp_last_ns": bracket[-1].observation_monotonic_ns,
+        "observation_max_gap_ns": trajectory.max_gap_ns,
+        "exact_action_sha256": _exact_action_sha256(bracket),
+        "exact_control_trajectory_sha256": _exact_trajectory_sha256(bracket),
+        "observation_at_nominal": _observation_payload(
+            trajectory.sample_observation_at(nom)
+        ),
+        "nominal_alignment_rule": (
+            "interpolate_observation_only_at_exposure_nominal_ns"
+        ),
+        "action_interpolation": "forbidden",
+        "controller_pid": 456,
+        "controller_start_token": "openarm-left-commissioning",
+        "publisher_identity": bracket[0].publisher_identity,
+        "side": "left",
+        "controller_mode": "unilateral",
+        "leader_can_interface": "can1",
+        "follower_can_interface": "can3",
+        "urdf_sha256": _SHA_A,
+        "joint_mapper_sha256": _SHA_C,
+        "pair_contract_sha256": _SHA_D,
+        "controller_binary_sha256": _SHA_E,
+        "controller_source_manifest_sha256": _SHA_A,
+        "follower_config_sha256": _SHA_B,
+        "openarm_sdk_sha256": _SHA_C,
+        "send_status_observable": False,
+        "send_status_reason": VOID_SEND_STATUS_REASON,
+    }
+    return records, row, (lo, nom, hi)
+
+
+@pytest.fixture()
+def _real_machinery(monkeypatch):
+    """Stub ONLY the mask provider seam and the bundle seal."""
+    sealed = []
+
+    class _BundleStub:
+        def __init__(self, kwargs):
+            self.kwargs = kwargs
+
+        def canonical_metadata_bytes(self):
+            return b"real-machinery"
+
+    monkeypatch.setattr(
+        replay,
+        "FrameEvidenceBundle",
+        SimpleNamespace(build=lambda **kw: (sealed.append(kw), _BundleStub(kw))[1]),
+    )
+    return sealed
+
+
+def _run_real(records, row, triplet, **overrides):
+    lo, nom, hi = triplet
+    return list(
+        reconstruct_session_bundles(
+            frame_index_rows=[row],
+            envelopes=[SimpleNamespace(records=records)],
+            contract=_real_contract(),
+            exposure_contract=_ExposureContractStub(lo=lo, nom=nom, hi=hi),
+            activated_identity=SimpleNamespace(),
+            mask_provider=_MaskProviderStub(),
+            frame_loader=lambda r: _frame(int(r["frame_index"])),
+            **overrides,
+        )
+    )
+
+
+def test_real_validator_accepts_faithful_reconstruction(_real_machinery):
+    records, row, triplet = _real_session_fixture()
+    results = _run_real(records, row, triplet)
+    assert len(results) == 1
+    sealed = _real_machinery[0]
+    trajectory = sealed["robot_trajectory"]
+    assert isinstance(trajectory, BracketedExactControlTrajectory)
+    assert trajectory.records[0].control_tick_seq == 101
+    assert trajectory.records[-1].control_tick_seq == 111
+    assert _exact_trajectory_sha256(trajectory.records) == (
+        row["exact_control_trajectory_sha256"]
+    )
+
+
+def test_real_validator_rejects_tampered_trajectory_hash(_real_machinery):
+    records, row, triplet = _real_session_fixture()
+    row = dict(row)
+    row["exact_control_trajectory_sha256"] = "0" * 64
+    with pytest.raises(SessionBundleReplayError):
+        _run_real(records, row, triplet)
+
+
+def test_real_validator_rejects_mutated_record_bytes(_real_machinery):
+    records, row, triplet = _real_session_fixture()
+    from dataclasses import replace as dc_replace
+
+    poisoned = list(records)
+    victim = poisoned[5]
+    poisoned[5] = dc_replace(
+        victim,
+        follower_q_rad=(0.001,) + tuple(victim.follower_q_rad[1:]),
+    )
+    with pytest.raises(SessionBundleReplayError):
+        _run_real(tuple(poisoned), row, triplet)
+
+
+def test_real_validator_rejects_wrong_nominal_interpolation(_real_machinery):
+    records, row, triplet = _real_session_fixture()
+    row = dict(row)
+    nominal = dict(row["observation_at_nominal"])
+    nominal["follower_q_rad"] = list(nominal["follower_q_rad"])
+    nominal["follower_q_rad"][0] += 0.01
+    row["observation_at_nominal"] = nominal
+    with pytest.raises(SessionBundleReplayError):
+        _run_real(records, row, triplet)
+
+
+def test_real_validator_rejects_provenance_field_drift(_real_machinery):
+    records, row, triplet = _real_session_fixture()
+    row = dict(row)
+    row["controller_pid"] = 999
+    with pytest.raises(SessionBundleReplayError):
+        _run_real(records, row, triplet)
+
+
+# ---------------------------------------------------------------------------
+# 2026-08-30 workflow-discovered gaps
+# ---------------------------------------------------------------------------
+
+from itertools import islice
+
+
+@pytest.mark.parametrize(
+    ("lo_off", "nom_off", "hi_off"),
+    ((1, 0, 0), (0, 0, 1), (0, -1, 0)),
+)
+def test_reconstruct_rejects_any_exposure_bound_drift(
+    _stubbed_seams, lo_off, nom_off, hi_off,
+):
+    with pytest.raises(SessionBundleReplayError):
+        _run(
+            [_row(5)],
+            exposure_contract=_ExposureContractStub(
+                lo=_LO + lo_off, nom=_NOM + nom_off, hi=_HI + hi_off,
+            ),
+        )
+
+
+def test_reconstruct_rejects_crossed_exposure_interval(_stubbed_seams):
+    with pytest.raises(SessionBundleReplayError):
+        _run(
+            [_row(5)],
+            exposure_contract=_ExposureContractStub(lo=_HI, nom=_NOM, hi=_LO),
+        )
+
+
+def test_reconstruct_rejects_nonpositive_minimum_frames(_stubbed_seams):
+    for bad in (0, -1, True):
+        with pytest.raises(SessionBundleReplayError):
+            list(
+                reconstruct_session_bundles(
+                    frame_index_rows=[_row(5)],
+                    envelopes=[_envelope(*range(9, 14))],
+                    contract=SimpleNamespace(),
+                    exposure_contract=_ExposureContractStub(),
+                    activated_identity=SimpleNamespace(),
+                    mask_provider=_MaskProviderStub(),
+                    frame_loader=lambda row: _frame(row["frame_index"]),
+                    minimum_frames=bad,
+                )
+            )
+
+
+def test_reconstruct_minimum_frames_only_fires_on_full_drain(_stubbed_seams):
+    generator = reconstruct_session_bundles(
+        frame_index_rows=[_row(5)],
+        envelopes=[_envelope(*range(9, 14))],
+        contract=SimpleNamespace(),
+        exposure_contract=_ExposureContractStub(),
+        activated_identity=SimpleNamespace(),
+        mask_provider=_MaskProviderStub(),
+        frame_loader=lambda row: _frame(row["frame_index"]),
+        minimum_frames=2,
+    )
+    first = list(islice(generator, 1))
+    assert len(first) == 1                 # partial consumption: no verdict yet
+    with pytest.raises(SessionBundleReplayError):
+        list(generator)                    # full drain enforces the floor
+
+
+def test_window_identical_resend_after_eviction_fails_closed():
+    window = ExactRecordWindow(
+        [_envelope(1, 2, 3, 4, 5, 6), _envelope(2, 7)]
+    )
+    window.bracket(4, 6)                   # evicts ticks 1-3
+    with pytest.raises(SessionBundleReplayError):
+        window.bracket(5, 7)               # pull hits resent (evicted) tick 2
+
+
+def test_ledger_hashes_conflicting_digests_fail_closed(tmp_path: Path):
+    rows = [
+        {"frame_index": 3, "frame_evidence": {"canonical_sha256": "a" * 64}},
+        {"frame_index": 3, "frame_evidence": {"canonical_sha256": "b" * 64}},
+    ]
+    path = tmp_path / "inference.jsonl"
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    with pytest.raises(SessionBundleReplayError):
+        load_recorded_ledger_hashes(tmp_path)
+
+
+def test_ledger_hashes_identical_duplicates_and_container_precedence(
+    tmp_path: Path,
+):
+    rows = [
+        {"frame_index": 3, "frame_evidence": {"canonical_sha256": "a" * 64}},
+        {"frame_index": 3, "frame_evidence": {"canonical_sha256": "a" * 64}},
+        {
+            "frame_index": 4,
+            "frame_evidence": {"canonical_sha256": "c" * 64},
+            "tracking": {"frame_evidence": {"canonical_sha256": "d" * 64}},
+        },
+    ]
+    path = tmp_path / "inference.jsonl"
+    path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    hashes = load_recorded_ledger_hashes(tmp_path)
+    assert hashes == {3: "a" * 64, 4: "c" * 64}   # top-level wins
+
+
+def test_require_ledger_match_is_vacuous_without_coverage(_stubbed_seams):
+    """Pinned semantics: 'require' binds only frames the ledger covers; a
+    mapping covering nothing yields unflagged frames (the standing gate must
+    therefore ALSO check ledger coverage when it wants byte-proof)."""
+    results = _run(
+        [_row(5)], recorded_ledger_sha256={999: "0" * 64},
+        require_ledger_match=True,
+    )
+    assert results[0].ledger_match is None
+
+
+def test_artifact_path_partial_beats_inprogress_and_skips_directories(
+    tmp_path: Path,
+):
+    (tmp_path / "x.jsonl.partial").write_text("{}\n")
+    (tmp_path / "x.jsonl.inprogress").write_text("{}\n")
+    assert session_artifact_path(tmp_path, "x.jsonl").name == "x.jsonl.partial"
+    (tmp_path / "y.jsonl").mkdir()          # directory under the final name
+    (tmp_path / "y.jsonl.inprogress").write_text("{}\n")
+    assert session_artifact_path(tmp_path, "y.jsonl").name == (
+        "y.jsonl.inprogress"
+    )

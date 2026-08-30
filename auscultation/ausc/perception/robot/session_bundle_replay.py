@@ -233,6 +233,13 @@ def reconstruct_session_bundles(
         raise SessionBundleReplayError(
             "ledger matching requires the recorded ledger hashes"
         )
+    if type(minimum_frames) is not int or minimum_frames < 1:
+        # A gate that can be configured to accept zero frames is not a gate
+        # (2026-08-30 adversarial discovery); disabling the floor is never
+        # legitimate for a pre-train replay.
+        raise SessionBundleReplayError(
+            "minimum_frames must be a positive integer"
+        )
     window = ExactRecordWindow(envelopes)
     previous_index: Optional[int] = None
     reconstructed_count = 0
@@ -361,6 +368,16 @@ def load_recorded_ledger_hashes(session_dir: Path) -> Dict[int, str]:
             digest = ledger.get("canonical_sha256")
             frame_index = row.get("frame_index", container.get("frame_index"))
             if isinstance(digest, str) and frame_index is not None:
+                existing = hashes.get(int(frame_index))
+                if existing is not None and existing != digest:
+                    # Two different sealed-bundle digests for one frame mean
+                    # the recording itself is inconsistent; silently letting
+                    # the last row win could vouch a reconstruction against
+                    # the wrong seal.
+                    raise SessionBundleReplayError(
+                        "conflicting recorded ledger digests for frame %d"
+                        % int(frame_index)
+                    )
                 hashes[int(frame_index)] = digest
                 break
     return hashes
