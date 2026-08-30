@@ -5094,9 +5094,20 @@ class Collector:
         exposure = inputs.camera_exposure
         trajectory = inputs.robot_trajectory
         _mask_t0 = time.monotonic()
+        # Depth veto (2026-08-29, owner-authorized): the frame's own aligned
+        # depth lets the mask provider clear pixels whose measured
+        # first-surface depth PROVES no arm component can occlude the ray
+        # (see robot_mask_provider). Same-frame by construction: this is the
+        # exact depth image the tracker lifts 3D points from.
         robot_mask = mask_provider.build(
             exposure=exposure,
             trajectory=trajectory,
+            aligned_depth=frame.depth,
+            depth_scale=(
+                float(frame.depth_scale)
+                if frame.depth is not None
+                else 1.0
+            ),
         )
         self._last_mask_build_ms = (time.monotonic() - _mask_t0) * 1000.0
         _factory_t0 = time.monotonic()

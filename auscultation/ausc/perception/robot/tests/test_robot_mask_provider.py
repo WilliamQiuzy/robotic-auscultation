@@ -1524,3 +1524,376 @@ def test_near_frustum_component_paints_border_strip_not_center():
     assert not centre.any(), (
         f"near-frustum component leaked {int(centre.sum())} px into the centre"
     )
+
+
+# ---------------------------------------------------------------------------
+# DEPTH VETO (2026-08-29, owner-authorized): the aligned depth sensor
+# measures the first opaque surface per ray, so depth far beyond every
+# covering component's z upper bound PROVES the ray is arm-free. These
+# tests pin the veto's soundness direction on every paint path.
+# ---------------------------------------------------------------------------
+
+_FAR_MM = 3000    # 3.0 m: far beyond every fixture component (z ~ 1.0 m)
+_NEAR_MM = 1000   # 1.0 m: at the fixture arm depth -- proves nothing
+
+
+def _depth_image(mm, shape=(120, 160)):
+    return np.full(shape, mm, dtype=np.uint16)
+
+
+def _interior(mask, border=2):
+    return mask[border:-border, border:-border]
+
+
+def test_depth_veto_absent_depth_is_byte_identical():
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    again = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(), aligned_depth=None,
+    )
+    assert again.mask_sha256 == base.mask_sha256
+    assert provider._last_depth_veto_pixels == 0
+
+
+def test_depth_veto_invalid_depth_never_vetoes():
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    packet = provider.build(
+        exposure=_exposure(),
+        trajectory=_trajectory(),
+        aligned_depth=_depth_image(0),
+    )
+    assert packet.mask_sha256 == base.mask_sha256
+    assert provider._last_depth_veto_pixels == 0
+
+
+def test_depth_veto_near_depth_is_noop():
+    """Depth at the arm's own distance proves nothing and must not veto."""
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    packet = provider.build(
+        exposure=_exposure(),
+        trajectory=_trajectory(),
+        aligned_depth=_depth_image(_NEAR_MM),
+    )
+    assert packet.mask_sha256 == base.mask_sha256
+    assert provider._last_depth_veto_pixels == 0
+
+
+def test_depth_veto_far_depth_clears_geometric_interior():
+    """Uniform far depth proves absence everywhere; only the erosion's
+    border ring (out-of-frame counts as unproven) may retain pixels."""
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert base.masked_pixel_count > 0
+    packet = provider.build(
+        exposure=_exposure(),
+        trajectory=_trajectory(),
+        aligned_depth=_depth_image(_FAR_MM),
+    )
+    assert provider._last_depth_veto_pixels > 0
+    assert packet.masked_pixel_count < base.masked_pixel_count
+    # Veto only ever REMOVES pixels.
+    assert not np.any(packet.mask & ~base.mask)
+    assert not _interior(packet.mask).any()
+
+
+def test_depth_veto_is_monotone_in_measured_depth():
+    """Deeper measurements can only prove MORE absence: the surviving mask
+    must shrink monotonically (set inclusion, not just count)."""
+    provider = _provider()
+    previous = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+    ).mask
+    for mm in (900, 1050, 1150, 1300, 2000, 4000):
+        current = provider.build(
+            exposure=_exposure(),
+            trajectory=_trajectory(),
+            aligned_depth=_depth_image(mm),
+        ).mask
+        assert not np.any(current & ~previous), (
+            f"mask grew between depths near {mm} mm"
+        )
+        previous = current
+
+
+def test_depth_veto_honors_depth_scale_in_both_directions():
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    raw = _depth_image(1500)
+    near = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=raw, depth_scale=0.5,   # 0.75 m: proves nothing
+    )
+    assert near.mask_sha256 == base.mask_sha256
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=raw, depth_scale=2.0,   # 3.0 m: proves absence
+    )
+    assert not _interior(far.mask).any()
+
+
+def test_depth_veto_never_clears_sampled_occludable_pixels():
+    """CORE SOUNDNESS: place the measured surface AT sampled reachable arm
+    positions (the anisotropic displacement sampler); those pixels must
+    survive the veto no matter how far the rest of the scene reads."""
+    provider = _provider()
+    exposure = _exposure()
+    trajectory = _trajectory()
+    P = provider.projection
+    rng = np.random.default_rng(20260829)
+    state = trajectory.sample_observation_at(trajectory.exposure_nominal_ns)
+    transforms, joint_origins, joint_axes = provider._forward_kinematics(
+        state
+    )
+    depth = _depth_image(_FAR_MM, shape=(P.height, P.width))
+    hits = []
+    for link_index, (link, transform) in enumerate(
+        zip(provider.geometry.links, transforms)
+    ):
+        vertices_base = provider._transform_vertices(
+            transform, link.vertices_link_m
+        )
+        vertices_camera = provider._transform_vertices(
+            provider.handeye.transform_camera_from_follower_base,
+            vertices_base,
+        )
+        bound = provider._metric_bound(
+            vertices_base=vertices_base,
+            ancestor_joints=provider._ancestor_joint_indices[link_index],
+            joint_origins=joint_origins,
+            joint_axes=joint_axes,
+            joint_velocity=np.zeros(7),
+            component_error_m=(
+                provider.uncertainty_profile.link_geometry_error_m
+            ),
+            vertices_camera=vertices_camera,
+        )
+        for _ in range(40):
+            direction = rng.normal(size=3)
+            direction /= np.linalg.norm(direction)
+            displaced = vertices_camera + direction * bound * rng.uniform(0, 1)
+            z = displaced[:, 2]
+            keep = z > P.min_projection_depth_m
+            if not keep.any():
+                continue
+            u = P.fx * displaced[keep, 0] / z[keep] + P.cx
+            v = P.fy * displaced[keep, 1] / z[keep] + P.cy
+            ui = np.rint(u).astype(int)
+            vi = np.rint(v).astype(int)
+            inside = (
+                (ui >= 0) & (ui < P.width) & (vi >= 0) & (vi < P.height)
+            )
+            for uu, vv, zz in zip(
+                ui[inside], vi[inside], z[keep][inside]
+            ):
+                mm = max(int(zz * 1000.0), 1)   # floor: never farther
+                depth[vv, uu] = min(int(depth[vv, uu]), mm)
+                hits.append((vv, uu))
+    assert len(hits) >= 100, f"only {len(hits)} sampled surface pixels"
+    packet = provider.build(
+        exposure=exposure, trajectory=trajectory, aligned_depth=depth,
+    )
+    assert provider._last_depth_veto_pixels > 0  # far scene did veto
+    rows = np.asarray([h[0] for h in hits])
+    cols = np.asarray([h[1] for h in hits])
+    assert bool(packet.mask[rows, cols].all()), (
+        "veto cleared a pixel whose measured surface is a reachable arm "
+        "position"
+    )
+
+
+def test_depth_veto_erosion_shields_neighbors_of_unproven_pixels():
+    """One invalid measurement must protect its full erosion neighborhood:
+    silhouette-edge alignment artifacts can never fabricate a veto."""
+    provider = _provider()
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    interior = np.zeros_like(base.mask)
+    interior[6:-6, 6:-6] = True
+    candidates = np.argwhere(base.mask & interior)
+    assert len(candidates) > 0
+    py, px = (int(v) for v in candidates[len(candidates) // 2])
+    depth = _depth_image(_FAR_MM)
+    depth[py, px] = 0   # single unproven (invalid) measurement
+    packet = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(), aligned_depth=depth,
+    )
+    guarded = base.mask[py - 2:py + 3, px - 2:px + 3]
+    surviving = packet.mask[py - 2:py + 3, px - 2:px + 3]
+    assert bool((surviving == guarded).all()), (
+        "erosion failed to shield the invalid pixel's neighborhood"
+    )
+    far_zone = np.zeros_like(base.mask)
+    far_zone[6:-6, 6:-6] = True
+    far_zone[py - 5:py + 6, px - 5:px + 6] = False
+    assert not np.any(packet.mask & far_zone), (
+        "pixels beyond erosion reach of the artifact were not vetoed"
+    )
+
+
+def test_depth_veto_never_touches_learned_mask_pixels():
+    provider = _provider()
+    learned = np.ones((120, 160), dtype=np.bool_)
+    packet = provider.build(
+        exposure=_exposure(),
+        trajectory=_trajectory(),
+        learned_mask=learned,
+        aligned_depth=_depth_image(_FAR_MM),
+    )
+    assert bool(packet.mask.all()), (
+        "depth veto removed positively-detected (learned) pixels"
+    )
+
+
+def test_depth_veto_applies_on_pyramid_paint_path():
+    profile = RobotMaskUncertaintyProfile.create(
+        sigma=3.0,
+        base_dilation_px=90.0,   # radius > 64: pyramid bucket path
+        link_geometry_error_m=0.0005,
+        tool_geometry_error_m=0.0005,
+        timing_uncertainty_s=0.0002,
+        projection_error_px=10.0,
+    )
+    provider = _provider(profile=profile)
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert base.masked_pixel_count > 0
+    near = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(_NEAR_MM),
+    )
+    assert near.mask_sha256 == base.mask_sha256
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(_FAR_MM),
+    )
+    assert not _interior(far.mask).any()
+    assert not np.any(far.mask & ~base.mask)
+
+
+def test_depth_veto_applies_on_full_mask_cost_hatch(monkeypatch):
+    import ausc.perception.robot.robot_mask_provider as mask_module
+
+    profile = _profile(
+        metric_error=0.04, timing_s=0.002, projection_px=5.0, sigma=6.0,
+    )
+    provider = _provider(profile=profile)
+    monkeypatch.setattr(mask_module, "_FULL_MASK_COST_HATCH_RADIUS_PX", 5)
+    hatched = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    assert hatched.mask.all()
+    near = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(_NEAR_MM),
+    )
+    assert bool(near.mask.all()), "near depth must not erode the hatch"
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(_FAR_MM),
+    )
+    assert not _interior(far.mask).any()
+    assert bool(far.mask[0, :].all()) and bool(far.mask[:, 0].all()), (
+        "erosion border ring should survive on a full-frame hatch"
+    )
+
+
+def test_depth_veto_bucket_threshold_is_max_over_components():
+    """Two depth tiers share one radius bucket: a measurement between the
+    tiers proves absence for the shallow tier ALONE, and the bucket-level
+    threshold (max z bound) must conservatively refuse to veto anywhere."""
+    links = []
+    for index in range(7):
+        if index == 0:
+            joint_zero = _transform(z=1.0)
+        elif index == 6:
+            joint_zero = _transform(x=0.07, z=1.0)   # deep tier: z = 2.0 m
+        else:
+            joint_zero = _transform(x=0.07)
+        links.append(
+            KinematicCollisionLink(
+                name=f"openarm_left_link{index + 1}",
+                parent_index=index - 1,
+                joint_index=index,
+                transform_parent_from_joint_zero=joint_zero,
+                joint_axis=np.asarray((0.0, 0.0, 1.0)),
+                vertices_link_m=_box((0.035, 0.0, 0.0)),
+            )
+        )
+    geometry = OpenArmCollisionGeometry.create(
+        source="official_openarm_v10_urdf_collision_meshes",
+        side="left",
+        joint_names=JOINT_NAMES,
+        urdf_sha256=SHA_A,
+        links=tuple(links),
+    )
+    provider = _provider(geometry=geometry)
+    base = provider.build(exposure=_exposure(), trajectory=_trajectory())
+    between = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(1500),   # beyond shallow, short of deep
+    )
+    assert between.mask_sha256 == base.mask_sha256, (
+        "bucket veto used a shallower component's bound (unsound direction)"
+    )
+    far = provider.build(
+        exposure=_exposure(), trajectory=_trajectory(),
+        aligned_depth=_depth_image(4000),   # beyond BOTH tiers
+    )
+    assert not _interior(far.mask).any()
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        lambda d: d.astype(np.float32),
+        lambda d: d.astype(np.int32),
+        lambda d: d[:60, :80],
+        lambda d: d[..., None],
+        lambda d: d.reshape(-1),
+    ],
+)
+def test_depth_veto_rejects_malformed_depth_arrays(mutate):
+    provider = _provider()
+    depth = mutate(_depth_image(_FAR_MM))
+    with pytest.raises(RobotMaskProviderError):
+        provider.build(
+            exposure=_exposure(), trajectory=_trajectory(),
+            aligned_depth=depth,
+        )
+
+
+@pytest.mark.parametrize(
+    "scale", [0.0, -1.0, float("nan"), float("inf"), 101.0],
+)
+def test_depth_veto_rejects_invalid_depth_scale(scale):
+    provider = _provider()
+    with pytest.raises(RobotMaskProviderError):
+        provider.build(
+            exposure=_exposure(), trajectory=_trajectory(),
+            aligned_depth=_depth_image(_FAR_MM), depth_scale=scale,
+        )
+
+
+def test_depth_veto_does_not_mutate_input_depth():
+    provider = _provider()
+    depth = _depth_image(_FAR_MM)
+    snapshot = depth.copy()
+    provider.build(
+        exposure=_exposure(), trajectory=_trajectory(), aligned_depth=depth,
+    )
+    assert np.array_equal(depth, snapshot)
+
+
+def test_depth_veto_composes_with_interval_sweep():
+    provider = _provider()
+    moving = _trajectory(start_q=-0.45, end_q=0.45)
+    base = provider.build(exposure=_exposure(), trajectory=moving)
+    near = provider.build(
+        exposure=_exposure(), trajectory=moving,
+        aligned_depth=_depth_image(_NEAR_MM),
+    )
+    assert near.mask_sha256 == base.mask_sha256
+    far = provider.build(
+        exposure=_exposure(), trajectory=moving,
+        aligned_depth=_depth_image(_FAR_MM),
+    )
+    assert not _interior(far.mask).any()
+    assert not np.any(far.mask & ~base.mask)

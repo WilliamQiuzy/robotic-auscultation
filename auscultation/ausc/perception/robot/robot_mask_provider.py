@@ -80,6 +80,25 @@ _CUBE_CORNER_SIGNS = np.array(
     dtype=np.float64,
 )
 _FULL_MASK_COST_HATCH_RADIUS_PX = 2048
+# DEPTH VETO (2026-08-29, owner-authorized): the aligned depth sensor
+# measures the FIRST opaque surface along each ray. If a pixel's measured
+# depth exceeds the largest possible depth (z upper bound) of every
+# component whose uncertainty region reaches that pixel, then no component
+# can be occluding that ray — an occluder in front of the measured surface
+# would itself have been the measurement. Such pixels are provably
+# arm-free and are removed from the geometric mask. Failure requires the
+# depth sensor to see THROUGH an opaque link; where depth is missing (0),
+# near, or merely ambiguous, no pixel is ever removed. The veto therefore
+# only refines the geometric mask in the conservative-safe direction and
+# never touches learned-mask pixels (positive detections).
+#
+# The margin absorbs depth accuracy at working range (~1-2% of 0.5-0.8 m),
+# RGB-depth alignment residuals, and quantization; the erosion additionally
+# requires the far-depth proof to hold across a full neighborhood so that
+# single-pixel alignment artifacts along arm silhouette edges can never
+# fabricate a veto.
+_DEPTH_VETO_MARGIN_M = 0.10
+_DEPTH_VETO_EROSION_PX = 2
 _PROVISIONAL_HAND_EYE_RUN_RE = re.compile(
     r"^handeye_left_[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}$"
 )
@@ -1307,6 +1326,9 @@ class ProductionRobotMaskProvider:
         projection: CameraProjectionProfile,
         uncertainty_profile: RobotMaskUncertaintyProfile,
     ):
+        # Diagnostics only (last build's depth-veto removals); never part
+        # of packet semantics.
+        self._last_depth_veto_pixels = 0
         try:
             if not isinstance(activated_identity, ActivatedOcclusionIdentity):
                 raise RobotMaskProviderError(
@@ -1978,6 +2000,7 @@ class ProductionRobotMaskProvider:
         component_error_m: float,
         deferred: Optional[dict] = None,
         metric_bound_override: Optional[float] = None,
+        zmap: Optional[np.ndarray] = None,
     ) -> bool:
         vertices_camera = self._transform_vertices(
             self.handeye.transform_camera_from_follower_base,
@@ -2098,6 +2121,8 @@ class ProductionRobotMaskProvider:
         # frame anyway still short-circuits to the honest full mask.
         if raw_radius_px > _FULL_MASK_COST_HATCH_RADIUS_PX:
             mask[:] = True
+            if zmap is not None:
+                np.maximum(zmap, uncertainty_depth_upper, out=zmap)
             return True
 
         radius_px = int(math.ceil(raw_radius_px))
@@ -2108,7 +2133,10 @@ class ProductionRobotMaskProvider:
             raise RobotMaskProviderError(
                 "robot/tool projected convex hull is empty"
             )
-        return self._paint_dilated_hull(mask, hull, radius_px, deferred)
+        return self._paint_dilated_hull(
+            mask, hull, radius_px, deferred,
+            zmap=zmap, z_upper=uncertainty_depth_upper,
+        )
 
     def _paint_dilated_hull(
         self,
@@ -2116,6 +2144,9 @@ class ProductionRobotMaskProvider:
         hull: np.ndarray,
         radius_px: int,
         deferred: Optional[dict] = None,
+        *,
+        zmap: Optional[np.ndarray] = None,
+        z_upper: float = math.inf,
     ) -> bool:
         # ROI-cropped rasterization + dilation (2026-08-12): dilating a
         # full 1920x1080 frame with elliptical kernels of radius 25-55 px
@@ -2139,7 +2170,9 @@ class ProductionRobotMaskProvider:
             # upsample, and frame OR exactly once per (factor, radius)
             # bucket — dilation distributes over union (byte-identity test).
             if deferred is None:
-                return self._paint_pyramid_dilated(mask, hull, pad)
+                return self._paint_pyramid_dilated(
+                    mask, hull, pad, zmap=zmap, z_upper=z_upper,
+                )
             f = self._pyramid_factor(pad)
             rc = -(-pad // f) + 2
             key = ("pyramid", f, rc)
@@ -2151,8 +2184,15 @@ class ProductionRobotMaskProvider:
                     "canvas": np.zeros(
                         (ch + 2 * rc, cw + 2 * rc), dtype=np.uint8,
                     ),
+                    # Depth-veto threshold: MAX z upper bound over every
+                    # component sharing this bucket — any pixel the flush
+                    # paints may belong to any of them, so the veto must
+                    # clear the deepest one (conservative direction).
+                    "z_upper": float(z_upper),
                 }
                 deferred[key] = bucket
+            else:
+                bucket["z_upper"] = max(bucket["z_upper"], float(z_upper))
             self._rasterize_coarse_hull(bucket["canvas"], hull, f, rc)
             return True
         # EXTENDED viewport (2026-08-14): rasterize in hull coordinates so
@@ -2254,6 +2294,9 @@ class ProductionRobotMaskProvider:
                         ),
                         "margin": margin,
                         "x0": x0, "y0": y0, "x1": x1, "y1": y1,
+                        # Depth-veto threshold: MAX z upper bound over the
+                        # bucket's components (see the pyramid bucket note).
+                        "z_upper": float(z_upper),
                     }
                     deferred[pad] = bucket
                 else:
@@ -2261,6 +2304,9 @@ class ProductionRobotMaskProvider:
                     bucket["y0"] = min(bucket["y0"], y0)
                     bucket["x1"] = max(bucket["x1"], x1)
                     bucket["y1"] = max(bucket["y1"], y1)
+                    bucket["z_upper"] = max(
+                        bucket["z_upper"], float(z_upper),
+                    )
                 acc_window = bucket["acc"][
                     y0 + margin:y1 + margin, x0 + margin:x1 + margin,
                 ]
@@ -2296,6 +2342,12 @@ class ProductionRobotMaskProvider:
         window = mask[dy0:dy1, dx0:dx1]
         component_any = bool(np.any(src))
         np.logical_or(window, src, out=window)
+        if zmap is not None:
+            # The destination window is a superset of this component's
+            # painted pixels, so a max-update here guarantees every masked
+            # pixel carries at least this component's z upper bound.
+            zwin = zmap[dy0:dy1, dx0:dx1]
+            np.maximum(zwin, np.float32(z_upper), out=zwin)
         return component_any
 
     @staticmethod
@@ -2351,7 +2403,9 @@ class ProductionRobotMaskProvider:
         return (distance <= float(radius_px)).astype(np.uint8)
 
     @staticmethod
-    def _finish_coarse_canvas(mask, canvas, f, rc) -> bool:
+    def _finish_coarse_canvas(
+        mask, canvas, f, rc, zmap=None, z_upper=math.inf,
+    ) -> bool:
         """Inflate, exact-Euclidean dilate, upsample, OR into the frame.
 
         cv2.dilate with a large elliptical kernel is O(N*k^2) and cost tens
@@ -2388,9 +2442,16 @@ class ProductionRobotMaskProvider:
         window = mask[dy0:dy1, dx0:dx1]
         painted = bool(np.any(src))
         np.logical_or(window, src.astype(np.bool_), out=window)
+        if zmap is not None:
+            # Superset window (see the direct path): every pixel this
+            # canvas painted carries at least its components' max z bound.
+            zwin = zmap[dy0:dy1, dx0:dx1]
+            np.maximum(zwin, np.float32(z_upper), out=zwin)
         return painted
 
-    def _paint_pyramid_dilated(self, mask, hull, pad) -> bool:
+    def _paint_pyramid_dilated(
+        self, mask, hull, pad, *, zmap=None, z_upper=math.inf,
+    ) -> bool:
         """Conservative-superset dilation for one large-radius component.
 
         Direct coarse rasterization + exact-Euclidean coarse dilation +
@@ -2404,10 +2465,13 @@ class ProductionRobotMaskProvider:
         cw = -(-mask.shape[1] // f)
         canvas = np.zeros((ch + 2 * rc, cw + 2 * rc), dtype=np.uint8)
         self._rasterize_coarse_hull(canvas, hull, f, rc)
-        return self._finish_coarse_canvas(mask, canvas, f, rc)
+        return self._finish_coarse_canvas(
+            mask, canvas, f, rc, zmap=zmap, z_upper=z_upper,
+        )
 
     def _flush_deferred_dilations(
         self, mask: np.ndarray, deferred: dict,
+        zmap: Optional[np.ndarray] = None,
     ) -> None:
         height, width = mask.shape
         for key, bucket in sorted(
@@ -2415,7 +2479,11 @@ class ProductionRobotMaskProvider:
         ):
             if isinstance(key, tuple) and key[0] == "pyramid":
                 _tag, f, rc = key
-                self._finish_coarse_canvas(mask, bucket["canvas"], f, rc)
+                self._finish_coarse_canvas(
+                    mask, bucket["canvas"], f, rc,
+                    zmap=zmap,
+                    z_upper=bucket.get("z_upper", math.inf),
+                )
                 continue
             radius_px = key
             margin = bucket["margin"]
@@ -2441,6 +2509,40 @@ class ProductionRobotMaskProvider:
             ]
             window = mask[dy0:dy1, dx0:dx1]
             np.logical_or(window, src, out=window)
+            if zmap is not None:
+                zwin = zmap[dy0:dy1, dx0:dx1]
+                np.maximum(
+                    zwin,
+                    np.float32(bucket.get("z_upper", math.inf)),
+                    out=zwin,
+                )
+
+    def _validate_aligned_depth(
+        self, aligned_depth: np.ndarray, depth_scale: float,
+    ) -> Tuple[np.ndarray, float]:
+        """Fail closed on any malformed depth input for the veto.
+
+        A provided-but-broken depth array signals upstream corruption; the
+        safe response is to reject the frame, never to silently skip the
+        veto (callers that legitimately have no depth pass None instead).
+        """
+        depth = np.asarray(aligned_depth)
+        expected_shape = (self.projection.height, self.projection.width)
+        if (
+            depth.dtype != np.uint16
+            or depth.ndim != 2
+            or depth.shape != expected_shape
+        ):
+            raise RobotMaskProviderError(
+                "aligned depth for the robot-mask depth veto must be a "
+                "uint16 image matching the activated camera shape"
+            )
+        scale = float(depth_scale)
+        if not math.isfinite(scale) or scale <= 0.0 or scale > 100.0:
+            raise RobotMaskProviderError(
+                "aligned depth scale (mm per unit) is invalid"
+            )
+        return depth, scale
 
     def _build(
         self,
@@ -2448,8 +2550,24 @@ class ProductionRobotMaskProvider:
         exposure: CameraExposureEvidence,
         trajectory: BracketedExactControlTrajectory,
         learned_mask: Optional[np.ndarray],
+        aligned_depth: Optional[np.ndarray] = None,
+        depth_scale: float = 1.0,
     ) -> RobotMaskPacket:
         self._validate_evidence(exposure, trajectory)
+        depth_veto: Optional[Tuple[np.ndarray, float]] = None
+        zmap: Optional[np.ndarray] = None
+        if aligned_depth is not None:
+            depth_veto = self._validate_aligned_depth(
+                aligned_depth, depth_scale,
+            )
+            # Per-pixel MAX z upper bound over every component whose
+            # uncertainty region can reach the pixel (-inf where none can;
+            # such pixels are never masked, so their veto value is moot).
+            zmap = np.full(
+                (self.projection.height, self.projection.width),
+                -np.inf,
+                dtype=np.float32,
+            )
         mask = np.zeros(
             (self.projection.height, self.projection.width), dtype=np.bool_
         )
@@ -2559,8 +2677,41 @@ class ProductionRobotMaskProvider:
                 component_error_m=error_m,
                 deferred=deferred_dilations,
                 metric_bound_override=bound_max,
+                zmap=zmap,
             )
-        self._flush_deferred_dilations(mask, deferred_dilations)
+        self._flush_deferred_dilations(mask, deferred_dilations, zmap)
+
+        vetoed_pixel_count = 0
+        if depth_veto is not None and zmap is not None:
+            depth_raw, scale = depth_veto
+            depth_m = depth_raw.astype(np.float32) * np.float32(
+                scale / 1000.0
+            )
+            # A pixel is PROVABLY arm-free iff its measured first-surface
+            # depth exceeds the deepest possible reach of every component
+            # covering it, beyond the accuracy/alignment margin. Missing
+            # depth (raw 0) proves nothing and never vetoes.
+            provable = (depth_raw != 0) & (
+                depth_m > zmap + np.float32(_DEPTH_VETO_MARGIN_M)
+            )
+            # Silhouette-edge alignment residuals can flip isolated pixels
+            # to background depth; requiring the proof across the full
+            # neighborhood (out-of-frame counts as unproven) means a veto
+            # can never touch pixels within the erosion reach of any
+            # near/invalid measurement.
+            kernel_span = 2 * _DEPTH_VETO_EROSION_PX + 1
+            provable = cv2.erode(
+                provable.astype(np.uint8),
+                np.ones((kernel_span, kernel_span), dtype=np.uint8),
+                iterations=1,
+                borderType=cv2.BORDER_CONSTANT,
+                borderValue=0,
+            ).astype(np.bool_)
+            veto = mask & provable
+            vetoed_pixel_count = int(np.count_nonzero(veto))
+            if vetoed_pixel_count:
+                mask &= ~veto
+        self._last_depth_veto_pixels = vetoed_pixel_count
 
         learned_pixels = False
         if learned_mask is not None:
@@ -2684,14 +2835,26 @@ class ProductionRobotMaskProvider:
         exposure: CameraExposureEvidence,
         trajectory: BracketedExactControlTrajectory,
         learned_mask: Optional[np.ndarray] = None,
+        aligned_depth: Optional[np.ndarray] = None,
+        depth_scale: float = 1.0,
     ) -> RobotMaskPacket:
-        """Build a mask or raise; no degraded/empty fallback is permitted."""
+        """Build a mask or raise; no degraded/empty fallback is permitted.
+
+        ``aligned_depth`` (uint16, RGB-aligned, 0 = invalid, meters =
+        raw * depth_scale / 1000) MUST come from the same exposure frame as
+        ``exposure``; it enables the depth veto, which removes geometric
+        mask pixels whose measured first-surface depth proves no component
+        can occlude that ray. Passing None skips the veto and reproduces
+        the pure geometric mask byte-for-byte.
+        """
 
         try:
             return self._build(
                 exposure=exposure,
                 trajectory=trajectory,
                 learned_mask=learned_mask,
+                aligned_depth=aligned_depth,
+                depth_scale=depth_scale,
             )
         except RobotMaskProviderError:
             raise

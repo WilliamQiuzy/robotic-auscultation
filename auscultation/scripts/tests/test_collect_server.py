@@ -4849,10 +4849,14 @@ def test_robot_upper_bracket_backpressures_the_same_camera_frame_without_reorder
                 },
             )
 
+    mask_calls = []
+
     class MaskProvider:
         @staticmethod
-        def build(*, exposure, trajectory):
+        def build(*, exposure, trajectory, aligned_depth=None,
+                  depth_scale=1.0):
             del trajectory
+            mask_calls.append((aligned_depth, depth_scale))
             return server.SimpleNamespace(
                 frame_index=exposure.frame_index,
                 mask_sha256="d" * 64,
@@ -4974,6 +4978,15 @@ def test_robot_upper_bracket_backpressures_the_same_camera_frame_without_reorder
         assert collector._cam.queue == []
         assert ingress.submitted == [1, 2]
         assert calls == [1, 1, 2]
+        # Depth-veto wiring: the SAME frame's aligned depth reaches the
+        # mask provider with its scale, enabling the physically-proven
+        # arm-free pixel veto on the recorded-evidence path.
+        assert len(mask_calls) == 2
+        for aligned_depth, depth_scale in mask_calls:
+            assert isinstance(aligned_depth, np.ndarray)
+            assert aligned_depth.dtype == np.uint16
+            assert aligned_depth.shape == (2, 2)
+            assert depth_scale == 1.0
         ledger = ingress.bundles[0].tracking["frame_evidence"]
         assert ingress.bundles[0].tracking["frame_evidence_bundle_id"] == (
             ledger["bundle_id"]
@@ -5278,8 +5291,12 @@ def test_live_model_uses_same_frame_robot_mask_bundle_before_recording(tmp_path)
 
     class MaskProvider:
         @staticmethod
-        def build(*, exposure, trajectory):
+        def build(*, exposure, trajectory, aligned_depth=None,
+                  depth_scale=1.0):
             del trajectory
+            assert isinstance(aligned_depth, np.ndarray)
+            assert aligned_depth.dtype == np.uint16
+            assert depth_scale == 1.0
             calls.append(("mask", exposure.frame_index))
             return server.SimpleNamespace(frame_index=exposure.frame_index)
 
