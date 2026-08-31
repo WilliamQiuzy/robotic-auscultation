@@ -987,7 +987,7 @@ while time.monotonic() - started < RECORD_SECONDS:
     snap("t%03d" % int(time.monotonic() - started))
     if FAULT_T and not fault_armed and time.monotonic() - started >= FAULT_T:
         fault_armed = True
-        FAULT["inject_delay_s"] = 0.65
+        FAULT["inject_delay_s"] = float(os.environ.get("SOAK_FAULT_DELAY_S", "0.65"))
         print("[soak][FAULT] armed at t=%.1fs" % (time.monotonic() - started))
     if state.get("state") == "ABORTED":
         aborted = state.get("error")
@@ -1055,7 +1055,7 @@ if AGES_MS:
     print("[soak] evidence age_ms: n=%d p50=%.1f p95=%.1f p99=%.1f max=%.1f"
           % (len(ages), pct(0.50), pct(0.95), pct(0.99), ages[-1]))
 
-sessions = sorted(sessions_root.glob("*"))
+sessions = sorted(p for p in sessions_root.glob("*") if p.is_dir())
 for session_dir in sessions:
     print("[soak] session dir:", session_dir.name)
     for artifact in sorted(session_dir.iterdir()):
