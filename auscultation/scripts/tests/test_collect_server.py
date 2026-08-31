@@ -8901,11 +8901,10 @@ def _scripted_monotonic(values):
     return fake_monotonic
 
 
-def test_abort_forensics_payload_raises_when_exception_str_is_broken(tmp_path):
-    # Pin as written: the line 3172 never-raise contract is violated when a
-    # getter's exception has a broken __str__ — {exc} inside the except
-    # handler re-raises OUT of the builder, and both call sites run the
-    # builder outside any try/except.
+def test_abort_forensics_payload_survives_broken_exception_str(tmp_path):
+    # Train #70: the never-raise contract holds even when a getter's
+    # exception has a hostile __str__ — the label degrades to the safe
+    # repr/placeholder instead of re-raising out of the builder.
     server = _load_collect_server()
 
     class BadStr(Exception):
@@ -8927,8 +8926,16 @@ def test_abort_forensics_payload_raises_when_exception_str_is_broken(tmp_path):
         def _receiver_health_brief(self):
             return None
 
-    with pytest.raises(RuntimeError, match="boom-str"):
-        server.Collector._abort_forensics_payload(_Broken(), "r", kind="abort")
+    payload = server.Collector._abort_forensics_payload(
+        _Broken(), "r", kind="abort",
+    )
+    assert payload["kind"] == "abort"
+    assert payload["reason"] == "r"
+    assert payload["runtime_health"].startswith("UNAVAILABLE: BadStr: ")
+    # The unprintable message degrades to object.__repr__, never a raise.
+    assert "BadStr object at" in payload["runtime_health"]
+    assert payload["camera_delivery"] == {"status": "OK"}
+    assert json.dumps(payload, default=str)
 
 
 def test_abort_forensics_payload_collects_all_five_unavailable_labels():
@@ -8987,26 +8994,32 @@ def test_abort_forensics_payload_extra_semantics_as_written(tmp_path):
             return None
 
     build = server.Collector._abort_forensics_payload
-    # P1 pin: extra runs LAST, so colliding keys silently overwrite the
-    # collected state snapshot and the caller's kind/reason arguments.
+    # Train #70: extra merges FIRST, so the forensic core (kind/reason and
+    # the five collected health labels) always wins over colliding keys.
     payload = build(
         _Host(), "real reason", kind="abort",
         extra={"kind": "spoofed", "reason": "spoofed", "state": "spoofed"},
     )
-    assert payload["kind"] == "spoofed"
-    assert payload["reason"] == "spoofed"
-    assert payload["state"] == "spoofed"
-    # extra=None and extra={} skip the update entirely: 7 standard keys only.
+    assert payload["kind"] == "abort"
+    assert payload["reason"] == "real reason"
+    assert payload["state"] == server.CollectionState.RECORDING.value
+    # Non-colliding extra keys still ride along.
+    payload = build(
+        _Host(), "r", kind="abort", extra={"boundary_closed": True},
+    )
+    assert payload["boundary_closed"] is True
+    # extra=None and extra={} contribute nothing: 7 standard keys only.
     for extra in (None, {}):
         payload = build(_Host(), "r", kind="abort", extra=extra)
         assert set(payload) == {
             "kind", "reason", "state", "runtime_health", "camera_delivery",
             "ingress", "robot_receiver",
         }
-    # P1 pin: a truthy non-dict extra escapes the builder — the second
-    # unprotected raise path in the same never-raise-contract family.
-    with pytest.raises(TypeError, match="'int' object is not iterable"):
-        build(_Host(), "r", kind="abort", extra=5)
+    # Train #70: a non-dict extra no longer raises — it degrades to a
+    # breadcrumb instead of breaking abort/start-failure handling.
+    payload = build(_Host(), "r", kind="abort", extra=5)
+    assert payload["invalid_extra"] == "5"
+    assert payload["kind"] == "abort"
 
 
 def test_non_serializable_getter_value_flows_through_writer_as_default_str(tmp_path):
@@ -9076,17 +9089,20 @@ def test_forensics_non_dict_payload_fails_before_creating_the_file(tmp_path):
     assert (tmp_path / "torn.jsonl").read_bytes() == b""
 
 
-def test_forensics_payload_can_shadow_writer_timestamps(tmp_path):
-    # P1 pin: record.update(payload) lets payload values override the
-    # time.time_ns()/time.monotonic() stamps taken at write time.
+def test_forensics_writer_timestamps_cannot_be_shadowed(tmp_path):
+    # Train #70: the write-time stamps are applied AFTER the payload merge,
+    # so a payload carrying utc_ns/monotonic_t_s can never masquerade as the
+    # write time.
     server = _load_collect_server()
     assert server.Collector._append_forensics_line(
         tmp_path, "x.jsonl",
         {"utc_ns": "SPOOF", "monotonic_t_s": -1.0, "kind": "k"},
     ) is True
     row = json.loads((tmp_path / "x.jsonl").read_text().splitlines()[0])
-    assert row["utc_ns"] == "SPOOF"
-    assert row["monotonic_t_s"] == -1.0
+    assert isinstance(row["utc_ns"], int) and row["utc_ns"] > 0
+    assert isinstance(row["monotonic_t_s"], float)
+    assert row["monotonic_t_s"] >= 0.0
+    assert row["kind"] == "k"
 
 
 def test_forensics_numpy_scalars_survive_with_documented_coercions(tmp_path):
@@ -9268,12 +9284,15 @@ def test_failed_start_writes_start_failure_forensics_record(tmp_path):
         collector.shutdown()
 
 
-def test_abort_forensics_lines_are_per_call_and_snapshot_pre_transition_state(
+def test_abort_forensics_only_the_abortable_call_writes_a_line(
     tmp_path,
 ):
-    # One unconditional forensics line per _abort_recording call, and the
-    # payload's state is captured AT abort entry (pre-transition). On the
-    # second call `active` is False, so platform.abort is never reached.
+    # Train #70: the forensics line is written only by the call that can
+    # actually tear the capture down, with the state captured AT abort entry
+    # (pre-transition). A follow-on _abort_recording against the already
+    # ABORTED session is a no-op (active False, platform.abort not reached)
+    # and adds NO second record — same misattribution class as a
+    # post-COMPLETE preview fault.
     server = _load_collect_server()
     collector = _stubbed_flow_collector(
         server, tmp_path, capture_cls=_SidecarFlowCapture,
@@ -9295,13 +9314,53 @@ def test_abort_forensics_lines_are_per_call_and_snapshot_pre_transition_state(
                 session_dir / "abort_forensics.jsonl"
             ).read_text().splitlines()
         ]
-        assert [row["reason"] for row in rows] == ["fault one", "fault two"]
-        assert [row["kind"] for row in rows] == ["abort", "abort"]
-        assert [row["state"] for row in rows] == ["RECORDING", "ABORTED"]
-        assert [row["boundary_closed"] for row in rows] == [False, False]
+        assert [row["reason"] for row in rows] == ["fault one"]
+        assert [row["kind"] for row in rows] == ["abort"]
+        assert [row["state"] for row in rows] == ["RECORDING"]
+        assert [row["boundary_closed"] for row in rows] == [False]
         # platform.abort observed exactly once across both calls.
         assert abort_calls == ["fault one"]
     finally:
+        collector.shutdown()
+
+
+def test_finalizing_window_fault_still_records_forensics_without_abort(
+    tmp_path,
+):
+    # Train #70 review: FINALIZING is still the CURRENT session (not yet
+    # sealed), and production finalize can run for tens of seconds — a fault
+    # landing in that window must keep its forensic record (this jsonl exists
+    # to explain killed sessions) while the teardown still stands down:
+    # platform.abort must never cancel a committed End.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    abort_calls = []
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        original_abort = collector.platform.abort
+        collector.platform.abort = lambda reason: (
+            abort_calls.append(reason) or original_abort(reason)
+        )
+        collector.platform.state = server.CollectionState.FINALIZING
+        collector.platform._end_requested = True
+        assert collector._abort_recording("ingress died mid-finalize") is False
+        assert abort_calls == []
+        rows = [
+            json.loads(line)
+            for line in (
+                session_dir / "abort_forensics.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "abort"
+        assert rows[0]["reason"] == "ingress died mid-finalize"
+        assert rows[0]["state"] == "FINALIZING"
+        assert rows[0]["boundary_closed"] is False
+    finally:
+        collector.platform.state = server.CollectionState.RECORDING
         collector.shutdown()
 
 
@@ -9408,14 +9467,15 @@ def test_finalization_tolerates_forensics_sidecars_in_session_dir(tmp_path):
         collector.shutdown()
 
 
-def test_post_complete_preview_fault_appends_forensics_into_sealed_session(
+def test_post_complete_preview_fault_leaves_sealed_session_untouched(
     tmp_path,
 ):
-    # As written: session_dir is bound once at Start and never reset, so a
-    # preview fault AFTER a sealed COMPLETE appends an abort record (state
-    # 'COMPLETE') into the previous session's directory, returns False via
-    # `return active`, and never reaches platform.abort — while still pausing
-    # ingress and closing the (preview) interval.
+    # Train #70: session_dir still points at the previous (sealed) session
+    # after COMPLETE, so a later preview fault must NOT append an abort
+    # record there — the write is gated on an abortable capture (active) or
+    # an explicit boundary_closed caller. The preview teardown side effects
+    # (pause ingress, close the preview interval, return False without
+    # platform.abort) are unchanged.
     server = _load_collect_server()
     collector = _stubbed_flow_collector(
         server, tmp_path, capture_cls=_SidecarFlowCapture,
@@ -9437,16 +9497,7 @@ def test_post_complete_preview_fault_appends_forensics_into_sealed_session(
         assert abort_calls == []
         assert collector._capture_ingress_paused is True
         assert stub.close_calls == close_calls_before + 1
-        rows = [
-            json.loads(line)
-            for line in (
-                session_dir / "abort_forensics.jsonl"
-            ).read_text().splitlines()
-        ]
-        assert len(rows) == 1
-        assert rows[0]["kind"] == "abort"
-        assert rows[0]["reason"] == "preview camera stale"
-        assert rows[0]["state"] == "COMPLETE"
+        assert not (session_dir / "abort_forensics.jsonl").exists()
     finally:
         collector.shutdown()
 
@@ -9521,8 +9572,8 @@ def test_recorded_evidence_spike_record_fields_and_zero_mask_canary(
     tmp_path, monkeypatch,
 ):
     # Record shape: exactly the 7 payload keys plus the writer's two stamps.
-    # Canary (as written, line 5251): a mask build measuring exactly 0.0ms is
-    # conflated with "never measured" by `or -1.0` and recorded as -1.0.
+    # Train #70: -1.0 is reserved for "never measured" (is None); mask AND
+    # factory builds measuring exactly 0.0ms are recorded truthfully as 0.0.
     server = _load_collect_server()
     collector = server.Collector(
         [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
@@ -9534,8 +9585,8 @@ def test_recorded_evidence_spike_record_fields_and_zero_mask_canary(
     session = tmp_path / "spike_session"
     session.mkdir()
     collector.platform.session_dir = session
-    # mask build frozen at 0.10 -> _last_mask_build_ms == 0.0 exactly.
-    script = [0.0801, 0.09, 0.10, 0.10, 0.12, 0.13, 0.1426]
+    # mask build frozen at 0.10 AND factory frozen at 0.12 -> both 0.0 exactly.
+    script = [0.0801, 0.09, 0.10, 0.10, 0.12, 0.12, 0.1426]
     real_monotonic = time.monotonic
     try:
         monkeypatch.setattr(
@@ -9561,8 +9612,8 @@ def test_recorded_evidence_spike_record_fields_and_zero_mask_canary(
         assert row["age_at_bracket_ms"] == 80.1
         assert row["bracket_ms"] == round((0.09 - 0.0801) * 1000.0, 1)
         assert row["bundle_ms"] == round((0.1426 - 0.09) * 1000.0, 1)
-        assert row["factory_ms"] == round((0.13 - 0.12) * 1000.0, 1)
-        assert row["mask_ms"] == -1.0
+        assert row["factory_ms"] == 0.0
+        assert row["mask_ms"] == 0.0
     finally:
         server.time.monotonic = real_monotonic
         collector.platform.session_dir = None

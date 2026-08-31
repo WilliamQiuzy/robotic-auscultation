@@ -3176,15 +3176,25 @@ class Collector:
     _FORENSICS_ABORT_NAME = "abort_forensics.jsonl"
 
     @staticmethod
+    def _forensics_safe_str(value):
+        try:
+            return str(value)
+        except Exception:  # noqa: BLE001 - hostile __str__ must not break forensics
+            try:
+                return object.__repr__(value)
+            except Exception:  # noqa: BLE001
+                return "<unprintable>"
+
+    @staticmethod
     def _append_forensics_line(session_dir, name, payload):
         try:
             if not session_dir:
                 return False
-            record = {
-                "utc_ns": time.time_ns(),
-                "monotonic_t_s": time.monotonic(),
-            }
-            record.update(payload)
+            # Write-time stamps are set AFTER the payload merge so a payload
+            # carrying the same keys can never masquerade as the write time.
+            record = dict(payload)
+            record["utc_ns"] = time.time_ns()
+            record["monotonic_t_s"] = time.monotonic()
             with open(
                 Path(session_dir) / name, "a", encoding="utf-8",
             ) as handle:
@@ -3196,7 +3206,23 @@ class Collector:
             return False
 
     def _abort_forensics_payload(self, reason, *, kind, extra=None):
-        payload = {"kind": str(kind), "reason": str(reason)}
+        # extra merges FIRST so the forensic core (kind/reason and the five
+        # health labels) can never be shadowed by a caller-supplied dict.
+        # The safe-str helper is addressed through the class: this builder
+        # runs during teardown of arbitrarily broken hosts (and tests call it
+        # unbound on stubs), so it must not rely on attribute lookup via self.
+        safe_str = Collector._forensics_safe_str
+        payload = {}
+        try:
+            # A hostile mapping (dict subclass with raising iteration, or an
+            # object whose __class__ property raises inside isinstance) must
+            # degrade to a breadcrumb, never raise into abort handling.
+            if isinstance(extra, dict):
+                payload.update(extra)
+            elif extra is not None:
+                payload["invalid_extra"] = safe_str(extra)
+        except Exception:  # noqa: BLE001 - forensics must never break capture
+            payload["invalid_extra"] = "<extra merge failed>"
         for label, getter in (
             ("state", lambda: self.platform.state.value),
             ("runtime_health", self._runtime_health_snapshot),
@@ -3210,9 +3236,11 @@ class Collector:
             try:
                 payload[label] = getter()
             except Exception as exc:  # noqa: BLE001 - keep collecting
-                payload[label] = f"UNAVAILABLE: {type(exc).__name__}: {exc}"
-        if extra:
-            payload.update(extra)
+                payload[label] = (
+                    f"UNAVAILABLE: {type(exc).__name__}: {safe_str(exc)}"
+                )
+        payload["kind"] = safe_str(kind)
+        payload["reason"] = safe_str(reason)
         return payload
 
     def _fail_start_after_platform(self, reason, *, code):
@@ -4571,19 +4599,37 @@ class Collector:
         return result
 
     def _abort_recording(self, reason, *, boundary_closed=False):
-        self._append_forensics_line(
-            getattr(self.platform, "session_dir", None),
-            self._FORENSICS_ABORT_NAME,
-            self._abort_forensics_payload(
-                reason,
-                kind="abort",
-                extra={"boundary_closed": bool(boundary_closed)},
-            ),
-        )
+        # Forensic ATTRIBUTION (train #70): the record belongs in the session
+        # dir only while that session is still OPEN (RECORDING / FINALIZING /
+        # ERROR) or when the caller explicitly ties the fault to the live
+        # interval (boundary_closed). After a terminal COMPLETE/ABORTED the
+        # platform still points at the previous session's dir, so the old
+        # unconditional write appended abort records into finished sessions.
+        # FINALIZING stays attributable on purpose: faults during a long
+        # finalize killed sessions this jsonl exists to explain. The record
+        # still lands BEFORE any abort machinery below can fail.
+        if boundary_closed or self.platform.state in (
+            CollectionState.RECORDING,
+            CollectionState.FINALIZING,
+            CollectionState.ERROR,
+        ):
+            self._append_forensics_line(
+                getattr(self.platform, "session_dir", None),
+                self._FORENSICS_ABORT_NAME,
+                self._abort_forensics_payload(
+                    reason,
+                    kind="abort",
+                    extra={"boundary_closed": bool(boundary_closed)},
+                ),
+            )
         self._clear_back_confirmation("RUNTIME_FAULT")
         # Once End has closed and drained the camera interval, FINALIZING owns an
         # immutable disk snapshot. Later live camera/model faults must not race
-        # capture.finalize() or destroy a long completed acquisition.
+        # capture.finalize() or destroy a long completed acquisition. The
+        # teardown decision is computed HERE — after the forensics disk write —
+        # so a concurrent End that commits (RECORDING -> FINALIZING) during
+        # that write still stands the abort down instead of cancelling a
+        # completed End (train #70 review).
         active = self.platform.state is CollectionState.RECORDING or (
             self.platform.state is CollectionState.ERROR
             and not self.platform._end_requested
@@ -5233,8 +5279,10 @@ class Collector:
                 "bracket=%.0fms bundle=%.0fms (mask=%.0fms factory=%.0fms)" % (
                     int(frame.index), _frame_age_ms,
                     (_t1 - _t0) * 1000.0, (_t2 - _t1) * 1000.0,
-                    self._last_mask_build_ms or -1.0,
-                    self._last_bundle_factory_ms or -1.0,
+                    -1.0 if self._last_mask_build_ms is None
+                    else self._last_mask_build_ms,
+                    -1.0 if self._last_bundle_factory_ms is None
+                    else self._last_bundle_factory_ms,
                 ),
                 flush=True,
             )
@@ -5248,9 +5296,15 @@ class Collector:
                     "age_at_bracket_ms": round(_frame_age_ms, 1),
                     "bracket_ms": round((_t1 - _t0) * 1000.0, 1),
                     "bundle_ms": round((_t2 - _t1) * 1000.0, 1),
-                    "mask_ms": round(self._last_mask_build_ms or -1.0, 1),
-                    "factory_ms": round(
-                        self._last_bundle_factory_ms or -1.0, 1,
+                    # -1.0 is the never-measured sentinel; a genuine 0.0 ms
+                    # measurement is recorded as 0.0, not conflated with it.
+                    "mask_ms": (
+                        -1.0 if self._last_mask_build_ms is None
+                        else round(self._last_mask_build_ms, 1)
+                    ),
+                    "factory_ms": (
+                        -1.0 if self._last_bundle_factory_ms is None
+                        else round(self._last_bundle_factory_ms, 1)
                     ),
                 },
             )

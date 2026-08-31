@@ -366,6 +366,26 @@ class OperatorConfirmedBackGate:
             self._expire_stale_locked(now)
             decision = self._latest_decision
             age = self._observation_age_locked(now)
+            # After _expire_stale_locked, an ACTIVE confirmation with a stale
+            # observation age exists only because the stream-stall hold chose
+            # to keep it (any other stale-active combination was just cleared).
+            # A redundant operator click during that bounded hold cannot take a
+            # fresh confirmation anyway (no fresh observation exists), so it is
+            # refused WITHOUT destroying the held confirmation — destroying it
+            # here recreated the NO_BACK-for-the-whole-recording failure the
+            # hold was shipped to prevent.
+            if self._active and age > self.max_observation_age_s:
+                return {
+                    "ok": False,
+                    "code": "back_confirmation_held",
+                    "message": (
+                        "A confirmation is already held while the observation "
+                        "stream recovers; it remains in effect"
+                    ),
+                    # Same `now` as the guard: a fresh clock read here could
+                    # cross the 30s hold cap and contradict the message.
+                    "back_confirmation": self._snapshot_locked(now=now),
+                }
             if (
                 not isinstance(decision, dict)
                 or decision.get("person_present") is not True

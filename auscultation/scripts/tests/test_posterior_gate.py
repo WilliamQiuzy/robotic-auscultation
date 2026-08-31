@@ -510,10 +510,11 @@ def test_start_token_does_not_survive_an_observed_stall_hold():
         gate.finish_start_confirmation(token)
 
 
-def test_confirm_back_during_a_stall_hold_destroys_the_held_confirmation():
-    """A redundant operator click during the hold is refused AND clears the
-    held confirmation; the visible reason is immediately restated as
-    PERSON_OBSERVATION_STALE by the very next snapshot pass."""
+def test_confirm_back_during_a_stall_hold_preserves_the_held_confirmation():
+    """Train #70: a redundant operator click during the hold is refused
+    WITHOUT destroying the held confirmation — destroying it recreated the
+    NO_BACK-for-the-whole-recording failure the hold was shipped to fix.
+    After the stream recovers, the held confirmation resumes normally."""
     now = [64.0]
     one = select_single_person([_person()], image_shape=(1000, 1000))
     raw_gate = SimpleNamespace(assess=lambda frame: {
@@ -535,13 +536,36 @@ def test_confirm_back_during_a_stall_hold_destroys_the_held_confirmation():
     response = gate.confirm_back(preview_frame_index=2)
 
     assert response["ok"] is False
-    assert response["code"] == "back_not_confirmable"
+    assert response["code"] == "back_confirmation_held"
     embedded = response["back_confirmation"]
-    assert embedded["active"] is False
-    assert embedded["reason"] == "PERSON_OBSERVATION_STALE"
+    assert embedded["active"] is True
+    assert embedded["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
     follow_up = gate.confirmation_snapshot()
-    assert follow_up["active"] is False
-    assert follow_up["reason"] == "PERSON_OBSERVATION_STALE"
+    assert follow_up["active"] is True
+    assert follow_up["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+
+    # A second and third redundant click change nothing.
+    for _ in range(2):
+        again = gate.confirm_back(preview_frame_index=2)
+        assert again["ok"] is False
+        assert again["code"] == "back_confirmation_held"
+    assert gate.confirmation_snapshot()["active"] is True
+
+    # Stream recovery: the held confirmation resumes to fully confirmed.
+    now[0] = 70.5
+    recovered = gate.assess(_frame(3, 70.5))
+    assert recovered["reason"] == "OPERATOR_CONFIRMED_BACK"
+    resumed = gate.confirmation_snapshot()
+    assert resumed["confirmed"] is True
+    assert resumed["active"] is True
+
+    # The guard is scoped to the STALE hold only: a re-click while active
+    # AND fresh is live behavior (it rebinds the confirmed box to the
+    # current person position) and must still be accepted — this pins the
+    # `age > max_observation_age_s` clause against an active-only mutant.
+    fresh_reclick = gate.confirm_back(preview_frame_index=3)
+    assert fresh_reclick["ok"] is True
+    assert fresh_reclick.get("code") != "back_confirmation_held"
 
 
 def test_held_confirmation_survives_exactly_thirty_seconds_of_stall():

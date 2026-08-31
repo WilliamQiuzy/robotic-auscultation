@@ -973,6 +973,12 @@ aborted = None
 reconfirm_done = False
 FAULT_T = float(os.environ.get("SOAK_FAULT_T", "0") or 0)
 fault_armed = False
+# Train #70 validation: a redundant operator Confirm Back click mid-recording
+# must be refused WITHOUT destroying the held confirmation (previously it
+# recreated the whole-recording NO_BACK failure the stall-hold fixed).
+MID_CONFIRM_T = float(os.environ.get("SOAK_MID_CONFIRM_T", "0") or 0)
+mid_confirm_done = False
+mid_confirm_verdict = None
 while time.monotonic() - started < RECORD_SECONDS:
     time.sleep(5)
     state = api("/state")
@@ -989,6 +995,47 @@ while time.monotonic() - started < RECORD_SECONDS:
         fault_armed = True
         FAULT["inject_delay_s"] = float(os.environ.get("SOAK_FAULT_DELAY_S", "0.65"))
         print("[soak][FAULT] armed at t=%.1fs" % (time.monotonic() - started))
+    if (
+        MID_CONFIRM_T and not mid_confirm_done
+        and time.monotonic() - started >= MID_CONFIRM_T
+    ):
+        mid_confirm_done = True
+        before = api("/state").get("back_confirmation") or {}
+        print("[soak][MID-CONFIRM] gate before:", json.dumps(before)[:240])
+        try:
+            req = urllib.request.Request(
+                "http://127.0.0.1:%d/frame.jpg" % PORT,
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                response.read()
+                mc_index = response.headers.get("X-Preview-Frame-Index")
+                mc_token = response.headers.get("X-Preview-Frame-Token")
+            try:
+                res = api("/control", {
+                    "action": "confirm_back",
+                    "preview_frame_index": (
+                        int(mc_index) if mc_index is not None else -1
+                    ),
+                    "preview_frame_token": mc_token or "missing",
+                })
+            except urllib.error.HTTPError as exc:
+                res = {
+                    "http_error": exc.code,
+                    "body": exc.read().decode()[:200],
+                }
+            print("[soak][MID-CONFIRM] redundant confirm ->",
+                  json.dumps(res)[:240])
+        except Exception as exc:  # noqa: BLE001 - injection must not kill rig
+            print("[soak][MID-CONFIRM] attempt failed: %s" % exc)
+        after = api("/state").get("back_confirmation") or {}
+        print("[soak][MID-CONFIRM] gate after:", json.dumps(after)[:240])
+        if before.get("active") and not after.get("active"):
+            mid_confirm_verdict = "DESTROYED"
+            print("[soak][MID-CONFIRM] *** HELD CONFIRMATION DESTROYED ***")
+        else:
+            mid_confirm_verdict = "PRESERVED"
+            print("[soak][MID-CONFIRM] confirmation preserved (active=%s)"
+                  % after.get("active"))
     if state.get("state") == "ABORTED":
         aborted = state.get("error")
         break
