@@ -8707,3 +8707,57 @@ def test_displayable_points_show_partial_verified_and_amber_unverified():
     assert [p["name"] for p in unverified] == [names[8], names[9]]
     # duplicate-name display-only entry for a verified point was dropped
     assert all(p["name"] != "P0" for p in unverified)
+
+
+def test_forensics_append_writes_flushes_and_never_raises(tmp_path):
+    server = _load_collect_server()
+    ok = server.Collector._append_forensics_line(
+        tmp_path, "abort_forensics.jsonl", {"kind": "abort", "reason": "x"},
+    )
+    assert ok is True
+    ok = server.Collector._append_forensics_line(
+        tmp_path, "abort_forensics.jsonl",
+        {"kind": "abort", "reason": "y", "weird": object()},
+    )
+    assert ok is True                      # default=str serializes anything
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "abort_forensics.jsonl").read_text().splitlines()
+    ]
+    assert [row["reason"] for row in rows] == ["x", "y"]
+    assert all("utc_ns" in row and "monotonic_t_s" in row for row in rows)
+    # Never raises: missing dir, None dir
+    assert server.Collector._append_forensics_line(
+        tmp_path / "no" / "such" / "dir", "x.jsonl", {},
+    ) is False
+    assert server.Collector._append_forensics_line(None, "x.jsonl", {}) is False
+
+
+def test_abort_forensics_payload_survives_broken_collectors(tmp_path):
+    server = _load_collect_server()
+
+    class _Broken:
+        platform = server.SimpleNamespace(
+            state=server.CollectionState.RECORDING, session_dir=str(tmp_path),
+        )
+        _ingress_worker = None
+        _robot_coordinator = None
+
+        def _runtime_health_snapshot(self, **_kwargs):
+            raise RuntimeError("health exploded")
+
+        def _camera_delivery_health(self):
+            return {"status": "OK"}
+
+        def _receiver_health_brief(self):
+            return None
+
+    payload = server.Collector._abort_forensics_payload(
+        _Broken(), "some reason", kind="abort", extra={"boundary_closed": True},
+    )
+    assert payload["kind"] == "abort"
+    assert payload["reason"] == "some reason"
+    assert payload["boundary_closed"] is True
+    assert payload["camera_delivery"] == {"status": "OK"}
+    assert payload["runtime_health"].startswith("UNAVAILABLE: RuntimeError")
+    assert json.dumps(payload, default=str)   # always JSON-serializable

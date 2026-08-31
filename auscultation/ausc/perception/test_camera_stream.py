@@ -505,3 +505,39 @@ def test_recording_frame_divisor_keeps_interval_anchored_phase():
         assert int(health.get("interval_overflow_frames", -1)) == 0
     finally:
         stream.stop()
+
+
+def test_orbbec_log_redirect_is_defensive(tmp_path, monkeypatch, capsys):
+    """The redirect must try the static then instance API form and never
+    raise — a logging failure may not block camera open (train #69)."""
+    from types import SimpleNamespace
+    from ausc.perception.camera_stream import CameraStream
+
+    calls = []
+
+    class _Ctx:
+        @staticmethod
+        def set_logger_to_file(level, path):
+            calls.append((level, path))
+
+    ob = SimpleNamespace(
+        Context=_Ctx, OBLogLevel=SimpleNamespace(WARNING="warn"),
+    )
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "logs"))
+    CameraStream._redirect_orbbec_logging(ob)
+    assert calls == [("warn", str(tmp_path / "logs"))]
+    assert (tmp_path / "logs").is_dir()
+
+    class _InstanceOnlyCtx:
+        def set_logger_to_file(self, level, path):
+            calls.append(("instance", level, path))
+
+    ob2 = SimpleNamespace(
+        Context=_InstanceOnlyCtx, OBLogLevel=SimpleNamespace(WARNING="warn"),
+    )
+    CameraStream._redirect_orbbec_logging(ob2)
+    assert calls[-1] == ("instance", "warn", str(tmp_path / "logs"))
+
+    ob3 = SimpleNamespace(Context=object, OBLogLevel=None)
+    CameraStream._redirect_orbbec_logging(ob3)      # absent API: no raise
+    assert "redirect unavailable" in capsys.readouterr().out

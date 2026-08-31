@@ -3165,9 +3165,66 @@ class Collector:
         self._robot_error = None
         return summary
 
+    # Forensic persistence (2026-08-30, train #69): journald rotation ate the
+    # evidence for BOTH unexplained live failures of 2026-08-29 (the 20:12
+    # Start-arm health degradation and the 20:27 staleness spike logs), so
+    # anything needed to diagnose an abort or a latency spike is appended
+    # WITH the session it killed. Best-effort by contract: a forensics write
+    # must never raise into capture or abort handling, and the files are
+    # additive sidecars the finalizer does not enumerate.
+    _FORENSICS_SPIKES_NAME = "capture_timing_spikes.jsonl"
+    _FORENSICS_ABORT_NAME = "abort_forensics.jsonl"
+
+    @staticmethod
+    def _append_forensics_line(session_dir, name, payload):
+        try:
+            if not session_dir:
+                return False
+            record = {
+                "utc_ns": time.time_ns(),
+                "monotonic_t_s": time.monotonic(),
+            }
+            record.update(payload)
+            with open(
+                Path(session_dir) / name, "a", encoding="utf-8",
+            ) as handle:
+                handle.write(json.dumps(record, default=str) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
+            return True
+        except Exception:  # noqa: BLE001 - forensics must never break capture
+            return False
+
+    def _abort_forensics_payload(self, reason, *, kind, extra=None):
+        payload = {"kind": str(kind), "reason": str(reason)}
+        for label, getter in (
+            ("state", lambda: self.platform.state.value),
+            ("runtime_health", self._runtime_health_snapshot),
+            ("camera_delivery", self._camera_delivery_health),
+            ("ingress", lambda: (
+                self._ingress_worker.health()
+                if self._ingress_worker is not None else None
+            )),
+            ("robot_receiver", self._receiver_health_brief),
+        ):
+            try:
+                payload[label] = getter()
+            except Exception as exc:  # noqa: BLE001 - keep collecting
+                payload[label] = f"UNAVAILABLE: {type(exc).__name__}: {exc}"
+        if extra:
+            payload.update(extra)
+        return payload
+
     def _fail_start_after_platform(self, reason, *, code):
         """Abort every partially opened Start resource and clear authorization."""
 
+        self._append_forensics_line(
+            getattr(self.platform, "session_dir", None),
+            self._FORENSICS_ABORT_NAME,
+            self._abort_forensics_payload(
+                reason, kind="start_failure", extra={"code": str(code)},
+            ),
+        )
         self._capture_ingress_paused = True
         self._ingress_worker.close_interval()
         self._abort_camera_delivery()
@@ -4514,6 +4571,15 @@ class Collector:
         return result
 
     def _abort_recording(self, reason, *, boundary_closed=False):
+        self._append_forensics_line(
+            getattr(self.platform, "session_dir", None),
+            self._FORENSICS_ABORT_NAME,
+            self._abort_forensics_payload(
+                reason,
+                kind="abort",
+                extra={"boundary_closed": bool(boundary_closed)},
+            ),
+        )
         self._clear_back_confirmation("RUNTIME_FAULT")
         # Once End has closed and drained the camera interval, FINALIZING owns an
         # immutable disk snapshot. Later live camera/model faults must not race
@@ -5171,6 +5237,22 @@ class Collector:
                     self._last_bundle_factory_ms or -1.0,
                 ),
                 flush=True,
+            )
+        if _spike:
+            self._append_forensics_line(
+                getattr(self.platform, "session_dir", None),
+                self._FORENSICS_SPIKES_NAME,
+                {
+                    "kind": "recorded_evidence_spike",
+                    "frame_index": int(frame.index),
+                    "age_at_bracket_ms": round(_frame_age_ms, 1),
+                    "bracket_ms": round((_t1 - _t0) * 1000.0, 1),
+                    "bundle_ms": round((_t2 - _t1) * 1000.0, 1),
+                    "mask_ms": round(self._last_mask_build_ms or -1.0, 1),
+                    "factory_ms": round(
+                        self._last_bundle_factory_ms or -1.0, 1,
+                    ),
+                },
             )
         return evidence, dict(inputs.persisted_index)
 

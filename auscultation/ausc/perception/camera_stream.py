@@ -329,10 +329,42 @@ class CameraStream:
                 self._stop.set()
                 self._condition.notify_all()
 
+    @staticmethod
+    def _redirect_orbbec_logging(ob) -> None:
+        """Route the SDK's file logging OUT of the sealed release tree.
+
+        The Orbbec SDK writes Log/OrbbecSDK.log.txt into the process CWD —
+        which in production is the content-addressed code release — and any
+        extra file there fails the boot exact-set preflight into a restart
+        loop (2026-08-30 forensics). Redirection is best-effort across SDK
+        versions; on failure the guarded restart helper still pre-cleans.
+        """
+        import os as _os
+
+        try:
+            log_dir = _os.environ.get(
+                "WAM_ORBBEC_LOG_DIR", "/tmp/wam_orbbec_log",
+            )
+            _os.makedirs(log_dir, exist_ok=True)
+            level = getattr(
+                getattr(ob, "OBLogLevel", None), "WARNING", None,
+            )
+            if level is None or not hasattr(ob.Context, "set_logger_to_file"):
+                raise AttributeError("set_logger_to_file/OBLogLevel absent")
+            try:
+                # Static form (mirrors the C++ Context::setLoggerToFile).
+                ob.Context.set_logger_to_file(level, log_dir)
+            except TypeError:
+                # Older bindings expose it as an instance method.
+                ob.Context().set_logger_to_file(level, log_dir)
+        except Exception as exc:  # noqa: BLE001 - logging must never block open
+            print(f"[camera] Orbbec log redirect unavailable: {exc}", flush=True)
+
     def _start_orbbec(self) -> None:
         import pyorbbecsdk as ob
 
         self._ob = ob
+        self._redirect_orbbec_logging(ob)
         if self.camera_id:
             context = ob.Context()
             devices = context.query_devices()

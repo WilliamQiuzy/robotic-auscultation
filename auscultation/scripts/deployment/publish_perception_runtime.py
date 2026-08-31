@@ -187,7 +187,7 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = (
 REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/audio/audio_stream.py": "7471a502e0a32adf0c2505e9fb08b89a8029beb240d1f6090e0a4e3b039dd4c3",
     "auscultation/ausc/models/iuv_model.py": "2bd72dc0a33e06e29c88e64480ad20b5586e361a8d7d6958e66fd08aea127cbf",
-    "auscultation/ausc/perception/camera_stream.py": "063eed1449a29aff2fe56d24c958e9d4dac811d8206b3f719b32a25ff7c6d5ee",
+    "auscultation/ausc/perception/camera_stream.py": "bc68a50ffa190224254a33347bbf51411fc20d7c2be193ba0f8705f75b1deced",
     "auscultation/ausc/perception/depth_codec.py": "7ff7ff8b2746a5913cf14e3ba89b908c3068ede9a5572c9427358c39fd820ead",
     "auscultation/ausc/perception/production_runtime_activation.py": "f6dcc7206cf711eebac1ab478fd01b3f2e8bbfa7b7c41a030bfa542112df3c30",
     "auscultation/ausc/perception/robot/camera_exposure_evidence.py": "ba07a9c3c90d7799ffc327adcd29b3228a842e73c12ceb94554e3de36fd27b34",
@@ -220,7 +220,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "de2f00dac4dc134e3844ab73d9514b2fca556867ef639eea6b11e9a9f2ede57e",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
-    "auscultation/scripts/collect_server.py": "0fd2ba72222c7fc59fc67b9dff31745559ec7f0695e44162523160ee76550916",
+    "auscultation/scripts/collect_server.py": "70dbc5b79e9172a56ba6731d86bccd4c41105510d7d91d6bbc0a4f04324e2206",
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",
