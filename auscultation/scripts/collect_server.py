@@ -3270,7 +3270,16 @@ class Collector:
         self._force_recording_active = False
         self._abort_robot_session(reason)
         self.platform.abort(str(reason))
-        self._clear_back_confirmation("START_FAILED")
+        # Train #71: a Start failure only forces re-confirmation when the
+        # gate itself no longer holds an ACTIVE confirmation. The Start
+        # transition stalls the person-gate ingest stream, so a slow file
+        # init routinely trips the stall-hold right here — clearing then
+        # destroyed a held confirmation the gate deliberately preserved
+        # (same destroy-on-rejection class as trains #70's confirm_back).
+        # Genuine invalidations (person changed, cleared) leave active=False
+        # and still clear below.
+        if self._back_confirmation_snapshot().get("active") is not True:
+            self._clear_back_confirmation("START_FAILED")
         self._occlusion_episode_id = "preview-" + os.urandom(16).hex()
         self._recording_boundary = None
         self._pending_delivery_frame = None
@@ -3889,6 +3898,28 @@ class Collector:
                 try:
                     start_back_token, back_confirmation = begin()
                 except BackConfirmationError as exc:
+                    # Train #71: a Start click while the confirmation is
+                    # ACTIVE but not CURRENT (awaiting its matching frame, or
+                    # held through a stream stall) is refused WITHOUT
+                    # destroying it — the same destroy-on-rejection friction
+                    # confirm_back lost in train #70. Only a confirmation the
+                    # gate itself no longer holds is cleared.
+                    held_snapshot = self._back_confirmation_snapshot()
+                    if held_snapshot.get("active") is True:
+                        return {
+                            "ok": False,
+                            "code": "back_confirmation_not_current",
+                            # Handler-authored: the gate exception text says
+                            # "not active", which inverts the truth here (the
+                            # confirmation IS held) and would contradict the
+                            # snapshot the page renders next to this toast.
+                            "message": (
+                                "Back confirmation is held while the person "
+                                "feed catches up; press Start again shortly"
+                            ),
+                            "state": self.platform.state.value,
+                            "back_confirmation": held_snapshot,
+                        }
                     self._clear_back_confirmation("START_FAILED")
                     return {
                         "ok": False,

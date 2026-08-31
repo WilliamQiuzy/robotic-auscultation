@@ -151,8 +151,23 @@ class LatestFrameWorker:
     def latest(self):
         with self._condition:
             result = self._latest
-        # Results contain only JSON-like values; a shallow copy protects top-level metadata.
-        return dict(result)
+        # Results contain only JSON-like values. Top-level lists and their
+        # element dicts are cloned per call (microseconds), so the historic
+        # hazard class — one consumer appending to / clearing a shared
+        # points list while another iterates it — cannot occur (train #71).
+        # SCOPE: this is a one-level clone, not a deep copy. Values nested
+        # deeper (a point's pixel/xyz lists, top-level dicts such as
+        # stage_timings_ms) still alias the stored result: treat the return
+        # value as read-only below the first level, or deepcopy before
+        # mutating (both current consumers already do).
+        copied = dict(result)
+        for key, value in copied.items():
+            if isinstance(value, list):
+                copied[key] = [
+                    dict(item) if isinstance(item, dict) else item
+                    for item in value
+                ]
+        return copied
 
     def health(self):
         with self._condition:
@@ -174,7 +189,11 @@ class LatestFrameWorker:
                 "pending": self._pending is not None,
                 "last_result_age_s": age,
                 "last_inference_ms": self._last_inference_ms,
-                "last_stage_timings_ms": self._last_stage_timings,
+                # Copied: handing out the stored dict by reference let a
+                # health consumer's mutation corrupt every later report.
+                "last_stage_timings_ms": dict(self._last_stage_timings)
+                if isinstance(self._last_stage_timings, dict)
+                else self._last_stage_timings,
             }
 
     def drain(self, timeout=2.0):

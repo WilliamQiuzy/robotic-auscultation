@@ -2258,6 +2258,142 @@ def test_start_without_active_back_confirmation_creates_nothing(tmp_path):
         collector.shutdown()
 
 
+@pytest.mark.parametrize(
+    "held_reason", (
+        "CONFIRMATION_HELD_STREAM_STALLED",   # stall-hold (train #67)
+        "BACK_CONFIRMATION_PENDING_FRAME",    # confirm-then-instant-Start
+    ),
+)
+def test_start_with_active_not_current_confirmation_is_refused_not_destroyed(
+    tmp_path, held_reason,
+):
+    # Train #71: the destroy window is a TOCTOU race — the Start preflight
+    # sees a CONFIRMED snapshot, then the gate transitions (stream stall, or
+    # the post-click pending-frame wait) before begin_start_confirmation,
+    # which refuses because the confirmation is no longer CURRENT. The gate
+    # still HOLDS an active confirmation, so the handler must not clear it
+    # (the old START_FAILED clear recreated the destroy-on-rejection
+    # friction confirm_back lost in train #70). Start stays refused; the
+    # confirmation survives for the retry.
+    server = _load_collect_server()
+    cleared = []
+
+    class RacingBackGate:
+        # Flips to the active-not-current shape at the exact moment begin()
+        # refuses — modelling a stall/transition landing mid-Start.
+        transitioned = False
+
+        @classmethod
+        def confirmation_snapshot(cls):
+            if cls.transitioned:
+                return {
+                    "required": True, "mode": "operator", "active": True,
+                    "confirmed": False, "confirmable": False,
+                    "reason": held_reason,
+                }
+            return {
+                "required": True, "mode": "operator", "active": True,
+                "confirmed": True, "confirmable": True,
+                "reason": "OPERATOR_CONFIRMED_BACK",
+            }
+
+        @classmethod
+        def begin_start_confirmation(cls):
+            cls.transitioned = True
+            raise server.BackConfirmationError(
+                "Back confirmation is not active"
+            )
+
+        @staticmethod
+        def clear_confirmation(reason="BACK_CONFIRMATION_REQUIRED"):
+            cleared.append(str(reason))
+            return {}
+
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    collector._back_gate = RacingBackGate()
+    try:
+        collector._camera_status = "OK"
+        collector._model_status = "RUNNING"
+        collector._runtime_health_snapshot = (
+            lambda **_k: {"strict_ok": True, "blockers": []})
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "back_confirmation_not_current"
+        assert result["back_confirmation"]["active"] is True
+        assert result["back_confirmation"]["reason"] == held_reason
+        assert cleared == []
+        assert collector.platform.session_dir is None
+        assert collector._ingress_worker.health()["interval_active"] is False
+        assert list(tmp_path.iterdir()) == []
+    finally:
+        collector.shutdown()
+
+
+def test_commit_stage_hold_failure_preserves_the_held_confirmation(tmp_path):
+    # Train #71 (review follow-up): the LONGER destroy window is
+    # begin -> commit — platform file init stalls the person-gate ingest
+    # stream, the hold lands, commit_start_confirmation refuses ("changed
+    # during Start"), and _fail_start_after_platform used to clear the held
+    # confirmation unconditionally. With the gate still reporting an ACTIVE
+    # confirmation, the Start failure must not destroy it.
+    server = _load_collect_server()
+    cleared = []
+
+    class CommitRacingGate:
+        transitioned = False
+
+        @classmethod
+        def confirmation_snapshot(cls):
+            if cls.transitioned:
+                return {
+                    "required": True, "mode": "operator", "active": True,
+                    "confirmed": False, "confirmable": False,
+                    "reason": "CONFIRMATION_HELD_STREAM_STALLED",
+                }
+            return {
+                "required": True, "mode": "operator", "active": True,
+                "confirmed": True, "confirmable": True,
+                "reason": "OPERATOR_CONFIRMED_BACK",
+            }
+
+        @staticmethod
+        def begin_start_confirmation():
+            return ("token", CommitRacingGate.confirmation_snapshot())
+
+        @classmethod
+        def commit_start_confirmation(cls, token, *, prepare, arm):
+            cls.transitioned = True
+            raise server.BackConfirmationError(
+                "Back confirmation changed during Start"
+            )
+
+        @staticmethod
+        def clear_confirmation(reason="BACK_CONFIRMATION_REQUIRED"):
+            cleared.append(str(reason))
+            return {}
+
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    collector._back_gate = CommitRacingGate()
+    try:
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "back_confirmation_lost_during_start"
+        assert cleared == []
+        assert (
+            collector._back_confirmation_snapshot()["reason"]
+            == "CONFIRMATION_HELD_STREAM_STALLED"
+        )
+        # The partially opened Start was still torn down.
+        assert collector.platform.state.value == "ABORTED"
+    finally:
+        collector.shutdown()
+
+
 def test_page_separates_back_confirmation_from_point_confirmation():
     server = _load_collect_server()
     page = server.PAGE.decode("utf-8")
@@ -2352,12 +2488,18 @@ def test_start_revalidates_the_same_confirmation_before_recording_is_armed(tmp_p
         assert collector.platform.state.value == "ABORTED"
         assert collector._capture_ingress_paused is True
         assert collector._ingress_worker.health()["interval_active"] is False
-        assert BackGate.cleared
+        # Train #71: the gate still reports an ACTIVE confirmation, so the
+        # Start failure must not destroy it (the gate is the authority on
+        # confirmation validity; the old unconditional START_FAILED clear
+        # recreated the destroy-on-rejection friction).
+        assert BackGate.cleared == []
     finally:
         collector.shutdown()
 
 
-def test_failed_start_aborts_audio_and_clears_back_confirmation(tmp_path):
+def test_failed_start_aborts_audio_and_preserves_active_back_confirmation(
+    tmp_path,
+):
     server = _load_collect_server()
 
     class BackGate:
@@ -2436,7 +2578,10 @@ def test_failed_start_aborts_audio_and_clears_back_confirmation(tmp_path):
         assert audio.aborted is True
         assert collector._audio_recording_active is False
         assert collector.platform.state.value == "ABORTED"
-        assert BackGate.cleared
+        # Train #71: an audio-persist failure does not invalidate the
+        # patient-back confirmation the gate still actively holds; the next
+        # Start revalidates it through preflight/begin/commit anyway.
+        assert BackGate.cleared == []
     finally:
         collector.shutdown()
 

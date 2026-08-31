@@ -88,6 +88,38 @@ def test_stop_before_start_reports_success():
     assert worker.is_alive() is False
 
 
+def test_latest_isolates_top_level_point_lists_between_callers():
+    # Train #71: latest() clones top-level lists and their element dicts per
+    # call, so the historic hazard — one consumer appending to / clearing a
+    # shared points list another consumer iterates — cannot occur. SCOPE:
+    # one level only; values nested deeper (a point's pixel/xyz lists,
+    # top-level dicts) intentionally still alias — consumers treat results
+    # as read-only below the first level or deepcopy before mutating.
+    worker = LatestFrameWorker(
+        lambda frame: {
+            "frame_index": frame.index,
+            "points": [{"name": "R1", "x": 1.0}],
+            "display_only_points": [{"name": "L1", "display_only": True}],
+        },
+        name="isolation-worker",
+    ).start()
+    try:
+        worker.submit(SimpleNamespace(index=1, t=1.0))
+        _wait_until(lambda: (worker.latest() or {}).get("frame_index") == 1)
+        first = worker.latest()
+        first["points"].append({"name": "forged"})
+        first["points"][0]["x"] = -99.0
+        first["display_only_points"].clear()
+        second = worker.latest()
+        assert [p["name"] for p in second["points"]] == ["R1"]
+        assert second["points"][0]["x"] == 1.0
+        assert [p["name"] for p in second["display_only_points"]] == ["L1"]
+        assert second["points"] is not first["points"]
+        assert second["points"][0] is not first["points"][0]
+    finally:
+        worker.stop()
+
+
 def test_asset_hash_mismatch_fails_before_model_load(tmp_path):
     asset = tmp_path / "best.pt"
     asset.write_bytes(b"checkpoint")
