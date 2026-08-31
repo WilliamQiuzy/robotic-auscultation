@@ -1238,3 +1238,238 @@ def test_production_not_ready_occlusion_frame_carries_display_only_annex():
     assert isinstance(annex, list) and len(annex) == 1
     assert annex[0]["name"] == "R1"
     assert annex[0]["display_only"] is True
+
+
+def test_production_display_annex_merges_detector_pixels_and_dedupes_by_name():
+    """The annex merges the tracker's own detector-pixels display channel:
+    the points channel wins the name dedupe (R1 exactly once) and the
+    detector-only entry keeps its original reason."""
+    bundle = _production_bundle()
+    landmark_frame = SimpleNamespace(
+        **vars(_landmark_runtime_frame()),
+        point_order=("R1", "R2"),
+        detector_pixels=((2.0, 1.0), (5.0, 6.0)),
+    )
+    unsafe_runtime = _OcclusionRuntime(
+        _safe_frame(source="last_valid_bounded_freeze", robot_occluded=True)
+    )
+    processor, _tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=unsafe_runtime, landmark_frame=landmark_frame,
+    )
+
+    result = processor(bundle)
+
+    assert result["reason"] == "UNSAFE_OCCLUDED_POINT_SOURCE"
+    assert result["points"] == []
+    assert result["display_only_points"] == [
+        {
+            "name": "R1",
+            "pixel": [2.0, 1.0],
+            "display_only": True,
+            "reason": "UNPUBLISHED_TRACKER_POINT",
+        },
+        {
+            "name": "R2",
+            "pixel": [5.0, 6.0],
+            "display_only": True,
+            "reason": "UNVERIFIED_DETECTOR_ONLY",
+        },
+    ]
+
+
+def test_production_annex_serialization_failure_never_masks_the_unsafe_failure():
+    """A landmark point without a name explodes only inside the annex
+    serializer; the production failure record must survive untouched and the
+    safety reset must already have run."""
+    bundle = _production_bundle()
+    nameless = SimpleNamespace(
+        frame_index=12,
+        back_present=True,
+        initialized=True,
+        detector_confidence=0.91,
+        reason="TRACKING",
+        points=(SimpleNamespace(          # valid finite pixel, NO name
+            pixel=(2.0, 1.0),
+            xyz_camera=(0.01, 0.02, 0.9),
+            status="TRACKING",
+            measured=False,
+            position_std=0.002,
+            robot_occluded=True,
+        ),),
+    )
+    unsafe_runtime = _OcclusionRuntime(
+        _safe_frame(source="last_valid_bounded_freeze", robot_occluded=True)
+    )
+    processor, tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=unsafe_runtime, landmark_frame=nameless,
+    )
+
+    result = processor(bundle)
+
+    assert result["reason"] == "UNSAFE_OCCLUDED_POINT_SOURCE"
+    assert result["points"] == []
+    assert "display_only_points" not in result
+    # The safety reset runs BEFORE the annex is attempted.
+    assert tracker.reset_calls == ["UNSAFE_OCCLUDED_POINT_SOURCE"]
+
+
+@pytest.mark.parametrize("exit_branch", ("unsafe_source", "not_ready"))
+def test_production_zero_point_landmark_frame_omits_the_display_annex_key(
+    exit_branch,
+):
+    """Both annex-wired exits guard with 'if annex:': a zero-point landmark
+    frame yields NO display_only_points key at all, not an empty list."""
+    from dataclasses import replace as dc_replace
+
+    bundle = _production_bundle()
+    empty = SimpleNamespace(
+        frame_index=12,
+        back_present=True,
+        initialized=True,
+        detector_confidence=0.91,
+        reason="TRACKING",
+        points=(),
+    )
+    if exit_branch == "unsafe_source":
+        runtime = _OcclusionRuntime(
+            _safe_frame(source="last_valid_bounded_freeze", robot_occluded=True)
+        )
+        expected_reason = "UNSAFE_OCCLUDED_POINT_SOURCE"
+    else:
+        runtime = _OcclusionRuntime(dc_replace(
+            _safe_frame(), reason="INCOMPLETE_OCCLUSION_SAFE_CONSTELLATION",
+        ))
+        expected_reason = "INCOMPLETE_OCCLUSION_SAFE_CONSTELLATION"
+    processor, _tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=runtime, landmark_frame=empty,
+    )
+
+    result = processor(bundle)
+
+    assert result["reason"] == expected_reason
+    assert result["points"] == []
+    assert "display_only_points" not in result
+
+
+def test_production_display_annex_is_isolated_from_caller_mutation():
+    """In-place mutation of one returned failure record must not corrupt the
+    annex or points of the next processor call."""
+    bundle = _production_bundle()
+    unsafe_runtime = _OcclusionRuntime(
+        _safe_frame(source="last_valid_bounded_freeze", robot_occluded=True)
+    )
+    processor, _tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=unsafe_runtime,
+    )
+
+    first = processor(bundle)
+    first["display_only_points"][0]["pixel"][0] = 999.0
+    first["display_only_points"].clear()
+    first["points"].append({"name": "forged"})
+    second = processor(bundle)
+
+    assert second["points"] == []
+    assert second["display_only_points"] == [{
+        "name": "R1",
+        "pixel": [2.0, 1.0],
+        "display_only": True,
+        "reason": "UNPUBLISHED_TRACKER_POINT",
+    }]
+
+
+def test_production_display_annex_filters_malformed_points_keeping_good_ones():
+    """Malformed pixels (NaN, None) are skipped per point before any attribute
+    access can raise, so the good landmark still reaches the annex."""
+    bundle = _production_bundle()
+
+    def _annex_point(name, pixel):
+        return SimpleNamespace(
+            name=name,
+            pixel=pixel,
+            status="TRACKING",
+            measured=False,
+            position_std=0.002,
+        )
+
+    landmark_frame = SimpleNamespace(
+        frame_index=12,
+        back_present=True,
+        initialized=True,
+        detector_confidence=0.91,
+        reason="TRACKING",
+        points=(
+            _annex_point("R1", (2.0, 1.0)),
+            _annex_point("R2", (float("nan"), 3.0)),
+            _annex_point("R3", None),
+        ),
+    )
+    unsafe_runtime = _OcclusionRuntime(
+        _safe_frame(source="last_valid_bounded_freeze", robot_occluded=True)
+    )
+    processor, _tracker, _back, _pose, _runtime = _production_processor(
+        bundle, runtime=unsafe_runtime, landmark_frame=landmark_frame,
+    )
+
+    result = processor(bundle)
+
+    assert result["reason"] == "UNSAFE_OCCLUDED_POINT_SOURCE"
+    assert result["points"] == []
+    assert result["display_only_points"] == [{
+        "name": "R1",
+        "pixel": [2.0, 1.0],
+        "display_only": True,
+        "reason": "UNPUBLISHED_TRACKER_POINT",
+    }]
+
+
+def test_production_none_landmark_frame_yields_runtime_error_without_annex_key():
+    """runtime_frame_fn returning None must not escape: the frame-index check
+    falls back to the camera index, the observation carries zero points, and
+    the runtime failure record has no display annex key."""
+    bundle = _production_bundle()
+
+    class _RecordingExplodingRuntime(_OcclusionRuntime):
+        def advance(self, observation, *, robot_mask_packet, patient_pose_packet):
+            self.calls.append((observation, robot_mask_packet, patient_pose_packet))
+            raise ValueError("occlusion advance exploded")
+
+    class Tracker:
+        def __init__(self):
+            self.calls = []
+            self.reset_calls = []
+
+        def process(self, *args, **kwargs):
+            self.calls.append((args, kwargs))
+            return SimpleNamespace(raw=True)
+
+        def reset(self, reason="NO_BACK"):
+            self.reset_calls.append(reason)
+
+    runtime = _RecordingExplodingRuntime(_safe_frame())
+    patient_provider = _PatientPoseProvider(SimpleNamespace(
+        frame_index=bundle.index,
+        camera_host_t_s=bundle.t,
+        valid=True,
+        reason="TRACKING",
+        episode_id="patient-session-1/pose-epoch-test",
+    ))
+    processor = TrackerProcessor(
+        Tracker(),
+        lambda _raw: None,               # landmark adapter yields nothing
+        presence_gate=_default_presence_gate(),
+        require_robot_mask=True,
+        back_mask_provider=_BackMaskProvider(_back_packet(bundle)),
+        patient_pose_provider=patient_provider,
+        occlusion_runtime=runtime,
+        episode_id="patient-session-1",
+    )
+
+    result = processor(bundle)
+
+    assert result["reason"] == "OCCLUSION_RUNTIME_ERROR"
+    assert result["points"] == []
+    assert result["error"] == "occlusion advance exploded"
+    assert "display_only_points" not in result
+    observation = runtime.calls[0][0]
+    assert observation.frame_index == bundle.index
+    assert observation.points == ()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import threading
 import time
@@ -541,3 +542,295 @@ def test_orbbec_log_redirect_is_defensive(tmp_path, monkeypatch, capsys):
     ob3 = SimpleNamespace(Context=object, OBLogLevel=None)
     CameraStream._redirect_orbbec_logging(ob3)      # absent API: no raise
     assert "redirect unavailable" in capsys.readouterr().out
+
+
+def test_orbbec_log_redirect_precedes_sdk_object_construction(tmp_path, monkeypatch):
+    """The CWD-log redirect must run before ANY SDK object is constructed —
+    a Context or Pipeline built first has already opened Log/OrbbecSDK.log.txt
+    inside the sealed release tree (2026-08-30 forensics, train #69)."""
+    from ausc.perception.camera_stream import CameraStream
+
+    events = []
+
+    class Profile:
+        def __init__(self, width, height, fps, pixel_format):
+            self.values = width, height, fps
+            self.pixel_format = pixel_format
+
+        def get_width(self): return self.values[0]
+        def get_height(self): return self.values[1]
+        def get_fps(self): return self.values[2]
+        def get_format(self): return self.pixel_format
+        def as_video_stream_profile(self): return self
+        def get_intrinsic(self):
+            return SimpleNamespace(fx=601.0, fy=602.0, cx=319.5, cy=239.5)
+        def get_distortion(self):
+            return _distortion()
+
+    color_profile = Profile(640, 480, 30, "rgb")
+    depth_profile = Profile(320, 240, 30, "y16")
+
+    class Profiles:
+        def __init__(self, sensor): self.sensor = sensor
+
+        def get_video_stream_profile(self, width, height, pixel_format, fps):
+            return depth_profile if self.sensor == "depth" else color_profile
+
+        def get_default_video_stream_profile(self):
+            return depth_profile if self.sensor == "depth" else color_profile
+
+    class Device:
+        def get_device_info(self):
+            return SimpleNamespace(get_serial_number=lambda: "FEMTO-001")
+
+    device = Device()
+
+    class DeviceList:
+        def get_device_by_serial_number(self, serial):
+            return device
+
+    class Context:
+        def __init__(self):
+            events.append(("context",))
+
+        def query_devices(self):
+            return DeviceList()
+
+        @staticmethod
+        def set_logger_to_file(level, path):
+            events.append(("logger", level, path))
+
+    class Pipeline:
+        def __init__(self, selected_device=None):
+            events.append(("pipeline",))
+
+        def get_stream_profile_list(self, sensor): return Profiles(sensor)
+        def start(self, config): pass
+        def stop(self): pass
+
+    class Config:
+        def enable_stream(self, profile): pass
+        def set_frame_aggregate_output_mode(self, mode): pass
+
+    fake_sdk = SimpleNamespace(
+        Context=Context, Pipeline=Pipeline, Config=Config,
+        OBSensorType=SimpleNamespace(COLOR_SENSOR="color", DEPTH_SENSOR="depth"),
+        OBFormat=SimpleNamespace(RGB="rgb", Y16="y16"),
+        OBStreamType=SimpleNamespace(COLOR_STREAM="color"),
+        OBFrameAggregateOutputMode=SimpleNamespace(FULL_FRAME_REQUIRE="full"),
+        OBLogLevel=SimpleNamespace(WARNING="warn"),
+        AlignFilter=lambda align_to_stream: object(),
+    )
+    monkeypatch.setitem(sys.modules, "pyorbbecsdk", fake_sdk)
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "obl"))
+
+    stream = CameraStream(
+        backend="orbbec", camera_id="FEMTO-001", width=640, height=480, fps=30,
+        color_format="RGB",
+        depth_mode={"width": 320, "height": 240, "fps": 30.0, "format": "Y16"},
+    )
+    stream._start_orbbec()
+
+    assert events[0] == ("logger", "warn", str(tmp_path / "obl"))
+    assert [event for event in events if event[0] == "logger"] == [events[0]]
+    assert ("context",) in events
+    assert ("pipeline",) in events
+    assert stream.device_identity == "FEMTO-001"
+
+
+def test_orbbec_log_redirect_swallows_failures_from_both_api_forms(
+    tmp_path, monkeypatch, capsys,
+):
+    """Static arity TypeError -> instance fallback; when the fallback call
+    itself fails (RuntimeError, or even another TypeError raised inside the
+    except-TypeError handler), the failure is printed, never raised, and the
+    instance form is invoked exactly once — no retry loop."""
+    from ausc.perception.camera_stream import CameraStream
+
+    invocations = []
+
+    class _RejectingCtx:
+        def set_logger_to_file(self, level, path):
+            invocations.append((level, path))
+            raise RuntimeError("logger rejected")
+
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "logs"))
+    ob = SimpleNamespace(
+        Context=_RejectingCtx, OBLogLevel=SimpleNamespace(WARNING="warn"),
+    )
+    CameraStream._redirect_orbbec_logging(ob)
+    out = capsys.readouterr().out
+    assert "[camera] Orbbec log redirect unavailable: logger rejected" in out
+    assert invocations == [("warn", str(tmp_path / "logs"))]
+
+    class _TypeErrorCtx:
+        def set_logger_to_file(self, level, path):
+            invocations.append((level, path))
+            raise TypeError("still rejected")
+
+    ob2 = SimpleNamespace(
+        Context=_TypeErrorCtx, OBLogLevel=SimpleNamespace(WARNING="warn"),
+    )
+    CameraStream._redirect_orbbec_logging(ob2)
+    out = capsys.readouterr().out
+    assert "[camera] Orbbec log redirect unavailable: still rejected" in out
+    assert len(invocations) == 2    # each form tried once, never retried
+
+
+def test_orbbec_log_redirect_survives_fallback_context_construction_failure(
+    tmp_path, monkeypatch, capsys,
+):
+    """If the fallback ob.Context() itself cannot be built, the redirect is
+    dropped without ever reaching set_logger_to_file — and never raises."""
+    from ausc.perception.camera_stream import CameraStream
+
+    invocations = []
+
+    class _UnconstructibleCtx:
+        def __init__(self):
+            raise RuntimeError("second context unavailable")
+
+        def set_logger_to_file(self, level, path):
+            invocations.append((level, path))
+
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "logs"))
+    ob = SimpleNamespace(
+        Context=_UnconstructibleCtx, OBLogLevel=SimpleNamespace(WARNING="warn"),
+    )
+    CameraStream._redirect_orbbec_logging(ob)
+    out = capsys.readouterr().out
+    assert "[camera] Orbbec log redirect unavailable: second context unavailable" in out
+    assert invocations == []
+
+
+def test_orbbec_log_redirect_does_not_retry_instance_form_on_non_typeerror(
+    tmp_path, monkeypatch, capsys,
+):
+    """Only a TypeError from the static form triggers the instance fallback.
+    A real SDK error (e.g. OBError) from the static call must jump straight to
+    the outer handler without constructing a second Context."""
+    from ausc.perception.camera_stream import CameraStream
+
+    constructed = []
+
+    class _BusyCtx:
+        def __init__(self):
+            constructed.append(True)
+
+        @staticmethod
+        def set_logger_to_file(level, path):
+            raise RuntimeError("OBError: log path busy")
+
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "logs"))
+    ob = SimpleNamespace(Context=_BusyCtx, OBLogLevel=SimpleNamespace(WARNING="warn"))
+    CameraStream._redirect_orbbec_logging(ob)
+    out = capsys.readouterr().out
+    assert "[camera] Orbbec log redirect unavailable: OBError: log path busy" in out
+    assert constructed == []
+
+
+def test_orbbec_log_redirect_survives_unmakeable_log_dir(tmp_path, monkeypatch, capsys):
+    """makedirs raising (target parent is a regular file) is swallowed before
+    the SDK is ever touched — set_logger_to_file must never be reached."""
+    from ausc.perception.camera_stream import CameraStream
+
+    invocations = []
+
+    class _Ctx:
+        @staticmethod
+        def set_logger_to_file(level, path):
+            invocations.append((level, path))
+
+    blocker = tmp_path / "blocker"
+    blocker.write_text("regular file, not a directory")
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(blocker / "logs"))
+    ob = SimpleNamespace(Context=_Ctx, OBLogLevel=SimpleNamespace(WARNING="warn"))
+    CameraStream._redirect_orbbec_logging(ob)
+    assert "[camera] Orbbec log redirect unavailable:" in capsys.readouterr().out
+    assert invocations == []
+
+
+def test_orbbec_log_redirect_treats_empty_env_dir_as_given_not_unset(
+    monkeypatch, capsys,
+):
+    """WAM_ORBBEC_LOG_DIR='' is used verbatim (the get default only fires on a
+    missing key), so makedirs('') fails and the redirect is silently dropped —
+    it does NOT fall back to /tmp/wam_orbbec_log."""
+    from ausc.perception.camera_stream import CameraStream
+
+    invocations = []
+
+    class _Ctx:
+        @staticmethod
+        def set_logger_to_file(level, path):
+            invocations.append((level, path))
+
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", "")
+    ob = SimpleNamespace(Context=_Ctx, OBLogLevel=SimpleNamespace(WARNING="warn"))
+    CameraStream._redirect_orbbec_logging(ob)
+    assert "[camera] Orbbec log redirect unavailable:" in capsys.readouterr().out
+    assert invocations == []
+
+
+def test_orbbec_log_redirect_requires_the_warning_level_member(
+    tmp_path, monkeypatch, capsys,
+):
+    """An SDK build whose OBLogLevel enum lacks WARNING fails the level lookup
+    (inner getattr default), yet the log directory has already been created —
+    makedirs runs before level/API resolution."""
+    from ausc.perception.camera_stream import CameraStream
+
+    invocations = []
+
+    class _Ctx:
+        @staticmethod
+        def set_logger_to_file(level, path):
+            invocations.append((level, path))
+
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "lvl"))
+    ob = SimpleNamespace(Context=_Ctx, OBLogLevel=SimpleNamespace(ERROR="err"))
+    CameraStream._redirect_orbbec_logging(ob)
+    out = capsys.readouterr().out
+    assert "redirect unavailable: set_logger_to_file/OBLogLevel absent" in out
+    assert invocations == []
+    assert (tmp_path / "lvl").is_dir()
+
+
+def test_orbbec_log_redirect_requires_set_logger_to_file_even_with_valid_level(
+    tmp_path, monkeypatch, capsys,
+):
+    """A valid WARNING level with a Context lacking set_logger_to_file takes
+    the hasattr half of the guard — same 'absent' message, no raise."""
+    from ausc.perception.camera_stream import CameraStream
+
+    monkeypatch.setenv("WAM_ORBBEC_LOG_DIR", str(tmp_path / "logs"))
+    ob = SimpleNamespace(Context=object, OBLogLevel=SimpleNamespace(WARNING="warn"))
+    CameraStream._redirect_orbbec_logging(ob)
+    out = capsys.readouterr().out
+    assert "redirect unavailable: set_logger_to_file/OBLogLevel absent" in out
+
+
+def test_orbbec_log_redirect_defaults_to_tmp_wam_orbbec_log_when_env_unset(
+    monkeypatch,
+):
+    """With no env override the redirect targets exactly /tmp/wam_orbbec_log
+    (makedirs intercepted so the real /tmp is never touched — the function's
+    'import os as _os' binds the same module object)."""
+    from ausc.perception.camera_stream import CameraStream
+
+    made = []
+    invocations = []
+
+    class _Ctx:
+        @staticmethod
+        def set_logger_to_file(level, path):
+            invocations.append((level, path))
+
+    monkeypatch.delenv("WAM_ORBBEC_LOG_DIR", raising=False)
+    monkeypatch.setattr(
+        os, "makedirs", lambda path, exist_ok=False: made.append((path, exist_ok)),
+    )
+    ob = SimpleNamespace(Context=_Ctx, OBLogLevel=SimpleNamespace(WARNING="warn"))
+    CameraStream._redirect_orbbec_logging(ob)
+    assert made == [("/tmp/wam_orbbec_log", True)]
+    assert invocations == [("warn", "/tmp/wam_orbbec_log")]

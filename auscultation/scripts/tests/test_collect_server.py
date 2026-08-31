@@ -6,6 +6,7 @@ import hashlib
 import io
 import json
 import math
+import os
 import re
 import sys
 import threading
@@ -8761,3 +8762,839 @@ def test_abort_forensics_payload_survives_broken_collectors(tmp_path):
     assert payload["camera_delivery"] == {"status": "OK"}
     assert payload["runtime_health"].startswith("UNAVAILABLE: RuntimeError")
     assert json.dumps(payload, default=str)   # always JSON-serializable
+
+
+# --- Forensic sidecar edge coverage (train #69 abort/spike persistence) ------
+
+
+def _stubbed_flow_collector(server, tmp_path, capture_cls=None):
+    """Fake Collector wired for a successful control('start') (pattern at
+    test_end_persists_capture_model_boundaries_before_finalization)."""
+
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    if capture_cls is not None:
+        collector.platform.capture_factory = lambda _path: capture_cls()
+        collector.platform._writer_types = {
+            "DiagnosticPerceptionCapture": capture_cls,
+        }
+        collector.platform.completion_validator = None
+    collector._ingress_worker.stop()
+    collector._ingress_worker = _IngressStub()
+    collector._camera_status = "OK"
+    collector._model_status = "RUNNING"
+    collector._runtime_health_snapshot = (
+        lambda **_k: {"strict_ok": True, "blockers": []})
+    return collector
+
+
+class _SidecarFlowCapture:
+    """Minimal writer stub whose finalize seals a representative artifacts
+    dict (the two forensics sidecars must never collide with artifact names)."""
+
+    seal_artifacts = {
+        "rgb.mp4": {},
+        "depth.zlib": {},
+        "manifest.json": {},
+        "DIAGNOSTIC_FINALIZATION.json": {},
+    }
+
+    def request_cancel(self):
+        pass
+
+    def start(self):
+        pass
+
+    def record_event(self, _payload):
+        pass
+
+    def write_frame(self, _frame, _tracking):
+        pass
+
+    def set_recording_boundary(self, _payload):
+        pass
+
+    def set_finalization_context(self, _payload):
+        pass
+
+    def finalize(self):
+        return {
+            "status": "diagnostic_complete",
+            "training_eligible": False,
+            "artifacts": dict(self.seal_artifacts),
+        }
+
+    def abort(self, _reason):
+        pass
+
+
+def _attach_recorded_evidence_stubs(server, collector):
+    """Minimal same-frame robot evidence chain so _build_recorded_robot_evidence
+    runs on a fake Collector (shape from
+    test_robot_upper_bracket_backpressures_the_same_camera_frame...)."""
+
+    class Robot:
+        @staticmethod
+        def build_frame_evidence_inputs(
+            *, frame_index, camera_host_t_s, camera_device_t_ms,
+        ):
+            exposure = server.SimpleNamespace(
+                frame_index=frame_index,
+                camera_host_t_s=camera_host_t_s,
+                camera_device_t_ms=camera_device_t_ms,
+                camera_id="CL8326300A0",
+                camera_profile_sha256="a" * 64,
+                alignment_sha256="b" * 64,
+                camera_latency_sha256="c" * 64,
+            )
+            return server.SimpleNamespace(
+                camera_exposure=exposure,
+                robot_trajectory=object(),
+                persisted_index={
+                    "exact_action_tick_first": frame_index * 10,
+                    "exact_action_tick_last": frame_index * 10 + 2,
+                },
+            )
+
+    class MaskProvider:
+        @staticmethod
+        def build(*, exposure, trajectory, aligned_depth=None, depth_scale=1.0):
+            del trajectory, aligned_depth, depth_scale
+            return server.SimpleNamespace(frame_index=exposure.frame_index)
+
+    def build_bundle(**kwargs):
+        frame = kwargs["camera_frame"]
+        return server.SimpleNamespace(
+            index=frame.index,
+            camera_frame=frame,
+            robot_mask_packet=kwargs["robot_mask_packet"],
+        )
+
+    collector._robot_coordinator = Robot()
+    collector._robot_mask_provider = MaskProvider()
+    collector._frame_evidence_bundle_factory = build_bundle
+
+
+def _evidence_frame(server, index, t):
+    return server.SimpleNamespace(
+        index=index, t=t, device_t_ms=1000.0 + index * 33.0,
+        depth=None, depth_scale=1.0,
+    )
+
+
+def _scripted_monotonic(values):
+    """Deterministic clock: pops scripted values, then keeps ticking so late
+    callers (the forensics writer's own stamp) stay monotonic."""
+
+    remaining = list(values)
+    last = [float(values[0])]
+
+    def fake_monotonic():
+        if remaining:
+            last[0] = remaining.pop(0)
+        else:
+            last[0] += 0.001
+        return last[0]
+
+    return fake_monotonic
+
+
+def test_abort_forensics_payload_raises_when_exception_str_is_broken(tmp_path):
+    # Pin as written: the line 3172 never-raise contract is violated when a
+    # getter's exception has a broken __str__ — {exc} inside the except
+    # handler re-raises OUT of the builder, and both call sites run the
+    # builder outside any try/except.
+    server = _load_collect_server()
+
+    class BadStr(Exception):
+        def __str__(self):
+            raise RuntimeError("boom-str")
+
+    class _Broken:
+        platform = server.SimpleNamespace(
+            state=server.CollectionState.RECORDING, session_dir=str(tmp_path),
+        )
+        _ingress_worker = None
+
+        def _runtime_health_snapshot(self, **_kwargs):
+            raise BadStr()
+
+        def _camera_delivery_health(self):
+            return {"status": "OK"}
+
+        def _receiver_health_brief(self):
+            return None
+
+    with pytest.raises(RuntimeError, match="boom-str"):
+        server.Collector._abort_forensics_payload(_Broken(), "r", kind="abort")
+
+
+def test_abort_forensics_payload_collects_all_five_unavailable_labels():
+    # Forensic-of-last-resort: EVERY getter fails during a wedged teardown,
+    # including the untested not-None ingress-worker branch.
+    server = _load_collect_server()
+
+    class _TornIngress:
+        @staticmethod
+        def health():
+            raise OSError("fifo torn down")
+
+    class _Wrecked:
+        # no platform attribute at all -> state getter raises AttributeError
+        _ingress_worker = _TornIngress()
+
+        def _runtime_health_snapshot(self, **_kwargs):
+            raise RuntimeError("health exploded")
+
+        def _camera_delivery_health(self):
+            raise ValueError("camera gone")
+
+        def _receiver_health_brief(self):
+            raise KeyError("robot")
+
+    payload = server.Collector._abort_forensics_payload(
+        _Wrecked(), "wedged teardown", kind="abort",
+    )
+    assert payload["kind"] == "abort"
+    assert payload["reason"] == "wedged teardown"
+    assert payload["state"].startswith("UNAVAILABLE: AttributeError")
+    assert payload["runtime_health"] == "UNAVAILABLE: RuntimeError: health exploded"
+    assert payload["camera_delivery"] == "UNAVAILABLE: ValueError: camera gone"
+    assert payload["ingress"] == "UNAVAILABLE: OSError: fifo torn down"
+    # A raising KeyError formats with its repr-quoted message.
+    assert payload["robot_receiver"] == "UNAVAILABLE: KeyError: 'robot'"
+    assert json.dumps(payload, default=str)
+
+
+def test_abort_forensics_payload_extra_semantics_as_written(tmp_path):
+    server = _load_collect_server()
+
+    class _Host:
+        platform = server.SimpleNamespace(
+            state=server.CollectionState.RECORDING, session_dir=str(tmp_path),
+        )
+        _ingress_worker = None
+
+        def _runtime_health_snapshot(self, **_kwargs):
+            return {"strict_ok": True}
+
+        def _camera_delivery_health(self):
+            return {"status": "OK"}
+
+        def _receiver_health_brief(self):
+            return None
+
+    build = server.Collector._abort_forensics_payload
+    # P1 pin: extra runs LAST, so colliding keys silently overwrite the
+    # collected state snapshot and the caller's kind/reason arguments.
+    payload = build(
+        _Host(), "real reason", kind="abort",
+        extra={"kind": "spoofed", "reason": "spoofed", "state": "spoofed"},
+    )
+    assert payload["kind"] == "spoofed"
+    assert payload["reason"] == "spoofed"
+    assert payload["state"] == "spoofed"
+    # extra=None and extra={} skip the update entirely: 7 standard keys only.
+    for extra in (None, {}):
+        payload = build(_Host(), "r", kind="abort", extra=extra)
+        assert set(payload) == {
+            "kind", "reason", "state", "runtime_health", "camera_delivery",
+            "ingress", "robot_receiver",
+        }
+    # P1 pin: a truthy non-dict extra escapes the builder — the second
+    # unprotected raise path in the same never-raise-contract family.
+    with pytest.raises(TypeError, match="'int' object is not iterable"):
+        build(_Host(), "r", kind="abort", extra=5)
+
+
+def test_non_serializable_getter_value_flows_through_writer_as_default_str(tmp_path):
+    server = _load_collect_server()
+
+    class _Host:
+        platform = server.SimpleNamespace(
+            state=server.CollectionState.RECORDING, session_dir=str(tmp_path),
+        )
+        _ingress_worker = None
+
+        def _runtime_health_snapshot(self, **_kwargs):
+            return {"strict_ok": True}
+
+        def _camera_delivery_health(self):
+            return object()
+
+        def _receiver_health_brief(self):
+            return None
+
+    payload = server.Collector._abort_forensics_payload(
+        _Host(), "r", kind="abort",
+    )
+    # No type validation at collection time: the object is stored verbatim.
+    assert type(payload["camera_delivery"]) is object
+    assert server.Collector._append_forensics_line(
+        tmp_path, "abort_forensics.jsonl", payload,
+    ) is True
+    row = json.loads(
+        (tmp_path / "abort_forensics.jsonl").read_text().splitlines()[0]
+    )
+    assert row["camera_delivery"].startswith("<object object at")
+
+
+def test_forensics_serialization_failure_never_corrupts_the_jsonl(tmp_path):
+    # default=str does NOT apply to dict keys, so a tuple-keyed payload makes
+    # json.dumps raise AFTER open(); the dump runs before handle.write, so no
+    # partial/torn line may reach the file.
+    server = _load_collect_server()
+    append = server.Collector._append_forensics_line
+    assert append(
+        tmp_path, "abort_forensics.jsonl", {"kind": "abort", "reason": "first"},
+    ) is True
+    assert append(
+        tmp_path, "abort_forensics.jsonl", {("tuple", "key"): "v"},
+    ) is False
+    lines = (tmp_path / "abort_forensics.jsonl").read_text().splitlines()
+    assert len(lines) == 1
+    assert json.loads(lines[0])["reason"] == "first"
+    assert append(
+        tmp_path, "abort_forensics.jsonl", {"kind": "abort", "reason": "second"},
+    ) is True
+    lines = (tmp_path / "abort_forensics.jsonl").read_text().splitlines()
+    assert [json.loads(line)["reason"] for line in lines] == ["first", "second"]
+
+
+def test_forensics_non_dict_payload_fails_before_creating_the_file(tmp_path):
+    # record.update(payload) runs BEFORE open(): pre-open failures create
+    # nothing, while a post-open serialization failure leaves a 0-byte file.
+    server = _load_collect_server()
+    append = server.Collector._append_forensics_line
+    assert append(tmp_path, "never.jsonl", None) is False
+    assert append(tmp_path, "never.jsonl", "ab") is False
+    assert not (tmp_path / "never.jsonl").exists()
+    assert append(tmp_path, "torn.jsonl", {("tuple", "key"): "v"}) is False
+    assert (tmp_path / "torn.jsonl").exists()
+    assert (tmp_path / "torn.jsonl").read_bytes() == b""
+
+
+def test_forensics_payload_can_shadow_writer_timestamps(tmp_path):
+    # P1 pin: record.update(payload) lets payload values override the
+    # time.time_ns()/time.monotonic() stamps taken at write time.
+    server = _load_collect_server()
+    assert server.Collector._append_forensics_line(
+        tmp_path, "x.jsonl",
+        {"utc_ns": "SPOOF", "monotonic_t_s": -1.0, "kind": "k"},
+    ) is True
+    row = json.loads((tmp_path / "x.jsonl").read_text().splitlines()[0])
+    assert row["utc_ns"] == "SPOOF"
+    assert row["monotonic_t_s"] == -1.0
+
+
+def test_forensics_numpy_scalars_survive_with_documented_coercions(tmp_path):
+    # Spike-payload-shaped values: np.float64 IS a float subclass (JSON
+    # number), np.int64/np.bool_ are NOT int/bool subclasses (default=str
+    # stringifies them).
+    server = _load_collect_server()
+    assert server.Collector._append_forensics_line(
+        tmp_path, "s.jsonl",
+        {
+            "kind": "spike",
+            "frame_index": np.int64(7),
+            "age_ms": np.float64(83.2),
+            "flag": np.bool_(True),
+        },
+    ) is True
+    row = json.loads((tmp_path / "s.jsonl").read_text().splitlines()[0])
+    assert row["age_ms"] == 83.2
+    assert row["frame_index"] == "7"
+    assert row["flag"] == "True"
+
+
+def test_forensics_session_dir_edge_forms(tmp_path, monkeypatch):
+    server = _load_collect_server()
+    append = server.Collector._append_forensics_line
+    # str session_dir works (collection_platform serializes session_dir as str).
+    assert append(str(tmp_path), "x.jsonl", {"kind": "k"}) is True
+    row = json.loads((tmp_path / "x.jsonl").read_text().splitlines()[0])
+    assert row["kind"] == "k"
+    # Empty-string session_dir: the guard fires and — critically — no stray
+    # cwd-relative file appears (Path('')/'name' would resolve into the cwd).
+    monkeypatch.chdir(tmp_path)
+    before = sorted(entry.name for entry in tmp_path.iterdir())
+    assert append("", "stray.jsonl", {"kind": "k"}) is False
+    assert sorted(entry.name for entry in tmp_path.iterdir()) == before
+    # session_dir pointing at an existing regular FILE: caught, unchanged.
+    notadir = tmp_path / "notadir"
+    notadir.write_text("keep me\n")
+    assert append(notadir, "x.jsonl", {"kind": "k"}) is False
+    assert notadir.read_text() == "keep me\n"
+
+
+def test_forensics_append_returns_false_on_unwritable_session_dir(tmp_path):
+    if os.geteuid() == 0:
+        pytest.skip("permission bits do not bind for root")
+    server = _load_collect_server()
+    sealed = tmp_path / "sealed"
+    sealed.mkdir()
+    os.chmod(sealed, 0o500)
+    try:
+        assert server.Collector._append_forensics_line(
+            sealed, "abort_forensics.jsonl", {"kind": "abort"},
+        ) is False
+    finally:
+        os.chmod(sealed, 0o700)
+    assert list(sealed.iterdir()) == []
+
+
+def test_abort_forensics_persist_before_abort_machinery_can_fail(tmp_path):
+    # The entry write at 4574 runs (and fsyncs) BEFORE close_interval /
+    # _abort_camera_delivery, so a wedged teardown cannot eat the evidence.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+
+    def _raise_delivery():
+        raise RuntimeError("delivery teardown wedged")
+
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        collector._abort_camera_delivery = _raise_delivery
+        with pytest.raises(RuntimeError, match="delivery teardown wedged"):
+            collector._abort_recording("live fault", boundary_closed=True)
+        rows = [
+            json.loads(line)
+            for line in (
+                session_dir / "abort_forensics.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "abort"
+        assert rows[0]["reason"] == "live fault"
+        assert rows[0]["boundary_closed"] is True
+        assert "utc_ns" in rows[0] and "monotonic_t_s" in rows[0]
+    finally:
+        collector.__dict__.pop("_abort_camera_delivery", None)
+        collector.platform.abort("test cleanup")
+        collector.shutdown()
+
+
+def test_fail_start_without_session_dir_never_raises_or_writes_forensics(tmp_path):
+    # Start failures before/without a session directory must silently no-op
+    # the forensics write; the full cleanup still runs raise-free.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(server, tmp_path)
+    real_platform = collector.platform
+    try:
+        assert collector.platform.session_dir is None
+        result = collector._fail_start_after_platform(
+            "audio dead", code="audio_dead",
+        )
+        assert result == {
+            "ok": False, "code": "audio_dead",
+            "message": "audio dead", "state": "READY",
+        }
+        assert list(tmp_path.rglob("abort_forensics.jsonl")) == []
+        assert collector._capture_ingress_paused is True
+        assert collector._audio_recording_active is False
+        assert collector._force_recording_active is False
+
+        # Platform stub lacking a session_dir attribute entirely (the
+        # getattr default path); abort must be invoked and never raise.
+        aborts = []
+        collector.platform = server.SimpleNamespace(
+            state=server.SimpleNamespace(value="READY"),
+            abort=lambda reason: (
+                aborts.append(reason)
+                or {"ok": False, "code": "invalid_state"}
+            ),
+        )
+        result = collector._fail_start_after_platform(
+            "audio dead", code="audio_dead",
+        )
+        assert result["ok"] is False
+        assert result["state"] == "READY"
+        assert aborts == ["audio dead"]
+        assert list(tmp_path.rglob("abort_forensics.jsonl")) == []
+    finally:
+        collector.platform = real_platform
+        collector.shutdown()
+
+
+def test_failed_start_writes_start_failure_forensics_record(tmp_path):
+    # Shape of test_failed_start_aborts_audio_and_clears_back_confirmation,
+    # but the new observable is the start_failure record on disk.
+    server = _load_collect_server()
+
+    class Capture:
+        def request_cancel(self):
+            pass
+
+        def start(self):
+            pass
+
+        def set_recording_boundary(self, _payload):
+            raise RuntimeError("cannot persist boundary")
+
+        def record_event(self, _payload):
+            pass
+
+        def abort(self, _reason):
+            pass
+
+    collector = _stubbed_flow_collector(server, tmp_path, capture_cls=Capture)
+    try:
+        result = collector.control("start")
+        assert result["ok"] is False
+        assert result["code"] == "capture_start_boundary_not_persisted"
+        session_dir = Path(collector.platform.session_dir)
+        rows = [
+            json.loads(line)
+            for line in (
+                session_dir / "abort_forensics.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "start_failure"
+        assert rows[0]["code"] == result["code"]
+        assert isinstance(rows[0]["code"], str) and rows[0]["code"]
+        assert rows[0]["reason"] == result["message"]
+        for section in (
+            "state", "runtime_health", "camera_delivery",
+            "ingress", "robot_receiver",
+        ):
+            assert section in rows[0]
+    finally:
+        collector.shutdown()
+
+
+def test_abort_forensics_lines_are_per_call_and_snapshot_pre_transition_state(
+    tmp_path,
+):
+    # One unconditional forensics line per _abort_recording call, and the
+    # payload's state is captured AT abort entry (pre-transition). On the
+    # second call `active` is False, so platform.abort is never reached.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    abort_calls = []
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        original_abort = collector.platform.abort
+        collector.platform.abort = lambda reason: (
+            abort_calls.append(reason) or original_abort(reason)
+        )
+        assert collector._abort_recording("fault one") is True
+        assert collector.platform.state.value == "ABORTED"
+        assert collector._abort_recording("fault two") is False
+        rows = [
+            json.loads(line)
+            for line in (
+                session_dir / "abort_forensics.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert [row["reason"] for row in rows] == ["fault one", "fault two"]
+        assert [row["kind"] for row in rows] == ["abort", "abort"]
+        assert [row["state"] for row in rows] == ["RECORDING", "ABORTED"]
+        assert [row["boundary_closed"] for row in rows] == [False, False]
+        # platform.abort observed exactly once across both calls.
+        assert abort_calls == ["fault one"]
+    finally:
+        collector.shutdown()
+
+
+def test_suppressed_end_drain_abort_still_records_forensics(tmp_path):
+    # The end-drain gate suppresses the abort (return False, boundary kept),
+    # but the forensics append and the RUNTIME_FAULT clear both run first.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    cleared = []
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        original_clear = collector._clear_back_confirmation
+        collector._clear_back_confirmation = lambda reason: (
+            cleared.append(reason) or original_clear(reason)
+        )
+        stub = collector._ingress_worker
+        close_calls_before = stub.close_calls
+        assert collector._capture_ingress_paused is False
+        collector._end_boundary_closing = True
+        assert collector._abort_recording("late model fault") is False
+        assert collector.platform.state.value == "RECORDING"
+        assert stub.close_calls == close_calls_before
+        assert collector._capture_ingress_paused is False
+        rows = [
+            json.loads(line)
+            for line in (
+                session_dir / "abort_forensics.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "abort"
+        assert rows[0]["reason"] == "late model fault"
+        assert rows[0]["boundary_closed"] is False
+        assert cleared == ["RUNTIME_FAULT"]
+    finally:
+        collector._end_boundary_closing = False
+        collector.__dict__.pop("_clear_back_confirmation", None)
+        collector.platform.abort("test cleanup")
+        collector.shutdown()
+
+
+def test_clean_complete_flow_writes_no_forensics_sidecars(tmp_path):
+    # Forensics never fires on healthy paths: full start -> end -> COMPLETE
+    # with a sub-threshold recorded-evidence call in between.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    _attach_recorded_evidence_stubs(server, collector)
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        evidence, persisted = collector._build_recorded_robot_evidence(
+            _evidence_frame(server, 21, time.monotonic()),
+        )
+        assert evidence.index == 21
+        assert persisted == {
+            "exact_action_tick_first": 210, "exact_action_tick_last": 212,
+        }
+        assert collector.control("end")["ok"] is True
+        terminal = collector.platform.wait_for_terminal(timeout=2.0)
+        assert terminal["state"] == "COMPLETE", terminal.get("error")
+        assert not (session_dir / "abort_forensics.jsonl").exists()
+        assert not (session_dir / "capture_timing_spikes.jsonl").exists()
+    finally:
+        collector.shutdown()
+
+
+def test_finalization_tolerates_forensics_sidecars_in_session_dir(tmp_path):
+    # Additive-sidecar contract: both forensics files present during End must
+    # survive finalization byte-for-byte, and their names must not collide
+    # with sealed artifact names.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    abort_line = '{"kind": "abort", "reason": "seeded"}\n'
+    spike_line = '{"kind": "recorded_evidence_spike", "frame_index": 7}\n'
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        (session_dir / "abort_forensics.jsonl").write_text(abort_line)
+        (session_dir / "capture_timing_spikes.jsonl").write_text(spike_line)
+        assert collector.control("end")["ok"] is True
+        terminal = collector.platform.wait_for_terminal(timeout=2.0)
+        assert terminal["state"] == "COMPLETE", terminal.get("error")
+        assert (session_dir / "abort_forensics.jsonl").read_text() == abort_line
+        assert (
+            session_dir / "capture_timing_spikes.jsonl"
+        ).read_text() == spike_line
+        assert server.Collector._FORENSICS_ABORT_NAME == "abort_forensics.jsonl"
+        assert server.Collector._FORENSICS_SPIKES_NAME == (
+            "capture_timing_spikes.jsonl"
+        )
+        for name in (
+            server.Collector._FORENSICS_ABORT_NAME,
+            server.Collector._FORENSICS_SPIKES_NAME,
+        ):
+            assert name not in _SidecarFlowCapture.seal_artifacts
+    finally:
+        collector.shutdown()
+
+
+def test_post_complete_preview_fault_appends_forensics_into_sealed_session(
+    tmp_path,
+):
+    # As written: session_dir is bound once at Start and never reset, so a
+    # preview fault AFTER a sealed COMPLETE appends an abort record (state
+    # 'COMPLETE') into the previous session's directory, returns False via
+    # `return active`, and never reaches platform.abort — while still pausing
+    # ingress and closing the (preview) interval.
+    server = _load_collect_server()
+    collector = _stubbed_flow_collector(
+        server, tmp_path, capture_cls=_SidecarFlowCapture,
+    )
+    abort_calls = []
+    try:
+        assert collector.control("start")["ok"] is True
+        session_dir = Path(collector.platform.session_dir)
+        assert collector.control("end")["ok"] is True
+        terminal = collector.platform.wait_for_terminal(timeout=2.0)
+        assert terminal["state"] == "COMPLETE", terminal.get("error")
+        stub = collector._ingress_worker
+        close_calls_before = stub.close_calls
+        original_abort = collector.platform.abort
+        collector.platform.abort = lambda reason: (
+            abort_calls.append(reason) or original_abort(reason)
+        )
+        assert collector._abort_recording("preview camera stale") is False
+        assert abort_calls == []
+        assert collector._capture_ingress_paused is True
+        assert stub.close_calls == close_calls_before + 1
+        rows = [
+            json.loads(line)
+            for line in (
+                session_dir / "abort_forensics.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(rows) == 1
+        assert rows[0]["kind"] == "abort"
+        assert rows[0]["reason"] == "preview camera stale"
+        assert rows[0]["state"] == "COMPLETE"
+    finally:
+        collector.shutdown()
+
+
+def test_recorded_evidence_spike_threshold_is_strictly_greater_on_total(
+    tmp_path, monkeypatch,
+):
+    # Line 5227: `_frame_age_ms > 80.0 or (_t2 - _t0) * 1000.0 > 80.0` —
+    # strict > on the frame age and on the TOTAL bracket+bundle time (never
+    # the individual parts).
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    collector._ingress_worker.stop()
+    collector._ingress_worker = _IngressStub()
+    _attach_recorded_evidence_stubs(server, collector)
+    real_monotonic = time.monotonic
+    try:
+        for name, frame_t, script, expect_spike in (
+            # age exactly 80.0ms AND total exactly 80.0ms: both strict
+            # comparisons fail (binary-clean bases: 0.08/0.16).
+            ("caseA", 0.0, [0.08, 0.09, 0.10, 0.11, 0.12, 0.13, 0.16], False),
+            # age 80.1ms with total 62.5ms: the age term alone trips.
+            ("caseB", 0.0,
+             [0.0801, 0.09, 0.10, 0.11, 0.12, 0.13, 0.1426], True),
+            # age 0, bracket 50ms + bundle 40ms: each printed part < 80 but
+            # the TOTAL (90ms) trips.
+            ("caseC", 1.0, [1.0, 1.05, 1.05, 1.06, 1.06, 1.08, 1.09], True),
+        ):
+            session = tmp_path / name
+            session.mkdir()
+            collector.platform.session_dir = session
+            collector._last_recorded_evidence_report_t = 0.0
+            monkeypatch.setattr(
+                server.time, "monotonic", _scripted_monotonic(script),
+            )
+            evidence, persisted = collector._build_recorded_robot_evidence(
+                _evidence_frame(server, 31, frame_t),
+            )
+            assert evidence.index == 31
+            assert persisted == {
+                "exact_action_tick_first": 310, "exact_action_tick_last": 312,
+            }
+            spike_path = session / "capture_timing_spikes.jsonl"
+            assert spike_path.exists() is expect_spike, name
+            if expect_spike:
+                rows = [
+                    json.loads(line)
+                    for line in spike_path.read_text().splitlines()
+                ]
+                assert len(rows) == 1
+                assert rows[0]["kind"] == "recorded_evidence_spike"
+        # Case C detail: the recorded parts are each under the threshold —
+        # the spike fired on their total.
+        row = json.loads(
+            (tmp_path / "caseC" / "capture_timing_spikes.jsonl")
+            .read_text().splitlines()[0]
+        )
+        assert row["bracket_ms"] == 50.0
+        assert row["bundle_ms"] == 40.0
+    finally:
+        # The scripted clock patched the shared stdlib module; put the real
+        # one back before shutdown joins worker threads.
+        server.time.monotonic = real_monotonic
+        collector.platform.session_dir = None
+        collector.shutdown()
+
+
+def test_recorded_evidence_spike_record_fields_and_zero_mask_canary(
+    tmp_path, monkeypatch,
+):
+    # Record shape: exactly the 7 payload keys plus the writer's two stamps.
+    # Canary (as written, line 5251): a mask build measuring exactly 0.0ms is
+    # conflated with "never measured" by `or -1.0` and recorded as -1.0.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    collector._ingress_worker.stop()
+    collector._ingress_worker = _IngressStub()
+    _attach_recorded_evidence_stubs(server, collector)
+    session = tmp_path / "spike_session"
+    session.mkdir()
+    collector.platform.session_dir = session
+    # mask build frozen at 0.10 -> _last_mask_build_ms == 0.0 exactly.
+    script = [0.0801, 0.09, 0.10, 0.10, 0.12, 0.13, 0.1426]
+    real_monotonic = time.monotonic
+    try:
+        monkeypatch.setattr(
+            server.time, "monotonic", _scripted_monotonic(script),
+        )
+        collector._build_recorded_robot_evidence(
+            _evidence_frame(server, 31, 0.0),
+        )
+        rows = [
+            json.loads(line)
+            for line in (
+                session / "capture_timing_spikes.jsonl"
+            ).read_text().splitlines()
+        ]
+        assert len(rows) == 1
+        row = rows[0]
+        assert set(row) == {
+            "kind", "frame_index", "age_at_bracket_ms", "bracket_ms",
+            "bundle_ms", "mask_ms", "factory_ms", "utc_ns", "monotonic_t_s",
+        }
+        assert row["kind"] == "recorded_evidence_spike"
+        assert row["frame_index"] == 31
+        assert row["age_at_bracket_ms"] == 80.1
+        assert row["bracket_ms"] == round((0.09 - 0.0801) * 1000.0, 1)
+        assert row["bundle_ms"] == round((0.1426 - 0.09) * 1000.0, 1)
+        assert row["factory_ms"] == round((0.13 - 0.12) * 1000.0, 1)
+        assert row["mask_ms"] == -1.0
+    finally:
+        server.time.monotonic = real_monotonic
+        collector.platform.session_dir = None
+        collector.shutdown()
+
+
+def test_spike_write_failure_never_breaks_the_evidence_path(tmp_path, capsys):
+    # platform.session_dir pointing at a regular FILE makes the spike append
+    # fail inside _append_forensics_line; the evidence hot path must still
+    # return normally and the SPIKE print must still occur.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True, out_dir=tmp_path, start_thread=False,
+    )
+    collector._ingress_worker.stop()
+    collector._ingress_worker = _IngressStub()
+    _attach_recorded_evidence_stubs(server, collector)
+    notadir = tmp_path / "notadir"
+    notadir.write_text("keep me\n")
+    collector.platform.session_dir = notadir
+    try:
+        evidence, persisted = collector._build_recorded_robot_evidence(
+            _evidence_frame(server, 5, time.monotonic() - 0.5),
+        )
+        assert evidence.index == 5
+        assert persisted == {
+            "exact_action_tick_first": 50, "exact_action_tick_last": 52,
+        }
+        assert "[record-evidence-SPIKE]" in capsys.readouterr().out
+        assert notadir.read_text() == "keep me\n"
+        assert list(tmp_path.rglob("capture_timing_spikes.jsonl")) == []
+    finally:
+        collector.platform.session_dir = None
+        collector.shutdown()

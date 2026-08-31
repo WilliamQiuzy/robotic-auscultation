@@ -477,3 +477,214 @@ def test_start_claim_cannot_survive_a_loss_and_reacquisition_race():
     gate.assess(_frame(4, 70.03))
     with pytest.raises(BackConfirmationError, match="changed during Start"):
         gate.finish_start_confirmation(token)
+
+
+def test_start_token_does_not_survive_an_observed_stall_hold():
+    """An OBSERVED stall-hold bumps the validity epoch; a Start token taken
+    before the stall must not finish after the stream recovers."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    confirmed = gate.assess(_frame(2, 64.25))
+    assert confirmed["reason"] == "OPERATOR_CONFIRMED_BACK"
+    token, _snapshot = gate.begin_start_confirmation()
+
+    now[0] = 66.0                        # stalled AND the hold is observed
+    held = gate.confirmation_snapshot()
+    assert held["active"] is True
+    assert held["confirmed"] is False
+    assert held["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+
+    recovered = gate.assess(_frame(3, 66.0))     # stream resumes, person back
+    assert recovered["posterior_present"] is True
+    assert recovered["reason"] == "OPERATOR_CONFIRMED_BACK"
+    with pytest.raises(BackConfirmationError, match="changed during Start"):
+        gate.finish_start_confirmation(token)
+
+
+def test_confirm_back_during_a_stall_hold_destroys_the_held_confirmation():
+    """A redundant operator click during the hold is refused AND clears the
+    held confirmation; the visible reason is immediately restated as
+    PERSON_OBSERVATION_STALE by the very next snapshot pass."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    gate.assess(_frame(2, 64.25))
+    assert gate.confirmation_snapshot()["confirmed"] is True
+
+    now[0] = 70.0                        # stalled: the confirmation is held
+    assert gate.confirmation_snapshot()["reason"] == (
+        "CONFIRMATION_HELD_STREAM_STALLED"
+    )
+    response = gate.confirm_back(preview_frame_index=2)
+
+    assert response["ok"] is False
+    assert response["code"] == "back_not_confirmable"
+    embedded = response["back_confirmation"]
+    assert embedded["active"] is False
+    assert embedded["reason"] == "PERSON_OBSERVATION_STALE"
+    follow_up = gate.confirmation_snapshot()
+    assert follow_up["active"] is False
+    assert follow_up["reason"] == "PERSON_OBSERVATION_STALE"
+
+
+def test_held_confirmation_survives_exactly_thirty_seconds_of_stall():
+    """The stall-hold cap is strict '>': age exactly 30.0 s still holds. All
+    times use binary-exact .0/.25 fractions so 94.25 - 64.25 == 30.0."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    gate.assess(_frame(2, 64.25))
+
+    now[0] = 94.25                       # age exactly 30.0: still held
+    at_cap = gate.confirmation_snapshot()
+    assert at_cap["active"] is True
+    assert at_cap["confirmed"] is False
+    assert at_cap["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+
+    now[0] = 94.5                        # age 30.25: past the cap, cleared
+    past_cap = gate.confirmation_snapshot()
+    assert past_cap["active"] is False
+    assert past_cap["reason"] == "CONFIRMATION_OBSERVATION_STALE"
+
+
+@pytest.mark.parametrize(
+    ("probe_now", "expected_active", "expected_reason"),
+    (
+        # Ingest silence exactly max_observation_age_s counts as ALIVE ('<='),
+        # so the stale confirmation CLEARS instead of holding.
+        (65.25, False, "CONFIRMATION_OBSERVATION_STALE"),
+        # Just past the boundary the stream counts as stalled: HELD.
+        (65.5, True, "CONFIRMATION_HELD_STREAM_STALLED"),
+    ),
+)
+def test_stream_aliveness_boundary_is_inclusive_at_max_observation_age(
+    probe_now, expected_active, expected_reason,
+):
+    """Clock-at-assess (ingest time), not frame time, drives aliveness: the
+    last assess at 64.5 ingested an already-0.5 s-old frame (t=64.0)."""
+    now = [63.75]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 63.75))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.5
+    gate.assess(_frame(2, 64.0))
+    assert gate.confirmation_snapshot()["confirmed"] is True
+
+    now[0] = probe_now
+    snapshot = gate.confirmation_snapshot()
+    assert snapshot["active"] is expected_active
+    assert snapshot["reason"] == expected_reason
+
+
+def test_repeated_stalls_are_each_held_against_a_per_stall_cap():
+    """The 30 s hold cap is per stall, measured from the latest observation:
+    two 20 s stalls (40 s cumulative silence) are each held."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    gate.assess(_frame(2, 64.25))
+
+    now[0] = 84.25                       # first 20 s stall
+    first = gate.confirmation_snapshot()
+    assert first["active"] is True
+    assert first["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+    resumed = gate.assess(_frame(3, 84.25))
+    assert resumed["posterior_present"] is True
+    assert resumed["reason"] == "OPERATOR_CONFIRMED_BACK"
+
+    now[0] = 104.25                      # second 20 s stall: 40 s cumulative
+    second = gate.confirmation_snapshot()
+    assert second["active"] is True
+    assert second["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+    assert gate.assess(_frame(4, 104.25))["posterior_present"] is True
+
+
+def test_stall_hold_snapshot_reports_confirmed_pending_frame_wire_shape():
+    """UI-facing wire shape during a hold: the status field shares
+    CONFIRMED_PENDING_FRAME with a fresh post-click pending state."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    gate.assess(_frame(2, 64.25))
+
+    now[0] = 66.0                        # stalled: held
+    snapshot = gate.confirmation_snapshot()
+
+    assert snapshot["status"] == "CONFIRMED_PENDING_FRAME"
+    assert snapshot["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+    assert snapshot["active"] is True
+    assert snapshot["confirmed"] is False
+    assert snapshot["confirmable"] is False
+    assert snapshot["observation_age_s"] == pytest.approx(1.75)
+    assert snapshot["missed_frames"] == 0
+    assert snapshot["person_frame_index"] == 2
+
+
+def test_never_assessed_gate_snapshots_and_refuses_confirmation_without_error():
+    """With no assess() ever, the age is infinite: snapshots never raise and
+    the untouched reason survives (no decision exists to restate it)."""
+    now = [5.0]
+    raw_gate = SimpleNamespace(assess=lambda frame: {})   # never called
+    gate = OperatorConfirmedBackGate(raw_gate, clock=lambda: now[0])
+
+    for clock_value in (5.0, 100.0):
+        now[0] = clock_value
+        snapshot = gate.confirmation_snapshot()
+        assert snapshot["status"] == "UNCONFIRMED"
+        assert snapshot["reason"] == "BACK_CONFIRMATION_REQUIRED"
+        assert snapshot["confirmable"] is False
+        assert snapshot["observation_age_s"] is None
+        assert snapshot["person_frame_index"] is None
+        assert snapshot["missed_frames"] == 0
+
+    refused = gate.confirm_back(preview_frame_index=0)
+    assert refused["ok"] is False
+    assert refused["code"] == "back_not_confirmable"
+    assert gate.confirmation_snapshot()["reason"] == "BACK_NOT_CONFIRMABLE"
