@@ -4560,6 +4560,22 @@ class Collector:
                             "status": "UNVERIFIED",
                             "error": reason,
                         }
+                        # Train #72 review: quarantine every audio artifact
+                        # (published-but-unbound finals AND partial spools)
+                        # into audio_advisory/ — presence-based consumers must
+                        # never mistake coverage-failed audio for real audio,
+                        # while the bytes stay preserved for diagnosis.
+                        try:
+                            self._preserve_unverified_audio_artifacts(
+                                self.platform.session_dir,
+                            )
+                        except Exception as preserve_exc:  # noqa: BLE001
+                            print(
+                                "[audio] unverified-artifact quarantine "
+                                f"failed (End continues): "
+                                f"{type(preserve_exc).__name__}: {preserve_exc}",
+                                flush=True,
+                            )
                 end_model_health = (
                     self._model_worker.health()
                     if self._model_worker is not None
@@ -6132,19 +6148,25 @@ class Collector:
             raise RuntimeError("diagnostic depth integrity index verification failed")
         if self.audio_device is not None:
             audio = result.get("audio")
-            if (
-                not isinstance(audio, dict)
-                or audio.get("path") != "audio.wav"
-                or audio.get("status") != "OK"
-                or int(audio.get("sample_rate", -1)) != 16_000
-                or int(audio.get("input_sample_rate", -1)) != self.audio_sample_rate
-                or int(audio.get("n_samples", 0)) <= 0
-            ):
-                raise RuntimeError("diagnostic audio summary is incomplete")
-            audio_path = Path(session_dir) / "audio.wav"
-            audio_sha, audio_bytes, _audio_identity = _verified_regular_file(audio_path)
-            if audio_bytes <= 0 or audio_sha != audio.get("sha256"):
-                raise RuntimeError("diagnostic audio WAV verification failed")
+            if audio is None and self._audio_degradation_declared(result):
+                # Declared Scarlett dropout (train #72): the session seals
+                # WITHOUT audio artifacts; the UNVERIFIED marker and quality
+                # flag travel in the boundary for the acoustic-training filter.
+                pass
+            else:
+                if (
+                    not isinstance(audio, dict)
+                    or audio.get("path") != "audio.wav"
+                    or audio.get("status") != "OK"
+                    or int(audio.get("sample_rate", -1)) != 16_000
+                    or int(audio.get("input_sample_rate", -1)) != self.audio_sample_rate
+                    or int(audio.get("n_samples", 0)) <= 0
+                ):
+                    raise RuntimeError("diagnostic audio summary is incomplete")
+                audio_path = Path(session_dir) / "audio.wav"
+                audio_sha, audio_bytes, _audio_identity = _verified_regular_file(audio_path)
+                if audio_bytes <= 0 or audio_sha != audio.get("sha256"):
+                    raise RuntimeError("diagnostic audio WAV verification failed")
         if self.require_force:
             force = result.get("force")
             if force is None:
@@ -6244,6 +6266,69 @@ class Collector:
         )
         if boundary.get("index_closure") != closure:
             raise RuntimeError("diagnostic capture boundary closure proof changed")
+
+    @staticmethod
+    def _preserve_unverified_audio_artifacts(session_dir):
+        """Move UNBOUND audio artifacts into audio_advisory/ (train #72).
+
+        A declared audio dropout can leave a byte-complete but
+        coverage-failed artifact set (audio.wav etc.) plus partial spools in
+        the session root; the seal disowns them, but presence-based
+        consumers would mis-read them as real audio. Quarantine preserves
+        the bytes as diagnostic evidence, mirroring force_advisory/.
+        Best-effort per file: a failed move never breaks End.
+        """
+        if not session_dir:
+            return []
+        session_path = Path(session_dir)
+        advisory_dir = session_path / "audio_advisory"
+        moved = []
+        for name in (
+            "audio.wav", "audio_capture.json", "audio_input_times.jsonl",
+            "audio_times.jsonl", "audio.partial.pcm",
+            "audio.model.partial.pcm", "audio_input_times.jsonl.inprogress",
+            "audio.wav.tmp",
+        ):
+            source = session_path / name
+            try:
+                if not source.is_file():
+                    continue
+                advisory_dir.mkdir(exist_ok=True)
+                target = advisory_dir / f"00-end-unverified-{name}"
+                os.replace(source, target)
+                moved.append(name)
+            except Exception:  # noqa: BLE001 - quarantine is best-effort
+                continue
+        return moved
+
+    @staticmethod
+    def _audio_degradation_declared(finalization):
+        """True only when End explicitly declared the audio dropout.
+
+        2026-08-11 operator policy, plumbed end-to-end (train #72): a session
+        may seal WITHOUT verified audio ONLY when the End boundary carries the
+        UNVERIFIED audio marker AND the loud ``audio_end_unverified`` quality
+        flag. A silently missing audio summary still fails COMPLETE — the
+        escape exists solely for the declared Scarlett-dropout path.
+        """
+        boundary = (
+            finalization.get("capture_boundary")
+            if isinstance(finalization, dict) else None
+        )
+        if not isinstance(boundary, dict):
+            return False
+        boundary_audio = boundary.get("audio")
+        flags = boundary.get("quality_flags")
+        return (
+            isinstance(boundary_audio, dict)
+            and boundary_audio.get("status") == "UNVERIFIED"
+            and isinstance(flags, list)
+            and any(
+                isinstance(flag, dict)
+                and flag.get("kind") == "audio_end_unverified"
+                for flag in flags
+            )
+        )
 
     def _verified_finalization_summary(self, snapshot, finalization):
         seal_memory = finalization.get("diagnostic_finalization")
@@ -6349,7 +6434,10 @@ class Collector:
             audio_summary = finalization.get("audio")
             audio_cache_rows = []
             if self.audio_device is not None and not isinstance(audio_summary, dict):
-                return summary
+                # Declared Scarlett-dropout sessions seal without audio
+                # (train #72); an UNDECLARED missing summary still fails.
+                if not self._audio_degradation_declared(finalization):
+                    return summary
             if isinstance(audio_summary, dict):
                 audio_authenticity = finalization.get("audio_authenticity")
                 if (

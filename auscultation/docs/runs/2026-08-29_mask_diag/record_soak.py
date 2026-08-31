@@ -24,7 +24,10 @@ from dataclasses import replace as dc_replace
 from pathlib import Path
 from types import SimpleNamespace
 
-CODE = "/home/robot/Desktop/stethoscope/.wam-releases/code_release-d780c2a61a2d6fb2e10c/auscultation"
+CODE = os.environ.get(
+    "SOAK_CODE_ROOT",
+    "/home/robot/Desktop/stethoscope/.wam-releases/code_release-d780c2a61a2d6fb2e10c/auscultation",
+)
 RT = "/home/robot/wam_data/perception_runtime/releases/perception_runtime-62c7dbdb937c12791b6e"
 ENVROOT = "/home/robot/wam_data/perception_envs/releases/linbox-perception-8ea23197c6a4d699280e"
 SESSION = Path(os.environ.get("SOAK_SESSION", "/home/robot/wam_data/sessions/diagnostic_perception_20260814T024117326614491Z_f165ea6a78f4"))
@@ -800,6 +803,285 @@ OUT.mkdir(parents=True, exist_ok=True)
 sessions_root = OUT / "sessions"
 sessions_root.mkdir(exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# Multimodal replay (train #72): audio + force at the DEVICE seams, everything
+# downstream real (AudioStream ring/resampler/authenticity/wav writer and
+# ForceCaptureStream recorder/audit/verify chain). Mirrors the production unit:
+# --require-audio --require-force, Scarlett identity, hall by-id port, the
+# commissioned r5 calibration pair, sync identity from the calibration itself.
+# ---------------------------------------------------------------------------
+MULTIMODAL = os.environ.get("SOAK_MULTIMODAL", "0") == "1"
+AUDIO_SILENT_T = float(os.environ.get("SOAK_AUDIO_SILENT_T", "0") or 0)
+AUDIO_DROP_T = float(os.environ.get("SOAK_AUDIO_DROP_T", "0") or 0)
+FORCE_DROP_T = float(os.environ.get("SOAK_FORCE_DROP_T", "0") or 0)
+FORCE_HARD_T = float(os.environ.get("SOAK_FORCE_HARD_T", "0") or 0)
+AUDIO_CTL = SimpleNamespace(mode="beat")
+FORCE_CTL = SimpleNamespace(mode="run")
+MM_KWARGS = {"require_audio": False, "require_force": False}
+
+if MULTIMODAL:
+    import hashlib
+
+    SYNC_CAL_PATH = "/home/robot/wam_canary/commissioning_r5/sync_cal_r5.json"
+    HALL_CAL_PATH = "/home/robot/wam_canary/commissioning_r5/force_cal_r5.json"
+    HALL_BYID = ("/dev/serial/by-id/"
+                 "usb-MicroPython_Board_in_FS_mode_5303284738b7539c-if00")
+    _sync_payload = json.load(open(SYNC_CAL_PATH))
+    _AU_ID = dict(_sync_payload["capture_mode"]["audio"])
+    _HALL_ID = dict(_sync_payload["capture_mode"]["hall"])
+
+    class _FakeInputStream:
+        """PortAudio stand-in: paces float32 blocks into the real callback."""
+
+        def __init__(self, device=None, samplerate=None, channels=None,
+                     blocksize=None, dtype=None, callback=None, **_kw):
+            self.samplerate = int(samplerate)
+            self.channels = int(channels or 2)
+            self.blocksize = int(blocksize) if blocksize else 1024
+            self.callback = callback
+            self._stop_evt = threading.Event()
+            self._thread = None
+            self._phase = 0
+
+        _TEMPLATE = None
+
+        @classmethod
+        def _template(cls, samplerate):
+            # One beat cycle precomputed: per-block synthesis is then a cheap
+            # slice + noise, keeping GIL pressure off the telemetry pump.
+            if cls._TEMPLATE is None:
+                n = int(round(0.833 * samplerate))
+                t = np.arange(n) / float(samplerate)
+                th1 = np.exp(-((t - 0.05) ** 2) / (2 * 0.012 ** 2))
+                th2 = np.exp(-((t - 0.32) ** 2) / (2 * 0.010 ** 2))
+                carrier = np.sin(2 * np.pi * 35.0 * t)
+                cls._TEMPLATE = (
+                    0.30 * carrier * (th1 + 0.7 * th2)
+                ).astype(np.float32)
+            return cls._TEMPLATE
+
+        def _block(self, frames):
+            t0 = self._phase
+            self._phase += frames
+            if AUDIO_CTL.mode == "silent":
+                mono = np.zeros(frames, dtype=np.float32)
+            else:
+                template = self._template(self.samplerate)
+                idx = (t0 + np.arange(frames)) % template.size
+                noise = 0.02 * np.random.default_rng(
+                    t0 + 1).standard_normal(frames)
+                mono = (template[idx] + noise).astype(np.float32)
+            out = np.zeros((frames, self.channels), dtype=np.float32)
+            out[:, 1 if self.channels > 1 else 0] = mono  # production picks ch 1
+            return out
+
+        def _run(self):
+            frames = self.blocksize
+            period = frames / float(self.samplerate)
+            host_t0 = time.monotonic()
+            blocks = 0
+            next_t = host_t0
+            while not self._stop_evt.is_set():
+                if AUDIO_CTL.mode != "drop":
+                    # PortAudio semantics: adc/current share the DEVICE clock,
+                    # so callback jitter cancels out of the block timeline.
+                    # currentTime is computed lazily AT ACCESS TIME (inside
+                    # the consumer, adjacent to its own monotonic sample) so a
+                    # preemption between our emission and the callback cannot
+                    # smear into an apparent timeline discontinuity — matching
+                    # the real RT-priority PortAudio thread's tight snapshot.
+                    class _TimeInfo(dict):
+                        def __init__(self, adc, t0_ref):
+                            super().__init__()
+                            self._adc = adc
+                            self._t0_ref = t0_ref
+
+                        def __getitem__(self, name):
+                            if name == "inputBufferAdcTime":
+                                return self._adc
+                            if name == "currentTime":
+                                return time.monotonic() - self._t0_ref
+                            raise KeyError(name)
+
+                    time_info = _TimeInfo(blocks * period, host_t0)
+                    try:
+                        self.callback(
+                            self._block(frames), frames, time_info, None)
+                    except Exception:  # noqa: BLE001 - keep pacing
+                        pass
+                    blocks += 1
+                next_t += period
+                delay = next_t - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                # When the host stalls, a real device delivers the buffered
+                # callbacks in a rapid burst with a CONTINUOUS adc timeline —
+                # so on lag we simply loop without sleeping until caught up.
+                # Never skip blocks: a hole here would puncture the ring's
+                # boundary coverage in a way real hardware does not.
+
+        def start(self):
+            self._thread = threading.Thread(
+                target=self._run, daemon=True, name="soak-fake-audio")
+            self._thread.start()
+
+        def stop(self):
+            self._stop_evt.set()
+            if self._thread is not None:
+                self._thread.join(timeout=2.0)
+
+        def close(self):
+            pass
+
+    sys.modules["sounddevice"] = SimpleNamespace(
+        InputStream=_FakeInputStream,
+        query_devices=lambda *_a, **_k: {"max_input_channels": 2},
+    )
+
+    from mechanical_sensor.force_feedback.force_sensor import (
+        ForceSample as _ForceSample,
+    )
+    from mechanical_sensor.force_feedback.force_capture import (
+        ForceCaptureStream as _RealForceCaptureStream,
+    )
+
+    class ReplayForceSensor:
+        """RP2040 stand-in with the real surface: start/stop/read + callbacks."""
+
+        def __init__(self, port, calibration, *, baud=115200,
+                     on_hard_limit=None, on_sample=None, on_reader_error=None):
+            del port, baud
+            self._cal = calibration
+            self._on_hard_limit = on_hard_limit
+            self._on_sample = on_sample
+            self._on_reader_error = on_reader_error
+            self._stop_evt = threading.Event()
+            self._thread = None
+            self._latest = None
+            self._device_ms = 1000.0
+            self._hard_sent = False
+            # Only RAW is synthesized; hall_v/displacement/force flow through
+            # the REAL calibration (sample_from_raw), so the recorder's
+            # calibration-recomputation audit matches bit for bit. Probe the
+            # curve once for raw counts hitting the target forces.
+            # Resting baseline sits at a small non-zero force with ±2-count
+            # ADC dither: an all-zero raw stream trips the recorder's
+            # dead-sensor authenticity heuristic (correctly).
+            self._raw_baseline = self._raw_for_force(0.15)
+            self._raw_contact = self._raw_for_force(2.2)
+            self._raw_hard = self._raw_for_force(8.0)
+            self._dither = 0
+
+        def _raw_for_force(self, target_n):
+            full = int(getattr(self._cal, "adc_full_scale", 65535))
+            best_raw, best_err = 0, float("inf")
+            for step, lo, hi in ((64, 0, full), (1, None, None)):
+                if lo is None:
+                    lo = max(0, best_raw - 64)
+                    hi = min(full, best_raw + 64)
+                for raw in range(lo, hi + 1, step):
+                    force = self._cal.volts_to_force(
+                        self._cal.raw_to_volts(raw))
+                    err = abs(force - target_n)
+                    if err < best_err:
+                        best_raw, best_err = raw, err
+            return best_raw
+
+        def start(self):
+            self._thread = threading.Thread(
+                target=self._run, daemon=True, name="soak-replay-force")
+            self._thread.start()
+            return self
+
+        def _run(self):
+            period = 0.02                    # 50 Hz; device gaps 20 ms < 50 ms limit
+            next_t = time.monotonic()
+            t_origin = next_t
+            while not self._stop_evt.is_set():
+                now = time.monotonic()
+                if FORCE_CTL.mode in ("run", "hard"):
+                    self._device_ms += period * 1000.0
+                    contact = max(0.0, math.sin(
+                        2 * math.pi * (now - t_origin) / 8.0))
+                    self._dither = (self._dither + 1) % 5
+                    raw = max(0, int(round(
+                        self._raw_baseline
+                        + (self._raw_contact - self._raw_baseline) * contact
+                    )) + (self._dither - 2))
+                    if FORCE_CTL.mode == "hard" and not self._hard_sent:
+                        self._hard_sent = True
+                        raw = self._raw_hard
+                        FORCE_CTL.mode = "run"
+                    sample = self._cal.sample_from_raw(
+                        raw, now, device_t_ms=self._device_ms,
+                    )
+                    self._latest = sample
+                    status = sample.status
+                    if status == "HARD_LIMIT" and self._on_hard_limit is not None:
+                        try:
+                            self._on_hard_limit(sample)
+                        except Exception:  # noqa: BLE001
+                            pass
+                    if self._on_sample is not None:
+                        try:
+                            self._on_sample(sample)
+                        except Exception:  # noqa: BLE001
+                            pass
+                next_t += period
+                delay = next_t - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                elif delay < -0.5:
+                    next_t = time.monotonic()
+
+        def stop(self):
+            self._stop_evt.set()
+            if self._thread is not None:
+                self._thread.join(timeout=2.0)
+
+        def read(self):
+            latest = self._latest
+            now = time.monotonic()
+            if latest is None:
+                return _ForceSample(now, 0, 0.0, 0.0, 0.0, "NO_DATA", age_s=0.0)
+            age = max(0.0, now - latest.t)
+            return _ForceSample(
+                latest.t, latest.raw, latest.hall_v, latest.displacement_mm,
+                latest.force_n, "STALE" if age > 0.25 else latest.status,
+                age_s=age, device_t_ms=latest.device_t_ms,
+            )
+
+    def _replay_force_factory(port, calibration_path, **kwargs):
+        return _RealForceCaptureStream(
+            port, calibration_path, sensor_factory=ReplayForceSensor, **kwargs,
+        )
+
+    MM_KWARGS = {
+        "audio_device": "usb-serial:Y77BQVG17CD6E1",
+        "audio_sample_rate": 48000,
+        "audio_channels": 2,
+        "audio_pick_channel": 1,
+        "audio_expected_usb_vid": 4661,
+        "audio_expected_usb_pid": 33297,
+        "audio_expected_usb_serial": "Y77BQVG17CD6E1",
+        "require_audio": True,
+        "audio_resolver": lambda _device: json.loads(json.dumps(_AU_ID)),
+        "hall_port": HALL_BYID,
+        "hall_expected_usb_vid": 11914,
+        "hall_expected_usb_pid": 5,
+        "hall_expected_usb_serial": "5303284738b7539c",
+        "hall_calibration": HALL_CAL_PATH,
+        "hall_calibration_sha256": hashlib.sha256(
+            open(HALL_CAL_PATH, "rb").read()).hexdigest(),
+        "sync_calibration": SYNC_CAL_PATH,
+        "sync_calibration_sha256": hashlib.sha256(
+            open(SYNC_CAL_PATH, "rb").read()).hexdigest(),
+        "require_force": True,
+        "hall_resolver": lambda port: dict(_HALL_ID, requested_port=str(port)),
+        "force_factory": _replay_force_factory,
+    }
+    print("[soak][MM] multimodal replay armed: audio 72bpm beat, force 100Hz")
+
 col = server.Collector(
     [SimpleNamespace(name=name, uv=(0.2, 0.2)) for name in
      ("R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4", "R5", "L5")],
@@ -833,9 +1115,8 @@ col = server.Collector(
     diagnostic_min_free_bytes=10 * 1024 ** 3,
     max_tracking_age_s=2.0,
     recording_frame_divisor=3,
-    require_audio=False,
-    require_force=False,
     require_robot=True,
+    **MM_KWARGS,
     robot_capture_coordinator=coordinator,
     robot_mask_provider=assembly.robot_mask_provider,
     handeye_activation=None,
@@ -990,6 +1271,33 @@ while time.monotonic() - started < RECORD_SECONDS:
         str(state.get("error"))[:80],
     ))
     print("[gate ] %s" % json.dumps(confirmation)[:360])
+    if MULTIMODAL:
+        au = state.get("audio") or {}
+        fo = state.get("force_sensor") or {}
+        print("[mm   ] audio=%s sig=%s peak=%sdB rec=%s | force=%s %sN rec=%s sync=%s"
+              % (au.get("status"), au.get("signal_status"), au.get("peak_db"),
+                 au.get("recording"), fo.get("status"), fo.get("force_n"),
+                 fo.get("recording"), fo.get("synchronized")))
+        elapsed = time.monotonic() - started
+        if (AUDIO_SILENT_T and AUDIO_CTL.mode == "beat"
+                and elapsed >= AUDIO_SILENT_T):
+            AUDIO_CTL.mode = "silent"
+            print("[soak][MM-FAULT] audio SILENT (zeros) at t=%.1fs" % elapsed)
+        if (AUDIO_DROP_T and AUDIO_CTL.mode != "drop"
+                and elapsed >= AUDIO_DROP_T):
+            AUDIO_CTL.mode = "drop"
+            print("[soak][MM-FAULT] audio DROPPED (no callbacks) at t=%.1fs"
+                  % elapsed)
+        if (FORCE_DROP_T and FORCE_CTL.mode == "run"
+                and elapsed >= FORCE_DROP_T):
+            FORCE_CTL.mode = "drop"
+            print("[soak][MM-FAULT] force feed DROPPED at t=%.1fs" % elapsed)
+        if (FORCE_HARD_T and FORCE_CTL.mode == "run"
+                and not getattr(FORCE_CTL, "hard_done", False)
+                and elapsed >= FORCE_HARD_T):
+            FORCE_CTL.hard_done = True
+            FORCE_CTL.mode = "hard"
+            print("[soak][MM-FAULT] force HARD_LIMIT sample at t=%.1fs" % elapsed)
     snap("t%03d" % int(time.monotonic() - started))
     if FAULT_T and not fault_armed and time.monotonic() - started >= FAULT_T:
         fault_armed = True
@@ -1107,6 +1415,20 @@ for session_dir in sessions:
     print("[soak] session dir:", session_dir.name)
     for artifact in sorted(session_dir.iterdir()):
         print("     ", artifact.name)
+if MULTIMODAL and sessions:
+    newest = max(sessions, key=lambda p: p.stat().st_mtime)
+    fin_path = newest / "DIAGNOSTIC_FINALIZATION.json"
+    print("[soak][MM] verdict for", newest.name)
+    print("[soak][MM] audio.wav exists:", (newest / "audio.wav").exists(),
+          "| force_capture.json exists:",
+          (newest / "force_capture.json").exists())
+    if fin_path.exists():
+        fin = json.loads(fin_path.read_text())
+        for key in ("audio", "audio_authenticity", "force",
+                    "force_authenticity"):
+            print("[soak][MM] %s: %s" % (key, json.dumps(fin.get(key))[:360]))
+    else:
+        print("[soak][MM] no DIAGNOSTIC_FINALIZATION.json (session not sealed)")
 httpd.shutdown()
 col.shutdown()
 print("[soak] DONE")

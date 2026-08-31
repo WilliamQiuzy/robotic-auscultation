@@ -366,3 +366,84 @@ def test_start_closes_candidate_device_when_portaudio_start_fails(monkeypatch):
 
     assert device.closed is True
     assert stream._stream is None
+
+
+def test_begin_recording_backfills_boundary_from_the_ring(tmp_path):
+    # Train #72: the capture barrier t0 (camera first-frame time) predates
+    # begin_recording by the whole Start machinery. The covering blocks are
+    # already in the ring and must seed the spool — without the backfill the
+    # head-coverage check (first_t <= t0 + 50 ms) was structurally
+    # unsatisfiable and EVERY session's audio sealed UNVERIFIED.
+    stream = audio.AudioStream(
+        0, sr_in=48, sr_model=16, channels=1,
+        buffer_seconds=2.0, block_ms=250.0,
+    )
+    # The stream runs before Start: two blocks land in the ring.
+    stream._ingest(np.linspace(-0.5, 0.5, 48, dtype=np.float32), 11.0)
+    stream._ingest(np.linspace(-0.5, 0.5, 48, dtype=np.float32), 12.0)
+    # Start latched t0=11.4 in the ring's past; begin arrives 600 ms later.
+    stream.begin_recording(tmp_path, t0=11.4)
+    stream._ingest(np.linspace(-0.4, 0.4, 48, dtype=np.float32), 13.0)
+    summary = stream.end_recording(t_end=13.0)
+    assert summary.status == audio.STATUS_OK
+    assert summary.t_start == pytest.approx(11.4, abs=2.0 / 48)
+    assert summary.t_end == pytest.approx(13.0, abs=2.0 / 48)
+
+
+def test_begin_recording_with_empty_ring_is_unchanged(tmp_path):
+    # No pre-Start audio (unit-test flows): begin must behave exactly as
+    # before the train #72 backfill — the first live block covers t0.
+    stream = audio.AudioStream(
+        0, sr_in=48, sr_model=16, channels=1,
+        buffer_seconds=0.25, block_ms=250.0,
+    )
+    stream.begin_recording(tmp_path, t0=10.0)
+    stream._ingest(np.linspace(-0.8, 0.8, 48, dtype=np.float32), 11.0)
+    stream._ingest(np.linspace(-0.4, 0.4, 48, dtype=np.float32), 12.0)
+    summary = stream.end_recording(t_end=12.0)
+    assert summary.status == audio.STATUS_OK
+    assert summary.n_samples == 32
+
+
+def test_backfill_refuses_to_seed_across_a_ring_discontinuity(tmp_path):
+    # Train #72 review BLOCKER: the ring has no per-sample gap memory, so a
+    # backfill spanning a pre-Start capture stall would linearize OLDER audio
+    # onto wrong timestamps and seal a false-OK head. The clean-tail bound
+    # must shrink the seed instead; the uncovered head then honestly fails
+    # coverage (NO_DATA -> the declared UNVERIFIED path).
+    stream = audio.AudioStream(
+        0, sr_in=48, sr_model=16, channels=1,
+        buffer_seconds=8.0, block_ms=250.0,
+    )
+    stream._ingest(np.full(48, 0.1, dtype=np.float32), 10.0)
+    stream._ingest(np.full(48, 0.2, dtype=np.float32), 11.0)
+    # 2 s capture stall, then the stream resumes before Start.
+    stream._ingest(np.full(48, 0.3, dtype=np.float32), 13.05)
+    # t0 lands inside the stalled window: the clean tail (starting 12.05)
+    # cannot reach it, so the head stays uncovered.
+    stream.begin_recording(tmp_path, t0=10.5)
+    stream._ingest(np.full(48, 0.4, dtype=np.float32), 14.05)
+    summary = stream.end_recording(t_end=14.0)
+    assert summary.status == audio.STATUS_NO_DATA
+    assert summary.t_start >= 12.0
+
+
+def test_backfill_refuses_to_seed_past_a_callback_fault(tmp_path):
+    # A PortAudio fault flag on a pre-Start block taints the ring through
+    # that block's END; the seed may only cover later, clean audio.
+    stream = audio.AudioStream(
+        0, sr_in=48, sr_model=16, channels=1,
+        buffer_seconds=8.0, block_ms=250.0,
+    )
+    stream._ingest(np.full(48, 0.1, dtype=np.float32), 10.0)
+    stream._ingest(
+        np.full(48, 0.2, dtype=np.float32), 11.0,
+        callback_status="input_overflow",
+    )
+    stream._ingest(np.full(48, 0.3, dtype=np.float32), 12.0)
+    # t0 predates the fault boundary (11.0): the head cannot be trusted.
+    stream.begin_recording(tmp_path, t0=10.5)
+    stream._ingest(np.full(48, 0.4, dtype=np.float32), 13.0)
+    summary = stream.end_recording(t_end=13.0)
+    assert summary.status == audio.STATUS_NO_DATA
+    assert summary.t_start >= 11.0

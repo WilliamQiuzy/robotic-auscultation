@@ -185,7 +185,7 @@ REQUIRED_PRODUCTION_CHAIN_SEMANTIC_CODE_SHA256 = (
 # safely pin its own bytes, so it remains the externally reviewed and pinned
 # build/verify trust root rather than pretending a circular self-hash is proof.
 REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
-    "auscultation/ausc/audio/audio_stream.py": "7471a502e0a32adf0c2505e9fb08b89a8029beb240d1f6090e0a4e3b039dd4c3",
+    "auscultation/ausc/audio/audio_stream.py": "72f9200d75bcc48fa13eed2943ddc93b8fcbfe12fa4c6fab086bb0a1a5126959",
     "auscultation/ausc/models/iuv_model.py": "2bd72dc0a33e06e29c88e64480ad20b5586e361a8d7d6958e66fd08aea127cbf",
     "auscultation/ausc/perception/camera_stream.py": "bc68a50ffa190224254a33347bbf51411fc20d7c2be193ba0f8705f75b1deced",
     "auscultation/ausc/perception/depth_codec.py": "7ff7ff8b2746a5913cf14e3ba89b908c3068ede9a5572c9427358c39fd820ead",
@@ -220,7 +220,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "de2f00dac4dc134e3844ab73d9514b2fca556867ef639eea6b11e9a9f2ede57e",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
-    "auscultation/scripts/collect_server.py": "43b4d0e766ead196d691ec3206587b2b4be9649661031c413705d35115517a6b",
+    "auscultation/scripts/collect_server.py": "ecf8ddaf2228fbf707c062102f7544612297961ff3131b699f2c2f813433af23",
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",

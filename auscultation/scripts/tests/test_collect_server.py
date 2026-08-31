@@ -4032,6 +4032,142 @@ def test_completion_validator_accepts_missing_advisory_force(tmp_path):
         collector.shutdown()
 
 
+def _declared_audio_dropout_boundary(server, collector, session, depth_raw,
+                                     ffmpeg, *, declared):
+    boundary = _closed_boundary_fixture()
+    boundary["camera_delivery_start_proof"] = {
+        "boundary_latched_atomically": True,
+    }
+    if declared:
+        boundary["audio"] = {
+            "status": "UNVERIFIED",
+            "error": "stethoscope audio End verification failed: dropout",
+        }
+        boundary["quality_flags"] = [{
+            "t_host_s": 1.0,
+            "kind": "audio_end_unverified",
+            "detail": "dropout",
+        }]
+    frame_range = {"first_frame_index": 10, "last_frame_index": 12}
+    boundary["index_closure"] = server.validate_capture_boundary_closure(
+        boundary,
+        n_rgb_frames=3,
+        expected_fps=collector._negotiated_camera_fps(),
+        final_frame_range=frame_range,
+    )
+    return {
+        "session_dir": str(session),
+        "n_rgb_frames": 3,
+        "decoded_rgb_frames": 3,
+        "n_depth_frames": 3,
+        "audio": None,
+        "video_timebase": {"verified": True},
+        "depth_integrity": {
+            "path": "depth_integrity.jsonl",
+            "count": 3,
+            "dtype": "uint16",
+            "index_sha256": hashlib.sha256(depth_raw).hexdigest(),
+        },
+        "force": None,
+        "force_authenticity": None,
+        "contact_force_valid": False,
+        "video_stitch": {
+            "provenance": {
+                "method": "ffmpeg_concat_demuxer_stream_copy",
+                "sha256": collector.ffmpeg_sha256,
+                "resolved_path": str(ffmpeg.resolve()),
+                "shell": False,
+            },
+            "packet_validation": {
+                "verified": True,
+                "method": "ffmpeg_decode_null_muxer",
+                "decoded_frame_count": 3,
+                "expected_frame_count": 3,
+            },
+        },
+        "capture_boundary": boundary,
+        "frame_index_range": frame_range,
+    }
+
+
+@pytest.mark.parametrize("declared", (True, False))
+def test_completion_validator_gates_missing_audio_on_declared_dropout(
+    tmp_path, declared,
+):
+    # Train #72: with an audio device configured, a missing audio summary is
+    # accepted ONLY when End explicitly declared the Scarlett dropout
+    # (boundary audio UNVERIFIED + the audio_end_unverified quality flag) —
+    # the 2026-08-11 dropout-tolerance policy finally plumbed through
+    # completion. A silently missing summary still fails COMPLETE.
+    server = _load_collect_server()
+    collector = server.Collector(
+        [server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+        fake=True,
+        out_dir=tmp_path,
+        start_thread=False,
+    )
+    collector.audio_device = "usb-serial:TESTSERIAL"
+    session = tmp_path / "declared-audio-dropout"
+    session.mkdir()
+    depth_raw = b'{"frame_index":10}\n'
+    (session / "depth_integrity.jsonl").write_bytes(depth_raw)
+    ffmpeg = tmp_path / "ffmpeg"
+    ffmpeg.write_bytes(b"binary")
+    collector.ffmpeg_path = str(ffmpeg)
+    collector.ffmpeg_sha256 = hashlib.sha256(ffmpeg.read_bytes()).hexdigest()
+    result = _declared_audio_dropout_boundary(
+        server, collector, session, depth_raw, ffmpeg, declared=declared,
+    )
+    collector._verified_finalization_summary = (
+        lambda _snapshot, _result: {"complete": True}
+    )
+    try:
+        if declared:
+            collector._validate_completion_result(result, session)
+        else:
+            with pytest.raises(RuntimeError, match="audio summary is incomplete"):
+                collector._validate_completion_result(result, session)
+    finally:
+        collector.shutdown()
+
+
+def test_audio_degradation_declared_matrix():
+    server = _load_collect_server()
+    declared = server.Collector._audio_degradation_declared
+    good = {
+        "capture_boundary": {
+            "audio": {"status": "UNVERIFIED", "error": "x"},
+            "quality_flags": [{"kind": "audio_end_unverified"}],
+        },
+    }
+    assert declared(good) is True
+    # Every mutation of the declaration must fail closed.
+    assert declared({}) is False
+    assert declared({"capture_boundary": None}) is False
+    assert declared({"capture_boundary": {}}) is False
+    assert declared({"capture_boundary": {
+        "audio": {"status": "OK"},
+        "quality_flags": [{"kind": "audio_end_unverified"}],
+    }}) is False
+    assert declared({"capture_boundary": {
+        "audio": {"status": "UNVERIFIED"},
+        "quality_flags": [],
+    }}) is False
+    assert declared({"capture_boundary": {
+        "audio": {"status": "UNVERIFIED"},
+        "quality_flags": [{"kind": "other_flag"}],
+    }}) is False
+    assert declared({"capture_boundary": {
+        "audio": {"status": "UNVERIFIED"},
+        "quality_flags": ["audio_end_unverified"],
+    }}) is False
+    assert declared({"capture_boundary": {
+        "audio": "UNVERIFIED",
+        "quality_flags": [{"kind": "audio_end_unverified"}],
+    }}) is False
+    assert declared(None) is False
+
+
 def test_complete_video_proof_fails_closed_after_video_is_replaced(tmp_path):
     server = _load_collect_server()
     collector = server.Collector(
@@ -9794,3 +9930,30 @@ def test_spike_write_failure_never_breaks_the_evidence_path(tmp_path, capsys):
     finally:
         collector.platform.session_dir = None
         collector.shutdown()
+
+
+def test_unverified_audio_artifacts_are_quarantined(tmp_path):
+    # Train #72 review: a declared dropout leaves byte-complete but UNBOUND
+    # audio artifacts in the session root; presence-based consumers must not
+    # mistake them for real audio. The quarantine moves them (finals AND
+    # partial spools) into audio_advisory/, preserving the bytes.
+    server = _load_collect_server()
+    session = tmp_path / "declared-dropout-session"
+    session.mkdir()
+    present = (
+        "audio.wav", "audio_capture.json", "audio_input_times.jsonl",
+        "audio.partial.pcm", "audio_input_times.jsonl.inprogress",
+    )
+    for name in present:
+        (session / name).write_bytes(b"evidence:" + name.encode())
+    (session / "rgb.mp4").write_bytes(b"video stays")
+    moved = server.Collector._preserve_unverified_audio_artifacts(session)
+    assert sorted(moved) == sorted(present)
+    for name in present:
+        assert not (session / name).exists()
+        preserved = session / "audio_advisory" / f"00-end-unverified-{name}"
+        assert preserved.read_bytes() == b"evidence:" + name.encode()
+    assert (session / "rgb.mp4").exists()
+    # Missing files and a None session dir are silently tolerated.
+    assert server.Collector._preserve_unverified_audio_artifacts(session) == []
+    assert server.Collector._preserve_unverified_audio_artifacts(None) == []

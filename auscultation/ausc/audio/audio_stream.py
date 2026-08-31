@@ -1085,6 +1085,11 @@ class AudioStream:
         self._stream = None
         self._recording: _StreamingAudioRecording | None = None
         self._last_session_dir: Path | None = None
+        # Ring continuity ledger (train #72): host end of the last ingested
+        # block, and the earliest instant since which the ring tail is known
+        # gap-free and fault-free (the only region backfill may seed from).
+        self._ring_prev_end: float | None = None
+        self._ring_clean_since: float | None = None
 
     # -- lifecycle ---------------------------------------------------------
     def start(self) -> "AudioStream":
@@ -1172,6 +1177,22 @@ class AudioStream:
     ) -> None:
         """Push one mono block (testable without hardware)."""
         with self._lock:
+            # Ring continuity ledger (train #72): the begin_recording backfill
+            # may only seed from a gap-free, fault-free tail. Mirror the
+            # spool's own source-jump tolerance; a callback fault taints
+            # through this block's END (its samples may be incomplete).
+            block_start = host_t - block.size / float(self.sr_in)
+            tolerance = max(2.0 / self.sr_in, 0.010)
+            if callback_status:
+                self._ring_clean_since = host_t
+            elif (
+                self._ring_prev_end is not None
+                and abs(block_start - self._ring_prev_end) > tolerance
+            ):
+                self._ring_clean_since = block_start
+            elif self._ring_clean_since is None:
+                self._ring_clean_since = block_start
+            self._ring_prev_end = host_t
             self._ring.ingest(block, host_t)
             recording = self._recording
             if recording is not None:
@@ -1192,6 +1213,39 @@ class AudioStream:
             if self._recording is not None:
                 recording.abort()
                 raise RuntimeError("audio recording is already active")
+            # Boundary backfill (train #72): the capture barrier t0 is the
+            # camera first-frame time, which predates this call by the whole
+            # Start machinery (robot/force begin, delivery wait) — routinely
+            # more than the 50 ms head-coverage tolerance. The blocks covering
+            # [t0, now] already streamed into the ring before this call, so
+            # seed them into the new spool; its per-block trim clips the seed
+            # to exactly t0, and the next live callback continues the source
+            # timeline seamlessly (both run under this same lock).
+            #
+            # The seed is bounded to the ring's CLEAN tail: the ring has no
+            # per-sample gap memory, so seeding across an input discontinuity
+            # or callback fault would linearize older audio onto wrong
+            # timestamps and seal a false-OK head (review train #72). If the
+            # clean tail does not reach back to t0, the short seed leaves the
+            # head uncovered and End honestly reports NO_DATA -> the declared
+            # UNVERIFIED path — exactly the pre-backfill behavior.
+            ring_end_t = self._ring.end_time(self.sr_in)
+            backfill_s = ring_end_t - float(t0)
+            if backfill_s > 0 and self._ring.written > 0:
+                clean_since = self._ring_clean_since
+                clean_span_s = (
+                    ring_end_t - clean_since
+                    if clean_since is not None else 0.0
+                )
+                n_backfill = min(
+                    int(np.ceil(backfill_s * self.sr_in)) + self.sr_in // 10,
+                    max(0, int(clean_span_s * self.sr_in)),
+                    self._ring.written,
+                )
+                if n_backfill > 0:
+                    seed = self._ring.last(n_backfill)
+                    if seed.size:
+                        recording.submit(seed, ring_end_t)
             self._recording = recording
             self._last_session_dir = Path(session_dir).expanduser().resolve()
 
