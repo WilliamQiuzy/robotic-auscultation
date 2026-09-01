@@ -95,8 +95,14 @@ def frame_loader(row):
 # through the camera frustum (real sessions never had it in view).
 # ---------------------------------------------------------------------------
 COMPOSITE = os.environ.get("COMPOSITE", "0") == "1"
+# PHANTOM mode: the telemetry says the arm is in view but the pixels are the
+# ORIGINAL scene (arm absent). The geometric mask paints huge phantom hulls;
+# the depth veto's whole purpose is to strip them wherever the scene depth
+# PROVES no arm — this measures that positive case end to end. Hull regions
+# are computed exactly like COMPOSITE but nothing is painted into the frames.
+PHANTOM = os.environ.get("PHANTOM", "0") == "1"
 composite_masks = {}
-if COMPOSITE:
+if COMPOSITE or PHANTOM:
     from ausc.perception.robot.robot_state_stream import (
         InterpolatedFollowerObservation,
     )
@@ -150,12 +156,13 @@ if COMPOSITE:
             region = poly.astype(bool)
             if not region.any():
                 continue
-            fill_mm = int(float(z[keep][inside].min()) * 1000.0)
-            closer = region & ((depth_mm == 0) | (depth_mm > fill_mm))
-            depth_mm[closer] = fill_mm
-            frame_rgb[region] = (
-                0.25 * frame_rgb[region] + 0.75 * np.array([70, 72, 78])
-            ).astype(frame_rgb.dtype)
+            if not PHANTOM:
+                fill_mm = int(float(z[keep][inside].min()) * 1000.0)
+                closer = region & ((depth_mm == 0) | (depth_mm > fill_mm))
+                depth_mm[closer] = fill_mm
+                frame_rgb[region] = (
+                    0.25 * frame_rgb[region] + 0.75 * np.array([70, 72, 78])
+                ).astype(frame_rgb.dtype)
             painted |= region
         composite_masks[int(frame_index)] = painted
         return frame_rgb, depth_mm
@@ -187,6 +194,7 @@ oracle_violations = 0
 arm_in_view_frames = 0
 reductions = []
 coverage_rows = []
+phantom_rows = []
 count = 0
 for result in rig.reconstruct_session_bundles(
     frame_index_rows=rows,
@@ -204,7 +212,7 @@ for result in rig.reconstruct_session_bundles(
     traj = bundle.robot_trajectory
     frame = bundle.camera_frame
     depth = np.asarray(frame.depth)
-    if COMPOSITE:
+    if COMPOSITE or PHANTOM:
         painted = composite_masks.get(int(result.frame_index))
         if painted is not None and painted.any():
             covered = int((painted & veto_mask).sum())
@@ -213,6 +221,12 @@ for result in rig.reconstruct_session_bundles(
     # pure-geometric comparison mask
     geo = prov.build(exposure=bundle.exposure, trajectory=traj).mask
     reductions.append((int(geo.sum()), int(veto_mask.sum())))
+    if PHANTOM:
+        painted = composite_masks.get(int(result.frame_index))
+        if painted is not None and painted.any():
+            geo_hull = int((painted & geo).sum())
+            freed = int((painted & geo & ~veto_mask).sum())
+            phantom_rows.append((result.frame_index, geo_hull, freed))
     # FK oracle at the nominal state
     state = traj.sample_observation_at(traj.exposure_nominal_ns)
     transforms, _, _ = prov._forward_kinematics(state)
@@ -267,6 +281,17 @@ print("arm-in-view rendered frames:", arm_in_view_frames)
 print("geometric mask px median=%d max=%d" % (int(np.median(geo_px)), int(geo_px.max())))
 print("veto mask px      median=%d max=%d" % (int(np.median(veto_px)), int(veto_px.max())))
 print("median veto reduction: %.1f%%" % (100.0 * (1 - np.median(veto_px / np.maximum(geo_px, 1)))))
+if PHANTOM and phantom_rows:
+    freed_fracs = [f / max(g, 1) for _, g, f in phantom_rows]
+    total_hull = sum(g for _, g, _ in phantom_rows)
+    total_freed = sum(f for _, _, f in phantom_rows)
+    print("[phantom] frames with phantom hull: %d" % len(phantom_rows))
+    print("[phantom] hull-geo px total=%d freed-by-veto=%d (%.1f%%)"
+          % (total_hull, total_freed, 100.0 * total_freed / max(total_hull, 1)))
+    print("[phantom] per-frame freed fraction: min=%.3f median=%.3f max=%.3f"
+          % (min(freed_fracs), float(np.median(freed_fracs)), max(freed_fracs)))
+elif PHANTOM:
+    print("[phantom] NO PHANTOM HULL IN ANY REPLAYED FRAME")
 if COMPOSITE and coverage_rows:
     fractions = [c / max(t, 1) for _, c, t in coverage_rows]
     worst = min(range(len(fractions)), key=lambda i: fractions[i])

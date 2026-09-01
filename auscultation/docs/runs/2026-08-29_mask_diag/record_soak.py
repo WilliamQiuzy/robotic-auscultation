@@ -390,6 +390,20 @@ class ReplayCamera:
         )
 
     def latch_end_boundary(self, timeout_s=2.0, interval_id=None):
+        # The real camera delivers 30 fps continuously, so the newest frame is
+        # always fresh at latch time; the replay only HAS the recorded 10 fps
+        # frames, so a random latch instant lands mid-gap and trips the
+        # 3-frame (100 ms at claimed 30 fps) freshness proof. Mirror the real
+        # semantics by latching ON a frame boundary: wait (bounded) until a
+        # freshly delivered frame is in hand before freezing the interval.
+        deadline = time.monotonic() + min(float(timeout_s), 1.5)
+        while True:
+            with self._latest_lock:
+                candidate = self._latest
+            if (time.monotonic() - float(candidate.t) <= 0.05
+                    or time.monotonic() >= deadline):
+                break
+            time.sleep(0.005)
         self._accepting = False
         self._interval_active = False
         with self._latest_lock:

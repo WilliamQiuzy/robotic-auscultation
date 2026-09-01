@@ -44,8 +44,17 @@ RIG = os.environ.get(
     "BAKE_RIG", "/home/robot/wam_data/scratch/t65_e2e/session_bundle_replay.py",
 )
 # In-frustum target pose found by joint-space scan WITHIN activated limits.
+# Override with BAKE_QA="q1,q2,...,q7" (e.g. the heavy-occlusion pose).
 QA = [0.8607, -1.4136, -1.0278, 1.3414, 1.369, -0.5428, 0.5484]
+if os.environ.get("BAKE_QA"):
+    QA = [float(v) for v in os.environ["BAKE_QA"].split(",")]
+    assert len(QA) == 7
 T_ENTER = float(os.environ.get("BAKE_T_ENTER", "100.0"))
+# normal: arm depth composited at FK z. invalid: RGB painted but the depth
+# in the arm region is ZEROED (sensor blind on the arm surface) — the veto
+# must keep the full geometric mask there (invalid depth never vetoes).
+DEPTH_MODE = os.environ.get("BAKE_DEPTH_MODE", "normal")
+ALWAYS_IN = os.environ.get("BAKE_ALWAYS_IN", "0") == "1"
 T_SWEEP_END = T_ENTER + 8.0 + 48.0          # 3 full wobble periods of 16 s
 T_EXIT_END = T_SWEEP_END + 8.0
 
@@ -97,6 +106,15 @@ def ease(x):
 
 
 def q_of(t_rel, q0):
+    if ALWAYS_IN:
+        # Arm fully in view for the ENTIRE session (live-day scenario:
+        # Start pressed with the arm already over the back), with the same
+        # integer-period wobble so the ledger velocity gate stays green.
+        wob = math.sin(2 * math.pi * t_rel / 16.0)
+        q = list(QA)
+        for j, amp in ((3, 0.12), (4, 0.10), (5, 0.15)):
+            q[j] += amp * wob
+        return q
     if t_rel < T_ENTER:
         alpha, wob = 0.0, 0.0
     elif t_rel < T_ENTER + 8.0:
@@ -228,9 +246,12 @@ def paint(rgb, depth_mm, host_t_s):
         region = poly.astype(bool)
         if not region.any():
             continue
-        fill_mm = int(float(z[keep][inside].min()) * 1000.0)
-        closer = region & ((depth_mm == 0) | (depth_mm > fill_mm))
-        depth_mm[closer] = fill_mm
+        if DEPTH_MODE == "invalid":
+            depth_mm[region] = 0
+        else:
+            fill_mm = int(float(z[keep][inside].min()) * 1000.0)
+            closer = region & ((depth_mm == 0) | (depth_mm > fill_mm))
+            depth_mm[closer] = fill_mm
         rgb[region] = (
             0.25 * rgb[region] + 0.75 * np.array([70, 72, 78])
         ).astype(rgb.dtype)
