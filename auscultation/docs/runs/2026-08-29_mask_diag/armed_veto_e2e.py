@@ -101,6 +101,14 @@ COMPOSITE = os.environ.get("COMPOSITE", "0") == "1"
 # PROVES no arm — this measures that positive case end to end. Hull regions
 # are computed exactly like COMPOSITE but nothing is painted into the frames.
 PHANTOM = os.environ.get("PHANTOM", "0") == "1"
+# Hand-eye tolerance mode: paint the arm at its TRUE pose = nominal hand-eye
+# composed with a rigid error (translation in mm along a fixed diagonal +
+# rotation in deg about a fixed axis), while the mask is still built from the
+# NOMINAL trajectory. Coverage of the painted (true) arm then measures how
+# much calibration error the mask's vertex bounds actually absorb — the
+# provisional hand-eye is 9.26 mm RMS, so this is the live-day question.
+HANDEYE_ERR_MM = float(os.environ.get("HANDEYE_ERR_MM", "0") or 0)
+HANDEYE_ERR_DEG = float(os.environ.get("HANDEYE_ERR_DEG", "0") or 0)
 composite_masks = {}
 if COMPOSITE or PHANTOM:
     from ausc.perception.robot.robot_state_stream import (
@@ -124,6 +132,25 @@ if COMPOSITE or PHANTOM:
         pos = min(max(pos, 0), len(_q_values) - 1)
         return _q_values[pos]
 
+    _paint_handeye = prov.handeye.transform_camera_from_follower_base
+    if HANDEYE_ERR_MM or HANDEYE_ERR_DEG:
+        _axis = np.array([1.0, 1.0, 1.0]) / np.sqrt(3.0)
+        _theta = np.deg2rad(HANDEYE_ERR_DEG)
+        _K = np.array([
+            [0, -_axis[2], _axis[1]],
+            [_axis[2], 0, -_axis[0]],
+            [-_axis[1], _axis[0], 0],
+        ])
+        _R = (np.eye(3) + np.sin(_theta) * _K
+              + (1 - np.cos(_theta)) * (_K @ _K))
+        _T_err = np.eye(4)
+        _T_err[:3, :3] = _R
+        _T_err[:3, 3] = _axis * (HANDEYE_ERR_MM / 1000.0)
+        _paint_handeye = _T_err @ np.asarray(_paint_handeye)
+        print("[handeye-err] painting TRUE arm with %.1f mm / %.2f deg "
+              "perturbation; mask stays NOMINAL"
+              % (HANDEYE_ERR_MM, HANDEYE_ERR_DEG))
+
     def _composite_arm(frame_rgb, depth_mm, host_t_s, frame_index):
         q = _q_at(host_t_s)
         state = InterpolatedFollowerObservation(
@@ -138,8 +165,7 @@ if COMPOSITE or PHANTOM:
         painted = np.zeros(depth_mm.shape, dtype=bool)
         for li, link in enumerate(prov.geometry.links):
             vb = prov._transform_vertices(transforms[li], link.vertices_link_m)
-            vc = prov._transform_vertices(
-                prov.handeye.transform_camera_from_follower_base, vb)
+            vc = prov._transform_vertices(_paint_handeye, vb)
             z = vc[:, 2]
             keep = z > max(0.05, P.min_projection_depth_m)
             if not keep.any():

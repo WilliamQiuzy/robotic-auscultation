@@ -55,6 +55,19 @@ T_ENTER = float(os.environ.get("BAKE_T_ENTER", "100.0"))
 # must keep the full geometric mask there (invalid depth never vetoes).
 DEPTH_MODE = os.environ.get("BAKE_DEPTH_MODE", "normal")
 ALWAYS_IN = os.environ.get("BAKE_ALWAYS_IN", "0") == "1"
+# realism: per-link plane-fit depth gradient + sigma-4mm sensor noise + 2px
+# invalid edge rim (ToF edge artifacts) + depth-shaded RGB with per-link
+# tint. flat: the original constant-min-z fill.
+REALISM = os.environ.get("BAKE_REALISM", "1") == "1"
+# sweep: single-pose wobble sweep (original). auscult: point-to-point
+# dwell trajectory over four scanned back positions with global breathing.
+TRAJ = os.environ.get("BAKE_TRAJ", "sweep")
+POSES = {
+    "lower-center": [0.8607, -1.4136, -1.0278, 1.3414, 1.369, -0.5428, 0.5484],
+    "left-half": [-0.3402, -2.0356, -0.907, -0.35, -0.2397, 1.08, 0.9261],
+    "upper-right": [-2.4007, -0.9311, -1.4191, 0.1891, 0.0746, 0.9111, -0.1448],
+    "lower-right": [1.2617, -1.9477, 0.7852, 0.5879, -1.0449, -0.5268, -0.6497],
+}
 T_SWEEP_END = T_ENTER + 8.0 + 48.0          # 3 full wobble periods of 16 s
 T_EXIT_END = T_SWEEP_END + 8.0
 
@@ -105,7 +118,49 @@ def ease(x):
     return 0.5 - 0.5 * math.cos(math.pi * min(max(x, 0.0), 1.0))
 
 
+_AUSCULT_PLAN = None
+
+
+def _auscult_plan(q0):
+    # parked -> P1..P4 dwells (7 s each) with 5 s eased transits -> parked,
+    # all inside the soak recording window (~[12, 85] s of session time).
+    keys = [
+        (0.0, 15.0, q0),
+        (20.0, 27.0, POSES["lower-center"]),
+        (32.0, 39.0, POSES["left-half"]),
+        (44.0, 51.0, POSES["upper-right"]),
+        (56.0, 63.0, POSES["lower-right"]),
+        (70.0, 1e9, q0),
+    ]
+    return keys
+
+
+def _q_auscult(t_rel, q0):
+    global _AUSCULT_PLAN
+    if _AUSCULT_PLAN is None:
+        _AUSCULT_PLAN = _auscult_plan(q0)
+    keys = _AUSCULT_PLAN
+    q = None
+    for idx, (t_in, t_out, pose) in enumerate(keys):
+        if t_rel < t_in:
+            prev_out, prev_pose = keys[idx - 1][1], keys[idx - 1][2]
+            x = ease((t_rel - prev_out) / max(t_in - prev_out, 1e-9))
+            q = [prev_pose[i] + x * (pose[i] - prev_pose[i]) for i in range(7)]
+            break
+        if t_rel < t_out:
+            q = list(pose)
+            break
+    if q is None:
+        q = list(keys[-1][2])
+    # global breathing micro-motion, continuous across all segments
+    q[4] += 0.02 * math.sin(2 * math.pi * t_rel / 8.0)
+    q[5] += 0.015 * math.sin(2 * math.pi * t_rel / 6.0)
+    return q
+
+
 def q_of(t_rel, q0):
+    if TRAJ == "auscult":
+        return _q_auscult(t_rel, q0)
     if ALWAYS_IN:
         # Arm fully in view for the ENTIRE session (live-day scenario:
         # Start pressed with the arm already over the back), with the same
@@ -216,6 +271,9 @@ def q_at_host(host_t_s):
     return q_list[pos]
 
 
+_paint_rng = np.random.default_rng(97)
+
+
 def paint(rgb, depth_mm, host_t_s):
     q = q_at_host(host_t_s)
     state = InterpolatedFollowerObservation(
@@ -246,15 +304,50 @@ def paint(rgb, depth_mm, host_t_s):
         region = poly.astype(bool)
         if not region.any():
             continue
+        zi = z[keep][inside]
         if DEPTH_MODE == "invalid":
             depth_mm[region] = 0
+            rgb[region] = (
+                0.25 * rgb[region] + 0.75 * np.array([70, 72, 78])
+            ).astype(rgb.dtype)
+        elif REALISM:
+            ui = u[inside]
+            vi = v[inside]
+            ys, xs = np.nonzero(region)
+            # per-link plane-fit depth gradient across the hull
+            A = np.stack([ui, vi, np.ones_like(ui)], axis=1)
+            coef, *_ = np.linalg.lstsq(A, zi, rcond=None)
+            zf = coef[0] * xs + coef[1] * ys + coef[2]
+            zf = np.clip(zf, zi.min() - 0.02, zi.max() + 0.02)
+            noise = _paint_rng.normal(0.0, 0.004, size=zf.shape)
+            vals = np.maximum(50, ((zf + noise) * 1000.0)).astype(depth_mm.dtype)
+            current = depth_mm[ys, xs]
+            closer = (current == 0) | (current > vals)
+            depth_mm[ys[closer], xs[closer]] = vals[closer]
+            # ToF edge artifact: 2px invalid rim around the link silhouette
+            eroded = cv2.erode(
+                region.astype(np.uint8), np.ones((3, 3), np.uint8),
+                iterations=2,
+            ).astype(bool)
+            rim = region & ~eroded
+            depth_mm[rim] = 0
+            # depth-shaded RGB with slight per-link tint + pixel noise
+            span = max(zi.max() - zi.min(), 1e-3)
+            shade = 0.55 + 0.45 * np.clip(
+                (zi.max() - zf) / span, 0.0, 1.0)
+            tint = np.array([70, 72, 78]) * (0.92 + 0.06 * (li % 3))
+            base = tint[None, :] * shade[:, None]
+            base += _paint_rng.normal(0.0, 3.0, size=base.shape)
+            rgb[ys, xs] = np.clip(
+                0.15 * rgb[ys, xs] + 0.85 * base, 0, 255,
+            ).astype(rgb.dtype)
         else:
-            fill_mm = int(float(z[keep][inside].min()) * 1000.0)
+            fill_mm = int(float(zi.min()) * 1000.0)
             closer = region & ((depth_mm == 0) | (depth_mm > fill_mm))
             depth_mm[closer] = fill_mm
-        rgb[region] = (
-            0.25 * rgb[region] + 0.75 * np.array([70, 72, 78])
-        ).astype(rgb.dtype)
+            rgb[region] = (
+                0.25 * rgb[region] + 0.75 * np.array([70, 72, 78])
+            ).astype(rgb.dtype)
         painted = True
     return painted
 
