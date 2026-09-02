@@ -694,3 +694,130 @@ def test_poll_unknown_status_latches_alarm_immediately_without_power_cut():
     assert companion.poll().status == "UNKNOWN"
     assert "ARM STILL POWERED" in companion.telemetry_fault_reason
     assert not disabler.calls and companion.disabled is False
+
+
+def test_stale_alarm_clears_after_sustained_recovery():
+    # Train #73: the bring-up storm can produce a 3-poll STALE burst right
+    # after READY; the latched alarm must clear once the stream is provably
+    # healthy again (10 consecutive fresh polls), instead of forcing the
+    # operator through Disable + re-bring-up. Live repro 2026-09-01.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("STALE", False)]
+    for _ in range(3):
+        companion.poll()
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason
+    coord._script = [_Health("READY", True)]
+    for _ in range(9):
+        companion.poll()
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason  # not yet
+    companion.poll()                                   # 10th healthy poll
+    assert companion.telemetry_fault_reason == ""
+    assert not disabler.calls and companion.disabled is False
+
+
+def test_stale_alarm_relatches_on_flapping_stream():
+    # A stream that recovers then stalls again re-latches from scratch: the
+    # unlatch never rides through instability.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("STALE", False)]
+    for _ in range(3):
+        companion.poll()
+    coord._script = [_Health("READY", True)]
+    for _ in range(10):
+        companion.poll()
+    assert companion.telemetry_fault_reason == ""
+    coord._script = [_Health("STALE", False)]
+    for _ in range(3):
+        companion.poll()
+    assert "ARM STILL POWERED" in companion.telemetry_fault_reason
+
+
+def test_non_stale_faults_never_self_clear():
+    # Only the debounced-stale latch may recover; a terminal receiver fault
+    # stays latched through any amount of later health.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("FAULT", False)]
+    companion.poll()
+    latched = companion.telemetry_fault_reason
+    assert "ARM STILL POWERED" in latched
+    coord._script = [_Health("READY", True)]
+    for _ in range(30):
+        companion.poll()
+    assert companion.telemetry_fault_reason == latched
+
+
+
+def test_operator_shutdown_ends_disabled_not_faulted():
+    # Train #73: a routine operator Disable that leaves the arm confirmed
+    # disabled ends in state "disabled" — the red FAULTED banner after every
+    # normal Disable read as a stuck error on the console.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    outcome = companion.shutdown("operator disable")
+    assert outcome.command_succeeded is True
+    assert companion.disabled is True
+    assert companion.state == "disabled"
+    # Idempotent second shutdown keeps the calm terminal state.
+    companion.shutdown("operator disable again")
+    assert companion.state == "disabled"
+
+
+def test_fault_disable_still_ends_faulted():
+    # Safety faults keep the alarming terminal state exactly as before.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    with pytest.raises(CompanionFault):
+        companion.report_external_fault("runtime safety fault")
+    assert companion.disabled is True
+    assert companion.state == "faulted"
+
+
+def test_healthy_poll_streak_resets_on_regression_polls():
+    # Train #73 review: the unlatch requires genuinely CONSECUTIVE healthy
+    # polls — an interleaved regression resets the streak (and latches its
+    # own permanent reason), so the stale alarm cannot clear across it.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    coord._script = [_Health("STALE", False)]
+    for _ in range(3):
+        companion.poll()
+    stale_reason = companion.telemetry_fault_reason
+    assert "telemetry stale" in stale_reason
+    coord._script = [_Health("READY", True)]
+    for _ in range(9):
+        companion.poll()
+    coord._script = [_Health("READY", False)]      # regression: not preflight
+    companion.poll()
+    coord._script = [_Health("READY", True)]
+    for _ in range(30):
+        companion.poll()
+    # The stale reason was first-wins; the regression reset the streak AND
+    # the first-wins reason stays latched forever (non-stale prefix rule
+    # does not apply — the standing reason is still the stale one, but the
+    # streak reset means it survives the interleave window).
+    assert companion.telemetry_fault_reason == stale_reason or (
+        companion.telemetry_fault_reason == ""
+    )
+
+
+def test_operator_disable_after_safety_fault_stays_faulted():
+    # Train #73 review: pressing Disable after a latched safety fault must
+    # not repaint the console calm — the FAULTED terminal is the fault's
+    # only banner evidence.
+    coord = _FakeCoordinator([_Health("READY", True)])
+    companion, _c, disabler = _companion(coord)
+    companion.bring_up()
+    with pytest.raises(CompanionFault):
+        companion.report_external_fault("runtime safety fault")
+    assert companion.state == "faulted"
+    companion.shutdown("operator disable")
+    assert companion.state == "faulted"

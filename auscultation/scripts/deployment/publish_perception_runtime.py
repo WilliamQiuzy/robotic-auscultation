@@ -200,7 +200,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/robot/robot_session_capture.py": "8afecec81c18250b3cd616fb604aca0d576fbaf3a804995c0bde91e52ea2353d",
     "auscultation/ausc/perception/robot/robot_socket_receiver.py": "8a1453529aa3f4a16f043e577e7b5584c9576d0d63b70bec2838ef86cc9a6b0b",
     "auscultation/ausc/perception/robot/robot_state_stream.py": "766034c6698a62e2bb23924b1412af502eac2b225ddf98982a368c1b735d701a",
-    "auscultation/ausc/perception/robot/trusted_controller_companion.py": "bd29b75e305ad5b3a7bddf285f8df479e995d75de4f1012418ca132db4d8b930",
+    "auscultation/ausc/perception/robot/trusted_controller_companion.py": "ec34dc18e24d09aa9a50459b3f271905b9ba9b135521b7b5b69a166efbf3123b",
     "auscultation/ausc/perception/tracking/__init__.py": "e135d34389019e483400c79b001d9b9e84d13a0cacebe1585174cad2048bccd6",
     "auscultation/ausc/perception/tracking/back_mask_packet.py": "4aba720dcefa8f80c6baf3558e58e4d0ee34b7727ee385fca1344d97d26df4e0",
     "auscultation/ausc/perception/tracking/depth_noise_profile.py": "eebb5d23d8033594e3fc580f00bddf4e4a32b0d536ae9a8b7a578b433ce264fc",
@@ -220,7 +220,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/record_session.py": "f9f296ac77b531a1d39778a2de8504feeef5fbfa889fa409cccdb9aedb809eb2",
     "auscultation/mechanical_sensor/force_feedback/force_capture.py": "de2f00dac4dc134e3844ab73d9514b2fca556867ef639eea6b11e9a9f2ede57e",
     "auscultation/mechanical_sensor/force_feedback/force_sensor.py": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
-    "auscultation/scripts/collect_server.py": "ecf8ddaf2228fbf707c062102f7544612297961ff3131b699f2c2f813433af23",
+    "auscultation/scripts/collect_server.py": "71c8a877c4ff775c55c682799ec5e21fec7d283dba7e60813eeb810809636e9a",
     "auscultation/scripts/collection_platform.py": "a5fb8c0177d469c6e64a65e35a1f8d4af632e8a1c612e2f3d334987ddea56753",
     "auscultation/scripts/collection_supervisor.py": "2fcd949aa10e4b20585c7ade360ded8e469f0a2db6c4bfe694580f0c2eba2400",
     "auscultation/scripts/deployment/artifact_contract.py": "2c74d2205360717175408531951126bf551ba0dc584ba2bd90338e754faf7785",
@@ -230,7 +230,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/scripts/perception/activate_handeye.py": "952dcf7048a71aa2682f3f18af2fef9cff29ff0429d9a1e0e65be095fa49d360",
     "auscultation/scripts/perception_capture.py": "d73fc89e9c48a56964e568d559789724dc2de74d92aa5270bdf02f2eb65a4f44",
     "auscultation/scripts/perception_worker.py": "bd837333df29b7e6e4871604441b1abb563ee70afd0696e3b7db803b4ea6a1aa",
-    "auscultation/scripts/posterior_gate.py": "4ccbc800fdd7982ab0124ecc4fa25b00a6bad07a9782ea04ce46048d0380c301",
+    "auscultation/scripts/posterior_gate.py": "aa0cde5d16b5dbf2c293c3387bfe291090650b0f4c6ed13a1d93c1d65e875fc8",
 }
 
 RUNTIME_CAPABILITIES = {

@@ -384,9 +384,12 @@ def test_active_confirmation_is_held_while_the_ingest_stream_is_stalled():
     assert gate.confirmation_snapshot()["confirmed"] is True
 
 
-def test_active_confirmation_expires_on_stale_backlog_with_live_stream():
-    """The original staleness protection survives: decisions ARRIVING whose
-    frames are old (stale backlog) still clear the confirmation."""
+def test_active_confirmation_holds_through_stale_backlog_with_live_stream():
+    """Train #73 (live repro 2026-09-01): decisions ARRIVING whose frames are
+    old are the Start-transition backlog, not proof the person left — the
+    confirmation HOLDS (bounded by the 30 s cap) instead of clearing. This
+    flips the pre-#73 pin that live recording disproved: the person never
+    moved, yet the backlog clear produced a whole-recording NO_BACK."""
     now = [60.0]
     one = select_single_person([_person()], image_shape=(1000, 1000))
     raw_gate = SimpleNamespace(assess=lambda frame: {
@@ -403,12 +406,8 @@ def test_active_confirmation_expires_on_stale_backlog_with_live_stream():
     now[0] = 62.0
     gate.assess(_frame(3, 60.1))         # ingest alive, frame 1.9 s old
     snapshot = gate.confirmation_snapshot()
-    assert snapshot["active"] is False
-    # The clearing emits CONFIRMATION_OBSERVATION_STALE; a later snapshot of
-    # the already-cleared gate may restate it as PERSON_OBSERVATION_STALE.
-    assert snapshot["reason"] in (
-        "CONFIRMATION_OBSERVATION_STALE", "PERSON_OBSERVATION_STALE",
-    )
+    assert snapshot["active"] is True
+    assert snapshot["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
 
 
 def test_held_confirmation_clears_at_the_stall_hold_cap():
@@ -712,3 +711,123 @@ def test_never_assessed_gate_snapshots_and_refuses_confirmation_without_error():
     assert refused["ok"] is False
     assert refused["code"] == "back_not_confirmable"
     assert gate.confirmation_snapshot()["reason"] == "BACK_NOT_CONFIRMABLE"
+
+
+def test_backlog_frames_hold_instead_of_clearing_the_confirmation():
+    """Train #73 (live repro 2026-09-01): after the Start-transition stall the
+    stream resumes by chewing BACKLOG — decisions made on OLD frames. Those
+    are not fresh re-verification evidence and must HOLD the confirmation,
+    not destroy it; a decision on a FRESH frame then resumes it."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    gate.assess(_frame(2, 64.25))
+    assert gate.confirmation_snapshot()["confirmed"] is True
+
+    # Start stall: no ingest at all -> held (unchanged #67 behavior).
+    now[0] = 70.0
+    assert gate.confirmation_snapshot()["reason"] == (
+        "CONFIRMATION_HELD_STREAM_STALLED"
+    )
+
+    # Stream resumes with BACKLOG: the frame is 5.5 s old at ingest. The
+    # ingest itself proves liveness, but the stale frame is not fresh
+    # evidence — the confirmation must survive.
+    gate.assess(_frame(3, 64.5))
+    after_backlog = gate.confirmation_snapshot()
+    assert after_backlog["active"] is True, after_backlog
+
+    # More backlog, still alive, still held.
+    now[0] = 70.5
+    gate.assess(_frame(4, 65.0))
+    assert gate.confirmation_snapshot()["active"] is True
+
+    # A FRESH frame arrives with the person present: fully resumed.
+    now[0] = 71.0
+    resumed = gate.assess(_frame(5, 71.0))
+    assert resumed["reason"] == "OPERATOR_CONFIRMED_BACK"
+    assert gate.confirmation_snapshot()["confirmed"] is True
+
+
+def test_fresh_frames_without_person_still_clear_the_stale_confirmation():
+    """The genuine-departure path is untouched: decisions made on FRESH
+    frames that cannot re-verify the person clear the stale confirmation."""
+    now = [64.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    person_present = [True]
+    empty = select_single_person([], image_shape=(1000, 1000))
+
+    def _assess(frame):
+        base = one if person_present[0] else empty
+        return {**base, "frame_index": frame.index}
+
+    raw_gate = SimpleNamespace(assess=_assess)
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 64.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    now[0] = 64.25
+    gate.assess(_frame(2, 64.25))
+    assert gate.confirmation_snapshot()["confirmed"] is True
+
+    # The person walks away: fresh frames keep arriving with nobody in them.
+    # Genuine departure clears through the missed-frames ladder (a handful
+    # of transient misses are tolerated; sustained absence is not).
+    person_present[0] = False
+    for step in range(12):  # tolerance is 10 misses (anti-flicker fix)
+        t = 64.5 + step * 0.25
+        now[0] = t + 0.05
+        gate.assess(_frame(3 + step, t))
+    cleared = gate.confirmation_snapshot()
+    assert cleared["active"] is False
+    assert cleared["reason"] in (
+        "CONFIRMATION_OBSERVATION_STALE", "PERSON_OBSERVATION_STALE",
+        "CONFIRMATION_TARGET_LOST", "CONFIRMED_PERSON_CHANGED", "NO_PERSON",
+    )
+
+
+def test_constant_lag_hold_clears_at_the_hold_duration_cap():
+    """Train #73 review: a stream with CONSTANT lag keeps the observation age
+    flat, so the age-based cap alone would hold forever. The hold DURATION
+    is capped at the same 30 s bound."""
+    now = [100.0]
+    one = select_single_person([_person()], image_shape=(1000, 1000))
+    raw_gate = SimpleNamespace(assess=lambda frame: {
+        **one, "frame_index": frame.index,
+    })
+    gate = OperatorConfirmedBackGate(
+        raw_gate, max_observation_age_s=0.75, clock=lambda: now[0],
+    )
+    gate.assess(_frame(1, 100.0))
+    assert gate.confirm_back(preview_frame_index=1)["ok"] is True
+    gate.assess(_frame(2, 100.05))
+    assert gate.confirmation_snapshot()["confirmed"] is True
+
+    # Frames keep arriving, each exactly 5 s old — age never grows past 5 s.
+    index = 3
+    t = 100.0
+    while now[0] < 128.0:
+        t += 0.25
+        now[0] = t + 5.0
+        gate.assess(_frame(index, t))
+        index += 1
+        snapshot = gate.confirmation_snapshot()
+        assert snapshot["active"] is True, snapshot
+        assert snapshot["reason"] == "CONFIRMATION_HELD_STREAM_STALLED"
+
+    # Past 30 s of continuous holding the cap fires despite the flat age.
+    while now[0] < 140.0:
+        t += 0.25
+        now[0] = t + 5.0
+        gate.assess(_frame(index, t))
+        index += 1
+    assert gate.confirmation_snapshot()["active"] is False

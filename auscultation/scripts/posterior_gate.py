@@ -264,6 +264,15 @@ class OperatorConfirmedBackGate:
         self._latest_decision = None
         self._latest_observed_at = None
         self._latest_ingest_at = None
+        # Age of the FRAME behind the most recent ingested decision (train
+        # #73): after a pipeline stall the stream resumes by chewing through
+        # backlog frames — decisions made on OLD frames are not fresh
+        # re-verification evidence and must not clear a held confirmation.
+        self._latest_ingest_frame_age = None
+        # When the current hold began (train #73 review): the stall cap must
+        # bound the HOLD DURATION, not just the observation age — a stream
+        # with constant lag keeps age flat and would otherwise hold forever.
+        self._held_since = None
         self._active = False
         self._current = False
         self._confirmed_box = None
@@ -276,6 +285,26 @@ class OperatorConfirmedBackGate:
         self._validity_epoch = 0
 
     def _clear_locked(self, reason: str) -> None:
+        if self._active:
+            # Forensic breadcrumb (train #73): destroying a LIVE confirmation
+            # is the whole-recording NO_BACK failure class — always leave the
+            # ages that justified it in the journal.
+            try:
+                print(
+                    "[gate] active confirmation cleared: %s "
+                    "(obs_age=%.2fs ingest_age=%s frame_age=%s)" % (
+                        reason,
+                        self._observation_age_locked(float(self._clock())),
+                        "%.2fs" % (float(self._clock()) - self._latest_ingest_at)
+                        if self._latest_ingest_at is not None else "never",
+                        "%.2fs" % self._latest_ingest_frame_age
+                        if self._latest_ingest_frame_age is not None
+                        else "unknown",
+                    ),
+                    flush=True,
+                )
+            except Exception:  # noqa: BLE001 - breadcrumb must never break the gate
+                pass
         self._validity_epoch += 1
         self._active = False
         self._current = False
@@ -286,6 +315,7 @@ class OperatorConfirmedBackGate:
         self._activation_after_frame_index = None
         self._missed_frames = 0
         self._reason = str(reason)
+        self._held_since = None
 
     def _observation_age_locked(self, now: float) -> float:
         if self._latest_observed_at is None:
@@ -297,18 +327,37 @@ class OperatorConfirmedBackGate:
         if age > self.max_observation_age_s:
             if self._active or self._current:
                 # Distinguish a stalled INGEST STREAM (no decisions arriving
-                # at all — pipeline transition, e.g. Start) from consuming a
-                # stale backlog (decisions arriving whose frames are old).
-                # Only the latter proves the confirmation can no longer be
-                # re-verified; the former holds, bounded by the stall cap.
+                # at all — pipeline transition, e.g. Start) and a stream that
+                # is alive but consuming BACKLOG (decisions arriving whose
+                # frames are themselves old — the Start transition's second
+                # half, observed live 2026-09-01) from genuine staleness.
+                # Only a decision made on a FRESH frame proves the
+                # confirmation could have been re-verified and wasn't; both
+                # stall shapes hold instead, bounded by the stall cap.
                 stream_alive = (
                     self._latest_ingest_at is not None
                     and (float(now) - float(self._latest_ingest_at))
                     <= self.max_observation_age_s
                 )
-                if stream_alive or age > _CONFIRMATION_STALL_HOLD_MAX_S:
+                fresh_evidence = (
+                    stream_alive
+                    and self._latest_ingest_frame_age is not None
+                    and self._latest_ingest_frame_age
+                    <= self.max_observation_age_s
+                )
+                held_for = (
+                    0.0 if self._held_since is None
+                    else max(0.0, float(now) - self._held_since)
+                )
+                if (
+                    fresh_evidence
+                    or age > _CONFIRMATION_STALL_HOLD_MAX_S
+                    or held_for > _CONFIRMATION_STALL_HOLD_MAX_S
+                ):
                     self._clear_locked("CONFIRMATION_OBSERVATION_STALE")
                 else:
+                    if self._held_since is None:
+                        self._held_since = float(now)
                     self._mark_not_current_locked()
                     self._reason = "CONFIRMATION_HELD_STREAM_STALLED"
             elif self._latest_decision is not None:
@@ -519,6 +568,7 @@ class OperatorConfirmedBackGate:
             # Any assess() call proves the ingest stream is alive, whatever
             # the decision says — the stall-hold logic keys off this.
             self._latest_ingest_at = now
+            self._latest_ingest_frame_age = max(0.0, now - observed_at)
             previous_index = (
                 None if self._latest_decision is None
                 else int(self._latest_decision.get("frame_index", -1))
@@ -602,6 +652,11 @@ class OperatorConfirmedBackGate:
                     self._reason = "BACK_CONFIRMATION_PENDING_FRAME"
                 else:
                     self._current = True
+                    # Only a FRESH-frame re-verification ends the hold clock:
+                    # backlog frames (old, person present) oscillate through
+                    # this branch and must not reset the duration cap.
+                    if now - observed_at <= self.max_observation_age_s:
+                        self._held_since = None
                     self._reason = "OPERATOR_CONFIRMED_BACK"
             snapshot = self._snapshot_locked()
             return {

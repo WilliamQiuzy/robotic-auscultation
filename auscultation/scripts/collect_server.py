@@ -41,8 +41,12 @@ from urllib.parse import parse_qs, urlsplit
 _ROBOT_SUMMARY_SCHEMA_V3 = "wam_openarm_exact_control_capture_summary_v3"
 _ROBOT_SUMMARY_SCHEMA_V4 = "wam_openarm_exact_control_capture_summary_v4"
 _ROBOT_ENVELOPE_SCHEMA_V4 = "wam_openarm_control_envelope_v4"
-_RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S = 1.5
-_RECORDING_MODEL_START_GRACE_S = 8.0
+# Train #73: relaxed from 1.5s/8.0s (the 2026-08-14 throughput-war setting).
+# Live margins are now measured (recording bundles 80-90ms vs the 500ms
+# staleness bound; a full tracking pass ~300ms), so the on-screen point
+# cadence can triple without starving the recording path — soak-validated.
+_RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S = 0.5
+_RECORDING_MODEL_START_GRACE_S = 4.0
 _ROBOT_TX_STATUS_REASON = "openarm_can_1_2_2_full_frame_write_results"
 _ROBOT_TX_STATUS_SEMANTICS = (
     "linux_socketcan_full_frame_write_tx_enqueue_not_motor_ack"
@@ -536,9 +540,15 @@ def draw_tracking_overlay(
                 segment * 360 / 16, (segment + 1) * 360 / 16, amber, 2,
             )
         cv2.circle(frame, (px, py), 2, amber, -1)
+        # Train #73: labels are drawn at capture resolution then downscaled
+        # ~2x for the preview — 0.5-scale text was unreadable on the page.
         cv2.putText(
-            frame, f"{raw['name']} ?", (px - 30, py - 18),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.5, amber, 1,
+            frame, f"{raw['name']} ?", (px - 34, py - 20),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 4,
+        )
+        cv2.putText(
+            frame, f"{raw['name']} ?", (px - 34, py - 20),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, amber, 2,
         )
     for point in verified_points:
         name = str(point.get("name", ""))
@@ -568,8 +578,12 @@ def draw_tracking_overlay(
             cv2.circle(frame, (px, py), radius, color, thickness)
         cv2.circle(frame, (px, py), 3, color, -1)
         cv2.putText(
-            frame, label, (px - 50, py - radius - 8), cv2.FONT_HERSHEY_SIMPLEX,
-            0.5, color, 1,
+            frame, label, (px - 56, py - radius - 10),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 4,
+        )
+        cv2.putText(
+            frame, label, (px - 56, py - radius - 10),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, color, 2,
         )
     return frame
 
@@ -2052,7 +2066,7 @@ class Collector:
             gate is not None
             and gate.state == safe_stop_hil.TESTING
             and comp is not None
-            and comp.state == "faulted"
+            and comp.state in ("faulted", "disabled")
         ):
             # Persist WHY before voiding: a post-READY auto-fault has no operator
             # action attached, so without this the reason is unrecoverable.
@@ -5393,16 +5407,32 @@ class Collector:
                 # age_ms=523.6 vs bound_ms=500.0 seconds after Start):
                 # the delivery backlog drains through its most fragile
                 # window right after Start; keep inference GIL churn out
-                # of it entirely. The overlay appears ~8 s in.
+                # of it entirely. The overlay appears once the grace ends
+                # (train #73: 4 s — safe only together with the posterior
+                # gate's backlog-hold, which keeps the confirmation alive
+                # while the drained backlog is re-assessed).
                 raise RobotCaptureNotReady(
                     "recording inference start-grace interval is open"
                 )
             last = self._recording_model_submit_monotonic
-            if (
-                last is not None
-                and now_monotonic - last
-                < _RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S
-            ):
+            # Adaptive throttle (train #73 review): the base interval keeps
+            # the on-screen cadence snappy, but the quiet gap must never
+            # collapse when a tracking pass regresses — bound the inference
+            # duty cycle at <=50% by stretching the interval to 2x the last
+            # measured pass, exactly the protection ratio the original 1.5 s
+            # setting provided at the 750 ms passes it was born under.
+            interval = _RECORDING_MODEL_MIN_SUBMIT_INTERVAL_S
+            worker = self._model_worker
+            if worker is not None:
+                try:
+                    last_inference_ms = worker.health().get("last_inference_ms")
+                    if last_inference_ms:
+                        interval = max(
+                            interval, 2.0 * float(last_inference_ms) / 1000.0,
+                        )
+                except Exception:  # noqa: BLE001 - throttle shaping only
+                    pass
+            if last is not None and now_monotonic - last < interval:
                 raise RobotCaptureNotReady(
                     "recording inference throttle interval is open"
                 )
@@ -7721,17 +7751,17 @@ h1{font:650 clamp(21px,2.4vw,34px)/1.05 var(--sans);margin:7px 0 0}.scope{max-wi
 .feed canvas{width:100%;height:100%;object-fit:contain;display:block}.feedhead{position:absolute;inset:0 0 auto;display:flex;gap:12px;justify-content:space-between;padding:10px 12px;background:linear-gradient(#050709e8,transparent);font:700 10px var(--mono);letter-spacing:.1em;text-transform:uppercase}
 .live{display:flex;align-items:center;gap:7px}.live i{width:7px;height:7px;border-radius:50%;background:var(--dim)}.live.on i{background:var(--red);animation:pulse 1.2s infinite}@keyframes pulse{50%{opacity:.25}}
 .feedfoot{position:absolute;inset:auto 0 0;padding:12px;background:linear-gradient(transparent,#050709eb 36%)}
-#statusbar{font:650 14px/1.35 var(--mono);text-shadow:0 1px 2px #000}.telemetry{display:flex;gap:18px;margin-top:7px;color:var(--muted);font:11px var(--mono);flex-wrap:wrap}
-.action{min-height:48px;margin-top:12px;padding:12px 14px;border:1px solid var(--line);background:#0c1115;font:12px/1.45 var(--mono);color:var(--muted)}.action.good{border-color:#235e49;color:var(--green)}.action.bad{border-color:#71303d;color:var(--red)}
+#statusbar{font:650 14px/1.35 var(--mono);text-shadow:0 1px 2px #000}.telemetry{display:flex;gap:18px;margin-top:7px;color:var(--muted);font:13px var(--mono);flex-wrap:wrap}
+.action{min-height:48px;margin-top:12px;padding:12px 14px;border:1px solid var(--line);background:#0c1115;font:14px/1.45 var(--mono);color:var(--muted)}.action.good{border-color:#235e49;color:var(--green)}.action.bad{border-color:#71303d;color:var(--red)}
 .rail{display:flex;flex-direction:column;gap:12px}.card{background:linear-gradient(145deg,#12181e,#0d1216);border:1px solid var(--line);padding:14px}.railcard{min-width:0;padding:12px}.cardhead{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
-.pill{font:800 10px var(--mono);letter-spacing:.08em;border:1px solid currentColor;padding:5px 8px}.target{font:750 34px/1 var(--mono);letter-spacing:-.05em}.meta{display:grid;grid-template-columns:100px 1fr;gap:7px 10px;margin-top:13px;font:11px/1.35 var(--mono)}.meta dt{color:var(--dim)}.meta dd{margin:0;overflow-wrap:anywhere}
+.pill{font:800 10px var(--mono);letter-spacing:.08em;border:1px solid currentColor;padding:5px 8px}.target{font:750 34px/1 var(--mono);letter-spacing:-.05em}.meta{display:grid;grid-template-columns:100px 1fr;gap:7px 10px;margin-top:13px;font:13px/1.35 var(--mono)}.meta dt{color:var(--dim)}.meta dd{margin:0;overflow-wrap:anywhere}
 .back{margin-top:13px;padding:9px 10px;border-left:3px solid var(--red);background:#190f13;color:#e0a7b0;font:700 11px/1.4 var(--mono)}.back.ok{border-color:var(--green);background:#0b1914;color:var(--green)}
-.points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 4px}.point{display:flex;align-items:center;gap:7px;min-width:0;padding:4px 6px;color:var(--muted);font:10px/1.2 var(--mono);border:1px solid transparent}.point span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.point i{width:7px;height:7px;flex:0 0 auto;border:1px solid var(--dim);border-radius:50%}.point.active{color:var(--amber);border-color:#594825;background:#1a160d}.point.active i{background:var(--amber);border-color:var(--amber)}.point.done{color:var(--green)}.point.done i{background:var(--green);border-color:var(--green)}
+.points{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 4px}.point{display:flex;align-items:center;gap:7px;min-width:0;padding:4px 6px;color:var(--muted);font:12px/1.2 var(--mono);border:1px solid transparent}.point span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.point i{width:7px;height:7px;flex:0 0 auto;border:1px solid var(--dim);border-radius:50%}.point.active{color:var(--amber);border-color:#594825;background:#1a160d}.point.active i{background:var(--amber);border-color:var(--amber)}.point.done{color:var(--green)}.point.done i{background:var(--green);border-color:var(--green)}
 .buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}.backcontrol{margin-top:8px}button{appearance:none;border:1px solid #3b4650;background:#161d23;color:var(--ink);min-height:42px;padding:9px;font:750 11px var(--mono);cursor:pointer}button:hover:not(:disabled){border-color:var(--cyan);color:var(--cyan)}button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}button:disabled{opacity:.35;cursor:not-allowed}.start{border-color:#28634d;color:var(--green)}.end{border-color:#7b3340;color:var(--red)}.wide{grid-column:1/-1}.estop{border-color:var(--red);color:var(--red);font-weight:800}.estop:hover:not(:disabled){background:var(--red);color:#0a0d10;border-color:var(--red)}.armctl{margin-bottom:10px;padding:8px;border:1px solid #3b4650;border-radius:4px}.armstat{font:750 11px var(--mono);margin-bottom:6px}.armstat.good{color:var(--green)}.armstat.bad{color:var(--red)}.armstat.warn{color:#e0a030}
-.keyline{margin-top:10px;color:var(--dim);font:10px/1.5 var(--mono)}.blockers{margin:0;padding-left:17px;color:#d2a5ad;font:11px/1.45 var(--mono)}.blockers li+li{margin-top:6px}.sessionpath{font:10px/1.4 var(--mono);color:var(--muted);overflow-wrap:anywhere}
+.keyline{margin-top:10px;color:var(--dim);font:12px/1.5 var(--mono)}.blockers{margin:0;padding-left:17px;color:#d2a5ad;font:13px/1.45 var(--mono)}.blockers li+li{margin-top:6px}.sessionpath{font:12px/1.4 var(--mono);color:var(--muted);overflow-wrap:anywhere}
 .capturestrip{margin-top:12px;padding:11px 12px;border:1px solid var(--line);background:linear-gradient(145deg,#11171c,#0b1014)}.capturetop{display:flex;align-items:center;justify-content:space-between;gap:12px}.capturemetrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:9px}.capturemetric{min-width:0;padding-left:9px;border-left:2px solid #26313a}.capturemetric b{display:block;margin-top:4px;font:750 14px/1.2 var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.capturefoot{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:10px;margin-top:9px}.capturefoot>:last-child{text-align:right}@media(max-width:720px){.capturemetrics{grid-template-columns:repeat(2,minmax(0,1fr))}.capturefoot{grid-template-columns:1fr}.capturefoot>:last-child{text-align:left}}
 .audiolevel{height:8px;border-radius:10px;background:#080b0e;overflow:hidden;border:1px solid var(--line);margin:10px 0}.audiolevel i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--green),var(--amber));transition:width .18s ease}
-.audio-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.audio-copy{font:11px/1.45 var(--mono);color:var(--muted)}.audio-copy strong{display:block;color:var(--ink);font-size:12px}.listen{min-width:112px;color:var(--cyan);border-color:#285967}.listen.on{color:var(--red);border-color:#7b3340}
+.audio-row{display:flex;align-items:center;justify-content:space-between;gap:10px}.audio-copy{font:13px/1.45 var(--mono);color:var(--muted)}.audio-copy strong{display:block;color:var(--ink);font-size:14px}.listen{min-width:112px;color:var(--cyan);border-color:#285967}.listen.on{color:var(--red);border-color:#7b3340}
 .sensorblock+.sensorblock{border-top:1px solid var(--line);margin-top:10px;padding-top:10px}.sensorblock .cardhead{margin-bottom:7px}.sensorblock .keyline{margin-top:7px}.forcelevel{position:relative;height:12px;border-radius:10px;background:#080b0e;overflow:hidden;border:1px solid var(--line);margin:8px 0}.forcelevel:after{content:"";position:absolute;inset:0 auto 0 83.64%;width:1px;background:#8b7136}.forcelevel i{display:block;height:100%;width:0;background:var(--dim);transition:width .18s ease}.taskpoints{margin-top:10px;padding-top:9px;border-top:1px solid var(--line)}.taskpoints .cardhead{margin-bottom:5px}#taskcard .back{margin-top:10px;padding:7px 9px}#taskcard .backcontrol{margin-top:7px}#taskcard>.keyline{margin-top:7px}#controlcard .cardhead{margin-bottom:9px}#controlcard .buttons{gap:7px}#controlcard button{min-height:40px}
 details.engineering{margin-top:10px;background:#0c1115;border:1px solid var(--line);padding:10px 12px}details.engineering summary{cursor:pointer;color:var(--muted);font:700 10px var(--mono);letter-spacing:.08em}details.engineering .telemetry{margin-top:10px}details.engineering .blockerhead{display:block;margin:12px 0 7px}details.engineering .blockers{font-size:10px}
 @media(prefers-reduced-motion:reduce){*{animation:none!important}}
@@ -7765,7 +7795,7 @@ function fmtAge(v){return v==null?'—':Number(v).toFixed(2)+'s'}
 function fmtBytes(v){if(v==null||!Number.isFinite(Number(v)))return '—';let n=Math.max(0,Number(v)),u='B';for(const next of ['KiB','MiB','GiB','TiB']){if(n<1024)break;n/=1024;u=next}return n.toFixed(n>=100?0:n>=10?1:2)+' '+u}
 function fmtRemaining(v){if(v==null||!Number.isFinite(Number(v)))return 'Estimating';const seconds=Math.max(0,Number(v));if(seconds<120)return '~ '+Math.floor(seconds)+' s';if(seconds<7200)return '~ '+(seconds/60).toFixed(1)+' min';return '~ '+(seconds/3600).toFixed(1)+' hr'}
 const stateText={READY:'Ready',RECORDING:'Recording',FINALIZING:'Verifying',COMPLETE:'Complete',PREFLIGHT_FAILED:'Not ready',ERROR:'Error',ABORTED:'Stopped',DISABLED:'Off',WAITING:'Waiting'};
-const reasonText={NO_PERSON:'Waiting for person',AMBIGUOUS_PEOPLE:'One person only',PERSON_DETECTION_INVALID:'Person detector invalid',BACK_CONFIRMATION_REQUIRED:'Confirm patient back',BACK_CONFIRMATION_PENDING_FRAME:'Checking person',BACK_NOT_CONFIRMABLE:'Waiting for one person',PREVIEW_FRAME_NOT_BOUND:'Preview changed · confirm again',OPERATOR_CONFIRMED_BACK:'Back confirmed',CONFIRMATION_TARGET_LOST:'Person lost · confirm again',CONFIRMATION_OBSERVATION_STALE:'Person feed stale · confirm again',PERSON_OBSERVATION_STALE:'Waiting for current person',CONFIRMED_PERSON_CHANGED:'Person changed · confirm again',NON_MONOTONIC_PERSON_FRAME:'Person feed reset · confirm again',PERSON_GATE_STARTING:'Starting person detector',NO_BACK:'Waiting for back',MODEL_STARTING:'Starting model',TRACKING:'Tracking',REACQUIRING:'Reacquiring',INITIALIZING:'Initializing'};
+const reasonText={NO_PERSON:'Waiting for person',AMBIGUOUS_PEOPLE:'One person only',PERSON_DETECTION_INVALID:'Person detector invalid',BACK_CONFIRMATION_REQUIRED:'Confirm patient back',BACK_CONFIRMATION_PENDING_FRAME:'Checking person',BACK_NOT_CONFIRMABLE:'Waiting for one person',PREVIEW_FRAME_NOT_BOUND:'Preview changed · confirm again',OPERATOR_CONFIRMED_BACK:'Back confirmed',CONFIRMATION_TARGET_LOST:'Person lost · confirm again',CONFIRMATION_OBSERVATION_STALE:'Person feed stale · confirm again',CONFIRMATION_HELD_STREAM_STALLED:'Confirmation held · feed catching up',PERSON_OBSERVATION_STALE:'Waiting for current person',CONFIRMED_PERSON_CHANGED:'Person changed · confirm again',NON_MONOTONIC_PERSON_FRAME:'Person feed reset · confirm again',PERSON_GATE_STARTING:'Starting person detector',NO_BACK:'Waiting for back',MODEL_STARTING:'Starting model',TRACKING:'Tracking',REACQUIRING:'Reacquiring',INITIALIZING:'Initializing'};
 const blockerText={'Orbbec mode-bound hardware LED latency calibration is missing':'Camera latency','camera-to-robot hand-eye calibration and robot-base targets are missing':'Hand-eye calibration','confirmed direct motor-disable command is missing':'Motor stop','live robot/action and stethoscope audio identities are not commissioned':'Hardware identities'};
 const ackText={'Diagnostic preflight ready':'Ready to start','Diagnostic recording started':'Recording started','End accepted; diagnostic recording is finalizing':'Ending · verifying','Diagnostic recording saved and verified (not training eligible)':'Saved · verified'};
 function shortText(v){return ackText[v]||reasonText[v]||stateText[v]||String(v||'—').replaceAll('_',' ')}
@@ -7781,7 +7811,7 @@ function render(s){latest=s;const recording=s.state==='RECORDING',finalizing=s.s
  $('counter').textContent=(s.idx+1)+' / '+s.n;$('tname').textContent=s.point?(s.point+(s.site?' · '+String(s.site).replace(/^auscultate the /,''):'')):'—';
  const full=s.target_valid&&s.points_visible===s.n;$('backgate').textContent=full?'10 points locked':back.confirmed?'Back confirmed · locating points':shortText(back.reason||s.tracking_reason||'NO_BACK');$('backgate').className='back'+(full?' ok':'');
  $('pointslabel').textContent=s.points_visible+' / '+s.n;$('pointstat').textContent='Points '+s.points_visible+' / '+s.n;
- $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;const tf=ct.telemetry_fault;$('armstat').textContent=tf?('TELEMETRY FAULT — ARM STILL POWERED — data unusable; YOU decide: Disable / E-stop ('+shortText(tf)+')'):hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(tf?'bad':st==='ready'&&!dis?'good':(st==='faulted'||dis)?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=(sstate==='HIL_PASSED');const la=ct.last_attempt;const laTxt=(la&&la.ok===false)?(' · LAST '+String(la.action||'').replace('safe_stop_','')+' FAILED ['+(la.code||'')+'] '+String(la.message||'').slice(0,180)+(la.receiver?(' · recv='+la.receiver.status+' seq='+la.receiver.last_envelope_seq):'')):'';$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'')+laTxt;$('safestopstat').title=laTxt?String(la.message||''):'';$('safestopstat').className='armstat '+((la&&la.ok===false)?'bad':sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafetest').dataset.unlocked=ss.bringup_authorized?'1':'';$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
+ $('livefps').textContent='Live FPS '+Number(s.preview_produced_fps||0).toFixed(1);$('sessionframes').textContent='Session frames '+Number(s.session_recorded_frames||0);$('camstat').textContent='Camera '+shortText(s.camera_status)+' · '+fmtAge(s.preview_age_s);const stages=s.perception_stages||{},gateStage=stages.person_gate||{},v9Stage=stages.landmark_model||{};$('modelstat').textContent='Gate '+shortText(gateStage.status||s.model_status)+' · V9 '+shortText(v9Stage.status||'LOADING')+' · '+fmtAge(s.tracking_age_s);const rb=s.robot||{};$('robotstat').textContent=rb.enabled?(rb.ready?'Robot Ready · TX enqueue only · Left can1→can3':'Robot Waiting · Left can1→can3'):'Robot Off';const he=s.handeye||{};$('handeyestat').textContent=he.status==='BOUND_PROVISIONAL'?('Hand-eye · Provisional · '+Number(he.workspace_1sigma_max_mm||0).toFixed(2)+' mm max'):he.status==='BOUND_VALIDATED'?'Hand-eye · Validated':'Hand-eye · Waiting';$('dropstat').textContent='Drops '+(s.model_health?.dropped_before_inference??0)+' / '+(s.capture_ingress?.dropped_before_inference??0);const ct=s.controller||{},armOn=ct.visible===true||ct.configured===true;$('armctl').hidden=!armOn;if(armOn){const st=ct.state||'idle',dis=ct.disabled===true,iso=ct.energy_isolated===true,cmdOk=ct.disable_command_succeeded!==false,bringAllowed=ct.arm_bringup_authorized===true,stopAllowed=ct.arm_stop_authorized===true,bringActive=ct.bringup_active===true,hasComp=Object.prototype.hasOwnProperty.call(ct,'disabled'),rejection=ct.arm_bringup_rejection||ct.arm_stop_rejection||'Safe-stop HIL required',disTxt=iso?'energy-isolated':cmdOk?'motor-disable UNVERIFIED':'DISABLE COMMAND FAILED — arm NOT confirmed disabled',lifecycleTxt=dis?(cmdOk?'DISABLED · '+disTxt:'⚠ '+disTxt):st==='ready'?('READY · Left can1→can3'+(ct.controller_pid?' · pid '+ct.controller_pid:'')):st==='faulted'?'FAULTED · '+disTxt:st==='idle'?'Idle · not brought up':st;const tf=ct.telemetry_fault;$('armstat').textContent=tf?('TELEMETRY FAULT — ARM STILL POWERED — data unusable; YOU decide: Disable / E-stop ('+shortText(tf)+')'):hasComp?('Arm '+lifecycleTxt):!bringAllowed&&!stopAllowed?('Arm · '+rejection):'Arm '+lifecycleTxt;$('armstat').className='armstat '+(tf?'bad':st==='ready'&&!dis?'good':(st==='faulted')?'bad':'warn');$('btnarm').disabled=busy||bringActive||!bringAllowed||(st==='ready'&&!dis);$('btnarm').title=bringAllowed?'':rejection;$('btnestop').disabled=!stopAllowed;$('btnestop').title=stopAllowed?'':(ct.arm_stop_rejection||rejection);const ss=ct.safe_stop_hil;if(ss){const sstate=String(ss.state||'HIL_PENDING'),awaiting=sstate==='HIL_AWAITING_WITNESS',testing=sstate==='HIL_TESTING';$('safestopstat').hidden=false;$('safestopctl').hidden=(sstate==='HIL_PASSED');const la=ct.last_attempt;const laTxt=(la&&la.ok===false)?(' · LAST '+String(la.action||'').replace('safe_stop_','')+' FAILED ['+(la.code||'')+'] '+String(la.message||'').slice(0,180)+(la.receiver?(' · recv='+la.receiver.status+' seq='+la.receiver.last_envelope_seq):'')):'';$('safestopstat').textContent='Safe-stop HIL · '+sstate.replace('HIL_','')+(ss.bringup_authorized?' · bring-up UNLOCKED (this session)':'')+laTxt;$('safestopstat').title=laTxt?String(la.message||''):'';$('safestopstat').className='armstat '+((la&&la.ok===false)?'bad':sstate==='HIL_PASSED'?'good':sstate==='HIL_FAILED'?'bad':'warn');$('btnsafetest').disabled=busy||testing||awaiting;$('btnsafetest').dataset.unlocked=ss.bringup_authorized?'1':'';$('btnsafepass').disabled=busy||!awaiting;$('btnsafefail').disabled=busy||!awaiting;}else{$('safestopstat').hidden=true;$('safestopctl').hidden=true;}}
  const au=s.audio||{},signal=au.signal_status||'WAITING',signalPresent=au.signal_present===true;$('audiopill').textContent=signalPresent?'Signal':signal==='SILENT'?'No signal':shortText(signal);$('audiopill').style.color=signalPresent?'var(--green)':au.status==='ERROR'?'var(--red)':'var(--amber)';$('audiodb').textContent=Number(au.peak_db??-120).toFixed(1)+' dBFS';$('audiofill').style.width=Math.max(0,Math.min(100,(Number(au.peak_db??-120)+80)/80*100))+'%';$('audiostatus').textContent=au.commissioned?'Commissioned':signalPresent?'Lung audio detected':signal==='SILENT'?'Check stethoscope':au.enabled?'Waiting for input':'Off';$('btnaudio').disabled=!au.enabled||au.status==='ERROR';
  const fs=s.force_sensor||{},forceN=Number(fs.force_n),forceLimit=Number(fs.hard_limit_force_n),forceStatus=String(fs.status||'WAITING'),forceLive=fs.enabled===true&&Number.isFinite(forceN)&&Number.isFinite(forceLimit)&&forceLimit>0&&(['OK','WARN','SCREENED_LIMIT','HARD_LIMIT'].includes(forceStatus)||(forceStatus==='STALE'&&Number(fs.age_s)<=2.5)),forceLevel=forceLive?Math.max(0,Math.min(100,forceN/forceLimit*100)):0,forceLabel=({OK:'Good',WARN:'Adjust',SCREENED_LIMIT:'High',HARD_LIMIT:'Very high',DISABLED:'Off',STARTING:'Starting',MISSING:'Unavailable',STALE:'Stale',ERROR:'Unavailable',WAITING:'Waiting'})[forceStatus]||shortText(forceStatus),forceColor=fs.status==='WARN'?'var(--amber)':fs.status==='OK'?'var(--green)':forceLive?'var(--red)':'var(--dim)';$('forcepill').textContent=forceLabel;$('forcepill').style.color=forceColor;$('forcefill').style.width=forceLevel+'%';$('forcefill').style.background=forceColor;$('forcebar').setAttribute('aria-valuenow',String(Math.round(forceLevel)));$('forcebar').setAttribute('aria-valuetext',forceLabel);
  $('statusbar').textContent=shortText(s.error||s.fatal_error||s.action_ack||s.tracking_reason||s.state);

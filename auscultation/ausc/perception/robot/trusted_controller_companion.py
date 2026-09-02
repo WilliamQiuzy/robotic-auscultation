@@ -47,6 +47,17 @@ _TERMINAL_BAD_STATUS = frozenset({"FAULT", "STOPPED"})
 # supervision polls before the arm is fault-disabled; one GIL-lagged health
 # snapshot on a busy shared box is not a safety event.
 _STALE_POLL_FAULT_LIMIT = 3
+# Recovery unlatch (train #73): the bring-up storm routinely produces a
+# 3-poll STALE burst right after the controller reaches READY, latching a
+# "telemetry stale" alarm that never cleared even though the stream fully
+# recovered (observed live 2026-09-01; operators had to Disable and
+# re-bring-up). A SUSTAINED-STALE latch — and only that kind — now clears
+# itself after this many consecutive healthy polls, with a journal
+# breadcrumb. Terminal faults and regressions still latch permanently, and
+# the per-tick receipt accounting remains the authoritative record of any
+# real telemetry gap.
+_STALE_RECOVERY_POLL_LIMIT = 10
+_STALE_FAULT_PREFIX = "telemetry stale (ARM STILL POWERED)"
 
 
 class CompanionError(RuntimeError):
@@ -211,6 +222,7 @@ class TrustedControllerCompanion:
         self._state = "idle"           # idle -> ready -> faulted
         self._fault_reason = ""        # first fault's reason, kept for evidence
         self._stale_polls = 0          # consecutive non-READY freshness polls
+        self._healthy_polls = 0        # consecutive fresh READY polls (train #73)
         # OPERATOR SAFETY POLICY (2026-08-07, explicit directive): software NEVER
         # cuts arm power on its own. Power-off happens ONLY via (1) an operator
         # console action, (2) the physical E-stop, (3) the 8801 Disable button.
@@ -428,6 +440,7 @@ class TrustedControllerCompanion:
         # A mid-teleop software power cut would drop the follower onto the
         # patient -- the greater hazard in this human-in-the-loop system.
         if self._coordinator.faulted or status in _TERMINAL_BAD_STATUS:
+            self._healthy_polls = 0
             if not self._telemetry_fault_reason:
                 self._telemetry_fault_reason = (
                     f"telemetry fault (ARM STILL POWERED): status={status} "
@@ -447,6 +460,7 @@ class TrustedControllerCompanion:
             status != _READY_STATUS
             or not bool(getattr(health, "preflight_ready", False))
         ):
+            self._healthy_polls = 0
             if not self._telemetry_fault_reason:
                 self._telemetry_fault_reason = (
                     f"telemetry regression (ARM STILL POWERED): status={status} "
@@ -455,16 +469,29 @@ class TrustedControllerCompanion:
             return health
         if status in _DEBOUNCED_FRESHNESS_STATUS:
             self._stale_polls += 1
+            self._healthy_polls = 0
             if (
                 self._stale_polls >= _STALE_POLL_FAULT_LIMIT
                 and not self._telemetry_fault_reason
             ):
                 self._telemetry_fault_reason = (
-                    f"telemetry stale (ARM STILL POWERED): status={status} "
+                    f"{_STALE_FAULT_PREFIX}: status={status} "
                     f"sustained for {self._stale_polls} supervision polls"
                 )
             return health
         self._stale_polls = 0
+        self._healthy_polls += 1
+        if (
+            self._telemetry_fault_reason.startswith(_STALE_FAULT_PREFIX)
+            and self._healthy_polls >= _STALE_RECOVERY_POLL_LIMIT
+        ):
+            print(
+                "[companion] stale-telemetry alarm cleared after "
+                f"{self._healthy_polls} consecutive healthy polls "
+                f"(was: {self._telemetry_fault_reason})",
+                flush=True,
+            )
+            self._telemetry_fault_reason = ""
         return health
 
     def report_external_fault(self, reason: str) -> None:
@@ -491,11 +518,13 @@ class TrustedControllerCompanion:
         # the shared field afterwards -- a concurrent watchdog disable-retry could
         # overwrite self._disable_outcome between the disable and the read, making the
         # operator's E-stop response describe a different command's result.
-        outcome = self._fault_disable(str(reason))
+        outcome = self._fault_disable(str(reason), terminal_state="disabled")
         assert outcome is not None
         return outcome
 
-    def _fault_disable(self, reason: str) -> DisableOutcome:
+    def _fault_disable(
+        self, reason: str, *, terminal_state: str = "faulted",
+    ) -> DisableOutcome:
         """Idempotent teardown: send the direct-disable command FIRST, then an
         independent motor-disable readback, then stop the receiver and terminate.
 
@@ -508,6 +537,16 @@ class TrustedControllerCompanion:
         # aborts immediately -- this is the cancellation token that closes the
         # "arm reaches READY while an E-stop disable is still running" race.
         self._stop_requested = True
+        # Train #73 review: an operator Disable pressed AFTER a latched safety
+        # fault must NOT reclassify the companion to the calm "disabled"
+        # terminal — the red FAULTED banner is the fault's only console
+        # evidence. Only a routine disable (no standing fault at entry) may
+        # end "disabled". (_fault_reason is no discriminator: routine
+        # shutdowns record their own reason there.)
+        if terminal_state == "disabled" and (
+            self._state == "faulted" or self._telemetry_fault_reason
+        ):
+            terminal_state = "faulted"
         # Keep the FIRST fault's reason as evidence: post-READY auto-faults happen in
         # the watchdog with no operator action attached, so without this the reason
         # would be unrecoverable after teardown.
@@ -517,12 +556,25 @@ class TrustedControllerCompanion:
         # interleave their disable of the SAME companion.  The outcome is captured and
         # returned from INSIDE the lock so the caller reports its own command's result.
         with self._disable_lock:
-            return self._fault_disable_locked(reason)
+            return self._fault_disable_locked(reason, terminal_state=terminal_state)
 
-    def _fault_disable_locked(self, reason: str) -> DisableOutcome:
+    def _fault_disable_locked(
+        self, reason: str, *, terminal_state: str = "faulted",
+    ) -> DisableOutcome:
+        # Train #73: an OPERATOR-initiated shutdown that leaves the arm
+        # confirmed disabled ends in state "disabled", not "faulted" — the
+        # console showed a red FAULTED banner after every routine Disable and
+        # operators read it as a stuck error. A disable whose command failed
+        # (or whose readback says the motors are still live) ALWAYS ends
+        # "faulted", whatever the caller asked for.
+        def _terminal(disabled_now: bool) -> str:
+            if terminal_state == "disabled" and disabled_now:
+                return "disabled"
+            return "faulted"
+
         if self._disabled:
             # Already SUCCESSFULLY disabled -> idempotent no-op (no double-disable).
-            self._state = "faulted"
+            self._state = _terminal(True)
             return self._disable_outcome
         self._disable_outcome = execute_independent_stop(
             direct_disable=self._direct_disable,
@@ -552,7 +604,7 @@ class TrustedControllerCompanion:
                 self._controller.terminate()
             except Exception:
                 pass
-        self._state = "faulted"
+        self._state = _terminal(self._disabled)
         return self._disable_outcome
 
 
