@@ -1,0 +1,9 @@
+{
+  "experiment": "history_reload_probe",
+  "base": "/home/william/wam-vla-v2",
+  "failed_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-fit32-20260929",
+  "owner_sha256": "209ef0c8ac54351e790176c19fbb93c34f06e5cd8037a17b330fdecb84660989",
+  "weights_sha256": "5a8dc5faf17aab315857934cf6d9545ad3f04ec4b9ec0196f3f9fc9aa6de00ce",
+  "predictions_sha256": "a4c65550abaa812986ad9b2a009f71bb32a8eb409da251002f896666644bd14f",
+  "time_limit_seconds": 900
+}

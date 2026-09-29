@@ -26,6 +26,7 @@ MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
            'capture_probe': 'sim.ausc_policy.capture_probe',
            'history_prepare': 'sim.ausc_policy.history_prepare',
            'history_fit': 'sim.ausc_policy.history_fit',
+           'history_reload_probe': 'sim.ausc_policy.history_reload_probe',
            'isaac_run': 'sim.ausc_policy.isaac_run'}
 
 
