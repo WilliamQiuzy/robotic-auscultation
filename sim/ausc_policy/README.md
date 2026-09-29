@@ -101,3 +101,25 @@ probe, at most 480 deterministic CPU inferences and zero optimizer updates.
 URDF-invalid inputs are counted and excluded without clipping. Output-versus-input
 perturbation ratios are local proposal sensitivity, not executed recovery or
 stability guarantees. No collision/posture feasibility or oracle label is implied.
+
+### Recovery expert and raw-modality audit
+
+`recovery_run` is a separate, explicitly analytic R4 expert pilot. It physically
+prepares 0/±0.02 rad stationary offsets, queries a freshly checked route, then
+runs the unchanged measured contact supervisor. This is not ACT/VLA fallback,
+moving-state DAgger or random-body qualification. Every capture remains
+`training_dataset_eligible=false`, including successful cases.
+
+`recovery_sensor_audit` runs through the same finite Linux owner with CUDA hidden,
+after acquisition has completed and released its resources. It independently
+replays all 240 Hz Hall updates and every original RGB-D image through tracking,
+FK and encoding, checks source bindings before/after, and exports no training
+arrays. Its `passed` means raw observation reproducibility only. Acquisition
+phases, eligibility flags and old reports are never rewritten to pass a legacy
+qualifier. The audit config must pin the actual owner and case result hashes.
+
+`velocity_probe` is a Mac-compatible pure CPU read-only diagnostic. It compares
+reported API dq with a strictly causal 50 ms measured-position derivative on
+the same original TRAIN windows. Missing history is excluded, never zero-filled;
+ACT has no velocity/history input, so these are diagnostic references rather
+than an equal-input policy ranking. See `reports/ausc_policy/m0_velocity_definition.md`.
