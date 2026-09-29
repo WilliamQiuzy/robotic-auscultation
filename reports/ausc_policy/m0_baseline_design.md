@@ -1,6 +1,8 @@
 # M0 状态基线设计审计
 
-日期：2026-09-29。状态：**设计已形成，官方 ACT 纯状态路径已按源码确认，尚未实现、训练或闭环；M0 未通过。** 本次只读本地代码及小型 JSON/Markdown，并按后续授权读取官方 LeRobot GitHub 源码；未访问 SSH、GPU、Isaac、模型权重或大型数组，未安装依赖。唯一新增文件为本报告。
+**2026-09-29 更新：根任务已完成真实 TRAIN16 准备、官方 ACT CPU smoke 和 512 步绝对动作 TRAIN32 诊断；有限拟合未胜过 hold/CV，尚未闭环，M0 未通过。** 输入、归一化和 train/eval 数值核对未发现明确适配器错误，主要残差为共同关节偏置。详见 [拟合诊断与块相对对照准备](m0_act_fit_diagnosis.md)。同数据/seed/512 步块相对对照已实现，最终共享工作区 46 项纯 CPU 测试通过（ACT 17 项），但该对照尚未运行。
+
+以下为当日运行前的设计审计，保留原建议与当时的证据边界；其中“尚未实测”等表述应以顶部更新及新诊断为准。本子任务未访问 SSH、GPU、Isaac、模型权重或大型源数组，未安装依赖；原生模型执行由根任务单独调度。
 
 ## 1. 建议与实际可确认范围
 
@@ -59,7 +61,7 @@ policy = ACTPolicy(cfg)  # fresh initialization; no from_pretrained
 
 无图像时仍保留 `vision_backbone="resnet18"`，因为配置校验检查该字符串，但模型不会实例化它；`pretrained_backbone_weights=None` 排除误触视觉权重下载。`device="cpu"` 必须在构造后重新断言，避免调用端不慎传空值让通用配置自动选择 GPU。[配置字段与校验](https://github.com/huggingface/lerobot/blob/eb7a54c6ff4983fc86075442bf4fa61503e7b5d1/src/lerobot/policies/act/configuration_act.py#L76-L153)、[通用设备选择](https://github.com/huggingface/lerobot/blob/eb7a54c6ff4983fc86075442bf4fa61503e7b5d1/src/lerobot/configs/policies.py#L77-L87)。
 
-训练初值：seed 61、float32、batch 32、AdamW(lr=1e-4, betas=(0.9,0.999), weight_decay=1e-4)、梯度范数上限 10、恒定学习率。先以固定 32 个 TRAIN L2 观测做 512 次更新的管线拟合；随后**从同一随机初始化重新开始**，对全部可用 TRAIN L2 窗口训练 2,000 次更新，均匀抽 episode，再均匀抽该 episode 的合格窗口。存 step 0/250/500/1000/2000；首次名义闭环只用预声明的 step 2000，不在试过若干闭环后挑最好的一次。固定 32 不额外成为正式拟合的 warm start。每个 checkpoint 记录实际 draw 数和 unique windows，不将 64,000 draws 称为“遍历了全部帧”。非有限数立即结束并报告；不因不及格而自动延长或调参。
+训练初值：seed 61、float32、batch 32、AdamW(lr=1e-4, betas=(0.9,0.999), weight_decay=1e-4)、梯度范数上限 10、恒定学习率。先以固定 32 个 TRAIN L2 观测做 512 次更新的管线拟合；查看拟合信号后才单独调度下一步，**没有自动启动 2,000 步的逻辑**。后续 full-TRAIN 小基线从同一随机初始化重新开始，对全部可用 TRAIN L2 窗口训练 2,000 次更新，均匀抽 episode，再均匀抽该 episode 的合格窗口。存 step 0/250/500/1000/2000；首次名义闭环只用预声明的 step 2000，不在试过若干闭环后挑最好的一次。固定 32 不额外成为正式拟合的 warm start。每个 checkpoint 记录实际 draw 数和 unique windows，不将 64,000 draws 称为“遍历了全部帧”。非有限数立即结束并报告；不因不及格而自动延长或调参。
 
 固定 32 纯拟合时不加状态噪声；full-TRAIN 小基线时以 seed 61 的独立 RNG、概率 0.1 将**归一化后的七维 q token 一起置零**，其余状态保持，推理不置零。真实 q 仍单独保留供动作解码、执行器和安全检查使用。标签及块相对关节锚点不得使用被置零的 q。该概率是明确的建议初值，不是验证过的最优值。
 
@@ -157,14 +159,39 @@ M0 退出要求：预声明的 nominal TRAIN 场景套件中，学习 L2 能到�
 
 ## 7. 还缺什么；只需做哪些验证
 
-1. **官方 ACT 本地依赖/运行**：官方 state-only、字段、L1、identity、queue 已在线读源码确认；本地仍缺完整包。准备同 commit 的标准依赖后，以合成 19 维 observation 做 CPU shape/forward/backward/label-free inference，一并确认无 backbone、无权重下载、无 GPU 自动选择和正确 save/reload；这尚未运行。
+1. **官方 ACT 本地依赖/运行**：官方 state-only、字段、L1、identity、queue 已在线读源码确认；Mac 本地仍缺完整包。根任务已确认服务器 vendor ACT 文件存在，但未在本子任务中执行 native 模型。已有独立 `native_smoke` 模式，从已准备的两个 TRAIN 窗口做 CPU forward/backward/label-free H10 推理，零 optimizer updates，并检查无 backbone/VAE；需根任务单独执行。save/reload 的模型一致性也仍需 native 验证。
 2. **16 episode 原始小状态/动作重建入口**：历史 receipts 和远端 provenance 不是本地 arrays 已可读的证明。本次未加载或验证 source arrays；必须由已有 source manifest 解析、streaming 读取，重建 L2 边界与 H=10/20/30 合格计数。无需先搬所有 RGB。
 3. **动作表示缺口**：M0 absolute q 可从原动作直接获得。M1 的目标系 TCP 要统一未来 commanded FK 的 tool/compression 定义；ψ 要实现并验证同专家低肘分支一致的冗余角提取/IK 约束，现有 41 维数据没有已审计 ψ 列。不可把任意某个关节角当 ψ。现有 `pose_ik` 能用作起点，尚不等于新目标系主臂已实现。
 4. **仿真资产/依赖**：本地 `candidate_b_plans`、camera JSON、URDF、env.py 以及既有 skill checkpoints 路径存在；这不验证运行机器的 USD/meshes/Isaac/PhysX、Ruckig 0.12.2、PyTorch、NumPy/SciPy、官方 LeRobot 环境可用。按既定机器分工执行；不要为 Mac 缺 Isaac 修同事的环境。本次未探测远端资源。
-5. **小而有辨识力的适配测试**：t+50 ms 哨兵标签防重复 shift；旋转/平移求逆与 round trip；三动作臂 decode round trip；近常数/超 quantile 数据不隐式 clamp；label-free inference；L2/L3/target 边界不能拼 chunk；E 次消耗必须为 h0…h(E−1)；phase/revision 改变清队列；paused sim 与 wall clock 分离；q dropout 不改变真实动作锚点。
+5. **适配测试**：已通过的 14 个合成测试覆盖 t+50 ms 防重复 shift、目标变换求逆、q̇/Hall 排除、raw absolute 标签 round trip、近常数/超 quantile 不 clamp、label-free batch、窗口 phase/有效性/原 frame 边界、原 trace 中间 phase/recovery 变化、缺失 handoff 拒绝、独立 prepared digest、禁止非 owner 构造模型、两种 median，以及完整 TRAIN16 元数据→源 trace→mmap→准备/重载（heldout 路径故意不存在，RGB 未解出）。尚需三动作臂 round trip、新执行器 E 次消耗、phase/revision 清队列和双时钟的实现/验证。
 6. **executor 与 handoff 回归**：同一 Ruckig q/v/a 跨 waypoint/跨 query，前缀期间碰撞/force feedback 不中断，handoff 保证 stationary history；从几何附近但不能构曲线的反例必须明确失败。到实际 Isaac 后做解析对照、ACT train-scene 套件、独立 trace 复核与正常 shutdown 记录。
 
 最短顺序是：准备已确认支持 state-only 的官方 ACT 依赖 → CPU adapter/归一化/时序小测 → 固定32整块拟合诊断 → TRAIN16 L2 有限拟合 → 解析对照/ACT 名义 Isaac 组件闭环 → 才判 M0。接着 M1 三动作臂与 1 s 块，再进入多样化数据；不再恢复旧契约全量训练。本报告不将任何尚未执行的一步标记为完成。
+
+## 已实现入口与当前具体边界
+
+统一模块入口：`python -m sim.ausc_policy.act_baseline --config CONFIG --output NEW_OUTPUT`，可接 `sim.ausc_policy.run` 的 `act_baseline` experiment。配置 `mode` 为 `prepare`（默认）、`native_smoke`、`train32` 或 `train`，每次只做所选的一件事。非 prepare 模式要求 Linux、`AUSC_OWNED_RUN=1`，在 import torch 之前非阻塞独占 `base/locks/isaac_gpu.lock`。已有 native 环境入口由历史 `molmoact2_wam_probe_candidate_v1/probe.py:65–69` 明确为：
+
+```text
+/home/william/wam-vla-v2/vendor/molmoact2-wam-v1/.venv/bin/python
+```
+
+ACT import 必须实际落在该 vendor 的 `src/lerobot/policies/act/modeling_act.py`；核对 commit 和五个直接相关 ACT/config 源文件无本地修改，不复用 Molmo 模型/checkpoint 或旧 pi05 admission。
+
+准备从实际 composite manifest 的 source binding 解析 TRAIN16。NPZ 不能直接获得有效 mmap，因此源码以流方式只解出 state/actions/times/phases/targets/target_sources 六个 NPY 到新 output cache，然后 `mmap_mode='r'`。源数据保持只读；不会解 RGB，也不会解析/读取 R5/L5 的数组或 qualification 路径。成功准备保存一个 `prepared.json`；以后独立 smoke/train 使用 `prepared_manifest` 与 `prepared_manifest_sha256`，并复核缓存与统计身份。
+
+L2 截止实现得较严格：读取 qualification 指向的原始 frames/physics trace，在第一处 `contact_cycle` 前要求最后三条 command 属于 `align` 且相等；允许的 L2 raw subphase 仅 transfer/inter_point_transfer/lower_approach/align；验证每一对 label 的 acquired time、measured q 与 following command。缺 `trace_root`、`trace_sha256`、label_pairs、cross_boundary_label_indices、frame eligible/target/physics_row、raw q/q_command/phase/recovery/subphase 或没有上述 handoff 时，该 episode 给出原因并停止。恢复源若没有这一原始标记，须审查其真实 trace 才能定义新规则，不用“距目标约4cm”去猜 cutoff。每条 TRAIN episode 至少两个合格窗口，否则不能组成当前均衡的 32-observation 诊断。
+
+所有 checkpoint 指标同时保存 `median_absolute_rad`（所有元素的中位数）与 `median_sample_mae_rad`（先每样本求 MAE、再取中位数），以及各自 h0 统计；二者可能给出不同排名，应并列解释。target/phase 仅存在 ENV12 最后两个 scalar，不构造语言 prompt。`COMPLETE.json` 即使拟合完成也明确 `m0_passed=false`、`closed_loop_evaluated=false`。
+
+验证命令：
+
+```sh
+PYTHONDONTWRITEBYTECODE=1 /Users/williamqiu/opt/anaconda3/bin/python -m unittest discover -s tests -p 'test_ausc_policy_act.py' -v
+PYTHONDONTWRITEBYTECODE=1 /Users/williamqiu/opt/anaconda3/bin/python -m unittest discover -s tests -p 'test_ausc_policy*.py' -v
+```
+
+本次结果分别 14/14、26/26 通过。真实 TRAIN16 准备、官方 CPU native smoke、512/2,000 updates 和 Isaac 全部仍未由本子任务执行。
 
 ## 本次主要代码依据
 

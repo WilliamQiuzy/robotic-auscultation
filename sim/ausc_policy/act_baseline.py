@@ -34,6 +34,8 @@ TRAIN16 = (
 TARGETS = tuple(side + str(level) for level in range(1, 6) for side in ('R', 'L'))
 MEMBERS = ('state', 'actions', 'times', 'phases', 'targets', 'target_sources')
 L2_SUBPHASES = frozenset(('transfer', 'inter_point_transfer', 'lower_approach', 'align'))
+ABSOLUTE = 'absolute_joint_radians'
+BLOCK_RELATIVE = 'block_relative_joint_radians'
 
 
 def need(value, message):
@@ -80,8 +82,11 @@ def validate_config(config):
     need(config['mode'] in ('prepare', 'native_smoke', 'train32', 'train'), 'Unknown finite mode')
     need(config['horizon'] == 10 and config['execute_steps'] == 5 and config['period_s'] == .05,
          'M0 requires H10/E5 and 50ms actions')
-    need(config['action_representation'] == 'absolute_joint_radians' and config['state_dim'] == 19,
+    need(config['action_representation'] in (ABSOLUTE, BLOCK_RELATIVE) and config['state_dim'] == 19,
          'M0 state/action representation differs')
+    if config['action_representation'] == BLOCK_RELATIVE:
+        need(config['mode'] in ('train32', 'native_smoke') and config.get('prepared_manifest'),
+             'Block relative control requires pinned source preparation and finite train32/native_smoke mode')
     need(config['device'] in ('cpu', 'cuda') and config['seed'] == 61, 'Explicit device/seed required')
     if config['mode'] == 'native_smoke':
         need(config['device'] == 'cpu', 'Native shape/backward smoke must use CPU')
@@ -293,14 +298,45 @@ def unscale(value, stats):
     return ((np.asarray(value)+1)*.5*(high-low)+low).astype(np.float32)
 
 
-def pack_batch(rows, stats, *, training, rng=None, q_dropout=0.):
+def _action_and_anchor(actions, measured_q, representation):
+    need(representation in (ABSOLUTE, BLOCK_RELATIVE), 'Unknown action representation')
+    actions = np.asarray(actions, dtype=np.float32)
+    need(actions.ndim in (2, 3) and actions.shape[-1] == 7 and np.isfinite(actions).all(),
+         'Finite Hx7 or BxHx7 actions required')
+    anchor = np.asarray(measured_q, dtype=np.float32)
+    need(anchor.shape == actions.shape[:-2]+(7,) and np.isfinite(anchor).all(),
+         'One finite measured-q anchor per block required')
+    return actions, anchor[..., None, :]
+
+
+def encode_actions(actions, measured_q, representation):
+    """Subtract the acquired block origin once, never adjacent commands or dropped q."""
+    actions, anchor = _action_and_anchor(actions, measured_q, representation)
+    return actions.copy() if representation == ABSOLUTE else actions-anchor
+
+
+def decode_actions(actions, measured_q, representation):
+    """Restore absolute commands with the same fixed block origin at every horizon."""
+    actions, anchor = _action_and_anchor(actions, measured_q, representation)
+    return actions.copy() if representation == ABSOLUTE else actions+anchor
+
+
+def targets_for_rows(rows, representation):
+    actions = np.stack([r['actions'] for r in rows])
+    if representation == ABSOLUTE:
+        return actions
+    return encode_actions(actions, np.stack([r['measured_q'] for r in rows]), representation)
+
+
+def pack_batch(rows, stats, *, training, rng=None, q_dropout=0., action_representation=ABSOLUTE):
+    need(action_representation in (ABSOLUTE, BLOCK_RELATIVE), 'Unknown action representation')
     state = scale(np.stack([r['state'] for r in rows]), stats['state'])
     if training and q_dropout:
         need(rng is not None and 0 <= q_dropout <= 1, 'Explicit dropout RNG required')
         state[rng.random(len(state)) < q_dropout, :7] = 0
     result = {'observation.state': state[:, :7].copy(), 'observation.environment_state': state[:, 7:].copy()}
     if training:
-        labels = scale(np.stack([r['actions'] for r in rows]), stats['action'])
+        labels = scale(targets_for_rows(rows, action_representation), stats['action'])
         result.update(action=labels, action_is_pad=np.zeros(labels.shape[:2], dtype=bool))
     return result
 
@@ -375,6 +411,7 @@ def load_prepared(path, config):
          and receipt['manifest'] == dict(path=config['manifest'], sha256=config['manifest_sha256'])
          and (receipt['horizon'], receipt['execute_steps'], receipt['period_s']) == (10, 5, .05),
          'Prepared scope/contract differs')
+    need(receipt['action_representation'] == ABSOLUTE, 'Source cache must contain original absolute commands')
     stats = pinned_json(receipt['normalization']['path'], receipt['normalization']['sha256'])
     need([e['episode_id'] for e in receipt['episodes']] == list(TRAIN16), 'Prepared TRAIN order differs')
     episodes = []
@@ -388,7 +425,32 @@ def load_prepared(path, config):
             arrays[key] = np.load(binding['path'], mmap_mode='r', allow_pickle=False)
             need(isinstance(arrays[key], np.memmap) and not arrays[key].flags.writeable, 'Prepared mmap required')
         episodes.append(dict(episode_id=item['episode_id'], starts=item['starts'], arrays=arrays))
+    if config['action_representation'] == BLOCK_RELATIVE:
+        # This receipt remains the immutable absolute source-cache binding. Fit
+        # the new action range over every eligible TRAIN origin, not just 32 probes.
+        rows = [row_from_episode(e, s, 10) for e in episodes for s in e['starts']]
+        need(len(rows) == receipt['train_windows'], 'Relative TRAIN normalization denominator differs')
+        relative_stats = fit_stats(np.stack([r['state'] for r in rows]), targets_for_rows(rows, BLOCK_RELATIVE))
+        need(relative_stats['state'] == stats['state'], 'Relative control changed frozen state statistics')
+        stats = relative_stats
     return episodes, stats, receipt
+
+
+def save_action_contract(output, config, receipt):
+    relative = config['action_representation'] == BLOCK_RELATIVE
+    save_json(output/'action_contract.json', dict(
+        action_representation=config['action_representation'], stored_source_actions=ABSOLUTE,
+        prediction_npz_raw=ABSOLUTE, anchor='acquired measured_q at block origin' if relative else None,
+        encoding='a[t+(k+1)*0.05] - measured_q[t]' if relative else 'a[t+(k+1)*0.05]',
+        decoding='add the same acquired measured_q[t] once to each horizon' if relative else 'identity',
+        action_statistics='recomputed from eligible TRAIN relative blocks' if relative else 'frozen TRAIN absolute blocks',
+        normalization=dict(path=str((output/'normalization.json').resolve()),
+                           sha256=sha256(output/'normalization.json')),
+        normalization_denominator=receipt['normalization_denominator'], train_windows=receipt['train_windows'],
+        prepared_json_role='immutable original absolute source-cache receipt',
+        source_prepared_manifest=config.get('prepared_manifest'),
+        source_prepared_sha256=config.get('prepared_manifest_sha256'),
+        source_absolute_normalization=receipt['normalization'], heldout_arrays_opened=False))
 
 
 def make_native(config):
@@ -444,7 +506,8 @@ def native_smoke(config, output, episodes, stats):
     """Owner-dispatched CPU forward/backward only; no optimizer update."""
     torch, policy, sources = make_native(config)
     rows = [row_from_episode(episodes[i], episodes[i]['starts'][0], 10) for i in range(2)]
-    batch = {k: torch.from_numpy(v) for k, v in pack_batch(rows, stats, training=True).items()}
+    batch = {k: torch.from_numpy(v) for k, v in pack_batch(rows, stats, training=True,
+             action_representation=config['action_representation']).items()}
     loss, _ = policy(batch)
     need(bool(torch.isfinite(loss)), 'Native CPU smoke loss nonfinite')
     loss.backward()
@@ -457,11 +520,13 @@ def native_smoke(config, output, episodes, stats):
     save_json(output/'COMPLETE.json', dict(completed=True, mode='native_smoke', device='cpu',
         source_sha256=sources, prediction_shape=list(prediction.shape), gradient_tensors=len(gradients),
         input_keys=sorted(prediction_batch), images=False, vae=False, optimizer_updates=0,
+        action_representation=config['action_representation'],
         heldout_arrays_opened=False, m0_passed=False, closed_loop_evaluated=False))
 
 
 def fit(config, output, episodes, stats, receipt):
     mode = config['mode']; settings = config['modes'][mode]
+    representation = config['action_representation']
     torch, policy, sources = make_native(config)
     draw_rng = np.random.default_rng(config['seed'])
     dropout_rng = np.random.default_rng(config['seed']+1)
@@ -472,7 +537,8 @@ def fit(config, output, episodes, stats, receipt):
     optimizer = torch.optim.AdamW(policy.parameters(), lr=opt['lr'], betas=tuple(opt['betas']), weight_decay=opt['weight_decay'])
     checkpoints = {0, 128, 256, 512} if mode == 'train32' else {0, 250, 500, 1000, 2000}
     save_json(output/'native.json', dict(upstream_commit=UPSTREAM_COMMIT, source_sha256=sources,
-        device=config['device'], torch_version=torch.__version__, fresh_initialization=True, resumed=False))
+        device=config['device'], torch_version=torch.__version__, fresh_initialization=True, resumed=False,
+        action_representation=representation))
     save_json(output/'probe_rows.json', [dict(episode_id=episodes[i]['episode_id'], start=s) for i, s in probe])
     def tensors(batch):
         return {k: torch.from_numpy(v).to(config['device']) for k, v in batch.items()}
@@ -480,9 +546,10 @@ def fit(config, output, episodes, stats, receipt):
         policy.eval()
         with torch.inference_mode():
             prediction = policy.predict_action_chunk(tensors(pack_batch(probe_rows, stats, training=False)))
-        raw = unscale(prediction.detach().cpu().numpy(), stats['action'])
+        model_action = unscale(prediction.detach().cpu().numpy(), stats['action'])
         reference = np.stack([r['actions'] for r in probe_rows])
         q = np.stack([r['measured_q'] for r in probe_rows]); dq = np.stack([r['measured_dq'] for r in probe_rows])
+        raw = decode_actions(model_action, q, representation)
         need(raw.shape == reference.shape and np.isfinite(raw).all(), 'Nonfinite/malformed ACT evaluation')
         hold = np.repeat(q[:, None], 10, axis=1)
         cv = q[:, None]+dq[:, None]*np.arange(1, 11)[None, :, None]*.05
@@ -495,8 +562,10 @@ def fit(config, output, episodes, stats, receipt):
                         draw_rng=draw_rng.bit_generator.state, dropout_rng=dropout_rng.bit_generator.state,
                         step=step, resumable_by_this_entrypoint=False), directory/'training_state.pt')
         save_json(directory/'metrics.json', dict(step=step, probe_scope='32 TRAIN L2 observations', metrics=metrics,
+                                                action_representation=representation, evaluated_representation=ABSOLUTE,
                                                 closed_loop_evaluated=False, m0_passed=False))
-        np.savez(directory/'predictions.npz', raw=raw, reference=reference, measured_q=q, measured_dq=dq)
+        extra = dict(model_action_physical=model_action) if representation == BLOCK_RELATIVE else {}
+        np.savez(directory/'predictions.npz', raw=raw, reference=reference, measured_q=q, measured_dq=dq, **extra)
         policy.train()
     evaluate(0)
     seen = set(); started = time.monotonic()
@@ -511,7 +580,8 @@ def fit(config, output, episodes, stats, receipt):
                     selected.append((i, int(draw_rng.choice(episodes[i]['starts']))))
             seen.update(selected)
             rows = [row_from_episode(episodes[i], s, 10) for i, s in selected]
-            batch = tensors(pack_batch(rows, stats, training=True, rng=dropout_rng, q_dropout=settings['q_dropout']))
+            batch = tensors(pack_batch(rows, stats, training=True, rng=dropout_rng, q_dropout=settings['q_dropout'],
+                                       action_representation=representation))
             optimizer.zero_grad(set_to_none=True)
             loss, _ = policy(batch)
             need(bool(torch.isfinite(loss)), 'Nonfinite ACT loss')
@@ -528,6 +598,7 @@ def fit(config, output, episodes, stats, receipt):
     save_json(output/'COMPLETE.json', dict(completed=True, mode=mode, steps=settings['steps'],
         train_episode_ids=list(TRAIN16), train_windows=receipt['train_windows'], draws=settings['steps']*32,
         unique_windows=len(seen), checkpoint_step=settings['steps'], m0_passed=False,
+        action_representation=representation,
         closed_loop_evaluated=False, heldout_arrays_opened=False, scope='finite state-only ACT fit diagnostic'))
 
 
@@ -556,6 +627,7 @@ def main():
             save_json(args.output/'prepared.json', receipt)
         else:
             episodes, stats, receipt = prepare(config, args.output)
+        save_action_contract(args.output, config, receipt)
         if config['mode'] == 'prepare':
             save_json(args.output/'COMPLETE.json', dict(completed=True, mode='prepare',
                 train_windows=receipt['train_windows'], heldout_arrays_opened=False,

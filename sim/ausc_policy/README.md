@@ -12,6 +12,7 @@ Mac 用于开发、纯软件检查和查看网页。GPU 推理、训练与 Isaac
 ```sh
 python -m sim.ausc_policy.diagnostics --config configs/ausc_policy/m0_diagnostics.json
 python -m sim.ausc_policy.web --port 8774
+python -m sim.ausc_policy.run_index --runs /home/william/wam-vla-v2/runs/ausc_policy
 # 仅 Linux，由指定 Molmo Python 环境执行；每次唯一 run-id。
 python -m sim.ausc_policy.run --config configs/ausc_policy/m0_seed_probe.json --run-id m0-seed512-20260929
 ```
@@ -20,6 +21,7 @@ GPU owner 复用既有进程组/资源保护器与共享 GPU 锁。每个 run �
 代码 commit、来源 shard、种子、进度、结果和进程退出证据；没有自动重试、
 自动续训或隐含下游 GPU 作业。旧 checkpoint 的诊断使用原始适配器读取，
 不改写历史结果。32 条拟合和 20×16 采样都只是训练样本诊断。
+`run_index` 从已有收据生成一张 `summary.csv`；作业完成与 M0/闭环通过是不同列。
 
 ## 工程边界
 

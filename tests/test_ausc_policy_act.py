@@ -174,6 +174,57 @@ class ACTAdapterTests(unittest.TestCase):
         self.assertEqual(result['median_absolute_rad'], 0.)
         self.assertEqual(result['median_sample_mae_rad'], 10.)
 
+    def test_block_relative_uses_one_measured_origin_for_all_horizons(self):
+        anchors = np.array([[1, 2, 3, 4, 5, 6, 7], [-1, -2, -3, -4, -5, -6, -7]], np.float32)
+        delta = np.arange(1, 11, dtype=np.float32)[None, :, None]*.01
+        absolute = anchors[:, None, :] + delta
+        original = absolute.copy(); anchor_copy = anchors.copy()
+        relative = a.encode_actions(absolute, anchors, 'block_relative_joint_radians')
+        np.testing.assert_allclose(relative, np.broadcast_to(delta, absolute.shape), atol=3e-7)
+        np.testing.assert_allclose(relative[:, -1], .1, atol=3e-7)
+        np.testing.assert_array_equal(a.decode_actions(relative, anchors, 'block_relative_joint_radians'), absolute)
+        np.testing.assert_array_equal(a.encode_actions(absolute, anchors, 'absolute_joint_radians'), absolute)
+        np.testing.assert_array_equal(a.decode_actions(absolute, anchors, 'absolute_joint_radians'), absolute)
+        np.testing.assert_array_equal(absolute, original)
+        np.testing.assert_array_equal(anchors, anchor_copy)
+        with self.assertRaisesRegex(ValueError, 'anchor'):
+            a.encode_actions(absolute, np.zeros((2, 10, 7)), 'block_relative_joint_radians')
+        with self.assertRaisesRegex(ValueError, 'representation'):
+            a.encode_actions(absolute, anchors, 'per_step_delta')
+
+    def test_relative_labels_use_measured_q_despite_state_dropout(self):
+        state = a.small_state(self.state(), 'R1', 'FREE')
+        anchor = state[:7].copy()
+        actions = anchor[None] + np.arange(1, 11, dtype=np.float32)[:, None]*.001
+        rows = [dict(state=state, measured_q=anchor, actions=actions)]
+        relative = actions-anchor[None]
+        stats = a.fit_stats(state[None], relative[None])
+        present = a.pack_batch(rows, stats, training=True, action_representation='block_relative_joint_radians')
+        hidden = a.pack_batch(rows, stats, training=True, rng=np.random.default_rng(3), q_dropout=1.,
+                              action_representation='block_relative_joint_radians')
+        np.testing.assert_array_equal(present['action'], hidden['action'])
+        np.testing.assert_array_equal(hidden['observation.state'], np.zeros((1, 7)))
+        decoded = a.decode_actions(a.unscale(hidden['action'], stats['action']), anchor[None],
+                                   'block_relative_joint_radians')
+        np.testing.assert_allclose(decoded[0], actions, atol=1e-7)
+        np.testing.assert_array_equal(rows[0]['measured_q'], anchor)
+        self.assertEqual(hidden['action_is_pad'].shape, (1, 10))
+        self.assertFalse(hidden['action_is_pad'].any())
+
+    def test_relative_config_changes_contract_only_and_is_finite(self):
+        base = json.loads(Path('configs/ausc_policy/m0_act.json').read_text())
+        relative = json.loads(Path('configs/ausc_policy/m0_act_relative_fit32.json').read_text())
+        a.validate_config(relative)
+        self.assertEqual(relative['mode'], 'train32')
+        self.assertEqual(relative['action_representation'], 'block_relative_joint_radians')
+        for key in ('seed', 'train_episode_ids', 'horizon', 'execute_steps', 'period_s', 'state_dim',
+                    'upstream_commit', 'manifest', 'manifest_sha256', 'model', 'optimizer', 'modes'):
+            self.assertEqual(relative[key], base[key])
+        for update in ({'mode': 'train'}, {'mode': 'prepare'}, {'prepared_manifest': None}):
+            bad = dict(relative, **update)
+            with self.assertRaisesRegex(ValueError, 'relative'):
+                a.validate_config(bad)
+
     def test_prepared_manifest_requires_its_own_digest(self):
         with tempfile.TemporaryDirectory() as td:
             p = Path(td)/'prepared.json'; p.write_text('{}')
@@ -242,6 +293,32 @@ class ACTAdapterTests(unittest.TestCase):
             row = a.row_from_episode(loaded[0], 0, 10)
             np.testing.assert_array_equal(row['actions'], episodes[0]['arrays']['actions'][:10])
             self.assertTrue(all(not x.flags.writeable for e in loaded for x in e['arrays'].values()))
+            # Same source caches, state statistics and eligible origins; only action space changes.
+            source_bytes = (output/'normalization.json').read_bytes()
+            relative_config = dict(config, mode='train32', prepared_manifest=str(output/'prepared.json'),
+                                   action_representation='block_relative_joint_radians')
+            relative_loaded, relative_stats, source_receipt = a.load_prepared(output/'prepared.json', relative_config)
+            self.assertEqual(relative_stats['state'], stats['state'])
+            self.assertEqual(source_receipt['action_representation'], 'absolute_joint_radians')
+            self.assertNotEqual(relative_stats['action'], stats['action'])
+            self.assertEqual((output/'normalization.json').read_bytes(), source_bytes)
+            expected = np.stack([e['arrays']['actions'][s:s+10]-e['arrays']['state'][s, :7][None]
+                                 for e in relative_loaded for s in e['starts']])
+            expected_q01, expected_q99 = np.quantile(expected.reshape(-1, 7), [.01, .99], axis=0)
+            np.testing.assert_array_equal(relative_stats['action']['q01'], expected_q01)
+            np.testing.assert_array_equal(relative_stats['action']['q99'], expected_q99)
+            self.assertFalse(relative_stats['action']['actual_clamp'])
+            self.assertTrue(all(not x.flags.writeable for e in relative_loaded for x in e['arrays'].values()))
+            relative_output = root/'relative'; relative_output.mkdir()
+            a.save_json(relative_output/'normalization.json', relative_stats)
+            a.save_action_contract(relative_output, relative_config, source_receipt)
+            binding = a.read_json(relative_output/'action_contract.json')
+            self.assertEqual(binding['action_representation'], 'block_relative_joint_radians')
+            self.assertEqual(binding['prediction_npz_raw'], 'absolute_joint_radians')
+            self.assertEqual(binding['normalization']['sha256'], a.sha256(relative_output/'normalization.json'))
+            self.assertNotEqual(binding['normalization']['sha256'], source_receipt['normalization']['sha256'])
+            self.assertEqual(binding['source_absolute_normalization'], source_receipt['normalization'])
+            self.assertEqual(binding['train_windows'], 80)
 
 
 if __name__ == '__main__':
