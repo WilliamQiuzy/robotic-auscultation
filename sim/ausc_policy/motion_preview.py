@@ -29,7 +29,7 @@ def _vector(value, name):
 
 
 def choose_velocity_hint(trajectory, position, velocity, inspect_command,
-                         trajectory_factory=JointTrajectory):
+                         trajectory_factory=JointTrajectory, selection='first_feasible'):
     """Try fixed hint factors in order, accepting only a complete clear preview.
 
     The inspector receives a copy of each finite generated joint command and
@@ -43,8 +43,10 @@ def choose_velocity_hint(trajectory, position, velocity, inspect_command,
         factors=list(FACTORS),ticks_per_candidate=TICKS,label_offset_s=.05,limits=dict(LIMITS),
         collision_checked=False,physics_executed=False,observations_acquired=False,
         closed_loop_evaluated=False,m0_passed=False,
-        native_trajectory_preview=trajectory_factory is JointTrajectory)
+        native_trajectory_preview=trajectory_factory is JointTrajectory,selection=selection)
     try:
+        if selection not in ('first_feasible','nearest_reference'):
+            raise ValueError('Unknown fixed candidate-selection rule')
         if not callable(inspect_command) or not callable(trajectory_factory):
             raise ValueError('Explicit posture inspector and trajectory factory are required')
         target = _vector(position,'position'); hint = _vector(velocity,'velocity')
@@ -110,11 +112,21 @@ def choose_velocity_hint(trajectory, position, velocity, inspect_command,
                     break
             else:
                 trial['accepted'] = True
-                receipt.update(accepted=True,selected_factor=factor,selected_velocity=candidate.tolist())
-                return candidate.copy(),receipt
+                trial['endpoint_joint_mse_rad2'] = float(np.mean((command-target)**2))
+                if selection == 'first_feasible':
+                    receipt.update(accepted=True,selected_factor=factor,selected_velocity=candidate.tolist())
+                    return candidate.copy(),receipt
         except Exception as error:
             trial['first_rejection'] = dict(step=step,stage=stage,
                 reason=type(error).__name__+': '+str(error),
                 command=None if command is None else command.tolist())
+    accepted = [trial for trial in receipt['trials'] if trial['accepted']]
+    if accepted:
+        chosen = min(accepted,key=lambda trial:(trial['endpoint_joint_mse_rad2'],trial['factor']))
+        receipt.update(accepted=True,selected_factor=chosen['factor'],selected_velocity=chosen['target_velocity'],
+            selected_endpoint_joint_mse_rad2=chosen['endpoint_joint_mse_rad2'],
+            zero_hint_endpoint_joint_mse_rad2=next((trial['endpoint_joint_mse_rad2'] for trial in accepted if trial['factor']==0.),None),
+            selection_scope='minimum joint endpoint MSE to unchanged model reference at 50ms among fully posture-valid candidates; lower factor breaks exact ties')
+        return np.asarray(chosen['target_velocity'],float),receipt
     receipt['failure'] = dict(stage='candidate_selection',reason='No candidate passed all 12 posture preview ticks')
     raise MotionPreviewRejected(receipt['failure']['reason'],receipt)

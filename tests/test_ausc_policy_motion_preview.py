@@ -86,6 +86,31 @@ class MotionPreviewTests(unittest.TestCase):
         self.assertEqual(receipt['trials'][0]['first_rejection']['step'],12)
         np.testing.assert_array_equal(chosen,np.full(7,.04))
 
+    def test_nearest_reference_scores_all_valid_candidates_including_zero(self):
+        m=self.module();clones=[];source=self.source();before=copy.deepcopy(vars(source.input))
+        Base=self.factory(clones)
+        class Candidate(Base):
+            def step(self):
+                q=super().step()
+                # Full hint is safe but overshoots; half hits the desired endpoint.
+                q[0]+=self.input.target_velocity[0]-.04
+                return q
+        chosen,receipt=m.choose_velocity_hint(source,np.zeros(7),np.full(7,.08),
+            lambda q:dict(clear=True),trajectory_factory=Candidate,selection='nearest_reference')
+        self.assertEqual(len(clones),5);self.assertTrue(all(c.ticks==12 for c in clones))
+        self.assertEqual(receipt['selected_factor'],.5)
+        self.assertEqual(receipt['selected_endpoint_joint_mse_rad2'],0.)
+        self.assertGreater(receipt['zero_hint_endpoint_joint_mse_rad2'],0.)
+        np.testing.assert_array_equal(chosen,np.full(7,.04));self.assertEqual(vars(source.input),before)
+
+    def test_nearest_reference_never_chooses_a_better_endpoint_with_earlier_violation(self):
+        m=self.module();clones=[]
+        _,receipt=m.choose_velocity_hint(self.source(),np.zeros(7),np.full(7,.08),
+            lambda q:dict(clear=bool(q[0]>=0)),trajectory_factory=self.factory(clones,defect=True),
+            selection='nearest_reference')
+        self.assertEqual(receipt['selected_factor'],0.)  # Exact-cost tie uses lower hint.
+        self.assertFalse(receipt['trials'][0]['accepted']);self.assertFalse(receipt['trials'][1]['accepted'])
+
     def test_no_feasible_candidate_has_receipt_and_no_execution(self):
         m=self.module();source=self.source();clones=[]
         with self.assertRaises(m.MotionPreviewRejected) as caught:

@@ -53,14 +53,16 @@ def run(config, output):
         return posture.evaluate(kin,base,command,observed=False,contact=False)
     before={key:list(getattr(trajectory.input,key)) for key in
             ('current_position','current_velocity','current_acceleration','target_position','target_velocity')}
-    velocity,receipt=choose_velocity_hint(trajectory,chunk[0],hint['velocity'][0],inspect)
+    selection=config.get('selection','first_feasible')
+    velocity,receipt=choose_velocity_hint(trajectory,chunk[0],hint['velocity'][0],inspect,selection=selection)
     after={key:list(getattr(trajectory.input,key)) for key in before}
     a.need(before==after,'Preview mutated the active command state')
     a.need(receipt['selected_factor']<1. and receipt['trials'][0]['first_rejection'] is not None,
            'Original full-hint failure was not reproduced')
     trajectory.set_target(chunk[0]);trajectory.input.target_velocity=velocity.tolist()
     actual=np.asarray([trajectory.step() for _ in range(12)])
-    expected=np.asarray(receipt['trials'][-1]['preview_commands'])
+    selected_trial=next(t for t in receipt['trials'] if t['factor']==receipt['selected_factor'])
+    expected=np.asarray(selected_trial['preview_commands'])
     np.testing.assert_allclose(actual,expected,atol=1e-12,rtol=0)
     a.need(all(inspect(q)['clear'] for q in actual),'Selected CPU command crosses the original posture bounds')
     report=dict(completed=True,preview_passed=True,**FLAGS,
@@ -72,8 +74,11 @@ def run(config, output):
         limits=LIMITS,factors=[1.,.5,.25,.125,0.],ticks=12,
         original_failure_reproduced=True,active_state_unchanged=True,
         preview_vs_generation_max_abs_rad=float(np.max(np.abs(actual-expected))),
-        initial_command_q=initial.tolist(),raw_position=chunk[0].tolist(),
+        selection=selection,initial_command_q=initial.tolist(),raw_position=chunk[0].tolist(),
         estimated_velocity=hint['velocity'][0].tolist(),selected_velocity=velocity.tolist(),preview=receipt)
+    if selection=='nearest_reference':
+        from .reference_schedule import compare
+        report['reference_schedule']=compare(config,inspect,kin,output)
     a.save_json(output/'metrics.json',report)
     return report
 
