@@ -133,4 +133,6 @@ than an equal-input policy ranking. See `reports/ausc_policy/m0_velocity_definit
 
 同起点修复已实际完成，原始RGB-D/Hall/动作配对复核也完成；见 `reports/ausc_policy/m0_history_recovery_edges.md`。实际前沿接触3秒不等于膜片受力：原始冲量与90个实际HOLD刚体位姿复核，膜片间隙约1.52mm。`contact_geometry_audit`必须使用既有Isaac Python的CPU环境（训练venv没有FCL），不会启动Kit或修改场景。
 
-后续仅使用预先固定的history120/history220，沿用三起点制动预检及实际已验证的计时算法。新起点的观测必须重新实际采集；`repair_proof`绑定动作20的物理及原始模态复核，且核心算法字节不变。动作20的同状态配对门保持不变；后续覆盖实验不能冒充同状态比较。所有新增数据仍不可训练。
+预先固定的history120/history220已实际完成，并沿用三起点制动预检及实际已验证的计时算法。新起点的观测必须重新实际采集；`repair_proof`绑定动作20的物理及原始模态复核，且核心算法字节不变。动作20的同状态配对门保持不变；后续覆盖实验不能冒充同状态比较。所有新增数据仍不可训练。
+
+三个回合累计6,637帧原始RGB-D与Hall包已独立重放，所有新增恢复/制动指令与实际执行匹配；仍是专家机械诊断，膜片力均为0，M0和数据资格均未通过。新增两个审核case由`m0_history_edges_coverage_sensor_audit.json`绑定。`recovery_report --additional-run EVIDENCE RUN_ID`按给定顺序比较多个已校验镜像；`run_index`分列专家case数、学习归属与训练资格，避免将进程完成当成模型成功。
