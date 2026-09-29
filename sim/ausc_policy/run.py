@@ -14,7 +14,8 @@ from types import SimpleNamespace
 
 GUARD_SHA = '48c47cf0d6d8f3d770028931a61d2882c5281684053a6149dacfcbe7b2483ff2'
 MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
-           'act_baseline': 'sim.ausc_policy.act_baseline'}
+           'act_baseline': 'sim.ausc_policy.act_baseline',
+           'act_runtime': 'sim.ausc_policy.act_runtime'}
 
 
 def main():

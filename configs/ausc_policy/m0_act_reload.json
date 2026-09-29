@@ -1,0 +1,11 @@
+{
+  "experiment": "act_runtime",
+  "mode": "verify_reload",
+  "base": "/home/william/wam-vla-v2",
+  "run_root": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-relative-train16-20260929",
+  "checkpoint_step": 2000,
+  "inputs_npz": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-fit-analysis-20260929/selected_inputs.npz",
+  "reference_npz": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-relative-train16-20260929/output/checkpoint_2000/predictions.npz",
+  "atol_rad": 0.000001,
+  "time_limit_seconds": 600
+}
