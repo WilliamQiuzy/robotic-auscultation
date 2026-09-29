@@ -48,8 +48,10 @@ def measured_stationarity(state):
 
 
 class StationaryRecoveryOracle:
-    def __init__(self, checker, planner, *, lower, upper):
+    def __init__(self, checker, planner, *, lower, upper, timing_strategy='global_cubic'):
         self.checker, self.planner = checker, planner
+        if timing_strategy not in ('global_cubic','checked_edges_v1'):raise ValueError('Unknown explicit oracle timing')
+        self.timing_strategy=timing_strategy
         self.lower, self.upper = np.asarray(lower, float), np.asarray(upper, float)
         if (self.lower.shape != (7,) or self.upper.shape != (7,)
                 or not np.isfinite(np.r_[self.lower, self.upper]).all()
@@ -110,11 +112,22 @@ class StationaryRecoveryOracle:
                     or not np.allclose(bridge[-1],goal,atol=1e-9,rtol=0)):
                 raise ValueError('Planner did not bind current measured origin and exact goal')
             route = np.vstack([history[-1],bridge])
-            commands, timing = smooth_commands(route,speed_limit=.175,acceleration_limit=.5,
-                jerk_limit=1.5,minimum_seconds=1/.7,maximum_seconds=120.,return_report=True)
+            if self.timing_strategy=='checked_edges_v1':
+                from .edge_timing import checked_edge_commands
+                commands,timing=checked_edge_commands(route)
+            else:
+                commands, timing = smooth_commands(route,speed_limit=.175,acceleration_limit=.5,
+                    jerk_limit=1.5,minimum_seconds=1/.7,maximum_seconds=120.,return_report=True)
+            result.update(waypoints=route.tolist(),timing=timing,timing_strategy=self.timing_strategy)
             # These are the exact samples returned and later executed, not merely
             # an edge/spline surrogate. Measured dynamics still require Isaac.
-            distances.extend(check(command) for command in commands)
+            for index,command in enumerate(commands):
+                result['checking_command_index']=index
+                try:distances.append(check(command))
+                except (ValueError,TimeoutError):
+                    result['rejected_command']=command.tolist()
+                    raise
+            result.pop('checking_command_index',None)
             result.update(kind='trajectory',reason=None,waypoints=route.tolist(),timing=timing,
                 commands_240hz=commands.tolist(),minimum_sampled_clearance_m=min(distances),
                 checked_samples=len(distances),action_chunk_relative_rad=(commands[11:120:12]-q).tolist(),

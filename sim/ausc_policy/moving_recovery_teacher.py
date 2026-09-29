@@ -108,7 +108,8 @@ class MovingRecoveryTeacher(RecoveryTeacher):
             q_goal=canonical[-1].tolist())
         oracle=StationaryRecoveryOracle(self.checker,lambda start,goal,rng,deadline:
             checked_transfer(self.checker,self.posture_limits,start,goal,self.kin,self.env.base,rng,deadline),
-            lower=self.posture_limits.joint_lower_rad,upper=self.posture_limits.joint_upper_rad)
+            lower=self.posture_limits.joint_lower_rad,upper=self.posture_limits.joint_upper_rad,
+            timing_strategy=self.recovery_config.get('oracle_timing','global_cubic'))
         self.oracle_receipt.update(query_attempted=True,query_physics_row=query['physics_row'],query_time_s=query['time_s'],
             preparation_end_physics_row_exclusive=len(self.env.rows))
         proposal=oracle.query(query,context)

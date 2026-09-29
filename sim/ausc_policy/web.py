@@ -48,6 +48,7 @@ SOURCES = {
     '/evidence/history-rollouts': 'reports/ausc_policy/m0_history_closed_loop.md',
     '/media/history-rollouts.svg': 'results/ausc_policy/m0_history_closed_loop_report_v2/rollouts.svg',
     '/media/history-control.mp4': 'results/ausc_policy/m0_history_control_d0/m0-history-control-d0-grid12-20260929/output/review.mp4',
+    '/media/history-control-poster.jpg': 'results/ausc_policy/m0_history_control_media/review-poster.jpg',
     '/media/history-causal.mp4': 'results/ausc_policy/m0_history_causal_d0/m0-history-causal-d0-grid12-20260929/output/review.mp4',
     '/media/capture-normal-plus.mp4': 'results/ausc_policy/m0_capture_normal_plus/m0-capture-normal-plus-20260929/output/review-entry-normal-plus.mp4',
     '/media/capture-normal-plus-poster.jpg': 'results/ausc_policy/m0_capture_normal_plus_media/review-entry-normal-plus-poster.jpg',

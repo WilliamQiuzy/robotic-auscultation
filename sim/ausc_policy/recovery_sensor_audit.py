@@ -115,6 +115,9 @@ def snapshot_binding(case,outcome):
     if 'moving_recovery' in outcome:
         for name in ('moving_recovery_teacher.py','moving_brake.py','recovery_oracle.py'):
             wanted.append(('source/code/ausc_policy/'+name,root/'sim/ausc_policy'/name))
+        for name in ('moving_origin.py','edge_timing.py'):
+            key='source/code/ausc_policy/'+name
+            if key in files:wanted.append((key,root/'sim/ausc_policy'/name))
     if 'capture_component' in outcome:
         for name in ('capture_teacher.py','capture_probe.py','recovery_oracle.py'):
             wanted.append(('source/code/ausc_policy/'+name,root/'sim/ausc_policy'/name))
@@ -198,17 +201,21 @@ def audit_case(case,deadline):
         labels=audit_query_labels(query,physics)
     moving_labels=None
     if moving:
+        from .moving_origin import selected_origin
+        source_index,source_phase,_=selected_origin(owner['config'])
         receipt=outcome['moving_recovery']
         if not (receipt['source_prefix_replayed'] is True and receipt['student_inference_executed'] is False
                 and receipt['physical_joint_resets']==0 and receipt['prefix_completed'] is True
                 and receipt['brake_completed'] is True and receipt['training_dataset_eligible'] is False
-                and receipt['source_action_index']==609 and receipt['measured_prefix_tolerance_rad']==1e-4
+                and receipt['source_action_index']==source_index and receipt['measured_prefix_tolerance_rad']==1e-4
                 and receipt['maximum_prefix_q_difference_rad']<=1e-4):
             raise ValueError('Incomplete actual moving takeover receipt')
         brake_path=case/'brake_query.json';bound[brake_path]=sha(brake_path)
         if bound[brake_path]!=receipt['brake_query_sha256']:
             raise ValueError('Executed moving brake query changed')
         brake=read(brake_path);moving_labels=audit_brake_labels(brake,physics)
+        if brake['measured_query']['phase']!=source_phase:
+            raise ValueError('Moving source phase differs from its declared protocol')
         if (moving_labels['query_physics_row']!=receipt['brake_query_physics_row']
                 or receipt['prefix_end_physics_row_exclusive']!=moving_labels['query_physics_row']+1
                 or receipt['brake_end_physics_row_exclusive']!=labels['query_physics_row']+1):
