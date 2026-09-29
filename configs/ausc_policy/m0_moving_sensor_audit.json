@@ -1,0 +1,12 @@
+{
+  "experiment": "recovery_sensor_audit",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 2100,
+  "cases": [
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-moving-recovery-act609-20260929/output/act609",
+      "owner_sha256": "ac0f85f46dc21d87bec94a6b8be9633fcde36ef56695d9a8987faa8c5b1bcd79",
+      "case_sha256": "575b2152e4fb51f1459ba3d4806935cd17c29d70cffa18bce66435f06b6343b7"
+    }
+  ]
+}

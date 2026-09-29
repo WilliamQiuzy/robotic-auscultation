@@ -50,6 +50,16 @@ def test_changed_adc_or_missing_frame_rejected():
     with pytest.raises(ValueError): bind_sensor_frames(physics,frames[1:])
 
 
+@pytest.mark.parametrize('role',['STUDENT_COMMAND_REPLAY','EXPERT_BRAKE'])
+def test_moving_roles_require_explicit_moving_acquisition(role):
+    physics,frames=fixture()
+    for row in physics: row['oracle_role']=role
+    with pytest.raises(ValueError): bind_sensor_frames(physics,frames)
+    report=bind_sensor_frames(physics,frames,moving=True)
+    assert report['role_frame_counts']=={role:2}
+    assert report['training_dataset_eligible'] is False
+
+
 def test_raw_pixels_reject_invalid_depth_mask_and_oracle_modalities():
     arrays=dict(rgb=np.zeros((2,3,3),np.uint8),depth_m=np.ones((2,3),np.float32),
                 depth_valid=np.ones((2,3),bool))

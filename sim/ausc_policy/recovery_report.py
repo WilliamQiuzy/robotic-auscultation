@@ -35,7 +35,7 @@ def load(root,run_id):
     summaries=[];traces=[]
     for entry in complete['cases']:
         name=entry['case_id'];prefix='output/'+name+'/'
-        if name not in ('nominal','joint3-plus','joint3-minus'): raise ValueError('Unexpected case')
+        if name not in ('nominal','joint3-plus','joint3-minus','act609'): raise ValueError('Unexpected case')
         outcome=read(prefix+'outcome.json');result=read(prefix+'result.json')
         if (not result['execution_completed'] or not outcome['expert_demonstration']
                 or outcome['learned_policy'] or outcome['training_dataset_eligible']):
@@ -64,6 +64,7 @@ def load(root,run_id):
             centered_acceleration_rad_s2=dynamics['centered']['acceleration_rad_s2']['max'],
             centered_jerk_rad_s3=dynamics['centered']['jerk_rad_s3']['max'],
             observed_supervisor_replay_passed=result['observed_supervisor_replay_passed'],
+            moving_recovery=outcome.get('moving_recovery'),
             physical_audit_accepted=result['physics_audit_accepted'],failure_reason=outcome.get('failure_reason'),
             m0_passed=False,learned_policy=False,training_dataset_eligible=False,
             trace_sha256=sha(bound(prefix+'expert_trace.jsonl')),
@@ -79,7 +80,9 @@ def main():
     parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();summaries,traces=load(args.evidence,args.run_id)
     args.output.mkdir(parents=True,exist_ok=False)
-    report=dict(scope='Actual R4 stationary expert pilot; single body, no policy/dataset qualification',
+    moving=any(r['moving_recovery'] is not None for r in summaries)
+    report=dict(scope=('Actual R4 moving expert takeover after student command replay' if moving
+        else 'Actual R4 stationary expert pilot')+'; single body, no policy/dataset qualification',
         m0_passed=False,cases=summaries)
     (args.output/'summary.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n')
     import matplotlib
@@ -105,7 +108,8 @@ def main():
     axes[1].legend(fontsize=9)
     for ax in axes:
         ax.spines[['right','top']].set_visible(False);ax.grid(axis='y',alpha=.15)
-    fig.suptitle('Stationary expert recovery diagnostics — not a learned-policy test',fontsize=13)
+    fig.suptitle(('Moving expert takeover' if moving else 'Stationary expert recovery')+
+        ' diagnostics — not a learned-policy test',fontsize=13)
     for suffix in ('svg','png'):fig.savefig(args.output/('recovery.'+suffix),dpi=150)
     plt.close(fig)
     print(json.dumps(dict(cases=len(summaries),passed=sum(r['case_passed'] for r in summaries),m0_passed=False)))

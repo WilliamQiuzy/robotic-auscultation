@@ -32,7 +32,7 @@ def write(path,value):
     Path(path).write_text(json.dumps(value,indent=2,allow_nan=False)+'\n')
 
 
-def bind_sensor_frames(physics,frames):
+def bind_sensor_frames(physics,frames,*,moving=False):
     from sim.auscultation_vla_v2.hall import HallPacket, HallSimulator, default_calibration
     from sim.auscultation_vla_v2.multimodal import INSTRUCTIONS
     if not physics or not frames:
@@ -51,7 +51,9 @@ def bind_sensor_frames(physics,frames):
         if i not in by_row: continue
         frame=by_row[i];role=row['oracle_role']
         roles[role]=roles.get(role,0)+1
-        if role not in ('PREPARATION','EXPERT_RECOVERY','MEASURED_ANALYTIC_L3','FINAL_RETURN'):
+        allowed={'PREPARATION','EXPERT_RECOVERY','MEASURED_ANALYTIC_L3','FINAL_RETURN'}
+        if moving: allowed.update(('STUDENT_COMMAND_REPLAY','EXPERT_BRAKE'))
+        if role not in allowed:
             raise ValueError('Unknown acquisition role')
         if (frame['eligible'] is not False or frame['time_s'] != stamp
                 or frame['target'] != row['target'] or frame['subphase'] != row['subphase']):
@@ -110,6 +112,9 @@ def snapshot_binding(case,outcome):
                  'sim/auscultation_vla_v2/calibration/veo6_tared_snapshot.json',
                  'sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf'):
         wanted.append(('source/'+name,root/name))
+    if 'moving_recovery' in outcome:
+        for name in ('moving_recovery_teacher.py','moving_brake.py','recovery_oracle.py'):
+            wanted.append(('source/code/ausc_policy/'+name,root/'sim/ausc_policy'/name))
     from auscultation.mechanical_sensor.force_feedback import force_sensor
     wanted.append(('source/calibration/force_sensor.py',Path(force_sensor.__file__)))
     for key,path in wanted:
@@ -167,12 +172,50 @@ def audit_case(case,deadline):
     physics=[json.loads(x) for x in (case/'expert_trace.jsonl').open()]
     frames=[json.loads(x) for x in (case/'sensors/frames.jsonl').open()]
     ledger=[json.loads(x) for x in (case/'sensors/body_poses.jsonl').open()]
-    statistics=bind_sensor_frames(physics,frames)
-    from .recovery_labels import audit_query_labels
+    moving='moving_recovery' in outcome
+    statistics=bind_sensor_frames(physics,frames,moving=moving)
+    from .recovery_labels import audit_query_labels, audit_brake_labels
     query=read(case/'oracle_query.json')
     if sha(case/'oracle_query.json')!=outcome['oracle_receipt']['query_sha256']:
         raise ValueError('Actual oracle receipt binding changed')
     labels=audit_query_labels(query,physics)
+    moving_labels=None
+    if moving:
+        receipt=outcome['moving_recovery']
+        if not (receipt['source_prefix_replayed'] is True and receipt['student_inference_executed'] is False
+                and receipt['physical_joint_resets']==0 and receipt['prefix_completed'] is True
+                and receipt['brake_completed'] is True and receipt['training_dataset_eligible'] is False
+                and receipt['source_action_index']==609 and receipt['measured_prefix_tolerance_rad']==1e-4
+                and receipt['maximum_prefix_q_difference_rad']<=1e-4):
+            raise ValueError('Incomplete actual moving takeover receipt')
+        brake_path=case/'brake_query.json';bound[brake_path]=sha(brake_path)
+        if bound[brake_path]!=receipt['brake_query_sha256']:
+            raise ValueError('Executed moving brake query changed')
+        brake=read(brake_path);moving_labels=audit_brake_labels(brake,physics)
+        if (moving_labels['query_physics_row']!=receipt['brake_query_physics_row']
+                or receipt['prefix_end_physics_row_exclusive']!=moving_labels['query_physics_row']+1
+                or receipt['brake_end_physics_row_exclusive']!=labels['query_physics_row']+1):
+            raise ValueError('Moving query/brake/stationary chronology differs from actual receipt')
+        # Recheck the complete acquired student command prefix, not just its
+        # final pose or the recorder's own success flag.
+        from .moving_brake import check_prefix_chunk
+        source=Path(receipt['source_run'])
+        required={'result.json','output/case/outcome.json','output/case/expert_trace.jsonl','output/case/sensors/frames.jsonl'}
+        if set(receipt['source_files'])!=required:
+            raise ValueError('Original failed ACT source bindings incomplete')
+        for name,digest in receipt['source_files'].items():
+            path=source/name
+            if sha(path)!=digest: raise ValueError('Original ACT source changed')
+            bound[path]=digest
+        old=[json.loads(x) for x in (source/'output/case/expert_trace.jsonl').open()]
+        count=receipt['prefix_end_physics_row_exclusive']
+        if any(r['oracle_role']!='STUDENT_COMMAND_REPLAY' for r in physics[:count]):
+            raise ValueError('Student command replay role was relabeled')
+        error=check_prefix_chunk(old[:count],physics[:count],physics[count-1]['q_command'])
+        if error!=receipt['maximum_prefix_q_difference_rad']:
+            raise ValueError('Prefix reproduction metric differs from actual trace')
+        moving_labels['prefix_physics_samples_rechecked']=count
+        moving_labels['maximum_prefix_q_difference_rad']=error
     query_frame=[r for r in frames if r['physics_row']==labels['query_physics_row']]
     if (len(query_frame)!=1 or query_frame[0]['target_estimate']['revision']
             !=query['measured_query']['context']['revision']):
@@ -250,6 +293,7 @@ def audit_case(case,deadline):
         audit_source_sha256=sha(__file__),
         minimum_valid_depth_pixels=min(depth_counts),sensor_bindings=statistics,
         first_stationary_query_label_audit=labels,
+        moving_brake_label_audit=moving_labels,
         runtime=dict(python=sys.version,numpy=np.__version__,opencv=cv2.__version__,scipy=scipy.__version__),
         source_hashes={str(k):v for k,v in bound.items()},
         source_case_passed=result['case_passed'],m0_passed=False,training_dataset_eligible=False,
