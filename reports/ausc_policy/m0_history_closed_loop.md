@@ -49,3 +49,5 @@ B初始state19与原R4首个训练观测最大差仅约6.5e-8，原数据存在�
 - 配对权重和历史缓存：results/ausc_policy/m0_history_core，76文件逐一校验。
 - 实际回合：m0_history_control_d0与m0_history_causal_d0，各30文件校验，实际视频分别SHA 2b6a20b11291c9c6db69b7c62ec44d2e4eda7fcea650a179558326936cbecb36 / fa847b831d01b5a1638af424a7f3810aca99e41b0fb6b7457026057545601582。
 - 完整诊断：results/ausc_policy/m0_history_path_probe，11文件含全部预测/来源/签名，零训练更新。
+
+三起点原生制动预检已实际完成（m0-history-free-brake-probe-20260929，源码8291b69）：3.45、8.45、13.45秒均返回合格提案，原生停止分别12、13、20个物理步。原指令速度、加速度、jerk及3mm逐样本几何门保持不变；只证明提案合格，尚未证明真实停车。按先前固定顺序继续仅动作20的实际专家接管，不挑更有利的起点。
