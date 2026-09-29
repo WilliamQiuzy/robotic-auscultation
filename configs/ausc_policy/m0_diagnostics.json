@@ -16,6 +16,6 @@
     384,
     512
   ],
-  "seed_predictions": null,
+  "seed_predictions": "results/ausc_policy/m0_seed512/output/seed_predictions.npz",
   "output_directory": "results/ausc_policy/m0_diagnostics"
 }
