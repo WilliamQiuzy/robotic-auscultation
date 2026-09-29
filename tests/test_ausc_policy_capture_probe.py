@@ -33,3 +33,42 @@ def test_rotation_changes_only_orientation_and_keeps_proper_rotation():
 def test_unapproved_node_or_inconsistent_normal_is_rejected():
     with pytest.raises(ValueError): perturb_pose(np.eye(4),[0,0,-1],dict(id='bad',kind='translation',axis=0,value=.1))
     with pytest.raises(ValueError): perturb_pose(np.eye(4),[1,0,0],declared_cases()[0])
+
+
+@pytest.fixture
+def geometry_binding(tmp_path):
+    import json, hashlib
+    node='t2_+0.00200'; root=tmp_path/'geometry';(root/'output').mkdir(parents=True)
+    case=dict(case={'id':node},q=[0.]*7,ik_accurate=True,free_geometry_passed=True,
+              direct_entry_geometry_passed=True,full_curve_geometry_passed=True,training_dataset_eligible=False)
+    owner=dict(completed=True,gpu_released=True,stage=dict(process_group_drained=True,exit_code=0),
+               config=dict(experiment='capture_probe',point='R4',core_assets={'scene':'frozen'}))
+    complete=dict(completed=True,case_count=35,cases=[case])
+    def save():
+        digest={}
+        for relative,value in [('result.json',owner),('output/COMPLETE.json',complete),('output/'+node+'.json',case)]:
+            data=json.dumps(value).encode();(root/relative).write_bytes(data);digest[relative]=hashlib.sha256(data).hexdigest()
+        return dict(case_id='entry-normal-plus',case_ids=['entry-normal-plus'],core_assets={'scene':'frozen'},
+                    geometry_probe=dict(path=str(root),owner_sha256=digest['result.json'],
+                    complete_sha256=digest['output/COMPLETE.json'],cases={'entry-normal-plus':dict(node=node,sha256=digest['output/'+node+'.json'])}))
+    return root,case,owner,save
+
+
+def test_actual_component_requires_bound_completed_safe_node(geometry_binding):
+    from sim.ausc_policy.capture_probe import load_geometry_case
+    _,case,_,save=geometry_binding
+    assert load_geometry_case(save())==case
+
+
+@pytest.mark.parametrize('defect',['bytes','not_drained','curve_refused','wrong_assets','wrong_node','nan_q'])
+def test_actual_component_refuses_unqualified_or_mismatched_node(geometry_binding,defect):
+    from sim.ausc_policy.capture_probe import load_geometry_case
+    root,case,owner,save=geometry_binding
+    if defect=='not_drained': owner['stage']['process_group_drained']=False
+    if defect=='curve_refused': case['full_curve_geometry_passed']=False
+    if defect=='wrong_node': case['case']['id']='center'
+    if defect=='nan_q': case['q'][2]=float('nan')
+    config=save()
+    if defect=='bytes': (root/'output/t2_+0.00200.json').write_text('{}')
+    if defect=='wrong_assets': config['core_assets']={'scene':'different'}
+    with pytest.raises(ValueError): load_geometry_case(config)

@@ -96,6 +96,9 @@ def capture(app, errors, released, config, output, bundle, snapshot_sha, binding
         if config['mode']=='moving_oracle_pilot':
             from .moving_recovery_teacher import MovingRecoveryTeacher
             cls=MovingRecoveryTeacher;extra['recovery_config']=config
+        if config['mode']=='capture_component':
+            from .capture_teacher import CaptureTeacher
+            cls=CaptureTeacher;extra['capture_config']=config
         controller = cls(env,kin,checker,sensor=sensor,perturbation_rad=config['perturbation_rad'],**extra,
             generator_policy='revised_shortcut',speed_scale=.7,
             static_world_bundle=load_static_world(output/'static_world'),static_geometry_dir=output/'geometry')
@@ -114,6 +117,7 @@ def capture(app, errors, released, config, output, bundle, snapshot_sha, binding
         if controller is not None:
             outcome['oracle_receipt'] = controller.oracle_receipt
             if hasattr(controller,'moving_receipt'): outcome['moving_recovery']=controller.moving_receipt
+            if hasattr(controller,'capture_receipt'): outcome['capture_component']=controller.capture_receipt
         try:
             if env is not None: env.save('expert')
             if controller is not None: write(output/'control_commands.json',controller.control_rows)
@@ -138,6 +142,10 @@ def main():
     from .recovery_teacher import RecoveryTeacher  # import before Kit; no construction
     if args.preflight_only:
         if config['mode']=='moving_oracle_pilot': moving_preflight(config,args.output)
+        elif config['mode']=='capture_component':
+            from .capture_teacher import CaptureTeacher
+            from .capture_probe import load_geometry_case
+            load_geometry_case(config)
         else: geometry_preflight(bundle,args.output)
         print('RECOVERY_PREFLIGHT_OK',flush=True); return 0
     from isaacsim import SimulationApp

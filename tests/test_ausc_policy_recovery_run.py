@@ -17,5 +17,11 @@ class RecoverySelectionTests(unittest.TestCase):
         for names in (['nominal'],['act609','joint3-plus']):
             with self.assertRaises(ValueError): selected_cases(dict(mode='moving_oracle_pilot',case_ids=names))
 
+    def test_capture_component_cannot_select_oracle_cases(self):
+        self.assertEqual(selected_cases(dict(mode='capture_component',case_ids=['entry-normal-plus'])),
+                         [('entry-normal-plus',0.)])
+        for names in (['act609'],['nominal'],['entry-normal-plus','entry-tangent-plus']):
+            with self.assertRaises(ValueError): selected_cases(dict(mode='capture_component',case_ids=names))
+
 
 if __name__ == '__main__': unittest.main()

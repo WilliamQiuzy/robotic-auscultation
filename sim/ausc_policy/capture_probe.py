@@ -4,6 +4,7 @@ CPU-only IK, approved posture/FCL and original full normal-curve checks. No
 physics resets, prepared observations, learned actions or tolerance changes.
 """
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -11,6 +12,36 @@ import sys
 import time
 import numpy as np
 from scipy.spatial.transform import Rotation
+
+
+COMPONENT_NODES={'entry-tangent-plus':'t0_+0.00001','entry-normal-plus':'t2_+0.00200'}
+
+
+def load_geometry_case(config):
+    binding=config['geometry_probe'];root=Path(binding['path']);name=config['case_id']
+    if name not in COMPONENT_NODES or set(binding['cases'])!=set(config['case_ids']):
+        raise ValueError('Unregistered actual component geometry')
+    item=binding['cases'][name]
+    if item['node']!=COMPONENT_NODES[name]: raise ValueError('Geometry node remapped')
+    files={'result.json':binding['owner_sha256'],'output/COMPLETE.json':binding['complete_sha256'],
+           'output/'+item['node']+'.json':item['sha256']}
+    for relative,digest in files.items():
+        if hashlib.sha256((root/relative).read_bytes()).hexdigest()!=digest:
+            raise ValueError('Completed geometry source changed')
+    owner=json.loads((root/'result.json').read_text())
+    complete=json.loads((root/'output/COMPLETE.json').read_text())
+    case=json.loads((root/'output'/(item['node']+'.json')).read_text())
+    if not (owner['completed'] and owner['gpu_released'] and owner['stage']['process_group_drained']
+            and owner['stage']['exit_code']==0 and owner['config']['experiment']=='capture_probe'
+            and owner['config']['core_assets']==config['core_assets'] and owner['config']['point']=='R4'
+            and complete['completed'] and complete['case_count']==35 and case in complete['cases']
+            and case['case']['id']==item['node']
+            and case['ik_accurate'] and case['free_geometry_passed'] and case['direct_entry_geometry_passed']
+            and case['full_curve_geometry_passed'] and case['training_dataset_eligible'] is False):
+        raise ValueError('Completed explicit direct-entry geometry required')
+    q=np.asarray(case['q'],float)
+    if q.shape!=(7,) or not np.isfinite(q).all(): raise ValueError('Invalid geometry command')
+    return case
 
 
 def declared_cases():
