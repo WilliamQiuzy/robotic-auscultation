@@ -85,6 +85,17 @@ class IsaacOwnershipTests(unittest.TestCase):
         metrics['active_state_unchanged']=False;save()
         with self.assertRaisesRegex(ValueError,'native posture'):owner.validate_posture_preview(config)
         with self.assertRaises(ValueError):owner.validate_posture_preview(dict(posture_hint_preview='false'))
+        metrics['active_state_unchanged']=True;config['posture_hint_selection']='nearest_reference';save()
+        with self.assertRaisesRegex(ValueError,'native posture'):owner.validate_posture_preview(config)
+        metrics['selection']='nearest_reference'
+        metrics['reference_schedule']=dict(all_branches_completed=True,fixed_actual_ticks=16057,
+            fixed_actual_action_intervals=1339,branches=dict(
+                zero=dict(original_command_max_abs_difference_rad=0.,joint_mean_abs_error_rad=.002,tcp_mean_distance_mm=1.7),
+                nearest_reference=dict(local_zero_comparisons=1339,local_zero_comparisons_all_not_worse=True,
+                    joint_mean_abs_error_rad=.0019,tcp_mean_distance_mm=1.6)))
+        save();owner.validate_posture_preview(config)
+        metrics['reference_schedule']['branches']['nearest_reference']['tcp_mean_distance_mm']=1.8;save()
+        with self.assertRaisesRegex(ValueError,'fixed-reference'):owner.validate_posture_preview(config)
 
     def test_asset_scope_restores_globals_even_on_error(self):
         from sim.auscultation_expert_layout_v1 import scene

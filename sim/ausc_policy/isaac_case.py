@@ -133,6 +133,7 @@ def capture(app, errors, released, config, output, ready, bundle, snapshot_sha, 
             generator_policy='revised_shortcut',speed_scale=.7,
             motion_velocity=config.get('motion_velocity','zero'),
             posture_hint_preview=config.get('posture_hint_preview',False),
+            posture_hint_selection=config.get('posture_hint_selection','first_feasible'),
             static_world_bundle=load_static_world(output/'static_world'),static_geometry_dir=output/'geometry')
         outcome = controller.run([(bundle.target,bundle.row)])
         outcome['dynamics_recipe_sha256'] = dynamics['recipe_sha256']

@@ -37,7 +37,8 @@ def _record_time(value):
 class M0DirectController(ObservedTeacher):
     """Single-point D0 only. Runtime construction and resource ownership are external."""
     def __init__(self, *args, client, task_id, episode_id,
-                 trajectory_factory=JointTrajectory, motion_velocity='zero', posture_hint_preview=False, **kwargs):
+                 trajectory_factory=JointTrajectory, motion_velocity='zero', posture_hint_preview=False,
+                 posture_hint_selection='first_feasible', **kwargs):
         if not callable(getattr(client, 'predict', None)):
             raise ValueError('An explicit ACTClient is required')
         for name, value in (('task_id', task_id), ('episode_id', episode_id)):
@@ -50,6 +51,10 @@ class M0DirectController(ObservedTeacher):
         if type(posture_hint_preview) is not bool or (posture_hint_preview and motion_velocity != 'quadratic5'):
             raise ValueError('Posture preview requires the declared quadratic5 estimator')
         self.posture_hint_preview = posture_hint_preview
+        if (posture_hint_selection not in ('first_feasible','nearest_reference') or
+                (posture_hint_selection=='nearest_reference' and not posture_hint_preview)):
+            raise ValueError('Endpoint selection requires the posture preview')
+        self.posture_hint_selection=posture_hint_selection
         self._velocity_hints = None
         self.trajectory_factory = trajectory_factory
         self.trajectory = None
@@ -248,7 +253,8 @@ class M0DirectController(ObservedTeacher):
                     from .motion_preview import choose_velocity_hint
                     try:
                         velocity,preview = choose_velocity_hint(self.trajectory,proposal.proposal,velocity,
-                            self._inspect_motion_preview,trajectory_factory=self.trajectory_factory)
+                            self._inspect_motion_preview,trajectory_factory=self.trajectory_factory,
+                            selection=self.posture_hint_selection)
                         record['posture_hint_preview'] = preview
                     except Exception as error:
                         if hasattr(error,'receipt'):
@@ -444,6 +450,7 @@ class M0DirectController(ObservedTeacher):
             motion_execution='same continuous Ruckig for L2 and real stop; unchanged NormalExecutor for L3',
             motion_velocity=self.motion_velocity,
             posture_hint_preview=self.posture_hint_preview,
+            posture_hint_selection=self.posture_hint_selection,
             reference_tracking_scope='50ms reference updates; label time is not a guarantee of exact waypoint arrival',
             expert_l2_fallbacks=0, alignment_used=False, simulation_paused_for_inference=True,
             realtime_claim=False, preparation_home='initial preparation and final canonical home are outside learned L2')

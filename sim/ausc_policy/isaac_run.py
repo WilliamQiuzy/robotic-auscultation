@@ -22,8 +22,11 @@ def write(path, value):
 
 def validate_posture_preview(config):
     enabled=config.get('posture_hint_preview',False)
+    selection=config.get('posture_hint_selection','first_feasible')
     if type(enabled) is not bool or (enabled and config.get('motion_velocity')!='quadratic5'):
         raise ValueError('Invalid posture preview configuration')
+    if selection not in ('first_feasible','nearest_reference') or (selection=='nearest_reference' and not enabled):
+        raise ValueError('Invalid posture selection configuration')
     if not enabled:
         return
     probe=Path(config['motion_preview_probe_run'])
@@ -35,10 +38,22 @@ def validate_posture_preview(config):
             or metrics.get('motion_preview_source_sha256')!=hashlib.sha256(Path(__file__).with_name('motion_preview.py').read_bytes()).hexdigest()
             or metrics.get('original_failure_reproduced') is not True
             or metrics.get('active_state_unchanged') is not True
+            or metrics.get('selection','first_feasible')!=selection
             or metrics['preview_vs_generation_max_abs_rad']>1e-12
             or metrics['limits']!=dict(dt=1/240,velocity=.175,acceleration=.5,jerk=7.99999)
             or metrics['factors']!=[1.,.5,.25,.125,0.] or metrics['ticks']!=12):
         raise ValueError('Actual source-bound native posture preview proof is required')
+    if selection=='nearest_reference':
+        reference=metrics['reference_schedule'];branches=reference['branches']
+        baseline=branches['zero'];candidate=branches['nearest_reference']
+        if (reference['all_branches_completed'] is not True
+                or baseline['original_command_max_abs_difference_rad']!=0.
+                or reference['fixed_actual_ticks']!=16057 or reference['fixed_actual_action_intervals']!=1339
+                or candidate['local_zero_comparisons']!=1339
+                or candidate['local_zero_comparisons_all_not_worse'] is not True
+                or candidate['joint_mean_abs_error_rad']>baseline['joint_mean_abs_error_rad']
+                or candidate['tcp_mean_distance_mm']>baseline['tcp_mean_distance_mm']):
+            raise ValueError('Actual fixed-reference native comparison must complete and improve tracking')
 
 
 def validate_config(config):
