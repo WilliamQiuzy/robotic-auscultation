@@ -33,5 +33,12 @@ class EvaluationAuditTests(unittest.TestCase):
         self.audit['audits']['mechanics']['reasons'].append('L4:controller_rejected')
         self.assertFalse(interpret(self.audit,self.outcome)['accepted'])
 
+    def test_explicit_expert_diagnostic_retains_all_physics_requirements(self):
+        self.outcome['expert_demonstration'] = True
+        with self.assertRaises(ValueError): interpret(self.audit,self.outcome)
+        self.assertTrue(interpret(self.audit,self.outcome,expert_evaluation=True)['accepted'])
+        self.audit['audits']['mechanics']['reasons'].append('bad_force')
+        self.assertFalse(interpret(self.audit,self.outcome,expert_evaluation=True)['accepted'])
+
 
 if __name__=='__main__':unittest.main()

@@ -20,6 +20,7 @@ MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
            'motion_preview_probe': 'sim.ausc_policy.motion_preview_probe',
            'path_probe': 'sim.ausc_policy.path_probe',
            'feedback_probe': 'sim.ausc_policy.feedback_probe',
+           'recovery_run': 'sim.ausc_policy.recovery_run',
            'isaac_run': 'sim.ausc_policy.isaac_run'}
 
 

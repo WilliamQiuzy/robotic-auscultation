@@ -74,6 +74,16 @@ def prepare(config, output):
         sources[relative] = code/relative
     calibration = importlib.import_module('auscultation.mechanical_sensor.force_feedback.force_sensor')
     sources['calibration/force_sensor.py'] = Path(calibration.__file__)
+    # Exact aliases consumed by the existing independent ADC/FK/RGB-D replay.
+    # They point to the same captured bytes, without rewriting the frozen audit.
+    for name in ('observed_supervisor.py','supervision.py'):
+        sources['pi05_v6/'+name] = code/'sim/auscultation_pi05_v6'/name
+    for name in ('phase_manager.py','kinematics.py','tool_frames.py'):
+        sources['code/'+name] = code/'sim/auscultation_expert_layout_v1'/name
+    sources['vla/hall.py'] = code/'sim/auscultation_vla_v2/hall.py'
+    sources['vla/force_sensor.py'] = Path(calibration.__file__)
+    sources['vla/hall_calibration.json'] = code/'sim/auscultation_vla_v2/calibration/veo6_tared_snapshot.json'
+    sources['urdf'] = code/'sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf'
     snapshot = create_snapshot([bundle], output/'input_snapshot', sources)
     verify_snapshot(snapshot, verify_sources=True)
     # The legacy monitor has its own static-arm/containment geometry source.

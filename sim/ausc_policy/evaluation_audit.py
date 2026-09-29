@@ -7,12 +7,12 @@ after the controller reports actual completion. This never qualifies a dataset.
 import copy
 
 
-def interpret(original, outcome):
-    if (outcome.get('expert_demonstration') is not False
+def interpret(original, outcome, *, expert_evaluation=False):
+    if (type(expert_evaluation) is not bool or outcome.get('expert_demonstration') is not expert_evaluation
             or outcome.get('training_dataset_eligible') is not False
             or outcome.get('training_accepted') is not False
             or outcome.get('m0_passed') is not False):
-        raise ValueError('Expected explicit diagnostic-only policy outcome')
+        raise ValueError('Expected explicit diagnostic-only outcome with matching expert ownership')
     reports = copy.deepcopy(original['audits'])
     if set(reports) != {'mechanics','posture'}:
         raise ValueError('Both original mechanical and posture reports required')
