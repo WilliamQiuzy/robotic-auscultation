@@ -1,6 +1,25 @@
 import numpy as np
 import pytest
-from sim.ausc_policy.history_fit import history_deltas, history_stats, make_packer
+from sim.ausc_policy.history_fit import history_deltas, history_stats, make_packer, frozen_parameter_prediction
+
+
+@pytest.mark.parametrize('fail',[False,True])
+def test_inference_parameter_flags_restore_trainable_and_frozen_masks_even_on_failure(fail):
+    class Parameter:
+        def __init__(self,flag):self.requires_grad=flag
+        def requires_grad_(self,flag):self.requires_grad=flag
+    class Policy:
+        def __init__(self):self.values=[Parameter(True),Parameter(False),Parameter(True)]
+        def parameters(self):return iter(self.values)
+        def predict_action_chunk(self,batch):
+            assert all(not p.requires_grad for p in self.values)
+            if fail:raise RuntimeError('inference failure')
+            return batch
+    policy=Policy();batch=object()
+    if fail:
+        with pytest.raises(RuntimeError):frozen_parameter_prediction(policy,batch)
+    else:assert frozen_parameter_prediction(policy,batch) is batch
+    assert [p.requires_grad for p in policy.values]==[True,False,True]
 
 
 def test_history_is_measured_past_minus_current_and_control_is_repeated_current():

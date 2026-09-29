@@ -525,7 +525,7 @@ def native_smoke(config, output, episodes, stats):
         heldout_arrays_opened=False, m0_passed=False, closed_loop_evaluated=False))
 
 
-def fit(config, output, episodes, stats, receipt, *, batch_packer=None, native_factory=None):
+def fit(config, output, episodes, stats, receipt, *, batch_packer=None, native_factory=None, inference_predictor=None):
     mode = config['mode']; settings = config['modes'][mode]
     representation = config['action_representation']
     batch_packer = pack_batch if batch_packer is None else batch_packer
@@ -548,7 +548,9 @@ def fit(config, output, episodes, stats, receipt, *, batch_packer=None, native_f
     def evaluate(step):
         policy.eval()
         with torch.inference_mode():
-            prediction = policy.predict_action_chunk(tensors(batch_packer(probe_rows, stats, training=False)))
+            batch = tensors(batch_packer(probe_rows, stats, training=False))
+            prediction = (policy.predict_action_chunk(batch) if inference_predictor is None
+                          else inference_predictor(policy, batch))
         model_action = unscale(prediction.detach().cpu().numpy(), stats['action'])
         reference = np.stack([r['actions'] for r in probe_rows])
         q = np.stack([r['measured_q'] for r in probe_rows]); dq = np.stack([r['measured_dq'] for r in probe_rows])

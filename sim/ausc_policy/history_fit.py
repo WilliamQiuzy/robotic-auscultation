@@ -19,6 +19,21 @@ from .history_prepare import OFFSETS
 VARIANTS=('repeat_current','causal_history')
 
 
+def frozen_parameter_prediction(policy,batch):
+    """Match deployment parameter flags; restore every original training mask.
+
+    Caller owns eval()/inference_mode(). The fixed-weight CUDA diagnosis found
+    a 1-ULP decoded discrepancy from requires_grad alone. This keeps the 1e-7
+    reload gate unchanged instead of absorbing the mismatch in a tolerance.
+    """
+    parameters=list(policy.parameters());flags=[p.requires_grad for p in parameters]
+    try:
+        for p in parameters:p.requires_grad_(False)
+        return policy.predict_action_chunk(batch)
+    finally:
+        for p,flag in zip(parameters,flags):p.requires_grad_(flag)
+
+
 def history_deltas(history,variant):
     history=np.asarray(history,np.float32)
     if (history.ndim!=3 or history.shape[1:]!=(5,19) or not np.isfinite(history).all()
@@ -116,7 +131,8 @@ def main():
                 offsets_frames=list(OFFSETS),single_frame_state_dim=19,auxiliary_width=28,environment_width=40,
                 features='Observed past q minus current q, or zero for repeated-current control',
                 current_q_dropout_only=True,training_scope='original32 paired fit, no new expert labels'))
-            a.fit(baseline,folder,episodes,stats,receipt,batch_packer=packer,native_factory=native)
+            a.fit(baseline,folder,episodes,stats,receipt,batch_packer=packer,native_factory=native,
+                  inference_predictor=frozen_parameter_prediction)
             # A strict actual-weight roundtrip is required before a completed
             # result. This does not make the old 19D live server compatible.
             torch,policy,_=native(baseline)
@@ -127,9 +143,12 @@ def main():
             probe=a.read_json(folder/'probe_rows.json');by={e['episode_id']:e for e in episodes}
             rows=[a.row_from_episode(by[r['episode_id']],r['start'],10) for r in probe]
             with torch.inference_mode():
-                prediction=policy.predict_action_chunk({k:torch.from_numpy(v).cuda() for k,v in packer(rows,stats,training=False).items()})
+                prediction=frozen_parameter_prediction(policy,{k:torch.from_numpy(v).cuda() for k,v in packer(rows,stats,training=False).items()})
             raw=a.decode_actions(a.unscale(prediction.cpu().numpy(),stats['action']),np.stack([r['measured_q'] for r in rows]),a.BLOCK_RELATIVE)
             with np.load(checkpoint/'predictions.npz',allow_pickle=False) as saved:error=float(abs(raw-saved['raw']).max())
+            a.save_json(folder/'reload_check.json',dict(maximum_reload_error_rad=error,
+                tolerance_rad=1e-7,passed=error<=1e-7,parameter_requires_grad=False,
+                final_weights_sha256=a.sha256(checkpoint/'model.safetensors')))
             a.need(error<=1e-7,'History checkpoint reload changes predictions')
             metrics=a.read_json(checkpoint/'metrics.json')
             row=dict(variant=variant,steps=512,maximum_reload_error_rad=error,metrics=metrics,
