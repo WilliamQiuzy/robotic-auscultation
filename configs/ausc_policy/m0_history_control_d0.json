@@ -1,0 +1,51 @@
+{
+  "experiment": "isaac_run",
+  "mode": "m0_direct",
+  "base": "/home/william/wam-vla-v2",
+  "point": "R4",
+  "checkpoint_step": 2000,
+  "checkpoint_sha256": "8a5114d8c12895765a31b1d068e2b2124cdf5348f13f665335a600489a58edfc",
+  "run_root": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-train16-20260929",
+  "reload_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-control-reload-20260929",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "physics": {
+    "position_iterations": 32,
+    "velocity_iterations": 1,
+    "armature_kg_m2": 0.02
+  },
+  "speed_scale": 0.7,
+  "time_limit_seconds": 3600,
+  "core_assets": {
+    "sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf": "953a3eb21fbe121291a696c29acfd5c76e6d8dd121f31f15f162a9515eca9e77",
+    "sim/auscultation_vla_v2/calibration/veo6_tared_snapshot.json": "ce6bcda3bef2282e07be0f44686dc007756ede57cdfcd732d35e28c1d469d054",
+    "sim/auscultation_expert_layout_v1/layout_inputs.json": "7ac8002c61a9211d2ad11beafbc33a659c2e42db5e5b6af6f756f35178848dfc",
+    "sim/camera_framing_20260923/recommended_camera.json": "aeac00eb5a963520e869c60efff52a300484bd1c4a49232067a669c525ad07f0",
+    "sim/auscultation_vla_v2/sensor_pilot_annotation.json": "5df3c224ee5a43a3de331d97c2318734865ee82eba2d8046bb34e55a39a3903c"
+  },
+  "dependency_paths": [
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages"
+  ],
+  "dependency_files": {
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/fcl/__init__.py": "a4c883ce5446fcd7e02fd73f162823cd24349b6804900ff66798372a6b159c34",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/fcl/fcl.cpython-311-x86_64-linux-gnu.so": "345141e0fecaa5eec4c26c10913eeae20ee2856c92d8076d0bbf6baa9278061a",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/libccd-cba5fec5.so.2.0": "a5681935afd5278dad96b3db6911fb680326f86594812f292e86794438fa7334",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/libfcl-b85ee6a6.so.0.7.0": "2d972a5f9d11c41469ca50d10f45abfd090c9c9706fc6d0da25303de7d68e24e",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/liboctomap-dc57a5cd.so.1.9.8": "bfb1411b988773cb07b82d74e43121ea53e70d54f258905534b6e9ff95ba58d8",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/liboctomath-f3ddf1dc.so.1.9.8": "af08647a99de6f6f79f02bcb92b0c6fe6693ee01050331c80da3c2488ce7bf44",
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages/ruckig.cpython-311-x86_64-linux-gnu.so": "1e0907c0f7bef0fec41d9f8bdbb6e164ad99a91721d7bf377550ef9bf1c0d138"
+  },
+  "motion_velocity": "quadratic5",
+  "motion_probe_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-executor-probe-quadratic5-20260929",
+  "posture_hint_preview": true,
+  "motion_preview_probe_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-reference-schedule-probe-20260929-schemafix",
+  "posture_hint_selection": "nearest_reference",
+  "causal_history_input": true,
+  "variant": "repeat_current",
+  "owner_sha256": "6831d22b3f493a5eba2f8779966eebe31147f1ac2f395bb6ce58275a362c4196",
+  "complete_sha256": "8058332bd11dfc08cc57edd3820324324a5dbc92753333adfb82c872460cd009",
+  "history_contract_sha256": "72001125e1c40f9549940d845bd791b9d9cb826b7fb13c5e7540180a83d79444",
+  "reload_owner_sha256": "795126dcd836a91ef4cdf8da4b2056bf021586cd0f0678bde965e40fe113b0ea",
+  "reload_complete_sha256": "9f5f05f7c0b4ca84ef9a352df95cc7901632629d064440735c1910c54024f038"
+}

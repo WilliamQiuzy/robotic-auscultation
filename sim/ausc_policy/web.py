@@ -44,6 +44,7 @@ SOURCES = {
     '/evidence/causal-history': 'reports/ausc_policy/m0_causal_history.md',
     '/media/causal-history.svg': 'results/ausc_policy/m0_history_probe_matched/history.svg',
     '/evidence/history-fit': 'reports/ausc_policy/m0_history_fit_protocol.md',
+    '/media/history-fit.svg': 'results/ausc_policy/m0_history_fit_report/paired_fit.svg',
     '/media/capture-normal-plus.mp4': 'results/ausc_policy/m0_capture_normal_plus/m0-capture-normal-plus-20260929/output/review-entry-normal-plus.mp4',
     '/media/capture-normal-plus-poster.jpg': 'results/ausc_policy/m0_capture_normal_plus_media/review-entry-normal-plus-poster.jpg',
     '/media/capture-normal-plus.svg': 'results/ausc_policy/m0_capture_normal_plus_report/contact.svg',
