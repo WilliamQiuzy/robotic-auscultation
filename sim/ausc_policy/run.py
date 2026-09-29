@@ -18,6 +18,7 @@ MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
            'act_runtime': 'sim.ausc_policy.act_runtime',
            'executor_probe': 'sim.ausc_policy.executor_probe',
            'motion_preview_probe': 'sim.ausc_policy.motion_preview_probe',
+           'path_probe': 'sim.ausc_policy.path_probe',
            'isaac_run': 'sim.ausc_policy.isaac_run'}
 
 
@@ -59,7 +60,7 @@ def main():
         HF_HUB_DISABLE_IMPLICIT_TOKEN='1', TOKENIZERS_PARALLELISM='false')
     for key in ['PYTHONPATH', 'HF_TOKEN', 'JAX_PLATFORMS']:
         env.pop(key, None)
-    if config['experiment'] in {'executor_probe','motion_preview_probe'}:
+    if config['experiment'] in {'executor_probe','motion_preview_probe','path_probe'}:
         env['CUDA_VISIBLE_DEVICES'] = ''
     os.chdir(root)
     record = dict(run_id=args.run_id, code_commit=commit, config=config,

@@ -1,0 +1,23 @@
+{
+  "experiment": "path_probe",
+  "mode": "teacher_replay",
+  "device": "cpu",
+  "time_limit_seconds": 600,
+  "episode_id": "R4_observed_armature02_v1",
+  "prepared_manifest": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-prepare-20260929/output/prepared.json",
+  "prepared_manifest_sha256": "f4d72efa2a1aec07c47e5f8c068f4406201204946fe109f7aea926f9836d889b",
+  "base": "/home/william/wam-vla-v2",
+  "checkpoint_step": 2000,
+  "checkpoint_sha256": "ff120cb754aadd19b30e636d6a500779cf09c301b9d76696d4307baa04c814b1",
+  "run_root": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-relative-train16-20260929",
+  "online_runs": [
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-d0-r4-20260929-assetfix",
+      "outcome_sha256": "60091a5d17e9aa6b9dab816d1edbaf9589d80e00575d5914f662cdb95c6f867b"
+    },
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-d0-r4-preview-20260929",
+      "outcome_sha256": "9dddad6718302f3eea87af4386c44b8627afd561aa59034bbb8469c190b87a00"
+    }
+  ]
+}

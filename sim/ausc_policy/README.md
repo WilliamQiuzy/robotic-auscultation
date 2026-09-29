@@ -74,3 +74,16 @@ current q/v/a, or use an expert L2 fallback. Explicitly zero terminal velocity
 on stopping, and discard hints when the query context changes. Run the native
 teacher probe before the policy-driven Isaac variant. All existing physical,
 collision, observation and derivative checks remain mandatory.
+
+The quadratic hint's actual first command crossed a joint lower bound before
+execution. `m0_motion_preview_probe.json` reproduced that native CPU failure:
+factors 1/.5/.25 failed; .125 passed all 12 posture ticks, without changing the
+live state. `m0_act_d0_preview.json` then ran actual Isaac and failed at 59.7 s,
+still in FREE: tangential error 246.57 mm, and a proposed command violated the
+unchanged 3 mm clearance. Only its first hint was scaled. This candidate is
+not a successful fix, demonstration, or new training source.
+
+`m0_act_path_probe.json` diagnoses every qualified original R4 TRAIN window and
+reproduces the two saved online query sets on CPU with the same fixed weights.
+It has no optimizer or simulator. Nearest TRAIN state distances are descriptive
+support measures, never oracle labels or proof of generalization.
