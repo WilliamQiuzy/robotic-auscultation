@@ -1,0 +1,360 @@
+{
+  "schema": "approved_layout_physical_inputs_v1",
+  "translation_world_m": [
+    0,
+    0.05,
+    -0.02
+  ],
+  "scene_relative_to_project": "sim/layout_review_20260923/camera_comparison_l40s_v1/farther_5cm_lower_2cm.usda",
+  "source_files": {
+    "sim/layout_review_20260923/camera_comparison_l40s_v1/farther_5cm_lower_2cm.usda": "027e078f9d4f58c99cca2939c8438d6a4aa01cc9dcb669ba20756c877065c015",
+    "sim/auscultation_training/results/low_elbow_release_v1/physics_all10/training_scene.usdc": "3d21413256450f133ff67abf75ebffaf8a71fc50d275243fdb6767750b4cae07",
+    "sim/layout_review_20260923/camera_comparison_l40s_v1/layout_comparison.json": "80372bdc73eff760f6fec89dc1983966351e578c82f76c0a0fafc8c1a85ae6fa"
+  },
+  "approved_variant": {
+    "patient_translation_world_m": [
+      0.0,
+      0.05,
+      -0.02
+    ],
+    "stool_translation_world_m": [
+      0.0,
+      0.05,
+      0.0
+    ],
+    "seat_height_change_m": -0.02,
+    "seat_top_m": 0.7599629241757927,
+    "leg_ground_z_unchanged": true,
+    "patient_ground_state": {
+      "ground_z_m": 0.0,
+      "patient_meshes": [
+        {
+          "path": "/World/Patient/body/Char/ManRoot/male_adult_medical_01/male_adult_medical_01/opaque__fabric__scrubspants",
+          "minimum_z_m": 0.37321189837006563,
+          "ground_clearance_m": 0.37321189837006563,
+          "penetration_m": 0.0,
+          "is_shoe_or_foot": false
+        },
+        {
+          "path": "/World/Patient/body/Char/ManRoot/male_adult_medical_01/male_adult_medical_01/opaque__leather__sneakers",
+          "minimum_z_m": 0.3103750725224399,
+          "ground_clearance_m": 0.3103750725224399,
+          "penetration_m": 0.0,
+          "is_shoe_or_foot": true
+        },
+        {
+          "path": "/World/Patient/body/Char/ManRoot/male_adult_medical_01/male_adult_medical_01/opaque__fabric__scrubsshirt",
+          "minimum_z_m": 0.8197098751500034,
+          "ground_clearance_m": 0.8197098751500034,
+          "penetration_m": 0.0,
+          "is_shoe_or_foot": false
+        },
+        {
+          "path": "/World/Patient/body/Char/ManRoot/male_adult_medical_01/male_adult_medical_01/trans__organic__malecaucasianskin",
+          "minimum_z_m": 0.8462303657963657,
+          "ground_clearance_m": 0.8462303657963657,
+          "penetration_m": 0.0,
+          "is_shoe_or_foot": false
+        }
+      ],
+      "minimum_patient_clearance_m": 0.3103750725224399,
+      "minimum_shoe_clearance_m": 0.3103750725224399,
+      "scope": "Authored visible control vertices versus flat ground; no physics or foot support validation."
+    },
+    "no_new_patient_ground_penetration": true,
+    "camera_pose_optics_unchanged": true,
+    "robot_base_unchanged": true,
+    "patient_scale_unchanged": true,
+    "bounds_world_m": {
+      "Patient": [
+        [
+          -0.32163646817207336,
+          0.7784609485417605,
+          0.3103750725224399
+        ],
+        [
+          0.3215861916542054,
+          1.6726911354810001,
+          1.723470785184183
+        ]
+      ],
+      "Stool": [
+        [
+          -0.17000000178813934,
+          0.7799999982118607,
+          1.4853146546034424e-08
+        ],
+        [
+          0.17000000178813934,
+          1.1200000017881395,
+          0.7599629241757927
+        ]
+      ],
+      "Table": [
+        [
+          -1.5920901133397933,
+          -0.541708895972917,
+          0.0
+        ],
+        [
+          1.5926522471162912,
+          0.5421375153481023,
+          0.6782286301651155
+        ]
+      ]
+    },
+    "scene": "farther_5cm_lower_2cm.usda",
+    "scene_sha256": "027e078f9d4f58c99cca2939c8438d6a4aa01cc9dcb669ba20756c877065c015",
+    "images": {
+      "robotcam": "farther_5cm_lower_2cm_robotcam.png",
+      "side": "farther_5cm_lower_2cm_side.png"
+    },
+    "projected_existing_points": [
+      {
+        "name": "R1",
+        "world_position_m": [
+          0.08840470061175827,
+          0.8403528503324804,
+          1.443161179382234
+        ],
+        "optical_xyz_m": [
+          0.06421222180106087,
+          -0.05904797752187951,
+          0.483801879984629
+        ],
+        "uv_px": [
+          1111.9631362796413,
+          401.80799710529413
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.48491954803466797,
+        "depth_residual_m": 0.001117668050038989
+      },
+      {
+        "name": "L1",
+        "world_position_m": [
+          -0.061992837215208374,
+          0.8430490675866763,
+          1.4483370524389687
+        ],
+        "optical_xyz_m": [
+          -0.08622582331232383,
+          -0.06361669903433098,
+          0.48480187998462904
+        ],
+        "uv_px": [
+          756.3609055356133,
+          391.42276523819385
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.4857766628265381,
+        "depth_residual_m": 0.0009747828419090498
+      },
+      {
+        "name": "R2",
+        "world_position_m": [
+          0.059750434312446546,
+          0.8155386684974679,
+          1.399732014791313
+        ],
+        "optical_xyz_m": [
+          0.03594377171784984,
+          -0.009623310965075405,
+          0.47480187998462925
+        ],
+        "uv_px": [
+          1046.676091639901,
+          517.0513297396607
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.4753742218017578,
+        "depth_residual_m": 0.0005723418171285632
+      },
+      {
+        "name": "L2",
+        "world_position_m": [
+          -0.03627533309651958,
+          0.8166265977749452,
+          1.4031595367378416
+        ],
+        "optical_xyz_m": [
+          -0.060107826015166635,
+          -0.012446443307415844,
+          0.4748018799846292
+        ],
+        "uv_px": [
+          815.0538469679146,
+          510.3190176008559
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.475567102432251,
+        "depth_residual_m": 0.0007652224476217828
+      },
+      {
+        "name": "R3",
+        "world_position_m": [
+          0.05183294497215267,
+          0.8012506785106474,
+          1.353007810366402
+        ],
+        "optical_xyz_m": [
+          0.028420845733271957,
+          0.03925807771291279,
+          0.47680187998462914
+        ],
+        "uv_px": [
+          1028.247561850962,
+          633.2258833726364
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.4768342971801758,
+        "depth_residual_m": 3.241719554664124e-05
+      },
+      {
+        "name": "L3",
+        "world_position_m": [
+          -0.032356133862156064,
+          0.8040350722968241,
+          1.3551892943972756
+        ],
+        "optical_xyz_m": [
+          -0.05578724764393911,
+          0.036953793425372305,
+          0.47880187998462914
+        ],
+        "uv_px": [
+          826.5965101437973,
+          627.3873592745181
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.4795572757720947,
+        "depth_residual_m": 0.0007553957874655848
+      },
+      {
+        "name": "R4",
+        "world_position_m": [
+          0.07646868106160853,
+          0.8030988095957279,
+          1.2947749823010097
+        ],
+        "optical_xyz_m": [
+          0.05351587701804723,
+          0.09339343353964291,
+          0.4978018799846292
+        ],
+        "uv_px": [
+          1083.087575473208,
+          752.4248135714104
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.49783992767333984,
+        "depth_residual_m": 3.804768871062958e-05
+      },
+      {
+        "name": "L4",
+        "world_position_m": [
+          -0.06039352186398354,
+          0.7976351029841607,
+          1.3038318291499928
+        ],
+        "optical_xyz_m": [
+          -0.0834051368739731,
+          0.08775631466469158,
+          0.4898018799846291
+        ],
+        "uv_px": [
+          765.0332939880752,
+          742.8632435040804
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.4900846481323242,
+        "depth_residual_m": 0.0002827681476951227
+      },
+      {
+        "name": "R5",
+        "world_position_m": [
+          0.12295303291422541,
+          0.8097887120658821,
+          1.22610558058728
+        ],
+        "optical_xyz_m": [
+          0.10053407937254699,
+          0.15559733326699887,
+          0.526801879984629
+        ],
+        "uv_px": [
+          1178.5013334772648,
+          874.42618092733
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.5272006988525391,
+        "depth_residual_m": 0.0003988188679100446
+      },
+      {
+        "name": "L5",
+        "world_position_m": [
+          -0.11057967160571211,
+          0.8006985260217909,
+          1.2432775813386114
+        ],
+        "optical_xyz_m": [
+          -0.13311300809358673,
+          0.14428045688218294,
+          0.512801879984629
+        ],
+        "uv_px": [
+          662.7930289485221,
+          858.5688708619
+        ],
+        "inside_frame": true,
+        "render_depth_m": 0.5137715339660645,
+        "depth_residual_m": 0.0009696539814354477
+      }
+    ],
+    "point_source": "Existing accepted-for-simulation points translated with body; no new detector run."
+  },
+  "camera": {
+    "world_from_optical": [
+      [
+        0.9999671152646771,
+        -0.008030687170260701,
+        -0.0011298021124983941,
+        0.02426699496313833
+      ],
+      [
+        -0.0015933693553378554,
+        -0.3311511795240051,
+        0.943576365470203,
+        0.3643973371905113
+      ],
+      [
+        -0.00795170191452534,
+        -0.943543536019104,
+        -0.331153085555954,
+        1.548169923678176
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "focal_length": 3.25,
+    "horizontal_aperture": 5.449999809265137,
+    "vertical_aperture": 3.0999999046325684,
+    "horizontal_aperture_offset": 0.0,
+    "vertical_aperture_offset": 0.0,
+    "clipping_range": [
+      0.10000000149011612,
+      100000.0
+    ],
+    "fx": 1144.9541685105828,
+    "fy": 1132.2580993485635,
+    "cx": 960.0,
+    "cy": 540.0,
+    "width": 1920,
+    "height": 1080
+  },
+  "physical_source_note": "Approved physical overlay and original physical scene; never use a render-only disabled-physics copy."
+}

@@ -1,0 +1,284 @@
+{
+  "schema": "wam_camera_framing_v1",
+  "camera_path": "/World/RobotCam",
+  "scene": "recommended_scene.usda",
+  "render_manifest": "preview_7deg/comparison.json",
+  "render_variant": "up_5cm_down_7deg",
+  "source_sha256": {
+    "sim/camera_framing_20260923/render_selected.py": "e5f33b20bbff77e67140a22ae2eafd0273bc9833034f011f1e3cc9002fa71430",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/physics_all10/training_scene.usdc": "c87042ec0790fd1a5f7a3e8679f6b758018c7108611e15278dd7c873699c7016",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/physics_all10/expert_replay.npz": "a8b73a06f3cd2d3c4704781d579a54c042effda5b29f1bdf3e12ffb58cee4022",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/physics_all10/outcome.json": "ab7c7f5d8f25783761ebde37c0b1d20d50e843c30feae7690844bd01c101ea44",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/physics_all10/runner_summary.json": "0228d9fdc79434d3680ef7ad86a74c686c0a3242263ce8dfea307f2d77262778"
+  },
+  "selection": "User approved the rendered 7-degree preview, retaining +5cm camera height. This preference supersedes the prior 12-degree recommendation; central-cloth visibility is approximately 65.5%, slightly below two thirds.",
+  "camera_height_delta_m": 0.05,
+  "downward_pitch_delta_deg": 7.0,
+  "look_elevation_deg": -26.33851697374051,
+  "world_from_camera_usd": [
+    [
+      0.9999671152646771,
+      0.00783313940424967,
+      0.0021000753114083304,
+      0.02426699496313833
+    ],
+    [
+      -0.0015933693553378554,
+      0.4436758609605049,
+      -0.896185913510725,
+      0.3643973371905113
+    ],
+    [
+      -0.00795170191452534,
+      0.8961530964785139,
+      0.4436737518815309,
+      1.5981699236781761
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "world_from_optical": [
+    [
+      0.9999671152646771,
+      -0.00783313940424967,
+      -0.0021000753114083304,
+      0.02426699496313833
+    ],
+    [
+      -0.0015933693553378554,
+      -0.4436758609605049,
+      0.896185913510725,
+      0.3643973371905113
+    ],
+    [
+      -0.00795170191452534,
+      -0.8961530964785139,
+      -0.4436737518815309,
+      1.5981699236781761
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "intrinsics": {
+    "fx": 1144.9541685105828,
+    "fy": 1132.2580993485635,
+    "cx": 960.0,
+    "cy": 540.0,
+    "width": 1920,
+    "height": 1080
+  },
+  "patient_stool_robot_geometry_unchanged": true,
+  "intrinsics_unchanged": true,
+  "depth_visibility": {
+    "center": {
+      "count": 1183,
+      "in_frame_fraction": 0.6449704142011834,
+      "depth_matching_fraction": {
+        "0.005": 0.6449704142011834,
+        "0.01": 0.6449704142011834,
+        "0.02": 0.6449704142011834
+      },
+      "occluded_by_10mm_fraction": 0.0
+    },
+    "roi": {
+      "count": 18242,
+      "in_frame_fraction": 0.6563973248547308,
+      "depth_matching_fraction": {
+        "0.005": 0.6528889376164895,
+        "0.01": 0.6554105909439755,
+        "0.02": 0.6563973248547308
+      },
+      "occluded_by_10mm_fraction": 0.0009867339107553995
+    },
+    "target_count_in_frame": 10,
+    "target_count_depth_matching_within_5mm": 10,
+    "minimum_target_border_margin_px": 267.9023522354008
+  },
+  "projected_targets": [
+    {
+      "name": "R1",
+      "uv_px": [
+        1109.3896829248795,
+        373.62924249940374
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        0.06460980689678715,
+        -0.07276080547952168,
+        0.49518324347966336
+      ],
+      "border_margin_px": 373.62924249940374,
+      "depth_m": 0.4961826801300049,
+      "depth_residual_m": 0.000999436650341523
+    },
+    {
+      "name": "L1",
+      "uv_px": [
+        761.7239076421288,
+        363.13750722043767
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        -0.08582823821659756,
+        -0.0774173417780315,
+        0.4956190025403815
+      ],
+      "border_margin_px": 363.13750722043767,
+      "depth_m": 0.49663782119750977,
+      "depth_residual_m": 0.0010188186571282731
+    },
+    {
+      "name": "R2",
+      "uv_px": [
+        1044.5245026952325,
+        488.000931651007
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        0.036341356813576114,
+        -0.022607718801764154,
+        0.49227367977618797
+      ],
+      "border_margin_px": 488.000931651007,
+      "depth_m": 0.492856502532959,
+      "depth_residual_m": 0.0005828227567710176
+    },
+    {
+      "name": "L2",
+      "uv_px": [
+        821.0258753246768,
+        481.5150881389584
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        -0.059710240919440376,
+        -0.025409807943728158,
+        0.4919296264912808
+      ],
+      "border_margin_px": 481.5150881389584,
+      "depth_m": 0.4927053451538086,
+      "depth_residual_m": 0.0007757186625277912
+    },
+    {
+      "name": "R3",
+      "uv_px": [
+        1025.9630802016989,
+        598.0950271005377
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        0.028818430828998223,
+        0.025665576730646844,
+        0.5002159148223887
+      ],
+      "border_margin_px": 480.90497289946234,
+      "depth_m": 0.5003266334533691,
+      "depth_residual_m": 0.00011071863098044421
+    },
+    {
+      "name": "L3",
+      "uv_px": [
+        833.6479885497898,
+        592.1885464187172
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        -0.05538966254821284,
+        0.023134729541950394,
+        0.5019201855125298
+      ],
+      "border_margin_px": 486.81145358128276,
+      "depth_m": 0.5027353763580322,
+      "depth_residual_m": 0.0008151908455024115
+    },
+    {
+      "name": "R4",
+      "uv_px": [
+        1076.9859657754753,
+        704.8810828511633
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        0.05391346211377349,
+        0.07683815961269302,
+        0.5276568242764639
+      ],
+      "border_margin_px": 374.11891714883666,
+      "depth_m": 0.5275232791900635,
+      "depth_residual_m": -0.00013354508640039953
+    },
+    {
+      "name": "L4",
+      "uv_px": [
+        776.8893113291957,
+        697.5429465226173
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        -0.08300755177824685,
+        0.07221801371425651,
+        0.5190294630873464
+      ],
+      "border_margin_px": 381.4570534773827,
+      "depth_m": 0.5193736553192139,
+      "depth_residual_m": 0.0003441922318674351
+    },
+    {
+      "name": "R5",
+      "uv_px": [
+        1164.8896153500823,
+        811.0976477645992
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        0.10093166446827326,
+        0.13504418994541356,
+        0.5640214110910747
+      ],
+      "border_margin_px": 267.9023522354008,
+      "depth_m": 0.5642988681793213,
+      "depth_residual_m": 0.0002774570882465577
+    },
+    {
+      "name": "L5",
+      "uv_px": [
+        683.0906195481723,
+        798.9876518452862
+      ],
+      "inside": true,
+      "optical_xyz_m": [
+        -0.13271542299786046,
+        0.1255178386487359,
+        0.5487465846736818
+      ],
+      "border_margin_px": 280.0123481547138,
+      "depth_m": 0.5494751930236816,
+      "depth_residual_m": 0.0007286083499998819
+    }
+  ],
+  "limitations": [
+    "Visibility is checked at the recorded neutral arm pose; motion/contact may occlude the back or contact point.",
+    "Posterior cloth control-mesh proxy in world X/Z, not anatomical full-back surface area.",
+    "Camera extrinsics changed: use the new matrices and reproject labels. Real hardware requires matching the camera pose and new extrinsic calibration.",
+    "Original accepted expert physics scene remains unchanged. This scene layers only the new camera extrinsics.",
+    "Camera body is a visual-only model; no physical mount or body collision model is provided by this scene."
+  ],
+  "visual_camera_body_follows_optical_pose": true,
+  "stage_metadata": {
+    "upAxis": "Z",
+    "metersPerUnit": 1.0
+  },
+  "adopted_utc": "2026-09-23T22:30:45.349654+00:00",
+  "previous_selection_archive": "history_12deg/",
+  "rgb_image": "preview_7deg/up_5cm_down_7deg_rgb.png",
+  "target_image": "preview_7deg/up_5cm_down_7deg_targets.png",
+  "depth_image": "preview_7deg/up_5cm_down_7deg_depth_m.npy"
+}
