@@ -14,20 +14,21 @@ CASES = [('nominal',0.),('joint3-plus',.02),('joint3-minus',-.02)]
 
 
 def selected_cases(config):
-    names = config.get('case_ids',[name for name,_ in CASES])
+    cases=[('act609',0.)] if config.get('mode')=='moving_oracle_pilot' else CASES
+    names = config.get('case_ids',[name for name,_ in cases])
     if (not isinstance(names,list) or not names or any(not isinstance(n,str) for n in names)
-            or names != [name for name,_ in CASES if name in names]):
+            or names != [name for name,_ in cases if name in names]):
         raise ValueError('Require a nonempty unique subset in the predeclared case order')
-    return [(name,offset) for name,offset in CASES if name in names]
+    return [(name,offset) for name,offset in cases if name in names]
 
 
 def validate_case(config):
-    if (config['experiment'] != 'recovery_run' or config['mode'] != 'stationary_oracle_pilot'
+    if (config['experiment'] != 'recovery_run' or config['mode'] not in ('stationary_oracle_pilot','moving_oracle_pilot')
             or config['point'] != 'R4' or config['speed_scale'] != .7
             or config['physics'] != dict(position_iterations=32,velocity_iterations=1,armature_kg_m2=.02)
             or config['time_limit_seconds'] != 7200):
         raise ValueError('Only the finite unchanged-physics stationary R4 pilot is declared')
-    expected = {name:[0.,0.,offset,0.,0.,0.,0.] for name,offset in CASES}
+    expected = {name:[0.,0.,offset,0.,0.,0.,0.] for name,offset in selected_cases(config)}
     if config['case_id'] not in dict(selected_cases(config)):
         raise ValueError('Case is outside declared subset')
     if config['case_id'] not in expected or config['perturbation_rad'] != expected[config['case_id']]:

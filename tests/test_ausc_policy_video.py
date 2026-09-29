@@ -31,5 +31,15 @@ class VideoClockTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             video_identity(dict(completed=False,gpu_released=True),'case',{}, {})
 
+    def test_replayed_student_prefix_is_not_new_model_inference(self):
+        owner=dict(completed=True,gpu_released=True,config=dict(experiment='recovery_run',mode='moving_oracle_pilot'))
+        outcome=dict(expert_demonstration=True,learned_policy=False,training_dataset_eligible=False,
+            moving_recovery=dict(student_inference_executed=False,source_prefix_replayed=True))
+        identity=video_identity(owner,'act609',dict(execution_completed=True),outcome)
+        self.assertFalse(identity['learned_policy'])
+        self.assertIn('replayed',identity['scope'])
+        outcome['moving_recovery']['student_inference_executed']=True
+        with self.assertRaises(ValueError): video_identity(owner,'act609',dict(execution_completed=True),outcome)
+
 
 if __name__=='__main__':unittest.main()

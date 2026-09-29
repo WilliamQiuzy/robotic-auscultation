@@ -12,5 +12,10 @@ class RecoverySelectionTests(unittest.TestCase):
             with self.subTest(cases=cases), self.assertRaises(ValueError):
                 selected_cases(dict(case_ids=cases))
 
+    def test_moving_case_is_separate_from_stationary_perturbations(self):
+        self.assertEqual(selected_cases(dict(mode='moving_oracle_pilot',case_ids=['act609'])),[('act609',0.)])
+        for names in (['nominal'],['act609','joint3-plus']):
+            with self.assertRaises(ValueError): selected_cases(dict(mode='moving_oracle_pilot',case_ids=names))
+
 
 if __name__ == '__main__': unittest.main()

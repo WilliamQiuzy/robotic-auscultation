@@ -114,3 +114,15 @@ def plan_moving_brake(state,inspect_command,*,lower,upper,native_module=None):
         report.update(kind='abstain',reason=type(error).__name__+': '+str(error))
     report['wall_time_s']=time.monotonic()-started
     return report
+
+
+def check_prefix_chunk(expected,actual,command):
+    if len(expected)!=len(actual) or not expected: raise ValueError('Missing actual replay prefix')
+    q=np.asarray([r['q'] for r in actual]);reference=np.asarray([r['q'] for r in expected])
+    error=float(np.max(abs(q-reference)))
+    if (not np.isfinite(q).all() or error>1e-4
+            or not np.array_equal([r['q_command'] for r in actual],[r['q_command'] for r in expected])
+            or not np.allclose([r['time_s'] for r in actual],[r['time_s'] for r in expected],atol=1e-8,rtol=0)
+            or not np.array_equal(command,expected[-1]['q_command'])):
+        raise ValueError('Actual prefix differs from retained source; no state reset permitted')
+    return error

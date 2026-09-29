@@ -1,5 +1,6 @@
 """One isolated actual Isaac stationary-recovery diagnostic, never a VLA test."""
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -43,6 +44,26 @@ def geometry_preflight(bundle, output):
     if not report['passed']: raise ValueError('Prospective recovery geometry refused; see case receipts')
 
 
+def moving_preflight(config,output):
+    from .moving_recovery_teacher import load_source
+    outcome,physics=load_source(config)
+    probe=Path(config['braking_probe']['path'])
+    for relative,digest in config['braking_probe']['files'].items():
+        if hashlib.sha256((probe/relative).read_bytes()).hexdigest()!=digest:
+            raise ValueError('Completed native braking probe changed')
+    receipt=json.loads((probe/'result.json').read_text())
+    proposal=json.loads((probe/'output/action-609.json').read_text())
+    if (not receipt['completed'] or not receipt['gpu_released']
+            or not receipt['stage']['process_group_drained'] or receipt['stage']['exit_code']!=0
+            or proposal['kind']!='braking_proposal'):
+        raise ValueError('Actual native braking preflight required')
+    origin=outcome['l2_actions'][609]['physics_row_start']-1
+    if proposal['measured_query']['q']!=physics[origin]['q']:
+        raise ValueError('Native brake did not use the bound source state')
+    write(output/'moving_preflight.json',dict(passed=True,source_action=609,source_physics_row=origin,
+        source_prefix_steps=origin+1,physics_executed=False,training_dataset_eligible=False))
+
+
 def capture(app, errors, released, config, output, bundle, snapshot_sha, binding):
     import numpy as np
     from sim.auscultation_repair_v3.physics_profile import make_env, PhysicsProfile
@@ -71,7 +92,11 @@ def capture(app, errors, released, config, output, bundle, snapshot_sha, binding
         sensor = LiveCapture(env,kin,code/'sim/camera_framing_20260923/recommended_camera.json',
             code/'sim/auscultation_vla_v2/sensor_pilot_annotation.json',output/'sensors',width=640)
         sensor.warm_up()
-        controller = RecoveryTeacher(env,kin,checker,sensor=sensor,perturbation_rad=config['perturbation_rad'],
+        cls=RecoveryTeacher;extra={}
+        if config['mode']=='moving_oracle_pilot':
+            from .moving_recovery_teacher import MovingRecoveryTeacher
+            cls=MovingRecoveryTeacher;extra['recovery_config']=config
+        controller = cls(env,kin,checker,sensor=sensor,perturbation_rad=config['perturbation_rad'],**extra,
             generator_policy='revised_shortcut',speed_scale=.7,
             static_world_bundle=load_static_world(output/'static_world'),static_geometry_dir=output/'geometry')
         outcome = controller.run([(bundle.target,bundle.row)])
@@ -88,6 +113,7 @@ def capture(app, errors, released, config, output, bundle, snapshot_sha, binding
             layout_family='approved_farther_lower_seat_camera7deg',case_id=config['case_id'])
         if controller is not None:
             outcome['oracle_receipt'] = controller.oracle_receipt
+            if hasattr(controller,'moving_receipt'): outcome['moving_recovery']=controller.moving_receipt
         try:
             if env is not None: env.save('expert')
             if controller is not None: write(output/'control_commands.json',controller.control_rows)
@@ -111,7 +137,8 @@ def main():
     bundle,snapshot_sha,binding = prepare(config,args.output)
     from .recovery_teacher import RecoveryTeacher  # import before Kit; no construction
     if args.preflight_only:
-        geometry_preflight(bundle,args.output)
+        if config['mode']=='moving_oracle_pilot': moving_preflight(config,args.output)
+        else: geometry_preflight(bundle,args.output)
         print('RECOVERY_PREFLIGHT_OK',flush=True); return 0
     from isaacsim import SimulationApp
     app = SimulationApp({'headless':True,'fast_shutdown':False})
@@ -140,7 +167,7 @@ def main():
             observed_supervisor_replay_passed=replay['passed'],
             failure_reason=outcome.get('failure_reason'),oracle=outcome.get('oracle_receipt'),
             sim_duration_s=rows[-1]['time_s']-rows[0]['time_s'],physics_steps=len(rows),sensor_frames=outcome['sensor_frames'],
-            qualification='Stationary expert pilot only; raw modality replay and dataset qualification pending')
+            qualification='Expert recovery diagnostic only; dataset qualification not granted')
     except Exception as error:
         report.update(error=type(error).__name__,reason=str(error))
     write(args.output/'result.json',report)
