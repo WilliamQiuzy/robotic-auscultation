@@ -43,6 +43,70 @@ def shift_target(state, axis, displacement):
     return result
 
 
+def shift_robot(state, joint, displacement, kin):
+    """Change one joint and its FK together, preserving the inferred task frame."""
+    a.need(type(joint) is int and 0 <= joint < 7 and displacement in (-.02, -.005, .005, .02),
+           'Undeclared robot intervention')
+    task_to_tcp = relative_pose(state)
+    state = np.asarray(state, np.float32)
+    task = kin.tcp(state[:7]) @ np.linalg.inv(task_to_tcp)
+    result = state.copy(); result[joint] += displacement
+    a.need(np.all(result[:7] >= kin.lower_limits) and np.all(result[:7] <= kin.upper_limits),
+           'Robot intervention outside joint bounds; no clipping')
+    changed = np.linalg.inv(task) @ kin.tcp(result[:7])
+    result[7:10] = changed[:3, 3]
+    result[10:16] = changed[:3, :2].T.reshape(-1)
+    return result
+
+
+def robot_responses(state, original, source_start, kin, service, displacements):
+    inverse = relative_pose(state) @ np.linalg.inv(kin.tcp(state[:7]))
+    clean_origin = (inverse @ kin.tcp(state[:7]))[:3, 3]
+    clean_output = (inverse @ kin.tcp(original[4]))[:3, 3]
+    rows, skipped = [], []
+    for joint in range(7):
+        for displacement in displacements:
+            try:
+                changed = shift_robot(state, joint, displacement, kin)
+            except ValueError as error:
+                if 'outside joint bounds' not in str(error):
+                    raise
+                skipped.append(dict(source_start=source_start, joint=joint,
+                    joint_shift_rad=displacement, reason=str(error)))
+                continue
+            raw = service.predict_state(changed)
+            initial_delta = (inverse @ kin.tcp(changed[:7]))[:3, 3]-clean_origin
+            output_delta = (inverse @ kin.tcp(raw[4]))[:3, 3]-clean_output
+            initial_norm = float(np.linalg.norm(initial_delta))
+            # Both predictions use the same fixed task. These are differences
+            # from clean proposals, not executed corrections or oracle actions.
+            rows.append(dict(source_start=source_start, joint=joint, joint_shift_rad=displacement,
+                initial_tcp_change_m=initial_delta.tolist(), proposed_h5_tcp_change_m=output_delta.tolist(),
+                tcp_perturbation_ratio=float(np.linalg.norm(output_delta)/initial_norm) if initial_norm > 1e-9 else None,
+                changed_joint_response_gain=float((raw[4,joint]-original[4,joint])/displacement),
+                initial_joint_delta_rad=(changed[:7]-state[:7]).tolist(),
+                proposed_h5_joint_delta_rad=(raw[4]-original[4]).tolist(),
+                block_relative_h5_change_rad=((raw[4]-changed[:7])-(original[4]-state[:7])).tolist()))
+    return rows, skipped
+
+
+def robot_groups(responses):
+    groups = {}
+    for magnitude in (.005, .02):
+        rows = [r for r in responses if abs(r['joint_shift_rad']) == magnitude]
+        a.need(rows, 'No usable robot interventions')
+        gains = [r['changed_joint_response_gain'] for r in rows]
+        ratios = [r['tcp_perturbation_ratio'] for r in rows if r['tcp_perturbation_ratio'] is not None]
+        a.need(ratios, 'No nondegenerate TCP interventions')
+        groups[str(magnitude)] = dict(count=len(rows), nondegenerate_tcp_count=len(ratios),
+            median_joint_response_gain=float(np.median(gains)),
+            median_tcp_perturbation_ratio=float(np.median(ratios)),
+            tcp_ratio_percentiles=np.percentile(ratios,[10,50,90]).tolist(),
+            tcp_ratio_below_one_count=sum(x < 1 for x in ratios),
+            copy_current_q_reference_gain=1., copy_current_q_reference_tcp_ratio=1.)
+    return groups
+
+
 def geometry(pose):
     # The registered task's +Z is the inward tool axis; outward gap is -Z.
     return dict(gap_mm=float(-1000 * pose[2, 3]),
@@ -52,10 +116,12 @@ def geometry(pose):
 
 
 def run(config, output):
-    a.need(config['experiment'] == 'feedback_probe' and config['mode'] == 'target_geometry_response'
+    robot = config['mode'] == 'robot_state_response'
+    a.need(config['experiment'] == 'feedback_probe' and config['mode'] in ('target_geometry_response','robot_state_response')
         and config['device'] == 'cpu' and config['time_limit_seconds'] == 600
         and config['checkpoint_step'] == 2000 and config['anchor_count'] == 16
-        and config['displacements_m'] == [-.005, -.001, .001, .005], 'Finite probe scope differs')
+        and (config.get('displacements_rad') == [-.02, -.005, .005, .02] if robot
+             else config.get('displacements_m') == [-.005, -.001, .001, .005]), 'Finite probe scope differs')
     source = Path(config['run_root'])
     owner = a.read_json(source / 'result.json')
     a.need(owner['completed'] is True and owner['gpu_released'] is True, 'Training source still active')
@@ -69,7 +135,7 @@ def run(config, output):
     service = InferenceService(artifacts, NativeEngine(artifacts))
     kin = OpenArmKinematics()
     a.need(a.sha256(kin.urdf_path) == config['urdf_sha256'], 'Kinematics binding differs')
-    records, responses, repeats = [], [], []
+    records, responses, repeats, skipped = [], [], [], []
     for s in chosen:
         state = a.small_state(arrays['state'][s], 'R4', 'APPROACH')
         original = service.predict_state(state)
@@ -80,7 +146,10 @@ def run(config, output):
         reference = [inverse @ kin.tcp(arrays['actions'][s+k]) for k in (0, 4, 9)]
         records.append(dict(source_start=s, origin=geometry(task_to_tcp),
             predicted=[geometry(p) for p in predicted], reference=[geometry(p) for p in reference]))
-        for axis in (0, 1):
+        if robot:
+            values, omitted = robot_responses(state, original, s, kin, service, config['displacements_rad'])
+            responses.extend(values); skipped.extend(omitted)
+        for axis in (() if robot else (0, 1)):
             for displacement in config['displacements_m']:
                 changed = shift_target(state, axis, displacement)
                 raw = service.predict_state(changed)
@@ -92,22 +161,32 @@ def run(config, output):
                     raw_action_max_abs_change_rad=float(np.max(np.abs(raw-original))),
                     expected_direction_agreement=bool(delta[axis] / displacement > 0)))
         repeats.append(float(np.max(np.abs(service.predict_state(state)-original))))
+        print('FEEDBACK_ANCHOR', len(records), 'responses', len(responses), 'skipped', len(skipped), flush=True)
     a.need(max(repeats) == 0., 'Deterministic clean-repeat mismatch')
     groups = {}
-    for axis in (0, 1):
+    for axis in (() if robot else (0, 1)):
         for magnitude in (.001, .005):
             rows = [r for r in responses if r['axis'] == axis and abs(r['target_shift_m']) == magnitude]
             gains = np.asarray([r['signed_response_gain'] for r in rows])
             groups[f'axis{axis}_{magnitude}m'] = dict(count=len(rows),
                 direction_agreement_count=sum(r['expected_direction_agreement'] for r in rows),
                 median_gain=float(np.median(gains)), minimum_gain=float(gains.min()), maximum_gain=float(gains.max()))
+    if robot:
+        groups = robot_groups(responses)
     report = dict(completed=True, **FLAGS, anchors=records, responses=responses, groups=groups,
-        clean_repeat_max_abs_rad=max(repeats), inference_count=16*10,
+        intervention=config['mode'], skipped=skipped,
+        clean_repeat_max_abs_rad=max(repeats), inference_count=32+len(responses),
         receipt=artifacts.receipt, provenance=provenance,
         scope='Counterfactual registered target geometry, q fixed; h5 zero-compression raw-proposal FK, '
               'task frame reconstructed from state19 at origin; no execution or correctness oracle. '
               'Direction is a local response descriptor, not a universally correct collision-aware action label. '
               'No raw depth/RGB/Hall intervention or modality-use conclusion.')
+    if robot:
+        report['scope'] = ('Counterfactual robot joints and zero-compression TCP changed consistently; '
+            'fixed inferred target, phase and confidence. h5 raw proposals, no execution or oracle. '
+            'Ratios compare perturbed minus clean FK outputs; ratio below one is a local input-response '
+            'descriptor, NOT proof of feedback stability, task convergence, collision safety or generalization. '
+            'Only URDF bounds screened, not posture or collision feasibility. No RGB/depth/Hall intervention.')
     a.save_json(output / 'metrics.json', report)
     return report
 

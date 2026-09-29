@@ -47,7 +47,9 @@ Linux 已有资产与结果保留，资产定位/哈希从历史 manifest 读取
 单 R4 D0 入口为 `m0_act_d0.json` → `isaac_run` → `isaac_case`。
 唯一 owner 先完成资产与 native FCL/containment 构造检查，再启动 CPU ACT 服务和
 同进程组的 Isaac 子进程。ACT L2 不执行专家转移；到达候选入口后沿同一 Ruckig
-真正停车，随后尝试未放宽条件的实测解析 L3。没有局部对齐或专家动作替代。
+真正停车，先检查保留指令位姿是否满足固定曲线的 20 µm / 0.0002 rad 完整位姿要求，
+合格后才调用实测解析 L3。粗候选、停车、曲线入口合格、L3 开始与完成分别记录。
+入口不合格时在构造曲线及接触运动前拒绝；没有局部对齐或专家动作替代。
 
 - `completed`：进程、日志、退出和资源清理完成。
 - `closed_loop_evaluated`：实际发起了策略闭环。
@@ -91,3 +93,11 @@ not a successful fix, demonstration, or new training source.
 reproduces the two saved online query sets on CPU with the same fixed weights.
 It has no optimizer or simulator. Nearest TRAIN state distances are descriptive
 support measures, never oracle labels or proof of generalization.
+
+`m0_act_robot_feedback_probe.json` preserves the inferred task frame and changes
+one measured joint by ±0.005/±0.02 rad, recomputing the relative TCP from the same
+FK. It uses the same 16 R4 APPROACH anchors and checkpoint as the target-shift
+probe, at most 480 deterministic CPU inferences and zero optimizer updates.
+URDF-invalid inputs are counted and excluded without clipping. Output-versus-input
+perturbation ratios are local proposal sensitivity, not executed recovery or
+stability guarantees. No collision/posture feasibility or oracle label is implied.

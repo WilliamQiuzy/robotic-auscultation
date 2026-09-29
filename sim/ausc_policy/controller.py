@@ -361,7 +361,7 @@ class M0DirectController(ObservedTeacher):
         canonical, index = self._canonical(row)  # read only: used by later return-home audit
         self.canonical_transfer, self.canonical_stage_index = canonical.copy(), index
         receipt = dict(target=self.target.name, mode='D0', candidate=False,
-            stationary_entry=False, l3_completed=False, alignment_used=False,
+            stationary_entry=False, l3_started=False, l3_completed=False, alignment_used=False,
             expert_l2_fallback=False, failure_reason=None)
         self.d0_handoffs.append(receipt)
         try:
@@ -386,8 +386,8 @@ class M0DirectController(ObservedTeacher):
                     receipt['candidate_measurement'] = self._handoff_measurements()
                     if self._stop_for_handoff():
                         receipt.update(stationary_entry=True, entry=self._handoff_measurements())
-                        self.control_owner = 'MEASURED_ANALYTIC_L3'
-                        self._context(); self._clear('D0_handoff_to_measured_analytic_L3')
+                        self.control_owner = 'L3_ENTRY_CHECK'
+                        self._context(); self._clear('D0_stopped_candidate_for_L3_entry_check')
                         return canonical
                     self._event('handoff_candidate_lost_requery')
                 self._l2_action()
@@ -405,6 +405,7 @@ class M0DirectController(ObservedTeacher):
         if not self.d0_handoffs or not self.d0_handoffs[-1]['stationary_entry']:
             raise EpisodeRejected('D0 L3 has no verified real stationary handoff')
         receipt = self.d0_handoffs[-1]
+        receipt['l3_started'] = False
         try:
             entry = receipt['entry']; state = self.env.state(); frame = self.sensor.rows[-1]
             if (self._stationary_history() is None or len(self.env.rows) != entry['physics_row'] or
@@ -415,6 +416,19 @@ class M0DirectController(ObservedTeacher):
                     frame['target_estimate']['revision'] != entry['target_revision'] or
                     frame['index'] != entry['observation_frame']):
                 raise EpisodeRejected('D0 handoff state/time/target changed after real stop')
+            from .contact_entry import check_retained_pose
+            gate = check_retained_pose(self.kin.tcp(self.q), self.target.position_base,
+                self.normal_base, self.rotation_base,
+                position_tolerance_m=self.executor_config['curve_position_tolerance_m'],
+                angle_tolerance_rad=self.executor_config['curve_angle_tolerance_rad'])
+            receipt['curve_entry_geometry'] = gate
+            if not gate['passed']:
+                raise EpisodeRejected('D0 retained curve entry rejected: '+', '.join(gate['failures']))
+            # A coarse measured candidate is not a curve-compatible command.
+            # This necessary check does not replace the original whole-curve
+            # IK/FCL preflight or any force, posture and derivative gate.
+            self.control_owner = 'MEASURED_ANALYTIC_L3'
+            receipt['l3_started'] = True
             # Unchanged measured analytic actor, release hook, curve and executor.
             super()._contact_cycle()
             receipt['l3_completed'] = True

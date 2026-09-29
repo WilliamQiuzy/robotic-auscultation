@@ -83,6 +83,7 @@ class ControllerTests(unittest.TestCase):
             obj.task_frames = {'R4': {'task_pose_in_body_reference': np.eye(4).tolist()}}
             obj.control_rows = []; obj.sequence_index = 0; obj._contact_active = False
             obj.contact_curves = []; obj.observed_tcp_speed = 0.
+            obj.executor_config = dict(curve_position_tolerance_m=2e-5, curve_angle_tolerance_rad=2e-4)
             obj.manager = SimpleNamespace(state=SimpleNamespace(failure_reason=None, phase=m.Phase.APPROACH),
                 config=m.PhaseConfig(precontact_gap_m=.025))
 
@@ -311,11 +312,40 @@ class ControllerTests(unittest.TestCase):
         self.assertTrue(c.d0_handoffs[-1]['stationary_entry'])
         self.assertFalse(c.d0_handoffs[-1]['l3_completed'])
         self.assertTrue(all(np.array_equal(row['q_command'], np.zeros(7)) for row in clock.rows))
+        self.assertEqual(c.control_owner, 'L3_ENTRY_CHECK')
+
+    def test_coarse_stationary_entry_refuses_curve_before_parent_or_motion(self):
+        m, c, clock, sensor, client = self.make()
+        clock.q[0] = .001; c.q = clock.q.copy()
+        clock.rows.extend(dict(q_command=c.q.tolist(), time_s=clock.time_s) for _ in range(3))
+        c.d0_handoffs = [dict(stationary_entry=True, l3_completed=False,
+            entry=c._handoff_measurements())]
+        before = c.q.copy()
+        with patch.object(m.ObservedTeacher, '_contact_cycle') as call:
+            with self.assertRaisesRegex(m.EpisodeRejected, 'retained curve entry'):
+                c._contact_cycle()
+        call.assert_not_called()
+        self.assertEqual(len(clock.rows), 3)
+        np.testing.assert_array_equal(c.q, before)
+        self.assertFalse(c.d0_handoffs[-1]['l3_started'])
+        self.assertFalse(c.d0_handoffs[-1]['curve_entry_geometry']['passed'])
+
+    def test_exact_entry_calls_original_l3_without_an_alignment_action(self):
+        m, c, clock, sensor, client = self.make()
+        clock.rows.extend(dict(q_command=c.q.tolist(), time_s=clock.time_s) for _ in range(3))
+        c.d0_handoffs = [dict(stationary_entry=True, l3_completed=False,
+            entry=c._handoff_measurements())]
+        with patch.object(m.ObservedTeacher, '_contact_cycle') as call:
+            c._contact_cycle()
+        call.assert_called_once()
+        self.assertEqual(len(clock.rows), 3)
+        self.assertTrue(c.d0_handoffs[-1]['l3_started'])
+        self.assertTrue(c.d0_handoffs[-1]['curve_entry_geometry']['passed'])
         self.assertEqual(c.control_owner, 'MEASURED_ANALYTIC_L3')
 
     def test_l3_failure_keeps_exact_retained_state_and_d0_failure(self):
         m, c, clock, sensor, client = self.make()
-        clock.q[0] = .0001; c.q = clock.q.copy()
+        clock.q[0] = .00001; c.q = clock.q.copy()
         clock.rows.extend(dict(q_command=c.q.tolist(), time_s=clock.time_s) for _ in range(3))
         c.d0_handoffs = [dict(stationary_entry=True, l3_completed=False,
             entry=c._handoff_measurements())]
