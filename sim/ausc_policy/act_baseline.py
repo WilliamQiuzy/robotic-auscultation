@@ -453,10 +453,11 @@ def save_action_contract(output, config, receipt):
         source_absolute_normalization=receipt['normalization'], heldout_arrays_opened=False))
 
 
-def make_native(config):
+def make_native(config, *, environment_width=12):
     """Fresh official ACT, never imported by CPU adapter tests/preparation."""
     need(sys.platform == 'linux' and os.environ.get('AUSC_OWNED_RUN') == '1',
          'Native ACT construction requires the Linux experiment owner')
+    need(type(environment_width) is int and environment_width in (12,40), 'Undeclared ACT environment feature width')
     vendor = Path(config['lerobot_root']).resolve()
     commit = subprocess.check_output(['git', '-C', str(vendor), 'rev-parse', 'HEAD'], text=True).strip()
     need(commit == UPSTREAM_COMMIT, 'Installed official ACT revision differs')
@@ -479,7 +480,7 @@ def make_native(config):
         torch.cuda.manual_seed_all(config['seed'])
     cfg = ACTConfig(input_features={
         'observation.state': PolicyFeature(FeatureType.STATE, (7,)),
-        'observation.environment_state': PolicyFeature(FeatureType.ENV, (12,))},
+        'observation.environment_state': PolicyFeature(FeatureType.ENV, (environment_width,))},
         output_features={'action': PolicyFeature(FeatureType.ACTION, (7,))},
         normalization_mapping={k: NormalizationMode.IDENTITY for k in ('STATE', 'ENV', 'ACTION')},
         n_obs_steps=1, chunk_size=10, n_action_steps=5, temporal_ensemble_coeff=None,
@@ -524,10 +525,12 @@ def native_smoke(config, output, episodes, stats):
         heldout_arrays_opened=False, m0_passed=False, closed_loop_evaluated=False))
 
 
-def fit(config, output, episodes, stats, receipt):
+def fit(config, output, episodes, stats, receipt, *, batch_packer=None, native_factory=None):
     mode = config['mode']; settings = config['modes'][mode]
     representation = config['action_representation']
-    torch, policy, sources = make_native(config)
+    batch_packer = pack_batch if batch_packer is None else batch_packer
+    native_factory = make_native if native_factory is None else native_factory
+    torch, policy, sources = native_factory(config)
     draw_rng = np.random.default_rng(config['seed'])
     dropout_rng = np.random.default_rng(config['seed']+1)
     probe_rng = np.random.default_rng(config['seed']+2)
@@ -545,7 +548,7 @@ def fit(config, output, episodes, stats, receipt):
     def evaluate(step):
         policy.eval()
         with torch.inference_mode():
-            prediction = policy.predict_action_chunk(tensors(pack_batch(probe_rows, stats, training=False)))
+            prediction = policy.predict_action_chunk(tensors(batch_packer(probe_rows, stats, training=False)))
         model_action = unscale(prediction.detach().cpu().numpy(), stats['action'])
         reference = np.stack([r['actions'] for r in probe_rows])
         q = np.stack([r['measured_q'] for r in probe_rows]); dq = np.stack([r['measured_dq'] for r in probe_rows])
@@ -580,7 +583,7 @@ def fit(config, output, episodes, stats, receipt):
                     selected.append((i, int(draw_rng.choice(episodes[i]['starts']))))
             seen.update(selected)
             rows = [row_from_episode(episodes[i], s, 10) for i, s in selected]
-            batch = tensors(pack_batch(rows, stats, training=True, rng=dropout_rng, q_dropout=settings['q_dropout'],
+            batch = tensors(batch_packer(rows, stats, training=True, rng=dropout_rng, q_dropout=settings['q_dropout'],
                                        action_representation=representation))
             optimizer.zero_grad(set_to_none=True)
             loss, _ = policy(batch)

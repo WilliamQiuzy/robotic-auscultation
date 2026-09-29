@@ -1,0 +1,11 @@
+{
+  "experiment": "history_fit",
+  "base": "/home/william/wam-vla-v2",
+  "variants": ["repeat_current", "causal_history"],
+  "baseline_config": "/home/william/wam-vla-v2/policy-redesign/configs/ausc_policy/m0_act_relative_fit32.json",
+  "baseline_config_sha256": "938cab996107aabc2c7d69a20909a537dce96e4ecbb86545ef2c432c6f226460",
+  "history_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-prepare-20260929",
+  "history_owner_sha256": "04e4aacafd20aa5d7b9d13e4f7a33efd909ca1eab9bee4d41070bf951c596c5b",
+  "history_complete_sha256": "e13ee75e6e33377326e9daf23679cedd049ae3cb502c8338f1068e4a5ba5ddae",
+  "time_limit_seconds": 7200
+}
