@@ -62,6 +62,21 @@ def moving_preflight(config,output):
     origin=outcome['l2_actions'][index]['physics_row_start']-1
     if proposal['measured_query']['q']!=physics[origin]['q'] or proposal['measured_query']['phase']!=phase:
         raise ValueError('Native brake did not use the bound source state')
+    if config.get('oracle_timing','global_cubic')=='checked_edges_v1':
+        from .act_baseline import pinned_json
+        binding=config['oracle_timing_probe'];timing_root=Path(binding['path'])
+        timing_owner=pinned_json(timing_root/'result.json',binding['owner_sha256'])
+        timing_complete=pinned_json(timing_root/'output/COMPLETE.json',binding['complete_sha256'])
+        if (not timing_owner['completed'] or not timing_owner['gpu_released']
+                or not timing_owner['stage']['process_group_drained'] or not timing_complete['same_route']
+                or [(r['strategy'],r['kind']) for r in timing_complete['cases']]
+                    !=[('global_cubic','abstain'),('checked_edges_v1','trajectory')]):
+            raise ValueError('Bound same-route timing repair comparison required')
+        reference=config['stopped_query_reference']
+        expected=Path(timing_owner['config']['source_run'])/'output/history20/oracle_query.json'
+        if Path(reference['path'])!=expected or reference['sha256']!=timing_owner['config']['query_sha256']:
+            raise ValueError('Timing reference differs from actual rejected stopped query')
+        pinned_json(reference['path'],reference['sha256'])
     write(output/'moving_preflight.json',dict(passed=True,source_action=index,source_physics_row=origin,
         source_prefix_steps=origin+1,physics_executed=False,training_dataset_eligible=False))
 
