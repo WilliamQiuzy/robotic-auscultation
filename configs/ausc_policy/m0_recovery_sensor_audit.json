@@ -1,0 +1,22 @@
+{
+  "experiment": "recovery_sensor_audit",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 2100,
+  "cases": [
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-recovery-nominal-position-history-20260929/output/nominal",
+      "owner_sha256": "cb22802846943eb0b12a6afcef56e491e4bd3c1dd9eaaf2ed91b36d1fa68bb5c",
+      "case_sha256": "b4287aa298486bdadce19400ef497d053a20a92b6e2d6e254dab4d985d347855"
+    },
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-recovery-perturbed-position-history-20260929/output/joint3-plus",
+      "owner_sha256": "bb1d9018ecce5b1b4bcbedfe25f2488d137d360884968321afd1e93ef1cbf3a5",
+      "case_sha256": "9c605f05e60a522629d0c663bd7752e2822677628cdf8ef50f5c081a51a4a16e"
+    },
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-recovery-perturbed-position-history-20260929/output/joint3-minus",
+      "owner_sha256": "bb1d9018ecce5b1b4bcbedfe25f2488d137d360884968321afd1e93ef1cbf3a5",
+      "case_sha256": "1f181c7776e16ca576c2e5ef3008d7ccea201557649ebbdd2cc5a8a9df844ec9"
+    }
+  ]
+}

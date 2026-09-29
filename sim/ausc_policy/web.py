@@ -38,6 +38,7 @@ SOURCES = {
     '/media/recovery-stationarity.svg': 'results/ausc_policy/m0_recovery_pilot_report/recovery.svg',
     '/media/recovery-nominal.svg': 'results/ausc_policy/m0_recovery_nominal_report/recovery.svg',
     '/media/recovery-nominal.mp4': 'results/ausc_policy/m0_recovery_nominal/m0-recovery-nominal-position-history-20260929/output/review-nominal.mp4',
+    '/media/recovery-nominal-poster.jpg': 'results/ausc_policy/m0_recovery_nominal_media/review-nominal-poster.jpg',
     '/media/act-nearest.mp4': 'results/ausc_policy/m0_act_d0_nearest/review.mp4',
     '/media/act-nearest-comparison.svg': 'results/ausc_policy/m0_act_nearest_comparison/comparison.svg',
     '/media/act-preview.mp4': 'results/ausc_policy/m0_act_d0_preview/review.mp4',
