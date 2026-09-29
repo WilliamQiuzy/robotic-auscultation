@@ -1,0 +1,12 @@
+{
+  "experiment": "recovery_sensor_audit",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 2100,
+  "cases": [
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-capture-normal-plus-20260929/output/entry-normal-plus",
+      "owner_sha256": "b0f2eb14c43126b571129172750f5a5d6f11a3cbda0c6d171f65916143002e21",
+      "case_sha256": "426eb53d27886633c16ac31dbcf33ad62a0d9e3e5b48e8300055c7dcea72a0f7"
+    }
+  ]
+}

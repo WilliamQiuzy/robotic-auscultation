@@ -1,0 +1,9 @@
+{
+  "experiment": "history_prepare",
+  "base": "/home/william/wam-vla-v2",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "prepared": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-prepare-20260929/output/prepared.json",
+  "prepared_sha256": "f4d72efa2a1aec07c47e5f8c068f4406201204946fe109f7aea926f9836d889b",
+  "offsets_frames": [-10, -5, -2, -1, 0],
+  "time_limit_seconds": 1800
+}
