@@ -76,11 +76,25 @@ def prepare(config, output):
     sources['calibration/force_sensor.py'] = Path(calibration.__file__)
     snapshot = create_snapshot([bundle], output/'input_snapshot', sources)
     verify_snapshot(snapshot, verify_sources=True)
+    # The legacy monitor has its own static-arm/containment geometry source.
+    # Bind that source to the same captured bytes as the dynamic checker.
+    geometry = output/'geometry'; geometry.mkdir()
+    for label,name in [('collision_metadata','collision_geometry.json'),('collision_arrays','collision_geometry.npz')]:
+        value=bundle.inputs[label][1]; source=snapshot/'objects'/hashlib.sha256(value).hexdigest()
+        os.link(source,geometry/name)
     import fcl, ruckig
+    from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
+    from sim.auscultation_skill_v1.certified_collision import CertifiedCollisionChecker
+    from sim.curobo_expert_v1.static_world import build_static_world,save_static_world,install_fcl_static_world
+    static=build_static_world(geometry_dir=geometry,urdf_path=code/'sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf')
+    (output/'static_world').mkdir(); save_static_world(output/'static_world',static)
+    # Exercise both native collision construction and containment source loading before Kit.
+    checker=CertifiedCollisionChecker(OpenArmKinematics(),bundle.plan['world_from_left_base'],directory=geometry)
+    installation=install_fcl_static_world(checker,static,geometry_dir=geometry)
     from .controller import M0DirectController  # catch pure import defects before starting Kit
     write(output/'preflight.json', dict(passed=True, code_commit=(code/'CODE_COMMIT').read_text().strip(),
         asset_root=str(asset), collision_regeneration_sha256=binding, core_assets=config['core_assets'],
-        dependency_files=config['dependency_files'], m0_passed=False))
+        dependency_files=config['dependency_files'], static_world_installation=installation,m0_passed=False))
     return bundle, sha(snapshot/'manifest.json'), binding
 
 
@@ -94,6 +108,7 @@ def capture(app, errors, released, config, output, ready, bundle, snapshot_sha, 
     from sim.auscultation_pi05_v6.runtime_dynamics import capture_runtime_contract
     from .act_runtime import ACTClient
     from .controller import M0DirectController
+    from sim.curobo_expert_v1.static_world import load_static_world
     code = Path(__file__).resolve().parents[2]
     env = sensor = controller = None
     outcome = dict(success=False,training_accepted=False,points=[],failure_reason='construction incomplete')
@@ -115,7 +130,8 @@ def capture(app, errors, released, config, output, ready, bundle, snapshot_sha, 
         client = ACTClient(ready['port'], ready['receipt'], timeout_s=5.)
         controller = M0DirectController(env,kin,checker,sensor=sensor,client=client,
             task_id=output.parent.parent.name,episode_id=output.parent.parent.name+'-R4',
-            generator_policy='revised_shortcut',speed_scale=.7)
+            generator_policy='revised_shortcut',speed_scale=.7,
+            static_world_bundle=load_static_world(output/'static_world'),static_geometry_dir=output/'geometry')
         outcome = controller.run([(bundle.target,bundle.row)])
         outcome['dynamics_recipe_sha256'] = dynamics['recipe_sha256']
         verify_snapshot(output/'input_snapshot',verify_sources=True)
@@ -175,6 +191,8 @@ def main():
         audit = interpret(original_audit,outcome)
         write(args.output/'evaluation_audit.json',audit)
         rows = [json.loads(line) for line in (args.output/'expert_trace.jsonl').open()]
+        if len(rows)<9:
+            raise RuntimeError('Insufficient executed physics; original construction/controller failure: '+str(outcome.get('failure_reason')))
         dynamics = motion_metrics([r['time_s'] for r in rows],[r['q'] for r in rows],[r['dq'] for r in rows])
         write(args.output/'measured_dynamics.json',dynamics)
         smooth = dynamics['centered']['acceleration_rad_s2']['max'] <= 2 and dynamics['centered']['jerk_rad_s3']['max'] <= 20

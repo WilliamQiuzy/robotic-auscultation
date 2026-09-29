@@ -18,16 +18,20 @@ FREE_BOUNDS={'joint_velocity_rad_s':.25,'joint_acceleration_rad_s2':1.,'joint_je
 
 
 class ExpertController(NormalWithdrawalMixin, CandidateController):
-    def __init__(self,*args,generator_policy='revised_shortcut',bridge_dir=None,launcher=None,**kwargs):
+    def __init__(self,*args,generator_policy='revised_shortcut',bridge_dir=None,launcher=None,
+                 static_world_bundle=None,static_geometry_dir=None,**kwargs):
         if generator_policy not in ('revised_shortcut','curobo'):
             raise ValueError('unknown independent expert policy')
         if generator_policy=='curobo' and (bridge_dir is None or launcher is None):
             raise ValueError('cuRobo requires a verified bridge and isolated launcher')
+        if bridge_dir is not None and static_world_bundle is not None:
+            raise ValueError('Bridge and explicit static-world bundle are mutually exclusive')
         self.generator_policy=generator_policy;self.bridge_dir=bridge_dir;self.launcher=launcher
         self.planner_calls=[];self.free_collision_samples=0
         super().__init__(*args,policy='checked_shortcut',**kwargs)
         self.static_world=StaticWorldMonitor(self.env,self.checker,
-            load_static_world(bridge_dir) if bridge_dir is not None else None)
+            load_static_world(bridge_dir) if bridge_dir is not None else static_world_bundle,
+            geometry_dir=static_geometry_dir)
         if generator_policy=='curobo':
             from .robot_bridge import verify_bridge
             verify_bridge(bridge_dir)

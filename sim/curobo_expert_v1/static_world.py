@@ -215,7 +215,7 @@ def validate_static_poses(poses, contract):
             'max_finger_relative_rotation_rad': finger_rotation_max, 'finger_positions_m': fingers}
 
 
-def install_fcl_static_world(checker, bundle):
+def install_fcl_static_world(checker, bundle, *, geometry_dir=None):
     """Replace only independent checker's static objects with shared envelopes."""
     import fcl
     exact = checker
@@ -242,7 +242,7 @@ def install_fcl_static_world(checker, bundle):
     if set(replacements) != set(bundle['geometry']):
         raise ValueError('independent FCL omitted required static envelope')
     from .static_containment import install_static_containment
-    containment = install_static_containment(exact, bundle)
+    containment = install_static_containment(exact, bundle, geometry_dir=geometry_dir)
     return {'contract_sha256': bundle['contract_sha256'], 'geometry_sha256': {
         key: bundle['geometry'][key]['sha256'] for key in replacements}, 'colliders_replaced': replacements,
         'containment_gate': containment,
@@ -250,9 +250,9 @@ def install_fcl_static_world(checker, bundle):
 
 
 class StaticWorldMonitor:
-    def __init__(self, env, checker, bundle=None):
+    def __init__(self, env, checker, bundle=None, *, geometry_dir=None):
         self.env = env; self.bundle = bundle or build_static_world()
-        self.installation = install_fcl_static_world(checker, self.bundle)
+        self.installation = install_fcl_static_world(checker, self.bundle, geometry_dir=geometry_dir)
         self.bodies = {name: body for name, body in env.bodies if name in self.bundle['contract']['body_reference_poses']}
         self.checked_steps = 0
         self.last_report = None
