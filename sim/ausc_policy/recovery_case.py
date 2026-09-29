@@ -31,7 +31,9 @@ def geometry_preflight(bundle, output):
     for name,offset in CASES:
         q = goal.copy(); q[2] += offset
         query = dict(q=q.tolist(),dq=[0.]*7,command_history=[q.tolist()]*3,hall_load_N=0.,
-            physical_contact_N=0.,compression_m=0.,time_s=0.,physics_row=0)
+            physical_contact_N=0.,compression_m=0.,time_s=.05,physics_row=12,
+            recent_measurements=[dict(q=q.tolist(),q_command=q.tolist(),time_s=i/240,physics_row=i)
+                for i in range(13)])
         result = oracle.query(query,dict(target='R4',phase='APPROACH',revision=0,q_goal=goal.tolist()))
         write(output/(name+'-prospective-query.json'),result)
         cases.append(dict(case_id=name,kind=result['kind'],reason=result.get('reason'),wall_time_s=result['wall_time_s']))

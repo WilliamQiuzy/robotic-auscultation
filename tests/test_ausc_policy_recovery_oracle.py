@@ -30,10 +30,13 @@ class RecoveryOracleTests(unittest.TestCase):
             lower=np.full(7, -1.), upper=np.full(7, 1.))
         self.state = dict(q=[.1]*7, dq=[0.]*7, command_history=[[.1]*7]*3,
             hall_load_N=0., physical_contact_N=0., compression_m=0., time_s=2., physics_row=479)
+        self.state['recent_measurements'] = [dict(q=[.1]*7,q_command=[.1]*7,
+            time_s=2.-(12-i)/240,physics_row=467+i) for i in range(13)]
         self.context = dict(target='R4', phase='APPROACH', revision=0, q_goal=[.12]*7)
 
     def test_current_measured_origin_and_future_chunk(self):
         self.state['q'][0] = .101
+        for row in self.state['recent_measurements']: row['q'][0] = .101
         result = self.oracle.query(self.state, self.context)
         self.assertEqual(result['kind'], 'trajectory')
         np.testing.assert_array_equal(self.planner_calls[0], self.state['q'])
@@ -53,7 +56,7 @@ class RecoveryOracleTests(unittest.TestCase):
         self.assertEqual(a['query_sha256'], b['query_sha256'])
 
     def test_unsupported_states_abstain_before_planning(self):
-        changes = [dict(dq=[.006]*7), dict(hall_load_N=.2), dict(physical_contact_N=.2),
+        changes = [dict(dq=[.176]*7), dict(hall_load_N=.2), dict(physical_contact_N=.2),
             dict(compression_m=.00016), dict(q=[1.01]*7), dict(q=[float('nan')]*7),
             dict(command_history=[[.1]*7, [.11]*7, [.1]*7])]
         for change in changes:
@@ -63,6 +66,27 @@ class RecoveryOracleTests(unittest.TestCase):
                 self.assertEqual(result['kind'], 'abstain')
                 self.assertNotIn('action_chunk_relative_rad', result)
         self.assertEqual(self.planner_calls, [])
+
+    def test_actual_pose_history_defines_stationarity_without_rewriting_raw_dq(self):
+        self.state['dq'] = [.0083]*7
+        result = self.oracle.query(self.state,self.context)
+        self.assertEqual(result['kind'],'trajectory')
+        self.assertEqual(result['stationarity']['pose_difference_velocity_peak_rad_s'],0.)
+        self.assertEqual(result['stationarity']['reported_dq_peak_rad_s'],.0083)
+        self.assertEqual(result['measured_query']['state']['dq'],[.0083]*7)
+
+    def test_moving_stale_or_missing_history_abstains_even_with_reported_zero_dq(self):
+        for change in ('moving','clock','lastq','missing','command'):
+            state = copy.deepcopy(self.state)
+            rows = state['recent_measurements']
+            if change == 'moving': rows[-2]['q'][0] -= .001
+            if change == 'clock': rows[-2]['time_s'] -= .001
+            if change == 'lastq': rows[-1]['q'][0] -= .001
+            if change == 'missing': rows.pop(0)
+            if change == 'command': rows[0]['q_command'][0] += .001
+            with self.subTest(change=change):
+                result = self.oracle.query(state,self.context)
+                self.assertEqual(result['kind'],'abstain')
 
     def test_contact_or_wrong_revision_is_unsupported(self):
         for change in [dict(phase='CONTACT'), dict(revision=-1), dict(target='R5')]:

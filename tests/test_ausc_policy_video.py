@@ -1,6 +1,6 @@
 import unittest
 import numpy as np
-from sim.ausc_policy.video import frame_schedule
+from sim.ausc_policy.video import frame_schedule, video_identity
 
 
 class VideoClockTests(unittest.TestCase):
@@ -14,6 +14,22 @@ class VideoClockTests(unittest.TestCase):
         for rows in [[],[dict(index=0,time_s=1),dict(index=1,time_s=.9)],
                      [dict(index=0,time_s=float('nan'))],[dict(index=2,time_s=1)]]:
             with self.assertRaises(ValueError):frame_schedule(rows)
+
+    def test_expert_and_policy_videos_cannot_exchange_ownership(self):
+        owner = dict(completed=True,gpu_released=True,config=dict(experiment='recovery_run'))
+        result = dict(execution_completed=True)
+        outcome = dict(expert_demonstration=True,learned_policy=False,training_dataset_eligible=False)
+        identity = video_identity(owner,'joint3-plus',result,outcome)
+        self.assertTrue(identity['expert_demonstration'])
+        self.assertFalse(identity['learned_policy'])
+        with self.assertRaises(ValueError): video_identity(owner,'case',result,outcome)
+        owner['config']['experiment'] = 'isaac_run'
+        with self.assertRaises(ValueError): video_identity(owner,'joint3-plus',result,outcome)
+        with self.assertRaises(ValueError): video_identity(owner,'case',result,outcome)
+
+    def test_unfinished_owner_cannot_publish_video(self):
+        with self.assertRaises(ValueError):
+            video_identity(dict(completed=False,gpu_released=True),'case',{}, {})
 
 
 if __name__=='__main__':unittest.main()

@@ -15,6 +15,38 @@ import numpy as np
 from sim.curobo_expert_v1.timing import smooth_commands
 
 
+def measured_stationarity(state):
+    """Bind 13 consecutive measured positions, without replacing reported dq.
+
+    PhysX can report a nonzero solver velocity at an unchanged held position.
+    As in the existing measured TCP supervisor, derive observed movement from
+    acquired positions and clocks. Keep raw dq and its original speed bound.
+    """
+    rows = state['recent_measurements']
+    if not isinstance(rows,list) or len(rows) != 13:
+        raise ValueError('Stationarity requires 13 actual consecutive measurements')
+    q = np.asarray([r['q'] for r in rows],float)
+    commands = np.asarray([r['q_command'] for r in rows],float)
+    times = np.asarray([r['time_s'] for r in rows],float)
+    indices = [r['physics_row'] for r in rows]
+    if (q.shape != (13,7) or commands.shape != (13,7) or times.shape != (13,)
+            or not np.isfinite(np.r_[q.ravel(),commands.ravel(),times]).all()
+            or any(type(i) is not int for i in indices)
+            or indices != list(range(state['physics_row']-12,state['physics_row']+1))
+            or indices[0] < 0 or not np.allclose(np.diff(times),1/240,atol=1e-8,rtol=0)
+            or times[-1] != state['time_s'] or not np.array_equal(q[-1],state['q'])
+            or not np.array_equal(commands[-3:],state['command_history'])):
+        raise ValueError('Stationarity history clock, positions or commands do not bind current query')
+    velocity = float(np.max(abs(np.diff(q,axis=0)/np.diff(times)[:,None])))
+    reported = float(np.max(abs(np.asarray(state['dq']))))
+    stationary_commands = bool(np.max(abs(np.diff(commands,axis=0))) <= 1e-12)
+    return dict(passed=bool(velocity <= .005 and reported <= .175 and stationary_commands),
+        pose_difference_velocity_peak_rad_s=velocity,reported_dq_peak_rad_s=reported,
+        stationary_commands=stationary_commands,window_s=float(times[-1]-times[0]),
+        definition='13 acquired q/time samples; raw reported dq retained and bounded separately',
+        pose_velocity_limit_rad_s=.005,reported_velocity_limit_rad_s=.175)
+
+
 class StationaryRecoveryOracle:
     def __init__(self, checker, planner, *, lower, upper):
         self.checker, self.planner = checker, planner
@@ -42,8 +74,11 @@ class StationaryRecoveryOracle:
                     or type(state['physics_row']) is not int or state['physics_row'] < 0
                     or state['time_s'] < 0):
                 raise ValueError('Unsupported query target, phase, revision or clock')
-            if (np.max(abs(dq)) > .005 or np.max(abs(np.diff(history,axis=0))) > 1e-12
-                    or np.max(abs(history[-1]-q)) > .03):
+            encoded = json.dumps(dict(state=state,context=context),sort_keys=True,separators=(',',':'),allow_nan=False).encode()
+            result['query_sha256'] = hashlib.sha256(encoded).hexdigest()
+            result['measured_query'] = json.loads(encoded)
+            result['stationarity'] = measured_stationarity(state)
+            if not result['stationarity']['passed'] or np.max(abs(history[-1]-q)) > .03:
                 raise ValueError('Query requires stationary measured and retained-command state')
             if (state['hall_load_N'] >= .2 or state['physical_contact_N'] >= .2
                     or state['physical_contact_N'] < 0 or not 0 <= state['compression_m'] <= .00015):
@@ -51,9 +86,6 @@ class StationaryRecoveryOracle:
             vectors = np.vstack([q,history,goal])
             if np.any(vectors < self.lower) or np.any(vectors > self.upper):
                 raise ValueError('Query exceeds joint bounds; no clipping')
-            encoded = json.dumps(dict(state=state,context=context),sort_keys=True,separators=(',',':'),allow_nan=False).encode()
-            result['query_sha256'] = hashlib.sha256(encoded).hexdigest()
-            result['measured_query'] = json.loads(encoded)
             deadline = started+210.
 
             def check(command):

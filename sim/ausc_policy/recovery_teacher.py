@@ -54,6 +54,8 @@ class RecoveryTeacher(ObservedTeacher):
             physical_contact_N=float(sum(self.env.last_contacts.get(k,0.) for k in FRONT_GROUPS+FORBIDDEN_GROUPS)),
             compression_m=float(state['compression_m']),time_s=float(state['time_s']),
             physics_row=len(self.env.rows)-1)
+        query['recent_measurements'] = [dict(q=r['q'],q_command=r['q_command'],time_s=r['time_s'],physics_row=i)
+            for i,r in enumerate(self.env.rows[-13:],start=len(self.env.rows)-13)]
         context = dict(target=self.target.name,phase='APPROACH',
             revision=int(self.sensor.rows[-1]['target_estimate']['revision']),q_goal=canonical[-1].tolist())
         oracle = StationaryRecoveryOracle(self.checker,
