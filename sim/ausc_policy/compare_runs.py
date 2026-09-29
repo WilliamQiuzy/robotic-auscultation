@@ -74,6 +74,7 @@ def load(root, run_id):
         completed_actions=len(errors),attempted_actions=len(outcome['l2_actions']),
         zero_execution_command_indices=zero,original_audit_verdicts_preserved=True,
         motion_velocity=outcome.get('motion_velocity','zero'),posture_hint_preview=outcome.get('posture_hint_preview',False),
+        posture_hint_selection=outcome.get('posture_hint_selection','first_feasible'),
         preview_selected_factors=dict(factors),preview_all_candidates_rejected=rejected,
         l3_entries=sum(bool(h.get('stationary_entry')) for h in handoffs),
         l3_completions=sum(bool(h.get('l3_completed')) for h in handoffs),
@@ -104,8 +105,9 @@ def main():
     import matplotlib.pyplot as plt
     plt.rcParams.update({'font.size':10,'axes.spines.top':False,'axes.spines.right':False})
     fig,axes=plt.subplots(3,1,figsize=(10,8),sharex=True,layout='constrained')
-    for (summary,trace,outcome),label,color in zip(values,
-            ('Original: zero terminal velocity','Quadratic velocity + posture preview'),('#97543d','#1b7784')):
+    labels = ('Original: zero terminal velocity',
+        'Quadratic hints: '+values[1][0]['posture_hint_selection'].replace('_',' '))
+    for (summary,trace,outcome),label,color in zip(values,labels,('#97543d','#1b7784')):
         first=outcome['l2_queries'][0]['time_s'] if outcome['l2_queries'] else float('inf')
         rows=[r for i,r in enumerate(trace) if r['time_s']>=first and i%12==0]
         for ax,key,scale in zip(axes,('gap_m','tangent_m','angle_deg'),(1000,1000,1)):

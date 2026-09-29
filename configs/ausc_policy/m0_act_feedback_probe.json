@@ -1,0 +1,21 @@
+{
+  "experiment": "feedback_probe",
+  "mode": "target_geometry_response",
+  "device": "cpu",
+  "time_limit_seconds": 600,
+  "episode_id": "R4_observed_armature02_v1",
+  "prepared_manifest": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-prepare-20260929/output/prepared.json",
+  "prepared_manifest_sha256": "f4d72efa2a1aec07c47e5f8c068f4406201204946fe109f7aea926f9836d889b",
+  "base": "/home/william/wam-vla-v2",
+  "checkpoint_step": 2000,
+  "checkpoint_sha256": "ff120cb754aadd19b30e636d6a500779cf09c301b9d76696d4307baa04c814b1",
+  "run_root": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-relative-train16-20260929",
+  "anchor_count": 16,
+  "displacements_m": [
+    -0.005,
+    -0.001,
+    0.001,
+    0.005
+  ],
+  "urdf_sha256": "953a3eb21fbe121291a696c29acfd5c76e6d8dd121f31f15f162a9515eca9e77"
+}
