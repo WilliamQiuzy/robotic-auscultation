@@ -100,8 +100,19 @@ def main():
     a.need(sys.platform=='linux' and os.environ.get('AUSC_OWNED_RUN')=='1'
         and config['experiment']=='history_fit' and config['variants']==list(VARIANTS), 'Owned explicit paired fit required')
     baseline=a.pinned_json(config['baseline_config'],config['baseline_config_sha256']);a.validate_config(baseline)
-    a.need(baseline['mode']=='train32' and baseline['device']=='cuda' and baseline['action_representation']==a.BLOCK_RELATIVE,
-           'Initial history experiment is paired finite 512-step fit only')
+    a.need(baseline['mode'] in ('train32','train') and baseline['device']=='cuda'
+           and baseline['action_representation']==a.BLOCK_RELATIVE,'Declared finite state-only paired fit required')
+    if baseline['mode']=='train':
+        prior=Path(config['preceding_pair_run'])
+        owner=a.pinned_json(prior/'result.json',config['preceding_pair_owner_sha256'])
+        complete=a.pinned_json(prior/'output/COMPLETE.json',config['preceding_pair_complete_sha256'])
+        a.need(owner['completed'] and owner['gpu_released'] and owner['stage']['process_group_drained']
+            and owner['stage']['exit_code']==0 and owner['config']['experiment']=='history_fit'
+            and complete['completed'] and complete['identical_initial_weights']
+            and [v['variant'] for v in complete['variants']]==list(VARIANTS)
+            and all(v['steps']==512 and v['maximum_reload_error_rad']==0 for v in complete['variants']),
+            'Actual successful paired 512-step numerical run required before finite TRAIN16')
+    steps=baseline['modes'][baseline['mode']]['steps']
     args.output.mkdir(parents=True,exist_ok=False)
     with (Path(config['base'])/'locks/isaac_gpu.lock').open('a+') as lock:
         fcntl.flock(lock.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -130,14 +141,15 @@ def main():
                 history_owner_sha256=config['history_owner_sha256'],history_complete_sha256=config['history_complete_sha256'],
                 offsets_frames=list(OFFSETS),single_frame_state_dim=19,auxiliary_width=28,environment_width=40,
                 features='Observed past q minus current q, or zero for repeated-current control',
-                current_q_dropout_only=True,training_scope='original32 paired fit, no new expert labels'))
+                current_q_dropout_only=True,training_scope=f'{baseline["mode"]} paired fit, no new expert labels',
+                evaluation_parameter_requires_grad=False))
             a.fit(baseline,folder,episodes,stats,receipt,batch_packer=packer,native_factory=native,
                   inference_predictor=frozen_parameter_prediction)
             # A strict actual-weight roundtrip is required before a completed
             # result. This does not make the old 19D live server compatible.
             torch,policy,_=native(baseline)
             from safetensors.torch import load_model
-            checkpoint=folder/'checkpoint_0512';missing,unexpected=load_model(policy,str(checkpoint/'model.safetensors'),strict=True,device='cuda')
+            checkpoint=folder/f'checkpoint_{steps:04d}';missing,unexpected=load_model(policy,str(checkpoint/'model.safetensors'),strict=True,device='cuda')
             a.need(not missing and not unexpected,'History checkpoint state differs')
             policy.eval();policy.requires_grad_(False)
             probe=a.read_json(folder/'probe_rows.json');by={e['episode_id']:e for e in episodes}
@@ -151,7 +163,7 @@ def main():
                 final_weights_sha256=a.sha256(checkpoint/'model.safetensors')))
             a.need(error<=1e-7,'History checkpoint reload changes predictions')
             metrics=a.read_json(checkpoint/'metrics.json')
-            row=dict(variant=variant,steps=512,maximum_reload_error_rad=error,metrics=metrics,
+            row=dict(variant=variant,steps=steps,maximum_reload_error_rad=error,metrics=metrics,
                 initial_weights_sha256=a.sha256(folder/'checkpoint_0000/model.safetensors'),
                 final_weights_sha256=a.sha256(checkpoint/'model.safetensors'))
             a.save_json(folder/'roundtrip.json',row);variants.append(row)
@@ -161,7 +173,8 @@ def main():
         a.save_json(args.output/'COMPLETE.json',dict(completed=True,variants=variants,identical_initial_weights=True,
             original_history_windows=history_receipt['total_windows'],baseline_config_sha256=config['baseline_config_sha256'],
             m0_passed=False,closed_loop_evaluated=False,heldout_opened=False,
-            scope='Paired TRAIN32 numerical fit only; not VLA, sensor-use proof or deployment-ready policy'))
+            mode=baseline['mode'],steps_per_variant=steps,
+            scope='Paired finite numerical fit only; not VLA, sensor-use proof or deployment-ready policy'))
 
 
 if __name__=='__main__':main()
