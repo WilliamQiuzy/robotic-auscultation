@@ -16,12 +16,20 @@ from .motion_preview import LIMITS,choose_velocity_hint
 from sim.auscultation_pi05_v6.execution import JointTrajectory
 
 
+def zero_reference_contract(outcome,owner):
+    # This pinned pre-hint revision had no motion_velocity field. Never infer
+    # zero from an unknown historical schema; actual command replay still binds it.
+    if 'motion_velocity' in outcome:
+        return outcome['motion_velocity']=='zero'
+    return owner.get('code_commit')=='7b5802f9724ed8b7702e5300ff8db6d339681caa'
+
+
 def compare(config,inspect,kin,output):
     source=Path(config['reference_run']);owner=a.read_json(source/'result.json')
     a.need(owner['completed'] is True and owner['gpu_released'] is True,'Reference owner still active')
     case=source/'output/case'
     outcome=a.pinned_json(case/'outcome.json',config['reference_outcome_sha256'])
-    a.need(outcome['motion_velocity']=='zero' and len(outcome['d0_handoffs'])==1
+    a.need(zero_reference_contract(outcome,owner) and len(outcome['d0_handoffs'])==1
            and not outcome['d0_handoffs'][0]['candidate'],'Require original zero-hint no-stop D0')
     trace_path=case/'expert_trace.jsonl';a.need(a.sha256(trace_path)==config['reference_trace_sha256'],'Trace binding differs')
     trace=[json.loads(line) for line in trace_path.read_text().splitlines()]
