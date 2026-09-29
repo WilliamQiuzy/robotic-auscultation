@@ -24,6 +24,7 @@ MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
            'recovery_sensor_audit': 'sim.ausc_policy.recovery_sensor_audit',
            'moving_brake_probe': 'sim.ausc_policy.moving_brake_probe',
            'oracle_timing_probe': 'sim.ausc_policy.oracle_timing_probe',
+           'contact_geometry_audit': 'sim.ausc_policy.contact_geometry_audit',
            'capture_probe': 'sim.ausc_policy.capture_probe',
            'history_prepare': 'sim.ausc_policy.history_prepare',
            'history_fit': 'sim.ausc_policy.history_fit',
@@ -72,7 +73,7 @@ def main():
         HF_HUB_DISABLE_IMPLICIT_TOKEN='1', TOKENIZERS_PARALLELISM='false')
     for key in ['PYTHONPATH', 'HF_TOKEN', 'JAX_PLATFORMS']:
         env.pop(key, None)
-    if config['experiment'] in {'executor_probe','motion_preview_probe','path_probe','feedback_probe','recovery_sensor_audit','moving_brake_probe','oracle_timing_probe','capture_probe','history_prepare','history_runtime_prepare','history_runtime','history_path_probe'}:
+    if config['experiment'] in {'executor_probe','motion_preview_probe','path_probe','feedback_probe','recovery_sensor_audit','moving_brake_probe','oracle_timing_probe','contact_geometry_audit','capture_probe','history_prepare','history_runtime_prepare','history_runtime','history_path_probe'}:
         env['CUDA_VISIBLE_DEVICES'] = ''
     os.chdir(root)
     record = dict(run_id=args.run_id, code_commit=commit, config=config,

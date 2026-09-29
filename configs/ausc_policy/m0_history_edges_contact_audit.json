@@ -1,0 +1,16 @@
+{
+  "experiment": "contact_geometry_audit",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 600,
+  "source_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free20-recovery-edges-20260929",
+  "case_id": "history20",
+  "source_files": {
+    "result.json": "554a405d0c0c2ac83e5a479c85fbab9725a6f5550864f8ceb1c08c3a4f0364ca",
+    "output/history20/result.json": "4181011c55407a446055894eefac62998f5579dc347c39d8386566a9af6f62b8",
+    "output/history20/outcome.json": "d5449f091eed50eb91fa71a2bcd7d4a5fa48dd43f6d61e3507248f3c28587ca8",
+    "output/history20/expert_trace.jsonl": "ac65718125060cfd60de0ddbe2482bc632ab31ef8240ebcd3cbfa97297111d1e",
+    "output/history20/expert_replay.npz": "3f077f32c15c31952c702e047bc793f25ca0ebbb4754a9033d2fdabed97e218e",
+    "output/history20/geometry/collision_geometry.json": "9805206cb66c666cb6abca7754fdbe47d9c5718b2c9fca3aac8c70d82942eff6",
+    "output/history20/geometry/collision_geometry.npz": "ae1af7007b176c2b15b72e66c6da8af7fb3befd7d1484b544d5611da27b474c6"
+  }
+}
