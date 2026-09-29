@@ -16,9 +16,6 @@ import time
 
 import numpy as np
 
-from sim.auscultation_vla_v2.hall import HallPacket, HallSimulator, default_calibration
-from sim.auscultation_vla_v2.multimodal import INSTRUCTIONS
-
 
 def sha(path):
     h=hashlib.sha256()
@@ -36,6 +33,8 @@ def write(path,value):
 
 
 def bind_sensor_frames(physics,frames):
+    from sim.auscultation_vla_v2.hall import HallPacket, HallSimulator, default_calibration
+    from sim.auscultation_vla_v2.multimodal import INSTRUCTIONS
     if not physics or not frames:
         raise ValueError('Empty actual physics/sensor history')
     times=np.asarray([r['time_s'] for r in physics],float)
@@ -122,9 +121,33 @@ def snapshot_binding(case,outcome):
     return bound
 
 
+def bind_calibration_runtime(case):
+    """Locate the same host calibration used at capture before importing Hall.
+
+    The thin sim checkout intentionally omits the host auscultation package.
+    The acquisition owner and snapshot bind its approved external source.
+    """
+    owner=read(case.parent.parent/'result.json');outcome=read(case/'outcome.json')
+    manifest=case/'input_snapshot/manifest.json'
+    if sha(manifest)!=outcome['input_snapshot_manifest_sha256']:
+        raise ValueError('Acquisition snapshot identity changed')
+    source=read(manifest)['files']['source/calibration/force_sensor.py']
+    asset=Path(owner['config']['asset_root']).resolve()
+    calibration=asset/'auscultation/mechanical_sensor/force_feedback/force_sensor.py'
+    if sha(calibration)!=source['sha256']:
+        raise ValueError('Approved external Hall calibration source changed')
+    if str(asset) not in sys.path: sys.path.append(str(asset))
+    from auscultation.mechanical_sensor.force_feedback import force_sensor
+    if sha(force_sensor.__file__)!=source['sha256']:
+        raise ValueError('Imported Hall calibration differs from acquisition')
+
+
 def audit_case(case,deadline):
+    bind_calibration_runtime(case)
     import cv2
     import scipy
+    from sim.auscultation_vla_v2.hall import HallPacket, default_calibration
+    from sim.auscultation_vla_v2.multimodal import INSTRUCTIONS
     from sim.auscultation_vla_v2.body_tracking import BodyTracker
     from sim.auscultation_vla_v2.observations import Observation,RobotState,encode
     from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics

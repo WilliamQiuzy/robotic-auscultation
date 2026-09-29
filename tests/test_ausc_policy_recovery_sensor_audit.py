@@ -1,5 +1,9 @@
 from copy import deepcopy
 from dataclasses import asdict
+import os
+from pathlib import Path
+import subprocess
+import sys
 
 import numpy as np
 import pytest
@@ -54,3 +58,15 @@ def test_raw_pixels_reject_invalid_depth_mask_and_oracle_modalities():
     with pytest.raises(ValueError): validate_pixels(arrays,(2,3))
     arrays['depth_valid'][0,0]=True;arrays['force_truth']=np.zeros(1)
     with pytest.raises(ValueError): validate_pixels(arrays,(2,3))
+
+
+def test_remote_thin_package_can_start_before_calibration_path_is_bound(tmp_path):
+    # Deployment deliberately contains sim code, with host calibration in the
+    # original approved asset root. CLI startup cannot import it prematurely.
+    import sim.ausc_policy.recovery_sensor_audit as module
+    script=tmp_path/'replay.py'
+    script.write_bytes(Path(module.__file__).read_bytes())
+    env=dict(os.environ);env.pop('PYTHONPATH',None)
+    completed=subprocess.run([sys.executable,str(script),'--help'],cwd=tmp_path,
+        env=env,capture_output=True,text=True,timeout=15)
+    assert completed.returncode==0,completed.stderr
