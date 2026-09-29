@@ -35,7 +35,7 @@ def video_identity(owner, case_name, result, outcome):
     if result.get('execution_completed') is not True:
         raise ValueError('Actual physical execution and cleanup required')
     experiment = owner.get('config',{}).get('experiment')
-    if experiment == 'recovery_run' and case_name in ('nominal','joint3-plus','joint3-minus','act609'):
+    if experiment == 'recovery_run' and case_name in ('nominal','joint3-plus','joint3-minus','act609','entry-normal-plus','entry-tangent-plus'):
         if (outcome.get('expert_demonstration') is not True or outcome.get('learned_policy') is not False
                 or outcome.get('training_dataset_eligible') is not False):
             raise ValueError('Expert recovery video ownership is ambiguous')
@@ -47,6 +47,13 @@ def video_identity(owner, case_name, result, outcome):
                 raise ValueError('Moving recovery replay ownership is ambiguous')
             return dict(expert_demonstration=True,learned_policy=False,
                 scope='Previously acquired ACT commands replayed for an actual moving expert recovery test; no new student inference')
+        if case_name.startswith('entry-'):
+            capture=outcome.get('capture_component',{})
+            if (owner['config'].get('mode')!='capture_component'
+                    or capture.get('local_alignment_used') is not False or capture.get('physical_joint_resets')!=0):
+                raise ValueError('Direct contact component ownership is ambiguous')
+            return dict(expert_demonstration=True,learned_policy=False,
+                scope='Actual perturbed direct contact component; approved preparation and analytic L3, no learned policy or local alignment')
         return dict(expert_demonstration=True,learned_policy=False,
             scope='Actual stationary expert recovery pilot camera frames; not a learned policy or qualified dataset')
     if (experiment == 'isaac_run' and case_name == 'case'
@@ -59,7 +66,7 @@ def video_identity(owner, case_name, result, outcome):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run',type=Path,required=True)
-    parser.add_argument('--case',default='case',choices=('case','nominal','joint3-plus','joint3-minus','act609'))
+    parser.add_argument('--case',default='case',choices=('case','nominal','joint3-plus','joint3-minus','act609','entry-normal-plus','entry-tangent-plus'))
     args=parser.parse_args()
     if sys.platform != 'linux':raise RuntimeError('Encode existing sensor pixels on Linux, not Mac')
     run=args.run.resolve();owner=json.loads((run/'result.json').read_text())

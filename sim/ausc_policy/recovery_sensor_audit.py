@@ -115,6 +115,9 @@ def snapshot_binding(case,outcome):
     if 'moving_recovery' in outcome:
         for name in ('moving_recovery_teacher.py','moving_brake.py','recovery_oracle.py'):
             wanted.append(('source/code/ausc_policy/'+name,root/'sim/ausc_policy'/name))
+    if 'capture_component' in outcome:
+        for name in ('capture_teacher.py','capture_probe.py','recovery_oracle.py'):
+            wanted.append(('source/code/ausc_policy/'+name,root/'sim/ausc_policy'/name))
     from auscultation.mechanical_sensor.force_feedback import force_sensor
     wanted.append(('source/calibration/force_sensor.py',Path(force_sensor.__file__)))
     for key,path in wanted:
@@ -167,7 +170,7 @@ def audit_case(case,deadline):
     bound=snapshot_binding(case,outcome)
     bound[case.parent.parent/'result.json']=sha(case.parent.parent/'result.json')
     for name in ('outcome.json','result.json','expert_trace.jsonl','sensors/frames.jsonl',
-                 'sensors/camera.json','sensors/body_poses.jsonl','world_from_left_base.json','oracle_query.json'):
+                 'sensors/camera.json','sensors/body_poses.jsonl','world_from_left_base.json'):
         bound[case/name]=sha(case/name)
     physics=[json.loads(x) for x in (case/'expert_trace.jsonl').open()]
     frames=[json.loads(x) for x in (case/'sensors/frames.jsonl').open()]
@@ -175,10 +178,24 @@ def audit_case(case,deadline):
     moving='moving_recovery' in outcome
     statistics=bind_sensor_frames(physics,frames,moving=moving)
     from .recovery_labels import audit_query_labels, audit_brake_labels
-    query=read(case/'oracle_query.json')
-    if sha(case/'oracle_query.json')!=outcome['oracle_receipt']['query_sha256']:
-        raise ValueError('Actual oracle receipt binding changed')
-    labels=audit_query_labels(query,physics)
+    labels=capture_entry=None
+    if 'capture_component' in outcome:
+        from .capture_probe import load_geometry_case
+        from .recovery_labels import audit_capture_entry
+        if (moving or owner['config']['mode']!='capture_component'
+                or outcome['oracle_receipt']['query_attempted'] is not False
+                or outcome['oracle_receipt']['trajectory_executed'] is not False
+                or (case/'oracle_query.json').exists()):
+            raise ValueError('Direct entry cannot contain an oracle query')
+        geometry=load_geometry_case(dict(owner['config'],case_id=outcome['case_id']))
+        if not np.array_equal(geometry['q'],outcome['capture_component']['requested_command']):
+            raise ValueError('Acquired entry differs from frozen geometry node')
+        capture_entry=audit_capture_entry(outcome['capture_component'],physics)
+    else:
+        query=read(case/'oracle_query.json');bound[case/'oracle_query.json']=sha(case/'oracle_query.json')
+        if sha(case/'oracle_query.json')!=outcome['oracle_receipt']['query_sha256']:
+            raise ValueError('Actual oracle receipt binding changed')
+        labels=audit_query_labels(query,physics)
     moving_labels=None
     if moving:
         receipt=outcome['moving_recovery']
@@ -216,10 +233,11 @@ def audit_case(case,deadline):
             raise ValueError('Prefix reproduction metric differs from actual trace')
         moving_labels['prefix_physics_samples_rechecked']=count
         moving_labels['maximum_prefix_q_difference_rad']=error
-    query_frame=[r for r in frames if r['physics_row']==labels['query_physics_row']]
-    if (len(query_frame)!=1 or query_frame[0]['target_estimate']['revision']
-            !=query['measured_query']['context']['revision']):
-        raise ValueError('Oracle query revision differs from acquired camera frame')
+    if labels is not None:
+        query_frame=[r for r in frames if r['physics_row']==labels['query_physics_row']]
+        if (len(query_frame)!=1 or query_frame[0]['target_estimate']['revision']
+                !=query['measured_query']['context']['revision']):
+            raise ValueError('Oracle query revision differs from acquired camera frame')
     metadata=read(case/'sensors/camera.json')
     camera_path=root/'sim/camera_framing_20260923/recommended_camera.json'
     annotation_path=root/'sim/auscultation_vla_v2/sensor_pilot_annotation.json'
@@ -293,6 +311,7 @@ def audit_case(case,deadline):
         audit_source_sha256=sha(__file__),
         minimum_valid_depth_pixels=min(depth_counts),sensor_bindings=statistics,
         first_stationary_query_label_audit=labels,
+        direct_capture_entry_audit=capture_entry,
         moving_brake_label_audit=moving_labels,
         runtime=dict(python=sys.version,numpy=np.__version__,opencv=cv2.__version__,scipy=scipy.__version__),
         source_hashes={str(k):v for k,v in bound.items()},

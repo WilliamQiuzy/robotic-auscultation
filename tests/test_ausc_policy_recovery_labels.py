@@ -67,3 +67,35 @@ def test_brake_labels_refuse_fabricated_origin_or_execution(change):
     if change=='future': query['commands_240hz'][0]=[.5]*7
     if change=='anchor': query['measured_query']['q']=[.8]*7
     with pytest.raises(ValueError): audit_brake_labels(query,physics)
+
+
+def capture_fixture():
+    physics=[dict(q=[0.]*7,dq=[0.]*7,q_command=[0.]*7,time_s=(i+1)/240,
+                  oracle_role='PREPARATION' if i<24 else 'MEASURED_ANALYTIC_L3') for i in range(36)]
+    entry=dict(q=[0.]*7,dq=[0.]*7,physics_row=23,time_s=.1,command_history=[[0.]*7]*3,
+               recent_measurements=[dict(physics[i],physics_row=i) for i in range(11,24)])
+    receipt=dict(preparation_completed=True,local_alignment_used=False,physical_joint_resets=0,
+                 requested_command=[0.]*7,entry=entry)
+    return receipt,physics
+
+
+def test_capture_entry_binds_actual_stationary_command_and_direct_l3():
+    from sim.ausc_policy.recovery_labels import audit_capture_entry
+    receipt,physics=capture_fixture()
+    result=audit_capture_entry(receipt,physics)
+    assert result['entry_physics_row']==23
+    assert result['stationarity']['passed'] is True
+    assert result['training_dataset_eligible'] is False
+
+
+@pytest.mark.parametrize('defect',['history','role','q','requested','alignment','reset'])
+def test_capture_entry_rejects_modified_preparation_or_hidden_correction(defect):
+    from sim.ausc_policy.recovery_labels import audit_capture_entry
+    receipt,physics=capture_fixture()
+    if defect=='history': receipt['entry']['recent_measurements'][0]['q']=[1.]*7
+    if defect=='role': physics[24]['oracle_role']='EXPERT_RECOVERY'
+    if defect=='q': receipt['entry']['q']=[.1]*7
+    if defect=='requested': receipt['requested_command']=[.2]*7
+    if defect=='alignment': receipt['local_alignment_used']=True
+    if defect=='reset': receipt['physical_joint_resets']=1
+    with pytest.raises(ValueError): audit_capture_entry(receipt,physics)

@@ -5,6 +5,34 @@ Diagnostic only: no array export, eligibility changes, or rolling-query claim.
 import numpy as np
 
 
+def audit_capture_entry(receipt,physics):
+    """Bind the prepared physical entry without inventing an oracle query."""
+    from .recovery_oracle import measured_stationarity
+    if (receipt.get('preparation_completed') is not True or receipt.get('local_alignment_used') is not False
+            or receipt.get('physical_joint_resets')!=0):
+        raise ValueError('Direct actual preparation without alignment or reset required')
+    entry=receipt['entry'];origin=entry['physics_row']
+    if type(origin) is not int or not 12<=origin<len(physics)-1:
+        raise ValueError('Capture entry outside actual history')
+    current=physics[origin]
+    if (entry['time_s']!=current['time_s']
+            or any(not np.array_equal(entry[k],current[k]) for k in ('q','dq'))
+            or not np.array_equal(receipt['requested_command'],current['q_command'])
+            or any(r['oracle_role']!='PREPARATION' for r in physics[:origin+1])
+            or physics[origin+1]['oracle_role']!='MEASURED_ANALYTIC_L3'):
+        raise ValueError('Capture origin/roles differ; no hidden oracle correction allowed')
+    for index,row in enumerate(entry['recent_measurements'],start=origin-12):
+        actual=physics[index]
+        if (row['physics_row']!=index or row['time_s']!=actual['time_s']
+                or any(not np.array_equal(row[k],actual[k]) for k in ('q','q_command'))):
+            raise ValueError('Capture measured history changed')
+    stationary=measured_stationarity(entry)
+    if not stationary['passed']: raise ValueError('Actual capture was not stationary')
+    return dict(entry_physics_row=origin,entry_time_s=current['time_s'],stationarity=stationary,
+        direct_l3_first_physics_row=origin+1,training_dataset_eligible=False,
+        scope='Actual direct component preparation only; no expert query label or training export')
+
+
 def audit_query_labels(query,physics):
     return _audit_commands(query,physics,kind='trajectory',role='EXPERT_RECOVERY',
         state=query['measured_query']['state'],anchor='acquired measured q at actual stationary query',

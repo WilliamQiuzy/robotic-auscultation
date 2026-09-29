@@ -41,5 +41,15 @@ class VideoClockTests(unittest.TestCase):
         outcome['moving_recovery']['student_inference_executed']=True
         with self.assertRaises(ValueError): video_identity(owner,'act609',dict(execution_completed=True),outcome)
 
+    def test_capture_component_is_explicit_and_has_no_alignment_or_reset(self):
+        owner=dict(completed=True,gpu_released=True,config=dict(experiment='recovery_run',mode='capture_component'))
+        outcome=dict(expert_demonstration=True,learned_policy=False,training_dataset_eligible=False,
+            capture_component=dict(local_alignment_used=False,physical_joint_resets=0))
+        identity=video_identity(owner,'entry-normal-plus',dict(execution_completed=True),outcome)
+        self.assertFalse(identity['learned_policy'])
+        self.assertIn('component',identity['scope'])
+        outcome['capture_component']['local_alignment_used']=True
+        with self.assertRaises(ValueError): video_identity(owner,'entry-normal-plus',dict(execution_completed=True),outcome)
+
 
 if __name__=='__main__':unittest.main()
