@@ -129,3 +129,8 @@ than an equal-input policy ranking. See `reports/ausc_policy/m0_velocity_definit
 配对A/B使用相同ACT初始化、原TRAIN16和2000步预算；19维当前状态另加28维过去实测关节差（总47维）。固定权重全8685窗口上B整块中位误差更低，但两个实际R4均未完成接触，M0未通过。全部487次已接受查询已从实际观测重建并逐条原生CPU重推理，差0。详见 `reports/ausc_policy/m0_history_closed_loop.md`。
 
 从B动作20真实状态的恢复，先通过制动与停车，再发现全局空间样条偏离已检查路径。`edge_timing.py`仅以逐段五次时间律走原关节线段，保留全部原检查；`oracle_timing_probe.py`用同一规划路径对照。`m0_history_moving_recovery_edges.json`明确绑定该对照和原停车状态，拒绝把不同起点当成修复成功。它是专家测试，所有新采集数据的训练资格仍为false；没有新学生成功、膜片加载或泛化结论。
+
+
+同起点修复已实际完成，原始RGB-D/Hall/动作配对复核也完成；见 `reports/ausc_policy/m0_history_recovery_edges.md`。实际前沿接触3秒不等于膜片受力：原始冲量与90个实际HOLD刚体位姿复核，膜片间隙约1.52mm。`contact_geometry_audit`必须使用既有Isaac Python的CPU环境（训练venv没有FCL），不会启动Kit或修改场景。
+
+后续仅使用预先固定的history120/history220，沿用三起点制动预检及实际已验证的计时算法。新起点的观测必须重新实际采集；`repair_proof`绑定动作20的物理及原始模态复核，且核心算法字节不变。动作20的同状态配对门保持不变；后续覆盖实验不能冒充同状态比较。所有新增数据仍不可训练。

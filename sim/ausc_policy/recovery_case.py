@@ -72,13 +72,52 @@ def moving_preflight(config,output):
                 or [(r['strategy'],r['kind']) for r in timing_complete['cases']]
                     !=[('global_cubic','abstain'),('checked_edges_v1','trajectory')]):
             raise ValueError('Bound same-route timing repair comparison required')
-        reference=config['stopped_query_reference']
-        expected=Path(timing_owner['config']['source_run'])/'output/history20/oracle_query.json'
-        if Path(reference['path'])!=expected or reference['sha256']!=timing_owner['config']['query_sha256']:
-            raise ValueError('Timing reference differs from actual rejected stopped query')
-        pinned_json(reference['path'],reference['sha256'])
+        from .moving_origin import timing_validation_mode
+        if timing_validation_mode(config)=='paired_retest':
+            reference=config['stopped_query_reference']
+            expected=Path(timing_owner['config']['source_run'])/'output/history20/oracle_query.json'
+            if Path(reference['path'])!=expected or reference['sha256']!=timing_owner['config']['query_sha256']:
+                raise ValueError('Timing reference differs from actual rejected stopped query')
+            pinned_json(reference['path'],reference['sha256'])
+        else:
+            validate_repair_proof(config)
     write(output/'moving_preflight.json',dict(passed=True,source_action=index,source_physics_row=origin,
         source_prefix_steps=origin+1,physics_executed=False,training_dataset_eligible=False))
+
+
+def validate_repair_proof(config):
+    """New origins require completed physical and raw-sensor proof of the fix.
+
+    This is an algorithm reuse prerequisite, never a same-state comparison or
+    a substitution for each new origin's actual motion and sensor audit.
+    """
+    from .act_baseline import pinned_json
+    binding=config['repair_proof'];root=Path(binding['run']);case=root/'output/history20'
+    owner=pinned_json(root/'result.json',binding['owner_sha256'])
+    result=pinned_json(case/'result.json',binding['case_sha256'])
+    audit_root=Path(binding['raw_audit_run'])
+    audit_owner=pinned_json(audit_root/'result.json',binding['raw_owner_sha256'])
+    audit=pinned_json(audit_root/'output'/binding['raw_report'],binding['raw_report_sha256'])
+    for record in (owner,audit_owner):
+        if (not record['completed'] or not record['gpu_released'] or not record['stage']['process_group_drained']
+                or record['stage']['exit_code']!=0):raise ValueError('Repair proof did not finish and release resources')
+    if (owner['config'].get('moving_origin')!='history_free20_v1'
+            or owner['config'].get('oracle_timing')!='checked_edges_v1'
+            or owner['config']['source_run']!=config['source_run']
+            or owner['config']['source_files']!=config['source_files']
+            or not result['case_passed'] or result['training_dataset_eligible']
+            or audit_owner['config']['experiment']!='recovery_sensor_audit'
+            or len(audit_owner['config']['cases'])!=1
+            or audit_owner['config']['cases'][0]['path']!=str(case)
+            or audit_owner['config']['cases'][0]['owner_sha256']!=binding['owner_sha256']
+            or audit_owner['config']['cases'][0]['case_sha256']!=binding['case_sha256']
+            or not audit['passed'] or audit['training_dataset_eligible'] or audit['learned_policy']):
+        raise ValueError('Repair proof is not the same expert fix with complete raw replay')
+    code=Path(__file__).resolve().parents[2]
+    for name in ('edge_timing.py','recovery_oracle.py','moving_brake.py'):
+        path=code/'sim/ausc_policy'/name
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=audit['source_hashes'].get(str(path)):
+            raise ValueError('Repair algorithm changed since actual verification: '+name)
 
 
 def capture(app, errors, released, config, output, bundle, snapshot_sha, binding):

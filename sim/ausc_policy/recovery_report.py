@@ -35,7 +35,7 @@ def load(root,run_id):
     summaries=[];traces=[]
     for entry in complete['cases']:
         name=entry['case_id'];prefix='output/'+name+'/'
-        if name not in ('nominal','joint3-plus','joint3-minus','act609','history20'): raise ValueError('Unexpected case')
+        if name not in ('nominal','joint3-plus','joint3-minus','act609','history20','history120','history220'): raise ValueError('Unexpected case')
         outcome=read(prefix+'outcome.json');result=read(prefix+'result.json')
         if (not result['execution_completed'] or not outcome['expert_demonstration']
                 or outcome['learned_policy'] or outcome['training_dataset_eligible']):
@@ -124,6 +124,32 @@ def main():
         ' diagnostics — not a learned-policy test',fontsize=13)
     for suffix in ('svg','png'):fig.savefig(args.output/('recovery.'+suffix),dpi=150)
     plt.close(fig)
+    if len(traces)==1:
+        trace=traces[0];t=np.asarray([r['time_s'] for r in trace])
+        fig,axes=plt.subplots(2,1,figsize=(10,6),layout='constrained',sharex=True,
+                              gridspec_kw=dict(height_ratios=[3,1]))
+        axes[0].plot(t,[r['lip_N'] for r in trace],color='#36777d',label='Physical front lip')
+        axes[0].plot(t,[r['hall_N'] for r in trace],color='#a97a38',lw=1,label='Simulator Hall reference')
+        axes[0].plot(t,[r['diaphragm_N'] for r in trace],color='#ac614c',ls='--',label='Physical diaphragm')
+        held=[r['time_s'] for r in trace if r['phase']=='HOLD']
+        if held:axes[0].axvspan(min(held),max(held)+1/240,color='#36777d',alpha=.15,label='Recorded HOLD')
+        axes[0].set(ylabel='Force (N)',title='Contact load is carried by the lip; diaphragm force remains zero')
+        axes[0].legend(loc='upper left',fontsize=9)
+        labels={'STUDENT_COMMAND_REPLAY':'Student prefix replay','EXPERT_BRAKE':'Brake',
+                'EXPERT_RECOVERY':'Expert recovery','MEASURED_ANALYTIC_L3':'Analytic contact / hold / release',
+                'FINAL_RETURN':'Return home'}
+        palette=['#9ba7b5','#c8a974','#7da7ac','#91b1a0','#c2cad3']
+        for i,role in enumerate(summaries[0]['role_timeline']):
+            start,end=role['start_time_s']-1/240,role['end_time_s']
+            axes[1].broken_barh([(start,end-start)],(i-.35,.7),facecolors=palette[i%len(palette)])
+        axes[1].set(yticks=range(len(summaries[0]['role_timeline'])),
+            yticklabels=[labels.get(r['role'],r['role']) for r in summaries[0]['role_timeline']],
+            xlabel='Actual simulator time (s)',xlim=(0,t[-1]))
+        axes[1].invert_yaxis();axes[1].tick_params(axis='y',labelsize=8)
+        for ax in axes:ax.spines[['right','top']].set_visible(False)
+        fig.suptitle('Actual expert recovery — no learned policy or acoustic acceptance',fontsize=13)
+        for suffix in ('svg','png'):fig.savefig(args.output/('contact.'+suffix),dpi=150)
+        plt.close(fig)
     print(json.dumps(dict(cases=len(summaries),passed=sum(r['case_passed'] for r in summaries),m0_passed=False)))
 
 

@@ -108,11 +108,19 @@ class MovingRecoveryTeacher(RecoveryTeacher):
             q_goal=canonical[-1].tolist())
         if self.recovery_config.get('oracle_timing','global_cubic')=='checked_edges_v1':
             from .act_baseline import pinned_json
-            reference=self.recovery_config['stopped_query_reference']
-            expected=pinned_json(reference['path'],reference['sha256'])['measured_query']
-            if query!=expected['state'] or context!=expected['context']:
-                raise EpisodeRejected('Fresh stopped query differs from the bound rejected timing experiment')
-            self.moving_receipt['same_actual_stopped_query_as_rejected_run']=True
+            from .moving_origin import timing_validation_mode
+            mode=timing_validation_mode(self.recovery_config)
+            self.moving_receipt['timing_validation']=mode
+            if mode=='paired_retest':
+                reference=self.recovery_config['stopped_query_reference']
+                expected=pinned_json(reference['path'],reference['sha256'])['measured_query']
+                if query!=expected['state'] or context!=expected['context']:
+                    raise EpisodeRejected('Fresh stopped query differs from the bound rejected timing experiment')
+                self.moving_receipt['same_actual_stopped_query_as_rejected_run']=True
+            else:
+                from .recovery_case import validate_repair_proof
+                validate_repair_proof(self.recovery_config)
+                self.moving_receipt['same_actual_stopped_query_as_rejected_run']=False
         oracle=StationaryRecoveryOracle(self.checker,lambda start,goal,rng,deadline:
             checked_transfer(self.checker,self.posture_limits,start,goal,self.kin,self.env.base,rng,deadline),
             lower=self.posture_limits.joint_lower_rad,upper=self.posture_limits.joint_upper_rad,

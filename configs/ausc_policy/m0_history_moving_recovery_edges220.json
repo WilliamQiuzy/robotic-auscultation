@@ -1,0 +1,70 @@
+{
+  "experiment": "recovery_run",
+  "mode": "moving_oracle_pilot",
+  "base": "/home/william/wam-vla-v2",
+  "point": "R4",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "physics": {
+    "position_iterations": 32,
+    "velocity_iterations": 1,
+    "armature_kg_m2": 0.02
+  },
+  "speed_scale": 0.7,
+  "time_limit_seconds": 7200,
+  "core_assets": {
+    "sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf": "953a3eb21fbe121291a696c29acfd5c76e6d8dd121f31f15f162a9515eca9e77",
+    "sim/auscultation_vla_v2/calibration/veo6_tared_snapshot.json": "ce6bcda3bef2282e07be0f44686dc007756ede57cdfcd732d35e28c1d469d054",
+    "sim/auscultation_expert_layout_v1/layout_inputs.json": "7ac8002c61a9211d2ad11beafbc33a659c2e42db5e5b6af6f756f35178848dfc",
+    "sim/camera_framing_20260923/recommended_camera.json": "aeac00eb5a963520e869c60efff52a300484bd1c4a49232067a669c525ad07f0",
+    "sim/auscultation_vla_v2/sensor_pilot_annotation.json": "5df3c224ee5a43a3de331d97c2318734865ee82eba2d8046bb34e55a39a3903c"
+  },
+  "dependency_paths": [
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages"
+  ],
+  "dependency_files": {
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/fcl/__init__.py": "a4c883ce5446fcd7e02fd73f162823cd24349b6804900ff66798372a6b159c34",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/fcl/fcl.cpython-311-x86_64-linux-gnu.so": "345141e0fecaa5eec4c26c10913eeae20ee2856c92d8076d0bbf6baa9278061a",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/libccd-cba5fec5.so.2.0": "a5681935afd5278dad96b3db6911fb680326f86594812f292e86794438fa7334",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/libfcl-b85ee6a6.so.0.7.0": "2d972a5f9d11c41469ca50d10f45abfd090c9c9706fc6d0da25303de7d68e24e",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/liboctomap-dc57a5cd.so.1.9.8": "bfb1411b988773cb07b82d74e43121ea53e70d54f258905534b6e9ff95ba58d8",
+    "/home/william/wam-sim/env_isaacsim51/lib/python3.11/site-packages/python_fcl.libs/liboctomath-f3ddf1dc.so.1.9.8": "af08647a99de6f6f79f02bcb92b0c6fe6693ee01050331c80da3c2488ce7bf44",
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages/ruckig.cpython-311-x86_64-linux-gnu.so": "1e0907c0f7bef0fec41d9f8bdbb6e164ad99a91721d7bf377550ef9bf1c0d138"
+  },
+  "source_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-causal-d0-grid12-20260929",
+  "source_files": {
+    "result.json": "4d641cbb414c68da15ac0d3725b5dbecb58c250704f9cbc47cf17d765eb2fef7",
+    "output/case/outcome.json": "eefdf79aba3ff2f0e31f355d16631f87387bf9ed3a7314b46f5d4c7caf7939b2",
+    "output/case/expert_trace.jsonl": "b4e20315dd84fd899358bf1ff09dbd34551efc1ec13162feb2c29019f3fca08e",
+    "output/case/sensors/frames.jsonl": "10e2541067fb8e025ff27b9313cdea2e617cd5c2b8f93b38abdc2a10e3f5cdd6"
+  },
+  "source_action_index": 220,
+  "case_ids": [
+    "history220"
+  ],
+  "braking_probe": {
+    "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free-brake-probe-20260929",
+    "files": {
+      "result.json": "3bfdefb2cf74f56cd94f3456327ccf781ba4df7c5861bdc1da01596a8246c30b",
+      "output/action-220.json": "2af21572f7adf74283f910bf97129f098f544fe41c93c114806011deb5462106"
+    }
+  },
+  "moving_origin": "history_free220_v1",
+  "oracle_timing": "checked_edges_v1",
+  "oracle_timing_probe": {
+    "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-oracle-timing-pair-20260929",
+    "owner_sha256": "f5cd9757f65f37ad919a2642b55b478982198d79596c05f86568562a9c5151a6",
+    "complete_sha256": "becd9612e70d473a0ae806dc316edbda7c77b8aa696b901a7fb0ecd63bdd3d71"
+  },
+  "repair_proof": {
+    "run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free20-recovery-edges-20260929",
+    "owner_sha256": "554a405d0c0c2ac83e5a479c85fbab9725a6f5550864f8ceb1c08c3a4f0364ca",
+    "case_sha256": "4181011c55407a446055894eefac62998f5579dc347c39d8386566a9af6f62b8",
+    "raw_audit_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free20-edges-raw-replay-20260929",
+    "raw_owner_sha256": "24fd58239e492dcb98673e9d764420345b9035a3df9e06c4017e517a3ecfb53e",
+    "raw_report": "m0-history-free20-recovery-edges-20260929--history20.json",
+    "raw_report_sha256": "48f1ecacca7cc3768d2e82dd4ca49354aeb79a433c5a19104b9fdab9f5ecc013"
+  },
+  "timing_validation": "validated_algorithm_new_origin"
+}
