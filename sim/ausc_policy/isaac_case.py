@@ -162,7 +162,7 @@ def capture(app, errors, released, config, output, ready, bundle, snapshot_sha, 
             scope='state ACT L2 + measured analytic L3; single approved body; no acoustics or generalization claim',
             expert_demonstration=False,training_dataset_eligible=False,training_accepted=False,m0_passed=False,
             sensor_frames=0 if sensor is None else len(sensor.rows),
-            closed_loop_evaluated=bool(controller is not None and controller.l2_queries),
+            closed_loop_evaluated=bool(controller is not None and any(q.get('accepted') for q in controller.l2_queries)),
             checkpoint_receipt=ready['receipt'],layout_family='approved_farther_lower_seat_camera7deg')
         try:
             if env is not None:

@@ -141,6 +141,18 @@ class ControllerTests(unittest.TestCase):
         self.assertEqual([f['frame_id'] for f in history],[0,5,8,9,10])
         self.assertEqual(c.l2_queries[-1]['causal_history'],history)
 
+    def test_history_capture_uses_original_twelfth_tick_lattice(self):
+        m,c,clock,sensor,client=self.make();c.causal_history_input=True
+        sensor.rows=[];clock.time_s=0.;clock.rows.clear()
+        c._block(np.zeros((240,7)),'settle',active=False)
+        self.assertEqual(len(sensor.rows),20)
+        np.testing.assert_allclose([f['time_s'] for f in sensor.rows],np.arange(1,21)*.05,atol=1e-12)
+        c._capture_l2_frame()
+        self.assertEqual(len(sensor.rows),20)
+        from sim.ausc_policy.history_runtime import history_from_frames,validate_history
+        history=history_from_frames(sensor.rows,sensor.rows[-1])
+        validate_history(history,dict(frame_id=19,sim_stamp_s=clock.time_s,target_id='R4',state=[*clock.q,*([0]*12)]))
+
     def enable_hints(self, controller):
         controller.motion_velocity = 'quadratic5'
         controller.trajectory.input = SimpleNamespace(target_velocity=[0.]*7, target_acceleration=[0.]*7)

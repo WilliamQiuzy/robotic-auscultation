@@ -91,8 +91,11 @@ class M0DirectController(ObservedTeacher):
 
     def _capture_observed_tick(self, state, subphase, active, recovery):
         # Same physical sensor path; no diagnostic frame is eligible expert data.
-        due = (not self.sensor.rows or
-               state['time_s']-self.sensor.rows[-1]['time_s'] >= .05-1e-8)
+        # Original qualified TRAIN captures use every twelfth physics step.
+        # Starting at tick 1 instead would create a 45.833 ms last interval
+        # when L2 requests its same-time frame at a control boundary.
+        due = (len(self.env.rows)%CONTROL_STEPS==0 if self.causal_history_input else
+               (not self.sensor.rows or state['time_s']-self.sensor.rows[-1]['time_s'] >= .05-1e-8))
         if not due:
             return
         phase = self.manager.state.phase.value if active else (self.actor_phase or 'FREE')
