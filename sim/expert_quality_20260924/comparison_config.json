@@ -1,0 +1,33 @@
+{
+  "variants": [
+    {
+      "key": "baseline",
+      "label": "原版专家",
+      "description": "换点经过下方中转；密集路点分别启停。",
+      "report_dir": "baseline",
+      "free_report_name": "free_motion_audit.json",
+      "review_dir": "baseline_review"
+    },
+    {
+      "key": "staged",
+      "label": "A · 保留下方路线",
+      "description": "基本保留原几何路线，修改时序并检查离散动态边界。",
+      "report_dir": "staged",
+      "review_dir": "staged_review"
+    },
+    {
+      "key": "shortcut",
+      "label": "B · 检查后走短路线",
+      "description": "确认释放后尝试直达下一预接触位；不可直达则保留绕行。",
+      "report_dir": "shortcut",
+      "review_dir": "shortcut_review"
+    }
+  ],
+  "notes": [
+    "B 实际累计关节转角减少约19.5%，方向反转减少约23.5%；A 的角行程和反转数基本不变。",
+    "B 不保证肘更低：最高肘位比原版高约1.25 mm。最终接触姿态仍沿用原版，不代表每个终点姿态已经最优。",
+    "少绕路不等于更平稳。B 在R5撤回时的实测原始加速度峰值2.082 rad/s²，高于待选草案2；自由命令jerk峰值也高于原版。两版均不能据此自动定为最终专家。",
+    "每点连续3秒为现有工程HOLD设置。当前受力主要在外唇，未验证膜片声音耦合；R5仍重复出现PhysX材料面索引警告，完整记录保留在报告中。",
+    "推荐先比较并选择路线风格，再制定动态质量标准。外部视觉模型只作补充；没有用任何模型分数或模拟声学奖励来训练策略。"
+  ]
+}

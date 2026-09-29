@@ -1,0 +1,18 @@
+{
+  "schema": "expert_quality_engineering_profile_v1",
+  "name": "draft_low_twist_review",
+  "user_selected": false,
+  "scope": "Proposed simulation engineering preferences awaiting user choice; not clinical, acoustic, motor, cable or assembly limits.",
+  "reversal_excursion_deg": 1.0,
+  "filter_window_s": 0.1,
+  "filter_polynomial_order": 4,
+  "joint_step_rad": 0.08726646259971647,
+  "joint_velocity_rad_s": 0.5,
+  "joint_acceleration_rad_s2": 2.0,
+  "joint_jerk_rad_s3": 20.0,
+  "loaded_force_N": 0.2,
+  "loaded_drag_max_event_m": 0.0005,
+  "loaded_drag_max_speed_m_s": 0.005,
+  "clinical_contact_site_confirmed": false,
+  "assembly_limits_confirmed": false
+}

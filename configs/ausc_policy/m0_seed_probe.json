@@ -1,0 +1,53 @@
+{
+  "experiment": "seed_probe",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 3600,
+  "checkpoint_step": 512,
+  "ode_steps": 10,
+  "sample_indices": [
+    0,
+    2,
+    4,
+    6,
+    8,
+    10,
+    12,
+    14,
+    16,
+    18,
+    20,
+    22,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31
+  ],
+  "seeds": [
+    917,
+    918,
+    919,
+    920,
+    921,
+    922,
+    923,
+    924,
+    925,
+    926,
+    927,
+    928,
+    929,
+    930,
+    931,
+    932
+  ],
+  "pins_sha256": "624b5f70a7c4892c68ba7acef28b67f002bcd3e31d9ac710363dace7d5032e9b",
+  "checkpoint_complete_sha256": "adcf598c4cc92456a0ae859c23975904db3cab8d578abc1ec0a06d070b3798f0",
+  "selection_rule": "12 FREE rows at fixed even indices plus all 8 other-phase rows; fixed before sampling; training observations only",
+  "source_shards": [
+    "diagnostics/pi05_v12_train_fit_prepared_v1/cache.npz"
+  ]
+}

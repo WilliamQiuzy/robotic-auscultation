@@ -1,0 +1,41 @@
+{
+  "variants": [
+    {
+      "label": "旧 B · 历史参照",
+      "description": "已封存短路线，旧撤回与时间参数。",
+      "episode_dir": "../expert_quality_20260924/results/physics_shortcut_v1",
+      "report_dir": "../expert_quality_20260924/results/shortcut",
+      "review_dir": "../expert_quality_20260924/results/shortcut_review",
+      "media_verification": "results/old_b_media_verification.json"
+    },
+    {
+      "label": "新版 B · 缓慢撤回",
+      "description": "原短路线几何，共用新自由运动时间曲线与缓慢卸载；全十点完成。",
+      "episode_dir": "results/physics_revised_all10_v1",
+      "report_dir": "results/audit_revised_all10_v1",
+      "review_dir": "results/revised_review_v1"
+    },
+    {
+      "label": "cuRobo · 独立规划",
+      "description": "控制器完成 8/10 点；L4→R5 路径净空 2.748 mm，低于 3 mm 而被拒绝。R1 为共有初始路线。",
+      "episode_dir": "results/physics_curobo_all10_v3",
+      "report_dir": "results/audit_curobo_all10_v3",
+      "review_dir": "results/curobo_review_v3"
+    }
+  ],
+  "notes": [
+    "cuRobo 完成前八点后停止；R5 被拒路径未执行，L5 未开始。部分运行不参与全十点总量排名。",
+    "新版 B 全十点通过原有机械、接触和释放硬检查；每点连续有效 HOLD 为 3 秒，这是工程设定。",
+    "新版 B 自由命令 jerk 峰值由 19.978 降至 1.307 rad/s³，但全程实测峰值仍约 436 rad/s³；两种指标不可混用。",
+    "新版 B 七关节累计转角 48.837 rad，旧 B 为 48.790 rad，基本没有减少。全程模拟时间由 329.2 增至 397.85 秒。",
+    "固定点序和各点关节姿态已决定大部分转角；相邻预接触姿态的关节距离下界约 27.289 rad，单换自由运动规划器的改善空间有限。",
+    "载荷仍由模块外唇承受，膜片力为零，不能据此宣称声学耦合或临床听诊有效。",
+    "当前动力学和带力切向位移仍有未选定草案超限；不自动成为正式专家标准，也不启动学生策略训练。"
+  ],
+  "attempt_notes": [
+    "R5 单点旧时间参数因完整命令碰撞检查超时而失败；改为条件化 C2 曲线，保留失败记录。",
+    "cuRobo 全程尝试 v1 因内外资源锁冲突停止，v2 因重复检查稠密几何采样超时停止；二者是接入问题，不能解释为规划器不可达。",
+    "cuRobo 原生轨迹优化试探失败；本次明确采用图搜索模式，不将其称为轨迹优化成功。",
+    "cuRobo v3：L4→R5 原生路径在运动前被独立几何检查拒绝，没有换用 B 路线；该部分运行不参与全十点累计比较。"
+  ]
+}

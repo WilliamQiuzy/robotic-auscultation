@@ -1,0 +1,116 @@
+{
+  "schema": "auscultation_v2_contract_v3_measured_tcp_command",
+  "state_features": [
+    "q_0_rad",
+    "q_1_rad",
+    "q_2_rad",
+    "q_3_rad",
+    "q_4_rad",
+    "q_5_rad",
+    "q_6_rad",
+    "dq_0_rad_s",
+    "dq_1_rad_s",
+    "dq_2_rad_s",
+    "dq_3_rad_s",
+    "dq_4_rad_s",
+    "dq_5_rad_s",
+    "dq_6_rad_s",
+    "target_relative_x_m",
+    "target_relative_y_m",
+    "target_relative_z_m",
+    "normal_tool_x",
+    "normal_tool_y",
+    "normal_tool_z",
+    "hall_voltage_V",
+    "hall_spring_estimate_N",
+    "target_confidence",
+    "target_velocity_tool_x_m_s",
+    "target_velocity_tool_y_m_s",
+    "target_velocity_tool_z_m_s",
+    "target_rotation_tool_r0c0",
+    "target_rotation_tool_r1c0",
+    "target_rotation_tool_r2c0",
+    "target_rotation_tool_r0c1",
+    "target_rotation_tool_r1c1",
+    "target_rotation_tool_r2c1"
+  ],
+  "action_features": [
+    "dx_base_m",
+    "dy_base_m",
+    "dz_base_m",
+    "rx_base_rad",
+    "ry_base_rad",
+    "rz_base_rad",
+    "normal_force_reference_N"
+  ],
+  "state_normalization": "not fitted; raw physical features must be normalized using training split only",
+  "action_frame": "robot base axes",
+  "rotation_composition": "rotvec in radians, left-compose with fresh measured TCP rotation",
+  "image_slots": {
+    "base_0_rgb": "one RGB-D camera RGB; true mask",
+    "left_wrist_0_rgb": "zeros; false mask",
+    "right_wrist_0_rgb": "zeros; false mask"
+  },
+  "target_provenance": "actual RGB-D surface tracker required; no simulator ground truth",
+  "depth": "registered metric depth + validity mask, used by external tracker; not a native pi05 depth channel",
+  "model_32d_output_executable": false,
+  "proposal_gate_only": true,
+  "clinical_limits_validated": false,
+  "hall": {
+    "measurement": "ADC raw -> Hall voltage V -> existing real ForceCalibration",
+    "calibration_sha256": "ce6bcda3bef2282e07be0f44686dc007756ede57cdfcd732d35e28c1d469d054",
+    "state_channels": [
+      "hall_voltage_V",
+      "hall_spring_estimate_N"
+    ],
+    "derived_displacement_is_independent_sensor": false,
+    "patient_contact_force_is_directly_measured": false,
+    "unloaded_spring_preload_estimate_N": 1.5,
+    "sample_time_is_acquisition_time_not_poll_time": true,
+    "max_sample_age_s": 0.05,
+    "hardware_calibration_bench_verified": false,
+    "simulator_contact_force_allowed_in_actor": false,
+    "latest_packet_faults_require_stop_or_unload": true
+  },
+  "acoustics": {
+    "available_in_sim": false,
+    "used_by_this_stage": false,
+    "synthetic_audio_as_measured_input": false
+  },
+  "rgbd": {
+    "physical_cameras": 1,
+    "RGB": "pi05 image slot",
+    "depth": "registered metric optical-Z and validity for bounded rigid-torso RGB-D tracker; geometry enters 32-state prompt",
+    "native_pi05_depth_encoder": false
+  },
+  "tcp_geometry": {
+    "input": "wrist pose from measured-joint FK",
+    "compression": "estimated from the same Hall ADC packet",
+    "uncompressed_offset_m": 0.1262,
+    "offset_basis": "existing CAD/scene convention, not new physical calibration"
+  },
+  "force_reference_semantics": {
+    "channel": "normal_force_reference_N",
+    "operating_scale": "existing Hall spring-load calibration; not independently verified patient contact force",
+    "active_phases": [
+      "CONTACT",
+      "HOLD"
+    ],
+    "zero_in_other_phases": "inactive force reference; does not mean unloaded Hall must read 0 N",
+    "release_test": "requires Hall baseline plus independently estimated geometry; do not reuse V1 hall_N<0.2 rule"
+  },
+  "action_definition": "next commanded TCP pose relative to current measured-joint FK plus current Hall-estimated compression; includes servo lag",
+  "action_contract_version": "measured_tcp_command_offset_v4",
+  "proposal_limits": {
+    "free_translation_m": 0.02,
+    "free_rotation_rad": 0.1,
+    "loaded_translation_m": 0.002,
+    "loaded_rotation_rad": 0.01,
+    "normal_force_reference_N": [
+      0,
+      4
+    ]
+  },
+  "proposal_limits_are_velocity_limits": false,
+  "action_contract_sha256": "7f5d47ea4dd7e06c021e0d9235ac25dd94bf6f5d014ac17aa722c05edbab9322"
+}

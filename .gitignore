@@ -63,3 +63,20 @@ lung_qa_*.json
 *.step
 *.stl
 *.docx
+
+# Simulation code is versioned; generated runs, private bodies and weights are not.
+/sim/**/results/
+/sim/**/runs/
+/sim/**/video/
+/sim/**/video_selected/
+/sim/**/video_comparison/
+/sim/**/models/
+/sim/**/vendor/
+/sim/**/*.npz
+/sim/**/*.npy
+/sim/**/*.usdc
+/sim/**/*.obj
+/sim/**/*.ply
+/sim/**/*.pkl
+/sim/**/*.pt
+/results/

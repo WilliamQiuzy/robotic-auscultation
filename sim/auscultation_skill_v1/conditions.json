@@ -1,0 +1,108 @@
+{
+  "schema": "auscultation_skill_conditions_v1",
+  "status": "frozen_before_v4_collection_unqualified",
+  "activation": "Activated for declared collection and validation before any heldout evaluation; each condition still requires actual physics qualification.",
+  "scope": "Fixed-scene state BC with timing and bounded Hall-feedback perturbations; no RGB-D encoder or acoustic reward.",
+  "split_unit": "Complete reset families; every target, window and continuation stays in its family's split.",
+  "control_dt_s": 0.05,
+  "conditions": [
+    {
+      "condition_id": "train_speed100",
+      "family_id": "train_speed100",
+      "split": "train",
+      "speed_scale": 1.0,
+      "hall_noise_std_N": 0.0,
+      "hall_noise_clip_N": 0.0,
+      "observation_delay_steps": 0,
+      "seed": 1101
+    },
+    {
+      "condition_id": "train_speed075",
+      "family_id": "train_speed075",
+      "split": "train",
+      "speed_scale": 0.75,
+      "hall_noise_std_N": 0.0,
+      "hall_noise_clip_N": 0.0,
+      "observation_delay_steps": 0,
+      "seed": 1102
+    },
+    {
+      "condition_id": "train_hall008_speed100",
+      "family_id": "train_hall008_speed100",
+      "split": "train",
+      "speed_scale": 1.0,
+      "hall_noise_std_N": 0.08,
+      "hall_noise_clip_N": 0.24,
+      "observation_delay_steps": 0,
+      "seed": 1103
+    },
+    {
+      "condition_id": "validation_speed0875",
+      "family_id": "validation_speed0875",
+      "split": "validation",
+      "speed_scale": 0.875,
+      "hall_noise_std_N": 0.0,
+      "hall_noise_clip_N": 0.0,
+      "observation_delay_steps": 0,
+      "seed": 2101
+    },
+    {
+      "condition_id": "validation_hall006_speed0875",
+      "family_id": "validation_hall006_speed0875",
+      "split": "validation",
+      "speed_scale": 0.875,
+      "hall_noise_std_N": 0.06,
+      "hall_noise_clip_N": 0.18,
+      "observation_delay_steps": 0,
+      "seed": 2102
+    },
+    {
+      "condition_id": "test_speed080",
+      "family_id": "test_speed080",
+      "split": "test",
+      "speed_scale": 0.8,
+      "hall_noise_std_N": 0.0,
+      "hall_noise_clip_N": 0.0,
+      "observation_delay_steps": 0,
+      "seed": 3101
+    },
+    {
+      "condition_id": "test_speed090",
+      "family_id": "test_speed090",
+      "split": "test",
+      "speed_scale": 0.9,
+      "hall_noise_std_N": 0.0,
+      "hall_noise_clip_N": 0.0,
+      "observation_delay_steps": 0,
+      "seed": 3102
+    },
+    {
+      "condition_id": "test_hall_noise",
+      "family_id": "test_hall_noise",
+      "split": "test",
+      "speed_scale": 0.875,
+      "hall_noise_std_N": 0.1,
+      "hall_noise_clip_N": 0.3,
+      "observation_delay_steps": 0,
+      "seed": 3103
+    },
+    {
+      "condition_id": "test_observation_delay",
+      "family_id": "test_observation_delay",
+      "split": "test",
+      "speed_scale": 0.875,
+      "hall_noise_std_N": 0.0,
+      "hall_noise_clip_N": 0.0,
+      "observation_delay_steps": 1,
+      "seed": 3104
+    }
+  ],
+  "unchanged_test_conditions": true,
+  "sensor_semantics": "Bounded Hall noise is applied to the real sampled actor input for expert and student. Safety checks and saved authoritative physics observations remain unchanged. Different seeds alone are not new perturbation families.",
+  "timing_semantics": "speed_scale scales inward action bound and free transfer timing. Outward action ceiling and expert unload remain fixed at 4 mm/s. Expert Hall correction retains symmetric +/-2 mm/s times speed_scale. Acceleration, jerk, physical HOLD and acceptance gates are unchanged. Travel watchdogs retain conservative 1/speed_scale allowance.",
+  "generalization_limit": "One fixed scene; test Hall noise is a reserved larger-amplitude noise family after this proposal, not an entirely unseen perturbation modality. No patient, geometry, camera or hardware generalization claim.",
+  "heldout_policy": "Freeze before collection. Do not choose checkpoints or revise behavior using test results. Any inspected test used for redesign becomes development evidence and requires new heldout families.",
+  "experiment_revision": 4,
+  "previous_conditions_sha256": "881a1ec5a0d3563f07ac9f65325da2b95a1258f3e1ead6bfb70678e69f7bdfed",
+  "action_scaling": "inward_scaled_outward_fixed_v1"
+}

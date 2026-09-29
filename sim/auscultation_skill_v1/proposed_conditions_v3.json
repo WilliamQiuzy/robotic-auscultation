@@ -1,0 +1,25 @@
+{
+  "schema": "auscultation_skill_conditions_proposal_v3",
+  "proposed_runtime_schema": "auscultation_skill_conditions_v1",
+  "status": "proposal_not_collected_or_qualified",
+  "activation": "Requires an explicit experiment decision, frozen formal condition inventory, actual expert physics collection and unchanged quality gates. This proposal schema is deliberately rejected by the active dataset loader.",
+  "scope": "Proposed fixed-scene state BC feedback coverage; no RGB-D-trained policy or completed simulation result.",
+  "split_unit": "Complete reset families; every target, window and continuation stays in its family's split.",
+  "control_dt_s": 0.05,
+  "conditions": [
+    {"condition_id":"train_speed100","family_id":"train_speed100","split":"train","speed_scale":1.0,"hall_noise_std_N":0.0,"hall_noise_clip_N":0.0,"observation_delay_steps":0,"seed":1101},
+    {"condition_id":"train_speed075","family_id":"train_speed075","split":"train","speed_scale":0.75,"hall_noise_std_N":0.0,"hall_noise_clip_N":0.0,"observation_delay_steps":0,"seed":1102},
+    {"condition_id":"train_hall008_speed100","family_id":"train_hall008_speed100","split":"train","speed_scale":1.0,"hall_noise_std_N":0.08,"hall_noise_clip_N":0.24,"observation_delay_steps":0,"seed":1103},
+    {"condition_id":"validation_speed0875","family_id":"validation_speed0875","split":"validation","speed_scale":0.875,"hall_noise_std_N":0.0,"hall_noise_clip_N":0.0,"observation_delay_steps":0,"seed":2101},
+    {"condition_id":"validation_hall006_speed0875","family_id":"validation_hall006_speed0875","split":"validation","speed_scale":0.875,"hall_noise_std_N":0.06,"hall_noise_clip_N":0.18,"observation_delay_steps":0,"seed":2102},
+    {"condition_id":"test_speed080","family_id":"test_speed080","split":"test","speed_scale":0.8,"hall_noise_std_N":0.0,"hall_noise_clip_N":0.0,"observation_delay_steps":0,"seed":3101},
+    {"condition_id":"test_speed090","family_id":"test_speed090","split":"test","speed_scale":0.9,"hall_noise_std_N":0.0,"hall_noise_clip_N":0.0,"observation_delay_steps":0,"seed":3102},
+    {"condition_id":"test_hall_noise","family_id":"test_hall_noise","split":"test","speed_scale":0.875,"hall_noise_std_N":0.1,"hall_noise_clip_N":0.3,"observation_delay_steps":0,"seed":3103},
+    {"condition_id":"test_observation_delay","family_id":"test_observation_delay","split":"test","speed_scale":0.875,"hall_noise_std_N":0.0,"hall_noise_clip_N":0.0,"observation_delay_steps":1,"seed":3104}
+  ],
+  "unchanged_test_conditions": true,
+  "sensor_semantics": "Bounded Hall noise is applied to the real sampled actor input for expert and student. Safety checks and saved authoritative physics observations remain unchanged. Different seeds alone are not new perturbation families.",
+  "timing_semantics": "Current speed_scale still scales inward and outward velocity bounds plus transfer timing. This proposal does not fix or assume qualification of slower unloading.",
+  "generalization_limit": "One fixed scene; test Hall noise is a reserved larger-amplitude noise family after this proposal, not an entirely unseen perturbation modality. No patient, geometry, camera or hardware generalization claim.",
+  "heldout_policy": "Freeze before collection. Do not choose checkpoints or revise behavior using test results. Any inspected test used for redesign becomes development evidence and requires new heldout families."
+}

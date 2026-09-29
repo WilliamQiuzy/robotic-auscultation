@@ -1,0 +1,131 @@
+{
+  "schema": "upper_pair_fixed_comparison_v1",
+  "baseline_episode": "sim/curobo_expert_v1/results/physics_revised_all10_v1",
+  "canonical_plans": "sim/auscultation_expert_layout_v1/results/expert_v2/plans",
+  "runtime_directory": "sim/auscultation_expert_layout_v1",
+  "camera": "sim/camera_framing_20260923/recommended_camera.json",
+  "fixed_files": {
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R1.json": "62c4f6ba825f6b2a2d11f6e8668b34773d9f3ab51182ff71db09f53550815707",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_R1_2.0mm.json": "d4a055c1c821bd2c6269449e8af396fe07c6abc245af319d13211aa89054ae4d",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/contact_targets.json": "b294f7469cb0fcc8a4442ff8e968f2436e9e12ab64c4f949ccd14a3415257497",
+    "sim/auscultation_expert_layout_v1/runtime_inspection.json": "9c79dcb42a42c5468426f68d83da8db729e45dfc620e6dfa2b3acfd39e2861e4",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/collision_geometry.json": "9805206cb66c666cb6abca7754fdbe47d9c5718b2c9fca3aac8c70d82942eff6",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/collision_geometry.npz": "ae1af7007b176c2b15b72e66c6da8af7fb3befd7d1484b544d5611da27b474c6",
+    "sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf": "953a3eb21fbe121291a696c29acfd5c76e6d8dd121f31f15f162a9515eca9e77",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L1.json": "ff733c40e56760045923cb26bc895d83002b104c66c50baf190c7e04e5586c61",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_L1_2.0mm.json": "68cdc78d6a8c82f59c5e37d9b8e081e7c8fbc7f35e22dbbe48e3d32694c1abaa",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R2.json": "1d9b95c3386c15c444d8ee6b7e3fefd3daba9a0fa65c714874b2e6c9170ade1b",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_R2_2.0mm.json": "bd7b466e40039414c1fa081f28e084a43a36661eeef3a3f2fe4c9f1a5f50760d",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L2.json": "b277b04f14de68f1009d0600bc4b3b1f9257b1f131fdaffcd9df2e9be10beb82",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_L2_2.0mm.json": "8d634da6660965593f2909a853f5f4ce513f4910be65ed3356a0917d5a8d1b74",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R3.json": "2b7749a1cf6497960bfde933c6ab33553bf5e34420c20e19828d3384617d5a11",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_R3_low_elbow_refined_2.0mm.json": "0b76035a7104174e5fcd9ed91927b8ac351dc462989b673338a578fcf830610f",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L3.json": "f160e28fc7d029bced5330b6fffff88485809b1c48f68a307a2de69277566beb",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_L3_2.0mm.json": "f7111e4a60f1ee75ce5dd5019903a2ac83444610f28e9f9ae7aef0bcc503bfb9",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R4.json": "a5350dc5f5da21c5e476264da927636ea3c2dbf3c7a8a77d08898c4561a0e53f",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_R4_2.0mm.json": "01f5606bd89308d42f14d2e23ebef9926f76faa7aa0fc73fbd83787bed31fedc",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L4.json": "aea2b7f66c7cba10ac23f83cb3f5518876290f8e383d7f42ce2f06ac92693b64",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_L4_2.0mm.json": "4288ac428b36c629f00f852149f0e0f24eddabad974b17a5b9b2ede8947d9b52",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R5.json": "6603f93b6365840dede7e75def86490f76e938e050c75bc1edd74d7970e4f79f",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_R5_2.0mm.json": "86a598abea5d0d7cc48f0f7f85ca5af3c5b7059823509cf3147163ac96b4803c",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L5.json": "4d2da4c86861d18f646d01763a0a5dfbebaa9d3b6d598c0e27d00f9b0524aa75",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/tool_fit_L5_low_elbow_refined_2.0mm.json": "097053b7f3d3c52a8685ed4ed943586d84278a5121263e00b2f739b17fd71811",
+    "sim/curobo_expert_v1/results/physics_revised_all10_v1/input_snapshot/manifest.json": "82ae26723bcabe85f82469232e6f4ca292ff0a7c53a176fb8530e34fb81584bf",
+    "sim/curobo_expert_v1/results/physics_revised_all10_v1/outcome.json": "7af1458279e4015623e39785e909ea01486ad428d1114eaa3e91399fc2c09e85",
+    "sim/camera_framing_20260923/recommended_camera.json": "aeac00eb5a963520e869c60efff52a300484bd1c4a49232067a669c525ad07f0",
+    "sim/auscultation_expert_layout_v1/results/collision_regeneration_verification.json": "b254eaad49dfdb7008cf0bf19c25fe7da4cb1ff7399173304997142a657880c6",
+    "sim/auscultation_expert_layout_v1/layout_inputs.json": "7ac8002c61a9211d2ad11beafbc33a659c2e42db5e5b6af6f756f35178848dfc",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/posture_limits.json": "cea2d43499c4fb700b222b84108cf5404ec55acc281322552015b01437470ad4",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/solver_posture_limits.json": "cea2d43499c4fb700b222b84108cf5404ec55acc281322552015b01437470ad4",
+    "sim/auscultation_expert_layout_v1/results/expert_v2/plans/reference_posture_limits.json": "e93426b55b2eed7e31b11c3958cc50f83ecc98d068d76a9d8bd107ac4dbb69e0"
+  },
+  "baseline_plans": {
+    "R1": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R1.json",
+      "sha256": "62c4f6ba825f6b2a2d11f6e8668b34773d9f3ab51182ff71db09f53550815707"
+    },
+    "L1": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L1.json",
+      "sha256": "ff733c40e56760045923cb26bc895d83002b104c66c50baf190c7e04e5586c61"
+    },
+    "R2": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R2.json",
+      "sha256": "1d9b95c3386c15c444d8ee6b7e3fefd3daba9a0fa65c714874b2e6c9170ade1b"
+    },
+    "L2": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L2.json",
+      "sha256": "b277b04f14de68f1009d0600bc4b3b1f9257b1f131fdaffcd9df2e9be10beb82"
+    },
+    "R3": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R3.json",
+      "sha256": "2b7749a1cf6497960bfde933c6ab33553bf5e34420c20e19828d3384617d5a11"
+    },
+    "L3": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L3.json",
+      "sha256": "f160e28fc7d029bced5330b6fffff88485809b1c48f68a307a2de69277566beb"
+    },
+    "R4": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R4.json",
+      "sha256": "a5350dc5f5da21c5e476264da927636ea3c2dbf3c7a8a77d08898c4561a0e53f"
+    },
+    "L4": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L4.json",
+      "sha256": "aea2b7f66c7cba10ac23f83cb3f5518876290f8e383d7f42ce2f06ac92693b64"
+    },
+    "R5": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_R5.json",
+      "sha256": "6603f93b6365840dede7e75def86490f76e938e050c75bc1edd74d7970e4f79f"
+    },
+    "L5": {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/plans/planned_paths_L5.json",
+      "sha256": "4d2da4c86861d18f646d01763a0a5dfbebaa9d3b6d598c0e27d00f9b0524aa75"
+    }
+  },
+  "target_order": [
+    "R1",
+    "L1",
+    "R2",
+    "L2",
+    "R3",
+    "L3",
+    "R4",
+    "L4",
+    "R5",
+    "L5"
+  ],
+  "changed_points": [
+    "R1",
+    "L1"
+  ],
+  "baseline_phase_config": {
+    "target_force_N": 4.0,
+    "force_tolerance_N": 0.5,
+    "hard_force_limit_N": 5.5,
+    "min_contact_force_N": 0.2,
+    "min_contact_compression_m": 0.0001,
+    "max_compression_m": 0.006,
+    "precontact_gap_m": 0.04,
+    "precontact_tolerance_m": 0.002,
+    "approach_tangential_tolerance_m": 0.003,
+    "contact_normal_tolerance_m": 0.006,
+    "hold_tangential_tolerance_m": 0.003,
+    "angle_tolerance_deg": 5.0,
+    "approach_speed_limit_m_s": 0.02,
+    "hold_speed_limit_m_s": 0.005,
+    "settle_duration_s": 0.3,
+    "hold_duration_s": 3.0,
+    "retract_clearance_m": 0.04,
+    "release_force_limit_N": 0.2,
+    "release_confirm_duration_s": 0.15,
+    "max_observation_age_s": 0.2,
+    "max_update_gap_s": 0.2,
+    "approach_timeout_s": 120.0,
+    "contact_timeout_s": 20.0,
+    "hold_timeout_s": 20.0,
+    "retract_timeout_s": 20.0,
+    "episode_timeout_s": 180.0
+  },
+  "speed_scale": 1.0,
+  "controller_policy": "revised_shortcut",
+  "scope": "Same scene/contact constraints; only upper joint posture and audited axial roll may change. No hardware or clinical acceptance."
+}

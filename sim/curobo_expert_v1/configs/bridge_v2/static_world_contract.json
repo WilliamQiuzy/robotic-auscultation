@@ -1,0 +1,468 @@
+{
+  "schema": "wam_static_world_sweep_v1",
+  "body_reference_poses": {
+    "/World/StethoArmMount/OpenArmStetho/openarm_body_link0": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        1.0,
+        0.0,
+        0.3
+      ],
+      [
+        0.0,
+        0.0,
+        1.0,
+        0.6782286301651155
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_left_link0": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -3.5745606228321236e-06,
+        0.9999999999936114,
+        0.3309999994933605
+      ],
+      [
+        0.0,
+        -0.9999999999936114,
+        -3.5745606228321236e-06,
+        1.376228643993393
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link0": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -3.5745606228321236e-06,
+        -0.9999999999936114,
+        0.26900000050663947
+      ],
+      [
+        0.0,
+        0.9999999999936114,
+        -3.5745606228321236e-06,
+        1.376228643993393
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link1": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -3.5745606228321236e-06,
+        -0.9999999999936114,
+        0.20649999678134917
+      ],
+      [
+        0.0,
+        0.9999999999936114,
+        -3.5745606228321236e-06,
+        1.376228405574814
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link2": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        -0.030100001022219658
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.14649999439716338
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        1.3762281671562349
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link3": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        -1.862645149230957e-09
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.14650023281574248
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        1.3099781409301912
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link4": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        -1.862645149230957e-09
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.11500078737735747
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        1.1562280193367158
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link5": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        -1.862645149230957e-09
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.1465011268854141
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        1.0607281461754
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link6": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.03750000149011612
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.14650155901908873
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        0.94022814784433
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_link7": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.14650155901908873
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        0.94022814784433
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_right_finger": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.14650193154811858
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        0.8377281561889802
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ],
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_left_finger": [
+      [
+        1.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        0.0,
+        -0.9999999999936051,
+        3.5762786863933493e-06,
+        0.14650193154811858
+      ],
+      [
+        0.0,
+        -3.5762786863933493e-06,
+        -0.9999999999936051,
+        0.8377281561889802
+      ],
+      [
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "finger_specs": {
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_right_finger": {
+      "parent": "/World/StethoArmMount/OpenArmStetho/openarm_right_link7",
+      "joint_name": "openarm_right_finger_joint1",
+      "origin_xyz": [
+        0.0,
+        0.0,
+        0.1025
+      ],
+      "axis": [
+        0.0,
+        -1.0,
+        0.0
+      ],
+      "lower_m": 0.0,
+      "upper_m": 0.044,
+      "source_q_m": 5.9604943203339644e-09
+    },
+    "/World/StethoArmMount/OpenArmStetho/openarm_right_left_finger": {
+      "parent": "/World/StethoArmMount/OpenArmStetho/openarm_right_link7",
+      "joint_name": "openarm_right_finger_joint2",
+      "origin_xyz": [
+        0.0,
+        -0.0,
+        0.1025
+      ],
+      "axis": [
+        0.0,
+        1.0,
+        0.0
+      ],
+      "lower_m": 0.0,
+      "upper_m": 0.044,
+      "source_q_m": -5.9604943203339644e-09
+    }
+  },
+  "geometry": {
+    "c002": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_body_link0",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_body_link0/collisions/openarm_body_link0_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.0009748251460820486,
+      "geometry_sha256": "0761e867175ed3746a3ff13a7b1311cafdd7f07efb0e1a4328e59219cd5873fe",
+      "vertex_count": 767,
+      "face_count": 1530
+    },
+    "c003": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_left_link0",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_left_link0/collisions/openarm_left_link0_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.00027941800316810795,
+      "geometry_sha256": "b87c49f5a9e033e47add0e5ed1d472a087581e55f54ecded2a1918e492edddec",
+      "vertex_count": 227,
+      "face_count": 450
+    },
+    "c012": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link0",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link0/collisions/openarm_right_link0_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.00027941800316810795,
+      "geometry_sha256": "f04fd7b680cdb5753d0fe9d9e087fc7511e54e0df359d756e1146540b2684dac",
+      "vertex_count": 227,
+      "face_count": 450
+    },
+    "c013": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link1",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link1/collisions/openarm_right_link1_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.00031449077892699935,
+      "geometry_sha256": "7fbbbe0179afc828410c55c1f58fb2ed7eff8f2f83eebcf60c24eb606ce0c969",
+      "vertex_count": 106,
+      "face_count": 208
+    },
+    "c014": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link2",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link2/collisions/openarm_right_link2_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.00029312211560983533,
+      "geometry_sha256": "bda64e9d285131a6e82b06795a20c775373b07b8b1713dca8de0d6676eadcd1e",
+      "vertex_count": 124,
+      "face_count": 244
+    },
+    "c015": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link3",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link3/collisions/openarm_right_link3_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.00038519682153849785,
+      "geometry_sha256": "734c3b42b5dcdd826b27068f35f1b164f33760cb73d1fb0b85917f5fa63864f1",
+      "vertex_count": 285,
+      "face_count": 566
+    },
+    "c016": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link4",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link4/collisions/openarm_right_link4_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.0003188388789811521,
+      "geometry_sha256": "7a0f60d68258b16f8f8089f59c11220d1ad25ec3a9693dd9e4d39aa2c3f5edf8",
+      "vertex_count": 1629,
+      "face_count": 3254
+    },
+    "c017": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link5",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link5/collisions/openarm_right_link5_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.00033534455020037393,
+      "geometry_sha256": "a780a75e2b33e98c0bb4242940e1e6ef5de7fdced79341daeb9044f57754ecfe",
+      "vertex_count": 971,
+      "face_count": 1938
+    },
+    "c018": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link6",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link6/collisions/openarm_right_link6_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.0002758252231117264,
+      "geometry_sha256": "dee09c663e1aeb136884026c4a920a4c1fb41c2b1f80c61d67e76dc2acee9431",
+      "vertex_count": 180,
+      "face_count": 356
+    },
+    "c019": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_link7",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_link7/collisions/openarm_right_link7_collision/node_STL_BINARY_/mesh",
+      "kind": "bounded_static_body",
+      "padding_m": 0.0002987048929465575,
+      "geometry_sha256": "52a3b0fc0bcf1b7cd5a1c16b89d622c9d83d49840a5a45e96b198a085859de69",
+      "vertex_count": 267,
+      "face_count": 530
+    },
+    "c020": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_right_finger",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_right_finger/collisions/openarm_right_right_finger_collision/node_STL_BINARY_/mesh",
+      "kind": "finger_sweep",
+      "padding_m": 0.000668268280099915,
+      "geometry_sha256": "67168d493ffa22fed8bf8471e80bb93f2fe7b42fab4c3be5561d4894ddb8c32c",
+      "vertex_count": 117,
+      "face_count": 230
+    },
+    "c021": {
+      "body": "/World/StethoArmMount/OpenArmStetho/openarm_right_left_finger",
+      "source_path": "/World/StethoArmMount/OpenArmStetho/openarm_right_left_finger/collisions/openarm_right_left_finger_collision/node_STL_BINARY_/mesh",
+      "kind": "finger_sweep",
+      "padding_m": 0.000668268280099915,
+      "geometry_sha256": "effe9ab8f57d3e75c7b58d492688a791918fbe480344ba8541721bbb8e00505a",
+      "vertex_count": 119,
+      "face_count": 234
+    }
+  },
+  "translation_tolerance_m": 0.0002,
+  "rotation_tolerance_rad": 0.001,
+  "finger_joint_numerical_tolerance_m": 1e-07,
+  "proof": "Convex hull of each source collider translated across both finger range endpoints, plus an axis-aligned cube containing the full bounded displacement ball.",
+  "scope": "Engineering conservative model; actual poses checked every executed physics step; no 10mm static-pose tolerance."
+}
