@@ -149,6 +149,10 @@ class DiagnosticsTests(unittest.TestCase):
             self.assertTrue(all(r['actual_clipped_fraction'] == 0 for r in result['normalization_audit']['state']))
             self.assertEqual(len(result['normalization_audit']['action_physical']), 7)
             self.assertTrue((Path(td)/'metrics.csv').read_text().startswith('model,representation'))
+            with (Path(td)/'metrics.csv').open() as stream:
+                rows = list(csv.DictReader(stream))
+            keys = [tuple(row[k] for k in ('model', 'representation', 'phase', 'horizon')) for row in rows]
+            self.assertEqual(len(keys), len(set(keys)), 'Each CSV metric must have a unique aggregation key')
             self.assertIn('M0 尚未完成', (Path(td)/'REPORT.md').read_text())
             self.assertIn('Median of per-observation', (Path(td)/'fit_vs_baselines.svg').read_text())
             if 'native_0512' in result['metrics']:

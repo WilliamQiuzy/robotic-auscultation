@@ -373,7 +373,7 @@ def _write_exports(report, output):
             result = values[representation]
             groups = [('ALL', result)] + list(result['by_phase'].items())
             for phase, group in groups:
-                slices = [('full_chunk', group['full_chunk']), ('h0', group['h0'])]
+                slices = [('full_chunk', group['full_chunk'])]
                 slices += [(f"h{h['horizon_index']}", h) for h in group['per_horizon']]
                 for horizon, metrics in slices:
                     metric_rows.append(dict(model=model, representation=representation, phase=phase, horizon=horizon,
