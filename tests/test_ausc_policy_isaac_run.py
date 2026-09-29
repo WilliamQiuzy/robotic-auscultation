@@ -69,6 +69,23 @@ class IsaacOwnershipTests(unittest.TestCase):
         owner.write(p/'output/metrics.json',dict(metrics,velocity_estimator='adjacent'))
         with self.assertRaisesRegex(ValueError,'native quadratic5'):owner.validate_config(self.config)
 
+    def test_posture_preview_requires_source_bound_native_reproduction(self):
+        config=dict(posture_hint_preview=True,motion_velocity='quadratic5',motion_preview_probe_run=str(self.root/'posture'))
+        with self.assertRaises(FileNotFoundError):owner.validate_posture_preview(config)
+        p=self.root/'posture';(p/'output').mkdir(parents=True)
+        owner.write(p/'result.json',dict(completed=True,gpu_released=True))
+        metrics=dict(motion_preview_source_sha256=hashlib.sha256(Path('sim/ausc_policy/motion_preview.py').read_bytes()).hexdigest(),
+            original_failure_reproduced=True,active_state_unchanged=True,preview_vs_generation_max_abs_rad=0.,
+            limits=dict(dt=1/240,velocity=.175,acceleration=.5,jerk=7.99999),factors=[1.,.5,.25,.125,0.],ticks=12)
+        def save():
+            owner.write(p/'output/metrics.json',metrics)
+            owner.write(p/'output/COMPLETE.json',dict(preview_passed=True,
+                metrics_sha256=hashlib.sha256((p/'output/metrics.json').read_bytes()).hexdigest()))
+        save();owner.validate_posture_preview(config)
+        metrics['active_state_unchanged']=False;save()
+        with self.assertRaisesRegex(ValueError,'native posture'):owner.validate_posture_preview(config)
+        with self.assertRaises(ValueError):owner.validate_posture_preview(dict(posture_hint_preview='false'))
+
     def test_asset_scope_restores_globals_even_on_error(self):
         from sim.auscultation_expert_layout_v1 import scene
         original=scene.ROOT,scene.PROJECT

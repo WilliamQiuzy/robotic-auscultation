@@ -1,0 +1,15 @@
+{
+  "base": "/home/william/wam-vla-v2",
+  "device": "cpu",
+  "time_limit_seconds": 600,
+  "dependency_paths": [
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages"
+  ],
+  "dependency_files": {
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages/ruckig.cpython-311-x86_64-linux-gnu.so": "1e0907c0f7bef0fec41d9f8bdbb6e164ad99a91721d7bf377550ef9bf1c0d138"
+  },
+  "experiment": "motion_preview_probe",
+  "source_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-d0-r4-quadratic5-20260929",
+  "source_outcome_sha256": "b12e0b98c75e75f9fa8444c9e32b9069a066d1c7c3bd625df6f09d75db7e39fd",
+  "source_trace_sha256": "af1a6a7b2dbdf8187efd6a2f31965f76fa6fb534d286c85706dd860eb9e9a71e"
+}

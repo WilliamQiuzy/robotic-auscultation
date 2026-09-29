@@ -20,6 +20,27 @@ def write(path, value):
     Path(path).write_text(json.dumps(value, indent=2, allow_nan=False)+'\n')
 
 
+def validate_posture_preview(config):
+    enabled=config.get('posture_hint_preview',False)
+    if type(enabled) is not bool or (enabled and config.get('motion_velocity')!='quadratic5'):
+        raise ValueError('Invalid posture preview configuration')
+    if not enabled:
+        return
+    probe=Path(config['motion_preview_probe_run'])
+    owner=read(probe/'result.json');complete=read(probe/'output/COMPLETE.json')
+    data=(probe/'output/metrics.json').read_bytes();metrics=json.loads(data)
+    if (owner.get('completed') is not True or owner.get('gpu_released') is not True
+            or complete.get('preview_passed') is not True
+            or complete.get('metrics_sha256')!=hashlib.sha256(data).hexdigest()
+            or metrics.get('motion_preview_source_sha256')!=hashlib.sha256(Path(__file__).with_name('motion_preview.py').read_bytes()).hexdigest()
+            or metrics.get('original_failure_reproduced') is not True
+            or metrics.get('active_state_unchanged') is not True
+            or metrics['preview_vs_generation_max_abs_rad']>1e-12
+            or metrics['limits']!=dict(dt=1/240,velocity=.175,acceleration=.5,jerk=7.99999)
+            or metrics['factors']!=[1.,.5,.25,.125,0.] or metrics['ticks']!=12):
+        raise ValueError('Actual source-bound native posture preview proof is required')
+
+
 def validate_config(config):
     if (config['experiment'] != 'isaac_run' or config['mode'] != 'm0_direct'
             or config['point'] != 'R4' or config['checkpoint_step'] != 2000
@@ -27,6 +48,7 @@ def validate_config(config):
             or config['speed_scale'] != .7 or config['time_limit_seconds'] != 3600
             or config.get('motion_velocity','zero') not in {'zero','quadratic5'}):
         raise ValueError('Only the finite, unchanged-physics M0 R4 direct diagnostic is declared')
+    validate_posture_preview(config)
     if config.get('motion_velocity','zero') == 'quadratic5':
         probe = Path(config['motion_probe_run'])
         owner = read(probe/'result.json'); complete = read(probe/'output/COMPLETE.json')

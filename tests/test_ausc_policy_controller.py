@@ -174,6 +174,27 @@ class ControllerTests(unittest.TestCase):
         c._l2_action();self.assertEqual(len(client.calls),2)
         self.assertIsNotNone(c._velocity_hints)
 
+    def test_preview_retains_raw_reference_and_records_applied_velocity(self):
+        m,c,clock,sensor,client=self.make();self.enable_hints(c);c.posture_hint_preview=True
+        def choose(trajectory,position,velocity,inspect_command,**kwargs):
+            self.assertIs(trajectory,c.trajectory);self.assertEqual(len(clock.rows),0)
+            np.testing.assert_allclose(position,.01)
+            return velocity*.5,dict(selected_factor=.5,trials=[dict(factor=1.,clear=False),dict(factor=.5,clear=True)])
+        with patch('sim.ausc_policy.motion_preview.choose_velocity_hint',side_effect=choose):
+            c._l2_action()
+        self.assertEqual(c.l2_actions[0]['posture_hint_preview']['selected_factor'],.5)
+        np.testing.assert_allclose(c.l2_actions[0]['proposal'],.01)
+        np.testing.assert_allclose(c.trajectory.input.target_velocity,.01,atol=1e-12)
+        self.assertEqual(len(clock.rows),12)
+
+    def test_preview_rejection_keeps_receipt_and_never_issues_command(self):
+        m,c,clock,sensor,client=self.make();self.enable_hints(c);c.posture_hint_preview=True
+        error=ValueError('all preview candidates refused');error.receipt=dict(selected_factor=None,trials=[dict(factor=0.)])
+        with patch('sim.ausc_policy.motion_preview.choose_velocity_hint',side_effect=error):
+            with self.assertRaisesRegex(ValueError,'preview'):c._l2_action()
+        self.assertEqual(c.l2_actions[0]['posture_hint_preview'],error.receipt)
+        self.assertEqual(len(clock.rows),0);self.assertEqual(c.trajectory.targets,[])
+
     def test_phase_change_discards_unconsumed_prefix_and_requeries(self):
         m, c, clock, sensor, client = self.make()
         c._l2_action()

@@ -37,7 +37,7 @@ def _record_time(value):
 class M0DirectController(ObservedTeacher):
     """Single-point D0 only. Runtime construction and resource ownership are external."""
     def __init__(self, *args, client, task_id, episode_id,
-                 trajectory_factory=JointTrajectory, motion_velocity='zero', **kwargs):
+                 trajectory_factory=JointTrajectory, motion_velocity='zero', posture_hint_preview=False, **kwargs):
         if not callable(getattr(client, 'predict', None)):
             raise ValueError('An explicit ACTClient is required')
         for name, value in (('task_id', task_id), ('episode_id', episode_id)):
@@ -47,6 +47,9 @@ class M0DirectController(ObservedTeacher):
         if motion_velocity not in {'zero','quadratic5'}:
             raise ValueError('Unapproved reference velocity estimator')
         self.motion_velocity = motion_velocity
+        if type(posture_hint_preview) is not bool or (posture_hint_preview and motion_velocity != 'quadratic5'):
+            raise ValueError('Posture preview requires the declared quadratic5 estimator')
+        self.posture_hint_preview = posture_hint_preview
         self._velocity_hints = None
         self.trajectory_factory = trajectory_factory
         self.trajectory = None
@@ -207,6 +210,13 @@ class M0DirectController(ObservedTeacher):
                     check_current_state_within_limits=False,check_target_state_within_limits=True):
                 raise EpisodeRejected('Native Ruckig rejected reference velocity/state')
 
+    def _inspect_motion_preview(self, command):
+        # Match the exact URDF bounds in _block as well as the original posture
+        # envelope. This CPU lookahead never replaces actual per-tick checks.
+        if np.any(command < self.kin.lower_limits) or np.any(command > self.kin.upper_limits):
+            return dict(clear=False,reason='exact command URDF bounds')
+        return self.posture_limits.evaluate(self.kin,self.env.base,command,observed=False,contact=False)
+
     def _l2_action(self):
         record = None
         try:
@@ -233,6 +243,17 @@ class M0DirectController(ObservedTeacher):
                 if self._velocity_hints is None or self._velocity_hints.shape != (5,7):
                     raise EpisodeRejected('Missing query-bound velocity hints')
                 velocity = self._velocity_hints[proposal.index]
+                record['estimated_target_velocity_rad_s'] = velocity.tolist()
+                if self.posture_hint_preview:
+                    from .motion_preview import choose_velocity_hint
+                    try:
+                        velocity,preview = choose_velocity_hint(self.trajectory,proposal.proposal,velocity,
+                            self._inspect_motion_preview,trajectory_factory=self.trajectory_factory)
+                        record['posture_hint_preview'] = preview
+                    except Exception as error:
+                        if hasattr(error,'receipt'):
+                            record['posture_hint_preview'] = error.receipt
+                        raise
                 record['target_velocity_rad_s'] = velocity.tolist()
             else:
                 velocity = None
@@ -422,6 +443,7 @@ class M0DirectController(ObservedTeacher):
             learned_interval_timeout_s=L2_TIMEOUT_S, action='absolute H10/E5 50ms ACT targets; service decodes anchor once',
             motion_execution='same continuous Ruckig for L2 and real stop; unchanged NormalExecutor for L3',
             motion_velocity=self.motion_velocity,
+            posture_hint_preview=self.posture_hint_preview,
             reference_tracking_scope='50ms reference updates; label time is not a guarantee of exact waypoint arrival',
             expert_l2_fallbacks=0, alignment_used=False, simulation_paused_for_inference=True,
             realtime_claim=False, preparation_home='initial preparation and final canonical home are outside learned L2')
