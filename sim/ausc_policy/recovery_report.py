@@ -35,7 +35,7 @@ def load(root,run_id):
     summaries=[];traces=[]
     for entry in complete['cases']:
         name=entry['case_id'];prefix='output/'+name+'/'
-        if name not in ('nominal','joint3-plus','joint3-minus','act609'): raise ValueError('Unexpected case')
+        if name not in ('nominal','joint3-plus','joint3-minus','act609','history20'): raise ValueError('Unexpected case')
         outcome=read(prefix+'outcome.json');result=read(prefix+'result.json')
         if (not result['execution_completed'] or not outcome['expert_demonstration']
                 or outcome['learned_policy'] or outcome['training_dataset_eligible']):
@@ -56,6 +56,14 @@ def load(root,run_id):
                 position_difference_velocity_peak_rad_s=float(abs(np.diff(q,axis=0)/np.diff(clock)[:,None]).max()),
                 position_range_rad=float(np.ptp(q,axis=0).max()))
         dynamics=read(prefix+'measured_dynamics.json')
+        components=('diaphragm_N','lip_N','contact_rim_N','carriage_other_N','frame_N','forbidden_N')
+        hold=[r for r in rows if r['phase']=='HOLD']
+        role_timeline=[]
+        for i,r in enumerate(rows):
+            role=r.get('oracle_role','UNRECORDED')
+            if not role_timeline or role_timeline[-1]['role']!=role:
+                role_timeline.append(dict(role=role,first_physics_row=i,start_time_s=r['time_s']))
+            role_timeline[-1].update(last_physics_row=i,end_time_s=r['time_s'])
         summaries.append(dict(run_id=run_id,code_commit=owner['code_commit'],case_id=name,
             case_passed=result['case_passed'],physics_steps=len(rows),simulation_end_s=float(times[-1]),
             sensor_frames=outcome['sensor_frames'],query=oracle,held_state_statistics=statistics,
@@ -65,6 +73,10 @@ def load(root,run_id):
             centered_jerk_rad_s3=dynamics['centered']['jerk_rad_s3']['max'],
             observed_supervisor_replay_passed=result['observed_supervisor_replay_passed'],
             moving_recovery=outcome.get('moving_recovery'),
+            role_timeline=role_timeline,
+            physical_contact_component_peak_N={k:max(r[k] for r in rows) for k in components},
+            hold_component_mean_N={k:float(np.mean([r[k] for r in hold])) if hold else None for k in components},
+            best_physical_audit_hold_s=max(r['audit_hold_s'] for r in rows),
             physical_audit_accepted=result['physics_audit_accepted'],failure_reason=outcome.get('failure_reason'),
             m0_passed=False,learned_policy=False,training_dataset_eligible=False,
             trace_sha256=sha(bound(prefix+'expert_trace.jsonl')),

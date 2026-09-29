@@ -52,7 +52,7 @@ Linux 已有资产与结果保留，资产定位/哈希从历史 manifest 读取
 入口不合格时在构造曲线及接触运动前拒绝；没有局部对齐或专家动作替代。
 
 - `completed`：进程、日志、退出和资源清理完成。
-- `closed_loop_evaluated`：实际发起了策略闭环。
+- `closed_loop_evaluated`：至少一条模型查询实际被接受；实际完成动作数另列，不能用查询数代替成功。
 - `case_passed`：该名义单点的真实动作及独立审计通过。
 - `m0_passed`：此单点入口始终为 false；里程碑不能凭单个作业完成判定。
 
@@ -123,3 +123,9 @@ reported API dq with a strictly causal 50 ms measured-position derivative on
 the same original TRAIN windows. Missing history is excluded, never zero-filled;
 ACT has no velocity/history input, so these are diagnostic references rather
 than an equal-input policy ranking. See `reports/ausc_policy/m0_velocity_definition.md`.
+
+## 历史输入对照与恢复修复
+
+配对A/B使用相同ACT初始化、原TRAIN16和2000步预算；19维当前状态另加28维过去实测关节差（总47维）。固定权重全8685窗口上B整块中位误差更低，但两个实际R4均未完成接触，M0未通过。全部487次已接受查询已从实际观测重建并逐条原生CPU重推理，差0。详见 `reports/ausc_policy/m0_history_closed_loop.md`。
+
+从B动作20真实状态的恢复，先通过制动与停车，再发现全局空间样条偏离已检查路径。`edge_timing.py`仅以逐段五次时间律走原关节线段，保留全部原检查；`oracle_timing_probe.py`用同一规划路径对照。`m0_history_moving_recovery_edges.json`明确绑定该对照和原停车状态，拒绝把不同起点当成修复成功。它是专家测试，所有新采集数据的训练资格仍为false；没有新学生成功、膜片加载或泛化结论。

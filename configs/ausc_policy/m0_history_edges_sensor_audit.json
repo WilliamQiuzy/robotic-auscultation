@@ -1,0 +1,12 @@
+{
+  "experiment": "recovery_sensor_audit",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 2100,
+  "cases": [
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free20-recovery-edges-20260929/output/history20",
+      "owner_sha256": "554a405d0c0c2ac83e5a479c85fbab9725a6f5550864f8ceb1c08c3a4f0364ca",
+      "case_sha256": "4181011c55407a446055894eefac62998f5579dc347c39d8386566a9af6f62b8"
+    }
+  ]
+}
