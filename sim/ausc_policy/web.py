@@ -16,7 +16,7 @@ SOURCES = {
     '/evidence/molmo-interface': 'results/diagnostics/molmoact2_wam_one_update_gpu_evidence_v1/REPORT.md',
     '/evidence/molmo-native-fit': 'results/ausc_policy/m0_diagnostics/REPORT.md',
     '/media/pi05-r4-failure.mp4': 'results/diagnostics/pi05_v11_R4_terminal_evidence_v1/verified_files/diagnostics/pi05_v11/cases_v1/R4_selected3500_v11_002_lifecycle/review.mp4',
-    '/media/m0-fit.svg': 'results/ausc_policy/m0_diagnostics/fit_comparison.svg',
+    '/media/m0-fit.svg': 'results/ausc_policy/m0_diagnostics/fit_vs_baselines.svg',
 }
 for name in ('index.html', 'styles.css', 'app.js', 'entries.json'):
     SOURCES['/' + name] = 'docs/experiment_blog/' + name

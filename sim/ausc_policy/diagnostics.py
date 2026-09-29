@@ -86,6 +86,8 @@ def chunk_metrics(prediction, reference, measured_q, phases, period_s):
     step_ref = np.diff(np.concatenate([q[:, None], reference], axis=1), axis=1)
     return dict(absolute=absolute, delta_from_observation=absolute,
                 step_delta=_error_groups(step_pred-step_ref, phases, period_s),
+                true_delta_from_observation=_error_groups(reference-q[:, None], phases, period_s),
+                predicted_delta_from_observation=_error_groups(prediction-q[:, None], phases, period_s),
                 delta_definition='prediction[h]-q_observed versus reference[h]-q_observed; errors equal absolute errors',
                 step_delta_definition='h0 relative to observed q; later horizons relative to preceding predicted/reference command')
 
@@ -200,7 +202,8 @@ def _load_adapter(path):
 def _pipeline_audit(data, adapter, config, packing, processor_path):
     cfg = config['config']
     need(cfg['normalization_mapping'] == {k:'IDENTITY' for k in ('ACTION','STATE','VISUAL')}, 'Unsupported actual normalization mapping')
-    need(cfg['num_state_tokens'] == 256 and cfg['action_mode'] == 'continuous', 'Actual native token/action mode differs')
+    need(cfg['num_state_tokens'] == 256 and cfg['action_mode'] == 'continuous'
+         and cfg['num_inference_steps'] == 10 and cfg['chunk_size'] == 10, 'Actual native token/action/inference mode differs')
     need(config['normalization'] == data.preparation['normalization'], 'Loaded normalization differs from prepared cache')
     freeze = json.loads((Path(adapter.__file__).parent/'SOURCE_FREEZE.json').read_text())
     expected = freeze['public_lerobot']['src/lerobot/policies/molmoact2/processor_molmoact2.py']
@@ -226,15 +229,25 @@ def _pipeline_audit(data, adapter, config, packing, processor_path):
     state_rows = dimension_audit(data.arrays['state'], encoded, clamp_applied=True)
     for row in state_rows:
         row['bucket_histogram_is_actual'] = True
+        j = row['dimension']
+        row.update(loaded_normalization_low=float(data.codec.low[j]), loaded_normalization_high=float(data.codec.high[j]),
+                   loaded_asinh_scale=float(data.codec.scale[j]), loaded_asinh_applied=bool(data.codec.nonlinear[j]))
     residual = np.stack([data.action_codec.denormalize_chunk(data.arrays['normalized_reference'][i],
         row['phase'], row['target'], data.stats) for i,row in enumerate(data.rows)])
     action_rows = dimension_audit(residual.reshape(-1, 7), data.arrays['normalized_reference'].reshape(-1, 7), clamp_applied=False)
+    physical_rows = dimension_audit(data.arrays['reference'].reshape(-1, 7),
+        data.arrays['normalized_reference'].reshape(-1, 7), clamp_applied=False)
     action_by_phase_horizon = []
     phases = np.asarray([r['phase'] for r in data.rows])
     for phase in sorted(set(phases)):
         for h in range(10):
             for row in dimension_audit(residual[phases == phase, h], data.arrays['normalized_reference'][phases == phase, h], clamp_applied=False):
                 row.update(phase=str(phase), horizon_index=h)
+                j = row['dimension']
+                own = data.stats['actions_by_phase'][phase]
+                for key in ('low','high','quantile_low','quantile_high'):
+                    values = np.asarray(own[key])
+                    row['loaded_'+key] = float(values[h,j] if values.ndim == 2 else values[j])
                 action_by_phase_horizon.append(row)
     return dict(actual_pipeline='frozen physical/asinh StateCodec -> native packer with IDENTITY; V11 bounded latent residual action codec -> unchanged continuous labels',
         generic_normalizer_and_clamp_bypassed=True,
@@ -245,26 +258,76 @@ def _pipeline_audit(data, adapter, config, packing, processor_path):
         action_bound_mapping='V11 softplus interval map; smooth saturation is not hard clipping',
         actual_training_normalization_source='configuration.json normalization, exact equality with preparation.json checked',
         counterfactual_note='子集 q01/q99 仅作反事实量程审计；动作桶占用是假设离散化，不是连续动作训练所用token。',
-        state=state_rows, action_latent=action_rows, action_latent_by_phase_horizon=action_by_phase_horizon)
+        state=state_rows, action_physical=physical_rows, action_latent=action_rows, action_latent_by_phase_horizon=action_by_phase_horizon)
 
 
 def _report_zh(report):
     lines = ['# M0 离线诊断', '', '范围：已绑定 TRAIN32 训练子集；不代表闭环、泛化或临床有效性。', '',
-             '| 方法 | 整块 MAE (rad) | 整块逐样本 MAE 中位数 (rad) | 首步 MAE (rad) |',
-             '|---|---:|---:|---:|']
+             '| 方法 | 整块 MAE (rad) | 元素绝对误差中位数 (rad) | 逐样本整块 MAE 中位数 (rad) | 首步 MAE (rad) |',
+             '|---|---:|---:|---:|---:|']
     for name, result in report['metrics'].items():
         full, h0 = result['absolute']['full_chunk'], result['absolute']['h0']
-        lines.append(f"| {name} | {full['mae_rad']:.8g} | {full['median_sample_mae_rad']:.8g} | {h0['mae_rad']:.8g} |")
-    lines += ['', '绝对动作与相对观测 q 的 delta 误差数学上相同；另外导出逐步指令增量误差。分阶段、每个视界与每关节指标见 JSON/CSV。',
+        lines.append(f"| {name} | {full['mae_rad']:.8g} | {full['median_absolute_rad']:.8g} | {full['median_sample_mae_rad']:.8g} | {h0['mae_rad']:.8g} |")
+    lines += ['', '![整块拟合与基线曲线](fit_vs_baselines.svg)',
+        '', '绝对动作与相对观测 q 的 delta 误差数学上相同；另外导出逐步指令增量误差、真实和预测运动幅度。分阶段、每个视界与每关节指标见 JSON/CSV。',
         '', '时间对齐：已核对缓存保存的原始 label index、相邻帧与 12 个物理步映射。第 0 项是 +50 ms 指令，最后一项是 +500 ms；缓存 times 是观测帧时间。历史 qualification 证据保留，本轮未独立重读原始 trace。',
         '', '实际归一化：冻结 physical/asinh StateCodec + native 256 桶；native adapter 配置为 IDENTITY，绕过 generic normalizer/clamp。状态 token 函数含 clamp，实际改变比例由表中数值报告。动作使用 V11 分阶段有界 latent 编码，连续标签未硬裁剪。子集分位数裁剪比例属于反事实。']
+    audit = report['normalization_audit']
+    lines.append('\n本批状态实际被 clamp 改变的比例：' + f"{np.mean([r['actual_clipped_fraction'] for r in audit['state']]):.3%}" +
+                 '。近常数状态维（0-based）：' + str([r['dimension'] for r in audit['state'] if r['near_constant']]) + '。')
     comparisons = report['baseline_comparisons']
-    for name, values in comparisons.items():
-        lines.append(f"\n{name}：整块逐样本 MAE 中位数 / hold = {values['median_ratio_to_hold']:.5g}，/ 匀速 = {values['median_ratio_to_constant_velocity']:.5g}。这只是点估计，未定义“明显优于”的统计门。")
+    if comparisons:
+        name = next(reversed(comparisons))
+        values = comparisons[name]
+        lines.append(f"\n{name}：整块逐样本 MAE 中位数 / hold = {values['median_ratio_to_hold']:.5g}，/ 匀速 = {values['median_ratio_to_constant_velocity']:.5g}。元素绝对误差中位数 / hold = {values['element_median_ratio_to_hold']:.5g}，/ 匀速 = {values['element_median_ratio_to_constant_velocity']:.5g}。比值小于 1 表示点估计较低；未定义“明显优于”的统计门。")
+        lines.append('FREE 阶段整块逐样本 MAE 中位数 (rad)：' + '，'.join(f"{key} = {report['metrics'][key]['absolute']['by_phase']['FREE']['full_chunk']['median_sample_mae_rad']:.8g}" for key in ('hold','constant_velocity',name))+'。')
     lines += ['', '20 观测 × 16 种子：' + ('已读取真实预测并导出首步逐关节标准差/真实运动比。' if report['seed_variability']['status'] == 'available' else '尚无输入预测，不填造结果。'),
         '', '**M0 尚未完成。** 交接区尚未测量，不能以关节误差伪造 TCP 位置容差通过；状态输入 ACT/DP 的训练场景闭环复现仍是 M0 退出条件。',
         '', '复现信息：配置、当前诊断代码、输入 shard 与实际依赖源码哈希见 JSON；没有全量逐文件审计。']
     return '\n'.join(lines)+'\n'
+
+
+def _write_curve(report, output):
+    """Dependency-free SVG: the two median/mean estimands are kept separate."""
+    native = [(own['update'], name) for name,own in report['native_predictions'].items()]
+    native.sort()
+    svg = ['<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="430" viewBox="0 0 1000 430">',
+           '<rect width="1000" height="430" fill="#fbfcfe"/>',
+           '<g font-family="Arial,sans-serif" fill="#172c45">',
+           '<text x="38" y="30" font-size="18" font-weight="bold">TRAIN32 full-chunk error vs. baselines</text>',
+           '<text x="38" y="51" font-size="12">Physical joint radians; 10 horizons, +50 to +500 ms. Log y axis. Lower is better.</text>']
+    max_update = max(u for u,_ in native) or 1
+    colors = {'native':'#1166b2', 'hold':'#8c4a13', 'constant_velocity':'#188474'}
+    for panel,(metric,title) in enumerate([('mae_rad','Mean absolute error'), ('median_sample_mae_rad','Median of per-observation chunk MAE')]):
+        left, top, width, height = 75+panel*490, 103, 395, 237
+        getter = lambda name: report['metrics'][name]['absolute']['full_chunk'][metric]
+        values = [getter(name) for _,name in native] + [getter(k) for k in ('hold','constant_velocity')]
+        low = np.floor(np.log10(min(values)))-.15
+        high = np.ceil(np.log10(max(values)))+.15
+        x = lambda update: left+width*update/max_update
+        y = lambda value: top+height*(high-np.log10(value))/(high-low)
+        svg.append(f'<text x="{left}" y="84" font-size="14" font-weight="bold">{title}</text>')
+        for exponent in range(int(np.ceil(low)), int(np.floor(high))+1):
+            yy = y(10.**exponent)
+            svg += [f'<line x1="{left}" y1="{yy}" x2="{left+width}" y2="{yy}" stroke="#dae1e9"/>',
+                    f'<text x="{left-9}" y="{yy+4}" text-anchor="end" font-size="11">1e{exponent}</text>']
+        svg.append(f'<path d="M {left} {top} V {top+height} H {left+width}" fill="none" stroke="#8696a8"/>')
+        for update,_ in native:
+            svg.append(f'<text x="{x(update)}" y="{top+height+18}" text-anchor="middle" font-size="11">{update}</text>')
+        svg.append(f'<text x="{left+width/2}" y="{top+height+37}" text-anchor="middle" font-size="11">Training update</text>')
+        for baseline in ('hold','constant_velocity'):
+            yy = y(getter(baseline))
+            svg.append(f'<line x1="{left}" y1="{yy}" x2="{left+width}" y2="{yy}" stroke="{colors[baseline]}" stroke-width="2" stroke-dasharray="6 4"/>')
+        points = ' '.join(f'{x(update)},{y(getter(name))}' for update,name in native)
+        svg.append(f'<polyline points="{points}" fill="none" stroke="{colors["native"]}" stroke-width="3"/>')
+        for update,name in native:
+            svg.append(f'<circle cx="{x(update)}" cy="{y(getter(name))}" r="4" fill="{colors["native"]}"/>')
+    for i,(key,label) in enumerate([('native','Native MolmoAct2'),('hold','Hold'),('constant_velocity','q + dq * (h+1) * 0.05')]):
+        left = 100+i*295
+        svg += [f'<line x1="{left}" y1="409" x2="{left+25}" y2="409" stroke="{colors[key]}" stroke-width="3"/>',
+                f'<text x="{left+33}" y="413" font-size="12">{label}</text>']
+    svg.append('</g></svg>')
+    (output/'fit_vs_baselines.svg').write_text('\n'.join(svg)+'\n')
 
 
 def _write_exports(report, output):
@@ -272,7 +335,7 @@ def _write_exports(report, output):
     (output/'diagnostics.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False)+'\n')
     metric_rows = []
     for model, values in report['metrics'].items():
-        for representation in ('absolute','delta_from_observation','step_delta'):
+        for representation in ('absolute','delta_from_observation','step_delta','true_delta_from_observation','predicted_delta_from_observation'):
             result = values[representation]
             groups = [('ALL', result)] + list(result['by_phase'].items())
             for phase, group in groups:
@@ -281,17 +344,20 @@ def _write_exports(report, output):
                 for horizon, metrics in slices:
                     metric_rows.append(dict(model=model, representation=representation, phase=phase, horizon=horizon,
                         mae_rad=metrics['mae_rad'], rmse_rad=metrics['rmse_rad'], median_absolute_rad=metrics['median_absolute_rad'],
-                        median_sample_mae_rad=metrics['median_sample_mae_rad']))
+                        median_sample_mae_rad=metrics['median_sample_mae_rad'],
+                        **{f'joint_{j}_mae_rad':value for j,value in enumerate(metrics['per_joint_mae_rad'])}))
     with (output/'metrics.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(metric_rows[0])); writer.writeheader(); writer.writerows(metric_rows)
     audit_rows = []
-    for group in ('state','action_latent','action_latent_by_phase_horizon'):
+    for group in ('state','action_physical','action_latent','action_latent_by_phase_horizon'):
         for row in report['normalization_audit'][group]:
             audit_rows.append(dict(group=group, phase=row.get('phase','ALL'), horizon_index=row.get('horizon_index','ALL'),
                                   **{k:json.dumps(v) if isinstance(v,list) else v for k,v in row.items() if k not in ('phase','horizon_index')}))
     with (output/'normalization.csv').open('w', newline='') as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(audit_rows[0])); writer.writeheader(); writer.writerows(audit_rows)
-    (output/'REPORT_zh.md').write_text(_report_zh(report))
+        writer = csv.DictWriter(stream, fieldnames=list(dict.fromkeys(k for row in audit_rows for k in row)))
+        writer.writeheader(); writer.writerows(audit_rows)
+    (output/'REPORT.md').write_text(_report_zh(report))
+    _write_curve(report, output)
 
 
 def run(config_path, *, root=None, output=None):
@@ -326,6 +392,7 @@ def run(config_path, *, root=None, output=None):
             missing.append(update)
             continue
         predicted, metadata = load_predictions(path, arrays)
+        need(metadata['update'] == update, 'Evaluation metadata update differs from requested checkpoint')
         actual_config_path, packing_path = path.parent/'configuration.json', path.parent/'packing.json'
         actual_config = json.loads(actual_config_path.read_text())
         need(metadata['prediction_seed_per_example'] == actual_config['seeds']['prediction_per_example'], 'Prediction seed differs from run configuration')
@@ -348,6 +415,8 @@ def run(config_path, *, root=None, output=None):
         median = metrics[name]['absolute']['full_chunk']['median_sample_mae_rad']
         comparisons[name] = {f'median_ratio_to_{base}':median/metrics[base]['absolute']['full_chunk']['median_sample_mae_rad']
                              for base in ('hold','constant_velocity')}
+        comparisons[name].update({f'element_median_ratio_to_{base}':metrics[name]['absolute']['full_chunk']['median_absolute_rad']/metrics[base]['absolute']['full_chunk']['median_absolute_rad']
+                                  for base in ('hold','constant_velocity')})
     variability = dict(status='missing', required_shape=[20,16,10,7], reason='No multi-seed GPU prediction shard configured')
     if config.get('seed_predictions'):
         path = resolve(config['seed_predictions'])

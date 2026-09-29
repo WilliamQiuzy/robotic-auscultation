@@ -1,0 +1,16 @@
+{
+  "period_s": 0.05,
+  "prepared_directory": "results/diagnostics/pi05_v12_train_fit_cpu_evidence_v1/pi05_v12_train_fit_prepared_v1",
+  "adapter_source": "results/diagnostics/molmoact2_wam_probe_candidate_v1/adapter.py",
+  "frozen_runtime": "results/pi05_v11_delivery/runtime_v4/frozen_runtime401",
+  "processor_source": "results/diagnostics/molmoact2_feasibility_v1/lerobot/src/lerobot/policies/molmoact2/processor_molmoact2.py",
+  "preparation_source": "results/diagnostics/pi05_v12_train_fit_candidate_v2/prepare_cpu.py",
+  "label_exporter_source": "results/pi05_v11_delivery/runtime_v4/frozen_runtime401/sim/auscultation_pi05_v6/export_joint_dataset.py",
+  "prediction_directories": [
+    "results/diagnostics/molmoact2_train32_terminal_evidence_v1/molmoact2_train32_actual_v1",
+    "results/diagnostics/molmoact2_train32_interim0256_evidence_v1"
+  ],
+  "prediction_updates": [0, 128, 256, 512],
+  "seed_predictions": null,
+  "output_directory": "results/ausc_policy/m0_diagnostics"
+}
