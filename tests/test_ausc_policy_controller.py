@@ -126,6 +126,54 @@ class ControllerTests(unittest.TestCase):
         np.testing.assert_allclose([x['label_time_s'] for x in c.l2_actions], np.arange(1,6)*.05+1.)
         self.assertTrue(all(frame['eligible'] is False for frame in sensor.rows))
 
+    def enable_hints(self, controller):
+        controller.motion_velocity = 'quadratic5'
+        controller.trajectory.input = SimpleNamespace(target_velocity=[0.]*7, target_acceleration=[0.]*7)
+        controller.trajectory.generator = SimpleNamespace(validate_input=lambda *a, **kw: True)
+
+    def test_hints_leave_positions_and_label_clock_unchanged(self):
+        m,c,clock,sensor,client = self.make(); self.enable_hints(c)
+        for _ in range(5): c._l2_action()
+        np.testing.assert_allclose(np.asarray(c.trajectory.targets)[:,0],[.01,.011,.012,.013,.014])
+        np.testing.assert_allclose(c.trajectory.input.target_velocity,.02,atol=1e-12)
+        self.assertEqual(len(clock.rows),60)
+        self.assertEqual(c.l2_queries[0]['motion_velocity'],'quadratic5')
+        self.assertEqual(len(c.l2_actions[0]['target_velocity_rad_s']),7)
+
+    def test_hinted_handoff_explicitly_zeroes_terminal_velocity(self):
+        m,c,clock,sensor,client = self.make(); self.enable_hints(c)
+        c.trajectory.input.target_velocity=[.1]*7
+        c.actor_phase='APPROACH';sensor.distance=.02;c._capture_l2_frame()
+        before=c.q.copy();self.assertTrue(c._stop_for_handoff())
+        np.testing.assert_array_equal(c.trajectory.input.target_velocity,np.zeros(7))
+        np.testing.assert_array_equal(c.q,before)
+        self.assertGreaterEqual(len(clock.rows),3)
+
+    def test_invalid_velocity_hint_rejects_before_any_physics_and_does_not_clip(self):
+        m,c,clock,sensor,client=self.make(); self.enable_hints(c)
+        raw=np.repeat((np.arange(10)*.02)[...,None],7,axis=1)
+        client.predict=lambda *a,**kw:dict(raw=raw.tolist())
+        with self.assertRaisesRegex(ValueError,'velocity'):
+            c._l2_action()
+        self.assertEqual(len(clock.rows),0);self.assertEqual(c.prefix.remaining,0)
+        np.testing.assert_array_equal(c.l2_queries[0]['raw_absolute_chunk'],raw)
+
+    def test_native_hint_validation_failure_keeps_physics_unadvanced(self):
+        m,c,clock,sensor,client=self.make();self.enable_hints(c)
+        c.trajectory.generator.validate_input=lambda *a,**kw:False
+        with self.assertRaisesRegex(m.EpisodeRejected,'Ruckig'):
+            c._l2_action()
+        self.assertEqual(len(clock.rows),0)
+
+    def test_hint_context_flush_and_requery_never_reuse_the_old_block(self):
+        m,c,clock,sensor,client=self.make();self.enable_hints(c)
+        c._l2_action();sensor.revision=1
+        sensor.capture(c.env.state(),'FREE','R4',len(clock.rows)-1,eligible=False,subphase='new_revision')
+        c._context()
+        self.assertIsNone(c._velocity_hints)
+        c._l2_action();self.assertEqual(len(client.calls),2)
+        self.assertIsNotNone(c._velocity_hints)
+
     def test_phase_change_discards_unconsumed_prefix_and_requeries(self):
         m, c, clock, sensor, client = self.make()
         c._l2_action()

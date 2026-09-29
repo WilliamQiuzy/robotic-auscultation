@@ -1,0 +1,17 @@
+{
+  "experiment": "executor_probe",
+  "mode": "teacher_replay",
+  "device": "cpu",
+  "time_limit_seconds": 600,
+  "episode_id": "R4_observed_armature02_v1",
+  "prepared_manifest": "/home/william/wam-vla-v2/runs/ausc_policy/m0-act-prepare-20260929/output/prepared.json",
+  "prepared_manifest_sha256": "f4d72efa2a1aec07c47e5f8c068f4406201204946fe109f7aea926f9836d889b",
+  "dependency_paths": [
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages"
+  ],
+  "dependency_files": {
+    "/home/william/wam-vla-v2/cloud-deps/ruckig-0.12.2-cp311-20260927/site-packages/ruckig.cpython-311-x86_64-linux-gnu.so": "1e0907c0f7bef0fec41d9f8bdbb6e164ad99a91721d7bf377550ef9bf1c0d138"
+  },
+  "base": "/home/william/wam-vla-v2",
+  "velocity_estimator": "quadratic5"
+}

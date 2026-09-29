@@ -18,12 +18,14 @@ import numpy as np
 
 from . import act_baseline as a
 from .prefix import ActionPrefix, PrefixContext, HORIZON, EXECUTION_PREFIX, PERIOD_S
+from .motion_hints import velocity_hints
 from sim.auscultation_pi05_v6.execution import JointTrajectory
 
 EPISODE = 'R4_observed_armature02_v1'
 LIMITS = dict(dt=1/240, velocity=.175, acceleration=.5, jerk=7.99999)
 TICKS = 12
 MODES = ('zero_terminal_velocity', 'adjacent_target_velocity')
+FF_MODES = dict(adjacent=MODES[1],quadratic5='quadratic5_target_velocity')
 FLAGS = dict(m0_passed=False, closed_loop_evaluated=False, physics_executed=False,
              expert_demonstration=False, training_dataset_eligible=False,
              training_accepted=False, contact_evaluated=False, model_loaded=False)
@@ -133,38 +135,43 @@ def derive_velocity(chunk):
     not a measured derivative, nor an exact teacher derivative. Terminal a=0
     stays unchanged. No difference ever crosses a chunk/phase/L2 boundary.
     """
-    chunk = np.asarray(chunk, float)
-    a.need(chunk.shape == (HORIZON,7) and np.isfinite(chunk).all(), 'Full finite H10 required for velocity derivation')
-    velocity = np.diff(chunk[:EXECUTION_PREFIX+1], axis=0)/PERIOD_S
-    peak = float(np.max(np.abs(velocity)))
-    a.need(np.isfinite(velocity).all() and peak <= LIMITS['velocity'],
-           f'Derived terminal velocity max {peak:.9g} exceeds 0.175 rad/s; refused without clipping')
-    return velocity
+    return velocity_hints(chunk,method='adjacent')['velocity']
 
 
 def _pack(rows):
     widths = dict(teacher_target_q=7, command_q=7, teacher_measured_q_at_label=7,
-                  target_velocity=7, command_velocity=7, command_acceleration=7)
-    names = ('segment_id','source_index','origin_index','prefix_index','label_time_s','elapsed_s',*widths)
-    return {name:np.asarray([r[name] for r in rows], dtype=np.int64 if name.endswith('_id') or name.endswith('_index') else float)
+                  target_velocity=7, command_velocity=7, command_acceleration=7,raw_secant=7)
+    names = ('segment_id','source_index','origin_index','prefix_index','label_time_s','elapsed_s',
+             'raw_secant_exceeds_limit',*widths)
+    return {name:np.asarray([r[name] for r in rows], dtype=bool if name=='raw_secant_exceeds_limit' else
+                           np.int64 if name.endswith('_id') or name.endswith('_index') else float)
             .reshape((-1,widths[name]) if name in widths else (-1,)) for name in names}
 
 
-def replay(arrays, segments, mode, *, trajectory_factory=JointTrajectory, deadline=None):
+def replay(arrays, segments, mode, *, trajectory_factory=JointTrajectory, deadline=None,velocity_estimator='adjacent'):
     """No feedback substitution: pass_to_input preserves command q/v/a each tick."""
-    a.need(mode in MODES, 'Unknown executor comparison')
+    a.need(velocity_estimator in FF_MODES and mode in (MODES[0],FF_MODES[velocity_estimator]),
+           'Unknown executor comparison/estimator')
+    method = 'zero' if mode == MODES[0] else velocity_estimator
     rows = []; failure = None; tick_count = 0
+    hints = {}; hint_records = []
     peaks = dict(velocity_rad_s=0., acceleration_rad_s2=0., jerk_rad_s3=0.)
     sid = origin = index = None
     try:
         # Reject any infeasible FF before executing this branch, preserving a
         # transparent all-or-refused comparison against the zero-velocity run.
-        velocities = {}
-        if mode == MODES[1]:
-            for segment in segments:
-                sid = segment['segment_id']
-                for origin in segment['query_origins']:
-                    velocities[(sid,origin)] = derive_velocity(arrays['actions'][origin:origin+HORIZON])
+        for segment in segments:
+            sid = segment['segment_id']
+            for origin in segment['query_origins']:
+                chunk = arrays['actions'][origin:origin+HORIZON]
+                raw = velocity_hints(chunk,method='zero')
+                record = dict(segment_id=sid,query_origin=origin,
+                    raw_secant_exceeds_limit=raw['raw_secant_exceeds_limit'],estimated_derivative_validated=False,
+                    **{k:v for k,v in raw['summary'].items() if k.startswith('raw_')})
+                hint_records.append(record)
+                hint = raw if method == 'zero' else velocity_hints(chunk,method=method)
+                record.update(hint['summary'],estimated_derivative_validated=True)
+                hints[(sid,origin)] = hint
         for segment in segments:
             sid = segment['segment_id']; origin = segment['source_start']
             trajectory = trajectory_factory(np.array(arrays['state'][origin,:7],float), **LIMITS)
@@ -186,8 +193,8 @@ def replay(arrays, segments, mode, *, trajectory_factory=JointTrajectory, deadli
                            and abs(proposal.execute_at_s-(now+PERIOD_S)) < 1e-7,
                            'Prefix label clock/proposal differs')
                     trajectory.set_target(proposal.proposal)
-                    terminal = velocities[(sid,origin)][k] if mode == MODES[1] else np.zeros(7)
-                    if mode == MODES[1]:
+                    hint = hints[(sid,origin)]; terminal = hint['velocity'][k]
+                    if mode != MODES[0]:
                         trajectory.input.target_velocity = terminal.tolist()
                     # Match Ruckig.update/calculate's own false/true validation,
                     # preserving the baseline's treatment of generated current
@@ -211,12 +218,18 @@ def replay(arrays, segments, mode, *, trajectory_factory=JointTrajectory, deadli
                         teacher_target_q=proposal.proposal.copy(),command_q=np.array(command,float),
                         teacher_measured_q_at_label=np.array(arrays['state'][index+1,:7],float),
                         target_velocity=terminal.copy(),command_velocity=trajectory.velocity.copy(),
-                        command_acceleration=trajectory.acceleration.copy()))
+                        command_acceleration=trajectory.acceleration.copy(),raw_secant=hint['raw_secant'][k].copy(),
+                        raw_secant_exceeds_limit=bool(np.any(np.abs(hint['raw_secant'][k]) > LIMITS['velocity']))))
     except Exception as error:
         failure = dict(segment_id=sid,query_origin=origin,source_index=index,error=type(error).__name__,reason=str(error))
     return dict(completed=failure is None, failure=failure, arrays=_pack(rows), physics_tick_count=0,
                 generated_command_ticks=tick_count, analytic_command_derivative_peaks=peaks,
-                native_trajectory=trajectory_factory is JointTrajectory)
+                native_trajectory=trajectory_factory is JointTrajectory,
+                motion_hint_diagnostics=dict(method=method,queries_examined=len(hint_records),
+                    total_scheduled_queries=sum(len(s['query_origins']) for s in segments),
+                    raw_secant_exceeded_queries=sum(r['raw_secant_exceeds_limit'] for r in hint_records),
+                    queries=hint_records,
+                    scope='Raw secant exceedances retained; bounded velocity estimates do not prove timed waypoint feasibility'))
 
 
 def _summary(values):
@@ -256,14 +269,17 @@ def run(config, output):
     a.need(config.get('experiment') == 'executor_probe' and config.get('mode') == 'teacher_replay'
            and config.get('device') == 'cpu' and config.get('time_limit_seconds') == 600,
            'Only the finite CPU teacher executor probe is declared')
+    estimator = config.get('velocity_estimator','adjacent')
+    a.need(estimator in FF_MODES,'Only adjacent or fixed quadratic5 velocity estimators are declared')
+    modes = (MODES[0],FF_MODES[estimator])
     started = time.monotonic(); deadline = started+config['time_limit_seconds']
     arrays,row,provenance = load_source(config)
     segments = make_segments(arrays,row['starts'])
     ruckig = load_native(config)
     from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
     kin = OpenArmKinematics(); branches = {}; small = {}
-    for mode in MODES:
-        branch = replay(arrays,segments,mode,deadline=deadline)
+    for mode in modes:
+        branch = replay(arrays,segments,mode,deadline=deadline,velocity_estimator=estimator)
         data = branch.pop('arrays'); branch['metrics'] = metrics(data,kin)
         branches[mode] = branch
         small.update({mode+'__'+key:value for key,value in data.items()})
@@ -273,7 +289,7 @@ def run(config, output):
     if comparable:
         comparison['ff_minus_zero'] = {}
         for group in ('all','first_1s','after_1s'):
-            zero,ff = (branches[mode]['metrics'][group] for mode in MODES)
+            zero,ff = (branches[mode]['metrics'][group] for mode in modes)
             if zero['samples']:
                 z,f = zero['command_vs_teacher_target'],ff['command_vs_teacher_target']
                 comparison['ff_minus_zero'][group] = dict(samples=zero['samples'],
@@ -281,11 +297,13 @@ def run(config, output):
                     mean_tcp_position_m=f['tcp_position_m']['mean']-z['tcp_position_m']['mean'],
                     mean_tcp_orientation_rad=f['tcp_orientation_rad']['mean']-z['tcp_orientation_rad']['mean'])
     report = dict(completed=True,**FLAGS,scope='CPU command/FK compatibility diagnostic only',
-        source=provenance,segments=segments,branches=branches,comparison=comparison,
+        source=provenance,segments=segments,branches=branches,comparison=comparison,velocity_estimator=estimator,
         schedule=dict(horizon=HORIZON,execute_steps=EXECUTION_PREFIX,period_s=PERIOD_S,
                       ticks_per_action=TICKS,limits=LIMITS,tail_policy='omit incomplete H10; no padding, stopping extension, or boundary bridge'),
         initialization='Each segment restarts from its recorded measured_q with command v/a=0. Initial q-to-first-command includes teacher servo lag; first 1s reported separately.',
-        feedforward='Outgoing secant (a[k+1]-a[k])/0.05 within the same complete H10; a_target stays zero. Reject infeasible velocity/native input; never clamp.',
+        feedforward=('Outgoing secant (a[k+1]-a[k])/0.05' if estimator=='adjacent' else
+            'Fixed local five-point quadratic derivative at each original target time; first two one-sided, remaining three centered')+
+            '; same complete H10 and unchanged target positions/timestamps, a_target stays zero. Reject estimated velocity above .175/native input; never clamp. Raw secant exceedances remain visible, not a timed-waypoint feasibility claim.',
         limitations='No model/PhysX/contact/collision/observations. Kinematic target lag mixes initialization and executor shaping; recorded teacher measured q is a separate reference, not a simulated result. No runtime change is authorized by this probe.',
         native_ruckig_version=ruckig.__version__,native_ruckig_path=str(ruckig.__file__),
         native_ruckig_sha256=a.sha256(ruckig.__file__),urdf_sha256=a.sha256(kin.urdf_path),

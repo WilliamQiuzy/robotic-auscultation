@@ -1,5 +1,6 @@
 """Lifecycle and source-selection tests; no Kit or hardware imports."""
 import copy
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -26,6 +27,7 @@ class IsaacOwnershipTests(unittest.TestCase):
     def test_actual_reload_required_and_physics_cannot_weaken(self):
         self.assertEqual(owner.validate_config(self.config),self.receipt['receipt'])
         for field,value in [('point','L4'),('checkpoint_step',512),('speed_scale',1.),
+                            ('motion_velocity','unbounded'),
                             ('time_limit_seconds',7200),('physics',dict(position_iterations=32,velocity_iterations=1,armature_kg_m2=.01))]:
             candidate = copy.deepcopy(self.config);candidate[field]=value
             with self.subTest(field=field),self.assertRaises(ValueError):owner.validate_config(candidate)
@@ -46,6 +48,26 @@ class IsaacOwnershipTests(unittest.TestCase):
         result=owner.service_config(self.config)
         self.assertNotIn('inputs_npz',result);self.assertNotIn('reference_npz',result)
         self.assertEqual(result['mode'],'serve');self.assertEqual(result['port'],0)
+
+    def test_quadratic_variant_requires_actual_bound_probe_with_original_limits(self):
+        self.config.update(motion_velocity='quadratic5',motion_probe_run=str(self.root/'probe'))
+        with self.assertRaises(FileNotFoundError):owner.validate_config(self.config)
+        p=self.root/'probe';(p/'output').mkdir(parents=True)
+        owner.write(p/'result.json',dict(completed=True,gpu_released=True))
+        metrics=dict(velocity_estimator='quadratic5',branches={key:dict(completed=True) for key in
+            ('zero_terminal_velocity','quadratic5_target_velocity')},schedule=dict(
+            limits=dict(dt=1/240,velocity=.175,acceleration=.5,jerk=7.99999),
+            horizon=10,execute_steps=5,period_s=.05,ticks_per_action=12))
+        def save():
+            owner.write(p/'output/metrics.json',metrics)
+            owner.write(p/'output/COMPLETE.json',dict(comparison_completed=True,
+                metrics_sha256=hashlib.sha256((p/'output/metrics.json').read_bytes()).hexdigest()))
+        save();self.assertEqual(owner.validate_config(self.config),self.receipt['receipt'])
+        metrics['schedule']['limits']['velocity']=.18;save()
+        with self.assertRaisesRegex(ValueError,'native quadratic5'):owner.validate_config(self.config)
+        metrics['schedule']['limits']['velocity']=.175;save()
+        owner.write(p/'output/metrics.json',dict(metrics,velocity_estimator='adjacent'))
+        with self.assertRaisesRegex(ValueError,'native quadratic5'):owner.validate_config(self.config)
 
     def test_asset_scope_restores_globals_even_on_error(self):
         from sim.auscultation_expert_layout_v1 import scene

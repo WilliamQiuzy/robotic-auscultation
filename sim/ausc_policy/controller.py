@@ -37,13 +37,17 @@ def _record_time(value):
 class M0DirectController(ObservedTeacher):
     """Single-point D0 only. Runtime construction and resource ownership are external."""
     def __init__(self, *args, client, task_id, episode_id,
-                 trajectory_factory=JointTrajectory, **kwargs):
+                 trajectory_factory=JointTrajectory, motion_velocity='zero', **kwargs):
         if not callable(getattr(client, 'predict', None)):
             raise ValueError('An explicit ACTClient is required')
         for name, value in (('task_id', task_id), ('episode_id', episode_id)):
             if not isinstance(value, str) or not 0 < len(value) <= 128 or any(not 32 <= ord(c) < 127 for c in value):
                 raise ValueError('Invalid '+name)
         self.client, self.task_id, self.episode_id = client, task_id, episode_id
+        if motion_velocity not in {'zero','quadratic5'}:
+            raise ValueError('Unapproved reference velocity estimator')
+        self.motion_velocity = motion_velocity
+        self._velocity_hints = None
         self.trajectory_factory = trajectory_factory
         self.trajectory = None
         self.prefix = ActionPrefix()
@@ -62,6 +66,7 @@ class M0DirectController(ObservedTeacher):
 
     def _clear(self, reason):
         self.prefix.clear(reason)
+        self._velocity_hints = None
         self._event(reason)
 
     def _deadline(self):
@@ -127,6 +132,7 @@ class M0DirectController(ObservedTeacher):
         if event.status == 'stop':
             raise EpisodeRejected(event.reason)
         if event.status == 'replan':
+            self._velocity_hints = None
             self._event(event.reason)
         if self.manager.state.failure_reason:
             raise EpisodeRejected('Phase failure: '+self.manager.state.failure_reason)
@@ -153,12 +159,20 @@ class M0DirectController(ObservedTeacher):
             if (len(self.env.rows) != start_row or
                     abs(self.env.state()['time_s']-stamp) > TIME_TOLERANCE_S):
                 raise EpisodeRejected('Physics advanced during ACT inference')
+            record.update(state19=state19.tolist(), raw_absolute_chunk=response['raw'],
+                          motion_velocity=self.motion_velocity)
             # ACTClient validates identities/receipt; service has decoded the
             # block-origin anchor ONCE. Never add current q to response['raw'].
             accepted = self.prefix.install(response['raw'], observed_at_s=frame['time_s'],
                                            now_s=stamp, context=context)
             if accepted.status != 'installed':
                 raise EpisodeRejected('ACT prefix rejected: '+accepted.reason)
+            if self.motion_velocity == 'quadratic5':
+                from .motion_hints import velocity_hints
+                hint = velocity_hints(response['raw'], method='quadratic5')
+                self._velocity_hints = np.asarray(hint['velocity']).copy()
+                record['velocity_hint'] = {key:value.tolist() if isinstance(value,np.ndarray) else value
+                                           for key,value in hint.items()}
             record.update(state19=state19.tolist(), raw_absolute_chunk=response['raw'],
                 response_latency_ms=response.get('latency_ms'), accepted=True)
         except Exception as error:
@@ -179,6 +193,19 @@ class M0DirectController(ObservedTeacher):
         if not np.array_equal(np.asarray(self.env.rows[-1]['q_command']), np.asarray(command)):
             raise EpisodeRejected('Executed command differs from real physics history')
         return self._context()[0]
+
+    def _set_motion_target(self, position, velocity=None):
+        """Preserve current q/v/a; hints never change the reference time or position."""
+        self.trajectory.set_target(position)
+        if self.motion_velocity == 'quadratic5':
+            hint = np.zeros(7) if velocity is None else np.asarray(velocity,float)
+            if hint.shape != (7,) or not np.isfinite(hint).all() or np.max(np.abs(hint)) > JOINT_LIMITS['velocity']:
+                raise EpisodeRejected('Invalid bounded target velocity')
+            self.trajectory.input.target_velocity = hint.tolist()
+            self.trajectory.input.target_acceleration = [0.]*7
+            if not self.trajectory.generator.validate_input(self.trajectory.input,
+                    check_current_state_within_limits=False,check_target_state_within_limits=True):
+                raise EpisodeRejected('Native Ruckig rejected reference velocity/state')
 
     def _l2_action(self):
         record = None
@@ -202,7 +229,14 @@ class M0DirectController(ObservedTeacher):
                 proposal=proposal.proposal.tolist(), physics_row_start=len(self.env.rows),
                 target=context.target, phase=context.phase, completed=False)
             self.l2_actions.append(record)
-            self.trajectory.set_target(proposal.proposal)
+            if self.motion_velocity == 'quadratic5':
+                if self._velocity_hints is None or self._velocity_hints.shape != (5,7):
+                    raise EpisodeRejected('Missing query-bound velocity hints')
+                velocity = self._velocity_hints[proposal.index]
+                record['target_velocity_rad_s'] = velocity.tolist()
+            else:
+                velocity = None
+            self._set_motion_target(proposal.proposal,velocity)
             for _ in range(CONTROL_STEPS):
                 current = self._advance_tick('act_l2_'+context.phase.lower())
                 if current != context:
@@ -248,7 +282,8 @@ class M0DirectController(ObservedTeacher):
         self.control_owner = 'L2_STOP'
         context, _, _ = self._context()
         self._clear('handoff_candidate_stop')
-        self.trajectory.set_target(self.q.copy())
+        # Clear terminal velocity for a stop; never reset current q/v/a.
+        self._set_motion_target(self.q.copy())
         try:
             # No reset of Ruckig input q/v/a, no repeat-generated fake history.
             while True:
@@ -386,6 +421,8 @@ class M0DirectController(ObservedTeacher):
             d0_handoffs=self.d0_handoffs, learned_command_limits=JOINT_LIMITS.copy(),
             learned_interval_timeout_s=L2_TIMEOUT_S, action='absolute H10/E5 50ms ACT targets; service decodes anchor once',
             motion_execution='same continuous Ruckig for L2 and real stop; unchanged NormalExecutor for L3',
+            motion_velocity=self.motion_velocity,
+            reference_tracking_scope='50ms reference updates; label time is not a guarantee of exact waypoint arrival',
             expert_l2_fallbacks=0, alignment_used=False, simulation_paused_for_inference=True,
             realtime_claim=False, preparation_home='initial preparation and final canonical home are outside learned L2')
         for point in result.get('points', []):

@@ -24,8 +24,23 @@ def validate_config(config):
     if (config['experiment'] != 'isaac_run' or config['mode'] != 'm0_direct'
             or config['point'] != 'R4' or config['checkpoint_step'] != 2000
             or config['physics'] != dict(position_iterations=32, velocity_iterations=1, armature_kg_m2=.02)
-            or config['speed_scale'] != .7 or config['time_limit_seconds'] != 3600):
+            or config['speed_scale'] != .7 or config['time_limit_seconds'] != 3600
+            or config.get('motion_velocity','zero') not in {'zero','quadratic5'}):
         raise ValueError('Only the finite, unchanged-physics M0 R4 direct diagnostic is declared')
+    if config.get('motion_velocity','zero') == 'quadratic5':
+        probe = Path(config['motion_probe_run'])
+        owner = read(probe/'result.json'); complete = read(probe/'output/COMPLETE.json')
+        data = (probe/'output/metrics.json').read_bytes(); metrics = json.loads(data)
+        if (owner.get('completed') is not True or owner.get('gpu_released') is not True
+                or complete.get('comparison_completed') is not True
+                or complete.get('metrics_sha256') != hashlib.sha256(data).hexdigest()
+                or metrics.get('velocity_estimator') != 'quadratic5'
+                or set(metrics['branches']) != {'zero_terminal_velocity','quadratic5_target_velocity'}
+                or not all(branch['completed'] for branch in metrics['branches'].values())
+                or metrics['schedule']['limits'] != dict(dt=1/240,velocity=.175,acceleration=.5,jerk=7.99999)
+                or metrics['schedule']['horizon'] != 10 or metrics['schedule']['execute_steps'] != 5
+                or metrics['schedule']['period_s'] != .05 or metrics['schedule']['ticks_per_action'] != 12):
+            raise ValueError('Actual unchanged-limit native quadratic5 probe is required')
     reload_run = Path(config['reload_run'])
     result = read(reload_run/'result.json'); receipt = read(reload_run/'output/COMPLETE.json')
     if (result.get('completed') is not True or receipt.get('passed') is not True

@@ -56,3 +56,21 @@ Linux 已有资产与结果保留，资产定位/哈希从历史 manifest 读取
 `video --run RUN` 仅在真实执行/清理完成后，从已校验的实际相机 RGB 帧编码录像。
 Linux CPU 编码，不重新渲染场景；按仿真时间正常速度播放，推理暂停不计入影片。
 网页只展示有意义的结论和实际 Sim 片段。
+
+### M0 reference velocity diagnostic
+
+The first actual D0 ended before contact (269 queries / 69.354 s). Its terminal
+zero-velocity Ruckig targets introduced lag even on correct teacher labels:
+after each independent segment's first second, mean command-vs-target TCP error
+was 6.503 mm, versus 0.558 mm with adjacent-label velocity. Neither CPU FK
+result is a contact or collision check.
+
+`m0_executor_probe_quadratic5.json` declares one fixed five-point quadratic
+local derivative estimator at the original target times. `m0_act_d0_quadratic5.json`
+uses the same checkpoint and physics with that hint. This is 50 ms reference
+tracking, not a guarantee of exact waypoint arrival. Keep raw secant excess
+flags and shaped-command error; do not silently clip, retime labels, reset
+current q/v/a, or use an expert L2 fallback. Explicitly zero terminal velocity
+on stopping, and discard hints when the query context changes. Run the native
+teacher probe before the policy-driven Isaac variant. All existing physical,
+collision, observation and derivative checks remain mandatory.

@@ -19,6 +19,8 @@ def main():
     parser.add_argument('--evidence', required=True, type=Path)
     parser.add_argument('--run-id', required=True)
     args = parser.parse_args()
+    if args.run_id != 'm0-act-d0-r4-20260929-assetfix':
+        raise ValueError('This diagnostic report is bound to the original D0 receipt; do not reuse its conclusions for another run')
     root = args.evidence.resolve()
     if Path(args.run_id).name != args.run_id:
         raise ValueError('Invalid run ID')

@@ -93,6 +93,21 @@ class ProbeTests(unittest.TestCase):
         self.assertFalse(result['completed']);self.assertEqual(result['arrays']['source_index'].size,0)
         self.assertIn('validation',result['failure']['reason'])
 
+    def test_quadratic_probe_retains_positions_clocks_and_raw_exceedances(self):
+        m=self.module();data=self.source();n=len(data['times'])
+        data['actions'][:,0]=np.arange(n)*.005+(-1.)**np.arange(n)*.002
+        segments=m.make_segments(data,[0]);instances=[]
+        self.assertIn('velocity_estimator',__import__('inspect').signature(m.replay).parameters)
+        result=m.replay(data,segments,'quadratic5_target_velocity',velocity_estimator='quadratic5',
+                        trajectory_factory=self.trajectory(instances))
+        self.assertTrue(result['completed'])
+        np.testing.assert_array_equal(result['arrays']['teacher_target_q'],data['actions'][:5])
+        np.testing.assert_allclose(result['arrays']['label_time_s'],np.arange(1,6)*.05)
+        self.assertTrue(result['motion_hint_diagnostics']['raw_secant_exceeded_queries']>0)
+        self.assertTrue(result['arrays']['raw_secant_exceeds_limit'].any())
+        np.testing.assert_array_equal(instances[0].input.target_acceleration,np.zeros(7))
+        self.assertEqual(instances[0].ticks,60)
+
     def test_metrics_separate_startup_and_subsequent_endpoints(self):
         m=self.module();data=self.source(45);segments=m.make_segments(data,list(range(31)))
         result=m.replay(data,segments,'zero_terminal_velocity',trajectory_factory=self.trajectory([]))
@@ -162,6 +177,21 @@ class ProbeTests(unittest.TestCase):
             self.assertLess((folder/'endpoints.npz').stat().st_size,20000)
             with np.load(folder/'endpoints.npz') as arrays:
                 self.assertEqual(arrays['zero_terminal_velocity__command_q'].shape,(10,7))
+
+    def test_config_quadratic_is_explicit_and_does_not_rename_original_adjacent_default(self):
+        m=self.module();data=self.source();row=dict(starts=[0]);real_replay=m.replay
+        for estimator,expected in [(None,'adjacent_target_velocity'),('quadratic5','quadratic5_target_velocity')]:
+            with self.subTest(estimator=estimator),tempfile.TemporaryDirectory() as folder:
+                folder=Path(folder);library=folder/'fake.so';library.write_bytes(b'fixture')
+                native=SimpleNamespace(__version__='0.12.2',__file__=str(library))
+                config=dict(experiment='executor_probe',mode='teacher_replay',device='cpu',time_limit_seconds=600)
+                if estimator:config['velocity_estimator']=estimator
+                with patch.object(m,'load_source',return_value=(data,row,{'fixture':True})),\
+                        patch.object(m,'load_native',return_value=native),patch.object(m,'replay',
+                            side_effect=lambda *args,**kwargs:real_replay(*args,**kwargs,trajectory_factory=self.trajectory([]))):
+                    report=m.run(config,folder)
+                self.assertEqual(set(report['branches']),{'zero_terminal_velocity',expected})
+                self.assertEqual(report.get('velocity_estimator'),estimator or 'adjacent')
 
 
 if __name__=='__main__':unittest.main()
