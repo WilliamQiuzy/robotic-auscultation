@@ -1,0 +1,31 @@
+{
+  "experiment": "history_path_probe",
+  "base": "/home/william/wam-vla-v2",
+  "variants": ["repeat_current", "causal_history"],
+  "training_run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-train16-20260929",
+  "training_owner_sha256": "6831d22b3f493a5eba2f8779966eebe31147f1ac2f395bb6ce58275a362c4196",
+  "training_complete_sha256": "8058332bd11dfc08cc57edd3820324324a5dbc92753333adfb82c872460cd009",
+  "runtime_configs": {
+    "repeat_current": {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-runtime-prepare-20260929/output/repeat_current_reload.json",
+      "sha256": "6bcee1e52f72be52690c7a90aafb96cd955ca49e1b0a23a8e590c86c69e3cc25"
+    },
+    "causal_history": {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-runtime-prepare-20260929/output/causal_history_reload.json",
+      "sha256": "6f8bc895a9470a6b0702cbf18f32ba7a12e024252d76932163e7a36fa70caf31"
+    }
+  },
+  "cases": [
+    {
+      "run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-causal-d0-grid12-20260929",
+      "owner_sha256": "4d641cbb414c68da15ac0d3725b5dbecb58c250704f9cbc47cf17d765eb2fef7",
+      "outcome_sha256": "eefdf79aba3ff2f0e31f355d16631f87387bf9ed3a7314b46f5d4c7caf7939b2"
+    },
+    {
+      "run": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-control-d0-grid12-20260929",
+      "owner_sha256": "fd160783d9fa3c5e0cfbd160c32c7d74644582b083f14fea03d6feb95f654653",
+      "outcome_sha256": "91eba092b58dedb0a0c6108833c3385430e9f01ca02a9d39cd7963b5ddaeab09"
+    }
+  ],
+  "time_limit_seconds": 1200
+}
