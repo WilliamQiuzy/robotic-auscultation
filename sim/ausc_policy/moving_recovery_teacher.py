@@ -11,6 +11,7 @@ import numpy as np
 from .recovery_teacher import RecoveryTeacher
 from .recovery_oracle import StationaryRecoveryOracle
 from .moving_brake import plan_moving_brake,check_prefix_chunk
+from .moving_origin import selected_origin
 from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS,EpisodeRejected,FRONT_GROUPS,FORBIDDEN_GROUPS
 from sim.auscultation_expert_layout_v1.plan_low_elbow import checked_transfer
 from sim.auscultation_pi05_v6.supervision import contact_load_estimate
@@ -18,8 +19,9 @@ from sim.auscultation_pi05_v6.supervision import contact_load_estimate
 
 def load_source(config):
     source=Path(config['source_run'])
+    index,phase,_=selected_origin(config)
     required={'result.json','output/case/outcome.json','output/case/expert_trace.jsonl','output/case/sensors/frames.jsonl'}
-    if set(config['source_files'])!=required or config['source_action_index']!=609:
+    if set(config['source_files'])!=required:
         raise ValueError('Only the predeclared bound ACT approach origin is supported')
     for name,digest in config['source_files'].items():
         if hashlib.sha256((source/name).read_bytes()).hexdigest()!=digest:
@@ -29,9 +31,11 @@ def load_source(config):
             and owner['stage']['exit_code']==0 and not outcome['success']
             and not outcome['expert_demonstration'] and outcome['expert_l2_fallbacks']==0):
         raise ValueError('Completed original failed student without expert fallback required')
+    if phase=='FREE' and (owner['config'].get('variant')!='causal_history' or not owner['config'].get('causal_history_input')):
+        raise ValueError('History FREE protocol requires the actual history student')
     physics=[json.loads(line) for line in (source/'output/case/expert_trace.jsonl').open()]
-    action=outcome['l2_actions'][609];end=action['physics_row_start']
-    if (not action['completed'] or action['phase']!='APPROACH' or action['target']!='R4'
+    action=outcome['l2_actions'][index];end=action['physics_row_start']
+    if (not action['completed'] or action['phase']!=phase or action['target']!='R4'
             or not 13<=end<len(physics) or end%12 or physics[end-1]['time_s']!=action['time_s']
             or not np.allclose([r['time_s'] for r in physics[:end]],np.arange(1,end+1)/240,atol=1e-8,rtol=0)):
         raise ValueError('Source prefix/action clock is not consecutive')
@@ -43,9 +47,10 @@ def load_source(config):
 class MovingRecoveryTeacher(RecoveryTeacher):
     def __init__(self,*args,recovery_config,**kwargs):
         self.recovery_config=recovery_config
+        self.source_index,self.source_phase,_=selected_origin(recovery_config)
         self.source_outcome,self.source_physics=load_source(recovery_config)
         self.moving_receipt=dict(source_prefix_replayed=True,student_inference_executed=False,
-            source_action_index=609,source_run=recovery_config['source_run'],
+            source_action_index=self.source_index,source_phase=self.source_phase,source_run=recovery_config['source_run'],
             source_files=recovery_config['source_files'],prefix_completed=False,brake_completed=False,
             measured_prefix_tolerance_rad=1e-4,maximum_prefix_q_difference_rad=0.,
             training_dataset_eligible=False,physical_joint_resets=0)
@@ -66,7 +71,7 @@ class MovingRecoveryTeacher(RecoveryTeacher):
         self.canonical_transfer,self.canonical_stage_index=canonical.copy(),index
         if self.sequence_index!=0 or self.env.rows or self.env.state()['time_s']!=0.:
             raise EpisodeRejected('Moving recovery prefix requires the unchanged fresh scene origin')
-        action=self.source_outcome['l2_actions'][609];end=action['physics_row_start']
+        action=self.source_outcome['l2_actions'][self.source_index];end=action['physics_row_start']
         self.oracle_role='STUDENT_COMMAND_REPLAY'
         for start in range(0,end,CONTROL_STEPS):
             expected=self.source_physics[start:start+CONTROL_STEPS]
@@ -80,7 +85,7 @@ class MovingRecoveryTeacher(RecoveryTeacher):
                 self.moving_receipt['maximum_prefix_q_difference_rad'],difference)
         self.moving_receipt.update(prefix_completed=True,prefix_end_physics_row_exclusive=len(self.env.rows),
             prefix_end_time_s=self.env.state()['time_s'])
-        query=self._measured_query();query.update(target='R4',phase='APPROACH',
+        query=self._measured_query();query.update(target='R4',phase=self.source_phase,
             command_state=action['posture_hint_preview']['source_command_state'])
         brake=plan_moving_brake(query,lambda q:self.checker.check(q,clearance=.003,
             allow_patient_contact=False,compression=0.),lower=self.posture_limits.joint_lower_rad,
@@ -99,7 +104,7 @@ class MovingRecoveryTeacher(RecoveryTeacher):
         # Only new measured history enters the stationary query. In particular,
         # no virtual Ruckig endpoint is used as a measured stopping position.
         query=self._measured_query()
-        context=dict(target='R4',phase='APPROACH',revision=int(self.sensor.rows[-1]['target_estimate']['revision']),
+        context=dict(target='R4',phase=self.source_phase,revision=int(self.sensor.rows[-1]['target_estimate']['revision']),
             q_goal=canonical[-1].tolist())
         oracle=StationaryRecoveryOracle(self.checker,lambda start,goal,rng,deadline:
             checked_transfer(self.checker,self.posture_limits,start,goal,self.kin,self.env.base,rng,deadline),

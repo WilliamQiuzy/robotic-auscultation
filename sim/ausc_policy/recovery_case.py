@@ -46,21 +46,23 @@ def geometry_preflight(bundle, output):
 
 def moving_preflight(config,output):
     from .moving_recovery_teacher import load_source
+    from .moving_origin import selected_origin
+    index,phase,_=selected_origin(config)
     outcome,physics=load_source(config)
     probe=Path(config['braking_probe']['path'])
     for relative,digest in config['braking_probe']['files'].items():
         if hashlib.sha256((probe/relative).read_bytes()).hexdigest()!=digest:
             raise ValueError('Completed native braking probe changed')
     receipt=json.loads((probe/'result.json').read_text())
-    proposal=json.loads((probe/'output/action-609.json').read_text())
+    proposal=json.loads((probe/f'output/action-{index}.json').read_text())
     if (not receipt['completed'] or not receipt['gpu_released']
             or not receipt['stage']['process_group_drained'] or receipt['stage']['exit_code']!=0
             or proposal['kind']!='braking_proposal'):
         raise ValueError('Actual native braking preflight required')
-    origin=outcome['l2_actions'][609]['physics_row_start']-1
-    if proposal['measured_query']['q']!=physics[origin]['q']:
+    origin=outcome['l2_actions'][index]['physics_row_start']-1
+    if proposal['measured_query']['q']!=physics[origin]['q'] or proposal['measured_query']['phase']!=phase:
         raise ValueError('Native brake did not use the bound source state')
-    write(output/'moving_preflight.json',dict(passed=True,source_action=609,source_physics_row=origin,
+    write(output/'moving_preflight.json',dict(passed=True,source_action=index,source_physics_row=origin,
         source_prefix_steps=origin+1,physics_executed=False,training_dataset_eligible=False))
 
 

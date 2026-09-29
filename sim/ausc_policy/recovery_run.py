@@ -8,13 +8,20 @@ import subprocess
 import sys
 
 from .isaac_run import stop_child, write, read
+from .moving_origin import selected_origin
 
 
 CASES = [('nominal',0.),('joint3-plus',.02),('joint3-minus',-.02)]
 
 
 def selected_cases(config):
-    cases=[('act609',0.)] if config.get('mode')=='moving_oracle_pilot' else CASES
+    cases=CASES
+    if config.get('mode')=='moving_oracle_pilot':
+        # Preserve the old case-list API; full source loading still requires
+        # its explicit index. New protocols may not use an implicit origin.
+        selection=dict(config)
+        if 'moving_origin' not in selection:selection.setdefault('source_action_index',609)
+        cases=[(selected_origin(selection)[2],0.)]
     if config.get('mode')=='capture_component':
         cases=[('entry-tangent-plus',0.),('entry-normal-plus',0.)]
     names = config.get('case_ids',[name for name,_ in cases])

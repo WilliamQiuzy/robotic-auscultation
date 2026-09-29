@@ -19,13 +19,13 @@ def sha(path): return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 def read(path): return json.loads(Path(path).read_text())
 
 
-def acquired_query(outcome,physics,frames,index,calibration):
+def acquired_query(outcome,physics,frames,index,calibration,*,expected_phase='APPROACH'):
     from sim.auscultation_vla_v2.hall import HallPacket
     action=outcome['l2_actions'][index];row_index=action['physics_row_start']-1
     row=physics[row_index]
     if (not action['completed'] or row['time_s']!=action['time_s']
-            or action['target']!='R4' or action['phase']!='APPROACH'):
-        raise ValueError('Probe must bind an actual completed APPROACH action origin')
+            or action['target']!='R4' or expected_phase not in ('FREE','APPROACH') or action['phase']!=expected_phase):
+        raise ValueError('Probe must bind an actual completed action in the declared phase')
     available=[f for f in frames if f['time_s']<=row['time_s']]
     if not available or row['time_s']-available[-1]['time_s']>.05+1e-8:
         raise ValueError('Missing actual fresh Hall frame')
@@ -47,8 +47,12 @@ def main():
     a=p.parse_args();config=read(a.config)
     if (sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1'
             or os.environ.get('CUDA_VISIBLE_DEVICES')!='' or config['experiment']!='moving_brake_probe'
-            or config['action_indices']!=[609,900,1250] or config['point']!='R4'):
+            or config['point']!='R4'):
         raise ValueError('Declared CPU-only three-origin geometry probe required')
+    history=config['mode']=='history_free_origins_v1'
+    if (config['mode'] not in ('recorded_actual_command_state','history_free_origins_v1')
+            or config['action_indices']!=([20,120,220] if history else [609,900,1250])):
+        raise ValueError('Unexpected source sampling protocol')
     source=Path(config['source_run']);bindings={}
     for relative,expected in config['source_files'].items():
         path=source/relative
@@ -60,6 +64,8 @@ def main():
             and owner['stage']['exit_code']==0 and not outcome['success']
             and not outcome['expert_demonstration'] and outcome['expert_l2_fallbacks']==0):
         raise ValueError('Completed original failed learned rollout required')
+    if history and (owner['config'].get('variant')!='causal_history' or not owner['config'].get('causal_history_input')):
+        raise ValueError('History protocol requires the actual causal-history student')
     a.output.mkdir(parents=True,exist_ok=False)
     bundle,_,_=prepare(config,a.output/'geometry_source')
     from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
@@ -76,7 +82,7 @@ def main():
     frames=[json.loads(x) for x in (source/'output/case/sensors/frames.jsonl').open()]
     cases=[]
     for index in config['action_indices']:
-        query=acquired_query(outcome,physics,frames,index,default_calibration())
+        query=acquired_query(outcome,physics,frames,index,default_calibration(),expected_phase='FREE' if history else 'APPROACH')
         report=plan_moving_brake(query,lambda q:checker.check(q,clearance=.003,
             allow_patient_contact=False,compression=0.),lower=limits.joint_lower_rad,upper=limits.joint_upper_rad)
         report.update(source_action_index=index,source_files={str(k):v for k,v in bindings.items()})
