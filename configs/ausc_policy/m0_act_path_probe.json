@@ -1,6 +1,6 @@
 {
   "experiment": "path_probe",
-  "mode": "teacher_replay",
+  "mode": "saved_state_inference",
   "device": "cpu",
   "time_limit_seconds": 600,
   "episode_id": "R4_observed_armature02_v1",

@@ -52,7 +52,7 @@ def coverage(queries,states,starts,phases,stats):
 
 
 def run(config,output):
-    a.need(config['experiment']=='path_probe' and config['device']=='cpu'
+    a.need(config['experiment']=='path_probe' and config['mode']=='saved_state_inference' and config['device']=='cpu'
            and config['checkpoint_step']==2000 and config['time_limit_seconds']==600,'Unexpected finite CPU scope')
     source=Path(config['run_root']);run_receipt=a.read_json(source/'result.json')
     a.need(run_receipt['completed'] is True and run_receipt['gpu_released'] is True,'Incomplete training source')
