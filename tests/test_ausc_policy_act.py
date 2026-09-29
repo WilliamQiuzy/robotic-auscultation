@@ -220,7 +220,13 @@ class ACTAdapterTests(unittest.TestCase):
         for key in ('seed', 'train_episode_ids', 'horizon', 'execute_steps', 'period_s', 'state_dim',
                     'upstream_commit', 'manifest', 'manifest_sha256', 'model', 'optimizer', 'modes'):
             self.assertEqual(relative[key], base[key])
-        for update in ({'mode': 'train'}, {'mode': 'prepare'}, {'prepared_manifest': None}):
+        full = json.loads(Path('configs/ausc_policy/m0_act_relative_train.json').read_text())
+        a.validate_config(full)
+        self.assertEqual(full['mode'], 'train')
+        self.assertEqual(full['modes']['train'], dict(steps=2000, batch_size=32, q_dropout=.1))
+        for key in ('action_representation', 'seed', 'train_episode_ids', 'model', 'optimizer'):
+            self.assertEqual(full[key], relative[key])
+        for update in ({'mode': 'prepare'}, {'prepared_manifest': None}):
             bad = dict(relative, **update)
             with self.assertRaisesRegex(ValueError, 'relative'):
                 a.validate_config(bad)

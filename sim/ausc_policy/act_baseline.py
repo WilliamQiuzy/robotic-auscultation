@@ -85,8 +85,8 @@ def validate_config(config):
     need(config['action_representation'] in (ABSOLUTE, BLOCK_RELATIVE) and config['state_dim'] == 19,
          'M0 state/action representation differs')
     if config['action_representation'] == BLOCK_RELATIVE:
-        need(config['mode'] in ('train32', 'native_smoke') and config.get('prepared_manifest'),
-             'Block relative control requires pinned source preparation and finite train32/native_smoke mode')
+        need(config['mode'] in ('train32', 'train', 'native_smoke') and config.get('prepared_manifest'),
+             'Block relative control requires pinned source preparation and finite training/native_smoke mode')
     need(config['device'] in ('cpu', 'cuda') and config['seed'] == 61, 'Explicit device/seed required')
     if config['mode'] == 'native_smoke':
         need(config['device'] == 'cpu', 'Native shape/backward smoke must use CPU')
