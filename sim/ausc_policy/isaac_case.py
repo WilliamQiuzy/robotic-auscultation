@@ -137,13 +137,18 @@ def capture(app, errors, released, config, output, ready, bundle, snapshot_sha, 
         sensor = LiveCapture(env,kin,code/'sim/camera_framing_20260923/recommended_camera.json',
             code/'sim/auscultation_vla_v2/sensor_pilot_annotation.json',output/'sensors',width=640)
         sensor.warm_up()
-        client = ACTClient(ready['port'], ready['receipt'], timeout_s=5.)
+        if config.get('causal_history_input',False):
+            from .history_runtime import HistoryClient
+            client=HistoryClient(ready['port'],ready['receipt'],timeout_s=5.)
+        else:
+            client = ACTClient(ready['port'], ready['receipt'], timeout_s=5.)
         controller = M0DirectController(env,kin,checker,sensor=sensor,client=client,
             task_id=output.parent.parent.name,episode_id=output.parent.parent.name+'-R4',
             generator_policy='revised_shortcut',speed_scale=.7,
             motion_velocity=config.get('motion_velocity','zero'),
             posture_hint_preview=config.get('posture_hint_preview',False),
             posture_hint_selection=config.get('posture_hint_selection','first_feasible'),
+            causal_history_input=config.get('causal_history_input',False),
             static_world_bundle=load_static_world(output/'static_world'),static_geometry_dir=output/'geometry')
         outcome = controller.run([(bundle.target,bundle.row)])
         outcome['dynamics_recipe_sha256'] = dynamics['recipe_sha256']

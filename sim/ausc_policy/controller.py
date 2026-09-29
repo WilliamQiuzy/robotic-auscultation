@@ -38,13 +38,16 @@ class M0DirectController(ObservedTeacher):
     """Single-point D0 only. Runtime construction and resource ownership are external."""
     def __init__(self, *args, client, task_id, episode_id,
                  trajectory_factory=JointTrajectory, motion_velocity='zero', posture_hint_preview=False,
-                 posture_hint_selection='first_feasible', **kwargs):
+                 posture_hint_selection='first_feasible', causal_history_input=False, **kwargs):
         if not callable(getattr(client, 'predict', None)):
             raise ValueError('An explicit ACTClient is required')
         for name, value in (('task_id', task_id), ('episode_id', episode_id)):
             if not isinstance(value, str) or not 0 < len(value) <= 128 or any(not 32 <= ord(c) < 127 for c in value):
                 raise ValueError('Invalid '+name)
         self.client, self.task_id, self.episode_id = client, task_id, episode_id
+        if type(causal_history_input) is not bool:
+            raise ValueError('History input must be explicit boolean')
+        self.causal_history_input=causal_history_input
         if motion_velocity not in {'zero','quadratic5'}:
             raise ValueError('Unapproved reference velocity estimator')
         self.motion_velocity = motion_velocity
@@ -161,9 +164,15 @@ class M0DirectController(ObservedTeacher):
                 task_pose_in_body_reference=self.task_frames[self.target.name]['task_pose_in_body_reference'],
                 kinematics=self.kin, hall_calibration=self.sensor.cal)
             state19 = small_state(state41, context.target, context.phase)
+            extra={}
+            if self.causal_history_input:
+                from .history_runtime import history_from_frames
+                history=history_from_frames(self.sensor.rows,frame)
+                record['causal_history']=history
+                extra['history']=history
             response = self.client.predict(state19, request_id=record['request_id'], task_id=self.task_id,
                 episode_id=self.episode_id, frame_id=frame['index'], target_revision=context.revision,
-                sim_stamp_s=stamp, target_id=context.target, phase=context.phase)
+                sim_stamp_s=stamp, target_id=context.target, phase=context.phase, **extra)
             if (len(self.env.rows) != start_row or
                     abs(self.env.state()['time_s']-stamp) > TIME_TOLERANCE_S):
                 raise EpisodeRejected('Physics advanced during ACT inference')

@@ -49,6 +49,15 @@ class IsaacOwnershipTests(unittest.TestCase):
         self.assertNotIn('inputs_npz',result);self.assertNotIn('reference_npz',result)
         self.assertEqual(result['mode'],'serve');self.assertEqual(result['port'],0)
 
+    def test_explicit_history_service_preserves_bindings_and_excludes_training_inputs(self):
+        self.config.update(causal_history_input=True,variant='causal_history',owner_sha256='a'*64,
+            complete_sha256='b'*64,history_contract_sha256='c'*64,inputs_npz='/private/input',reference_npz='/private/reference')
+        result=owner.service_config(self.config)
+        self.assertEqual(result['experiment'],'history_runtime')
+        self.assertEqual(result['history_contract_sha256'],'c'*64)
+        self.assertEqual(result['variant'],'causal_history')
+        self.assertNotIn('inputs_npz',result);self.assertNotIn('reference_npz',result)
+
     def test_quadratic_variant_requires_actual_bound_probe_with_original_limits(self):
         self.config.update(motion_velocity='quadratic5',motion_probe_run=str(self.root/'probe'))
         with self.assertRaises(FileNotFoundError):owner.validate_config(self.config)

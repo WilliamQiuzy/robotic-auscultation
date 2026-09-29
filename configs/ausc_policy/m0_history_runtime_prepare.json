@@ -1,0 +1,8 @@
+{
+  "experiment": "history_runtime_prepare",
+  "base": "/home/william/wam-vla-v2",
+  "run_root": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-train16-20260929",
+  "owner_sha256": "6831d22b3f493a5eba2f8779966eebe31147f1ac2f395bb6ce58275a362c4196",
+  "complete_sha256": "8058332bd11dfc08cc57edd3820324324a5dbc92753333adfb82c872460cd009",
+  "time_limit_seconds": 600
+}

@@ -57,6 +57,8 @@ def validate_posture_preview(config):
 
 
 def validate_config(config):
+    if type(config.get('causal_history_input',False)) is not bool:
+        raise ValueError('History runtime selection must be explicit')
     if (config['experiment'] != 'isaac_run' or config['mode'] != 'm0_direct'
             or config['point'] != 'R4' or config['checkpoint_step'] != 2000
             or config['physics'] != dict(position_iterations=32, velocity_iterations=1, armature_kg_m2=.02)
@@ -85,11 +87,24 @@ def validate_config(config):
             or receipt['max_reference_difference_rad'] > 1e-6
             or receipt['max_reload_difference_rad'] != 0.):
         raise ValueError('Actual native CPU reload gate is absent or mismatched')
+    if config.get('causal_history_input',False):
+        from .history_runtime import validate_receipt
+        validate_receipt(receipt['receipt'])
+        expected=dict(history_variant=config['variant'],history_contract_sha256=config['history_contract_sha256'],
+            paired_owner_sha256=config['owner_sha256'],paired_complete_sha256=config['complete_sha256'])
+        if (not all(receipt['receipt'].get(k)==v for k,v in expected.items())
+                or hashlib.sha256((reload_run/'result.json').read_bytes()).hexdigest()!=config['reload_owner_sha256']
+                or hashlib.sha256((reload_run/'output/COMPLETE.json').read_bytes()).hexdigest()!=config['reload_complete_sha256']):
+            raise ValueError('Actual history CPU reload differs from the selected paired checkpoint')
     return receipt['receipt']
 
 
 def service_config(config):
     # Deliberately omit all training arrays and the reload reference files.
+    if config.get('causal_history_input',False):
+        return {**{key:config[key] for key in ('base','run_root','checkpoint_step','checkpoint_sha256',
+                 'owner_sha256','complete_sha256','variant','history_contract_sha256')},
+                'experiment':'history_runtime','mode':'serve','port':0}
     return {**{key: config[key] for key in ('base','run_root','checkpoint_step','checkpoint_sha256')},
             'experiment':'act_runtime', 'mode':'serve', 'port':0, 'request_timeout_s':5.}
 
@@ -133,7 +148,8 @@ def main():
             ready_path = output/'service/ready.json'
             native_config = output/'service_config.json'; write(native_config, service_config(config))
             with (output/'service.log').open('w') as service_log, (output/'isaac.log').open('w') as case_log:
-                service = subprocess.Popen([sys.executable,'-u','-B','-m','sim.ausc_policy.act_runtime',
+                module='sim.ausc_policy.history_runtime' if config.get('causal_history_input',False) else 'sim.ausc_policy.act_runtime'
+                service = subprocess.Popen([sys.executable,'-u','-B','-m',module,
                     '--config',str(native_config),'--output',str(output/'service')],
                     stdout=service_log, stderr=subprocess.STDOUT)
                 deadline = time.monotonic()+120

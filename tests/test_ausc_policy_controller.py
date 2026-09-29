@@ -127,6 +127,20 @@ class ControllerTests(unittest.TestCase):
         np.testing.assert_allclose([x['label_time_s'] for x in c.l2_actions], np.arange(1,6)*.05+1.)
         self.assertTrue(all(frame['eligible'] is False for frame in sensor.rows))
 
+    def test_history_query_retains_actual_sparse_frames_and_rejects_padding(self):
+        import copy
+        m,c,clock,sensor,client=self.make();c.causal_history_input=True
+        with self.assertRaisesRegex(ValueError,'half-second history'):c._l2_action()
+        self.assertEqual(client.calls,[])
+        original=sensor.rows[-1];sensor.rows=[]
+        for i in range(11):
+            frame=copy.deepcopy(original);frame.update(index=i,time_s=.5+i*.05)
+            sensor.rows.append(frame)
+        c._l2_action()
+        history=client.calls[0][1]['history']
+        self.assertEqual([f['frame_id'] for f in history],[0,5,8,9,10])
+        self.assertEqual(c.l2_queries[-1]['causal_history'],history)
+
     def enable_hints(self, controller):
         controller.motion_velocity = 'quadratic5'
         controller.trajectory.input = SimpleNamespace(target_velocity=[0.]*7, target_acceleration=[0.]*7)

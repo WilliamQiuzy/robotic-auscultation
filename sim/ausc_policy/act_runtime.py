@@ -54,8 +54,9 @@ class ReloadMismatch(ValueError):
         self.evidence = evidence
 
 
-def load_artifacts(config_path, checkpoint, checkpoint_sha256):
+def load_artifacts(config_path, checkpoint, checkpoint_sha256, *, environment_width=12):
     """Bind a completed local run. Never consult source datasets or old statistics."""
+    a.need(environment_width in (12,40), 'Unknown finite environment width')
     config_path, checkpoint = Path(config_path).resolve(), Path(checkpoint).resolve()
     config = a.read_json(config_path); a.validate_config(config)
     a.need(config['mode'] in ('train32', 'train'), 'Runtime requires a completed finite training configuration')
@@ -74,7 +75,7 @@ def load_artifacts(config_path, checkpoint, checkpoint_sha256):
     policy_config = a.read_json(checkpoint/'config.json')
     expected = dict(type='act', n_obs_steps=1, chunk_size=10, n_action_steps=5,
         input_features={'observation.state': dict(type='STATE', shape=[7]),
-                        'observation.environment_state': dict(type='ENV', shape=[12])},
+                        'observation.environment_state': dict(type='ENV', shape=[environment_width])},
         output_features={'action': dict(type='ACTION', shape=[7])},
         normalization_mapping={key: 'IDENTITY' for key in ('STATE','ENV','ACTION')},
         temporal_ensemble_coeff=None, pretrained_backbone_weights=None, use_amp=False,
@@ -112,14 +113,14 @@ def load_artifacts(config_path, checkpoint, checkpoint_sha256):
 
 class NativeEngine:
     """Strict local safetensors load into official ACT; CPU and no gradient path."""
-    def __init__(self, artifacts):
+    def __init__(self, artifacts, *, environment_width=12):
         a.need(sys.platform == 'linux' and os.environ.get('AUSC_OWNED_RUN') == '1',
                'Native CPU inference requires the Linux experiment owner')
         # In its isolated native process, hide CUDA before importing torch.
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         config = copy.deepcopy(artifacts.config)
         config.update(device='cpu', runtime_scope='inference_only')
-        self.torch, self.policy, sources = a.make_native(config)
+        self.torch, self.policy, sources = a.make_native(config, environment_width=environment_width)
         a.need(sources == artifacts.native_sources, 'Native runtime sources differ from trained checkpoint')
         from safetensors.torch import load_model
         missing, unexpected = load_model(self.policy, str(artifacts.checkpoint/'model.safetensors'),
