@@ -1,0 +1,22 @@
+#usda 1.0
+(
+    subLayers = [
+        @../../auscultation_expert_layout_v1/results/expert_v2/physics_all10/training_scene.usdc@
+    ]
+)
+
+over "World"
+{
+    over "RobotCam"
+    {
+        matrix4d xformOp:transform:downwardPitch = ( (0.9999671152646771, -0.0015933693553378554, -0.00795170191452534, 0), (0.00783313940424967, 0.4436758609605049, 0.8961530964785139, 0), (0.0021000753114083304, -0.896185913510725, 0.4436737518815309, 0), (0.02426699496313833, 0.3643973371905113, 1.5981699236781761, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform:downwardPitch"]
+    }
+
+    over "RobotCamBody"
+    {
+        matrix4d xformOp:transform:cameraPoseReview = ( (0.9999671152646771, -0.0015933693553378554, -0.00795170191452534, 0), (0.00783313940424967, 0.4436758609605049, 0.8961530964785139, 0), (0.0021000753114083304, -0.896185913510725, 0.4436737518815309, 0), (0.02426699496313833, 0.3643973371905113, 1.5981699236781761, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform:cameraPoseReview"]
+    }
+}
+

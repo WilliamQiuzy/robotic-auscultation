@@ -1,0 +1,36 @@
+{
+  "schema": "approved_scene_source_inventory_v1",
+  "scope": "Preserved layout/camera overlays and their immediate binary layers; full dependencies remain in original asset manifests. Not a new scene or proof of changed physics.",
+  "files": [
+    {
+      "path": "sim/camera_framing_20260923/recommended_scene.usda",
+      "bytes": 108,
+      "sha256": "d250c10aad265bdbc7912ba1f77aebcc49f1802682b1dccb3640243cb5399f1a",
+      "storage": "git"
+    },
+    {
+      "path": "sim/camera_framing_20260923/preview_7deg/up_5cm_down_7deg.usda",
+      "bytes": 1030,
+      "sha256": "beeeaec0ebb864d5e8b1e2f6b34af7680dce00f42abe04d2ce94820fcafe79ad",
+      "storage": "git"
+    },
+    {
+      "path": "sim/layout_review_20260923/camera_comparison_l40s_v1/farther_5cm_lower_2cm.usda",
+      "bytes": 3979,
+      "sha256": "027e078f9d4f58c99cca2939c8438d6a4aa01cc9dcb669ba20756c877065c015",
+      "storage": "git"
+    },
+    {
+      "path": "sim/auscultation_training/results/low_elbow_release_v1/physics_all10/training_scene.usdc",
+      "bytes": 86536252,
+      "sha256": "3d21413256450f133ff67abf75ebffaf8a71fc50d275243fdb6767750b4cae07",
+      "storage": "external_binary_asset"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/results/expert_v2/physics_all10/training_scene.usdc",
+      "bytes": 86542282,
+      "sha256": "c87042ec0790fd1a5f7a3e8679f6b758018c7108611e15278dd7c873699c7016",
+      "storage": "external_binary_asset"
+    }
+  ]
+}

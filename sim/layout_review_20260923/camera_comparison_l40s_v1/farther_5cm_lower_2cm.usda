@@ -1,0 +1,91 @@
+#usda 1.0
+(
+    metersPerUnit = 1
+    subLayers = [
+        @../../auscultation_training/results/low_elbow_release_v1/physics_all10/training_scene.usdc@
+    ]
+    upAxis = "Z"
+)
+
+over "World"
+{
+    over "Patient"
+    {
+        matrix4d xformOp:transform:layoutReview = ( (-1, 1.2246467991473532e-16, 0, 0), (-1.2246467991473532e-16, -1, 0, 0), (0, 0, 1, 0), (0, 0.9253986168652774, -0.06645216746779446, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+    }
+
+    over "Stool"
+    {
+        matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0.9500000000000001, 0, 1) )
+        uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+
+        over "seat"
+        {
+            float3[] extent = [(-0.17, -0.17, -0.02), (0.17, 0.17, 0.02)]
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0, 0.7399629246228275, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "leg0"
+        {
+            float3[] extent = [(-0.012, -0.012, -0.35998145), (0.012, 0.012, 0.35998145)]
+            double height = 0.7199629246228275
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0.115, 0.115, 0.35998146231141376, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "leg1"
+        {
+            float3[] extent = [(-0.012, -0.012, -0.35998145), (0.012, 0.012, 0.35998145)]
+            double height = 0.7199629246228275
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0.115, -0.115, 0.35998146231141376, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "leg2"
+        {
+            float3[] extent = [(-0.012, -0.012, -0.35998145), (0.012, 0.012, 0.35998145)]
+            double height = 0.7199629246228275
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (-0.115, 0.115, 0.35998146231141376, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "leg3"
+        {
+            float3[] extent = [(-0.012, -0.012, -0.35998145), (0.012, 0.012, 0.35998145)]
+            double height = 0.7199629246228275
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (-0.115, -0.115, 0.35998146231141376, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "rung_x0"
+        {
+            float3[] extent = [(-0.115, -0.008, -0.008), (0.115, 0.008, 0.008)]
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, 0.115, 0.24723051128082243, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "rung_x1"
+        {
+            float3[] extent = [(-0.115, -0.008, -0.008), (0.115, 0.008, 0.008)]
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0, -0.115, 0.24723051128082243, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "rung_y0"
+        {
+            float3[] extent = [(-0.008, -0.115, -0.008), (0.008, 0.115, 0.008)]
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (0.115, 0, 0.24723051128082243, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+
+        over "rung_y1"
+        {
+            float3[] extent = [(-0.008, -0.115, -0.008), (0.008, 0.115, 0.008)]
+            matrix4d xformOp:transform:layoutReview = ( (1, 0, 0, 0), (0, 1, 0, 0), (0, 0, 1, 0), (-0.115, 0, 0.24723051128082243, 1) )
+            uniform token[] xformOpOrder = ["xformOp:transform:layoutReview"]
+        }
+    }
+}
+

@@ -25,8 +25,12 @@ GPU owner 复用既有进程组/资源保护器与共享 GPU 锁。每个 run �
 
 ## 工程边界
 
-`sim/` 第一方 Python、shell、必要配置进入 Git；人体数据、模型、生成 USD、
-实验数组与录像留在数据/结果目录，不进 Git。代码仓库不等于完整资产备份：
+`sim/` 第一方 Python、shell、必要配置以及批准的相机/座位 USDA 覆盖层进入 Git；
+人体数据、模型、完整二进制 USD、实验数组与录像留在数据/结果目录，不进 Git。
+`configs/ausc_policy/scene_assets.json` 绑定三个覆盖层及其两份直接二进制依赖的大小与 SHA256。
+离线复现覆盖层须按清单将二进制资产放回对应相对路径；实际 Isaac 入口继续显式读取
+批准的 `asset_root` 与已有完整 manifest，不改用缺少依赖的 Git 目录。
+代码仓库不等于完整资产备份：
 Linux 已有资产与结果保留，资产定位/哈希从历史 manifest 读取。
 不得上传 SMPL/HuMMan 原始数据或绕过它们的使用许可。
 

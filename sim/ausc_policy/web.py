@@ -28,6 +28,7 @@ SOURCES = {
     '/evidence/act-path-probe': 'results/ausc_policy/m0_act_path_probe/REPORT.md',
     '/evidence/act-executor-results': 'reports/ausc_policy/m0_executor_closed_loop.md',
     '/evidence/asset-preflight': 'reports/ausc_policy/m2_asset_preflight.md',
+    '/evidence/act-feedback': 'reports/ausc_policy/m0_act_feedback_probe.md',
     '/media/act-nearest.mp4': 'results/ausc_policy/m0_act_d0_nearest/review.mp4',
     '/media/act-nearest-comparison.svg': 'results/ausc_policy/m0_act_nearest_comparison/comparison.svg',
     '/media/act-preview.mp4': 'results/ausc_policy/m0_act_d0_preview/review.mp4',
