@@ -37,6 +37,14 @@ def validate_config(config):
         raise ValueError('M0 reinterprets fixed final512 checkpoint with ODE10')
 
 
+def invalidate_loaded_cache(probe, action_expert):
+    """A freshly constructed policy has no cache; a used policy needs clearing."""
+    state = probe.modulation_cache_state(action_expert)
+    if state['populated']:
+        return probe.reset_modulation_cache(action_expert)
+    return dict(first_evaluation=True, before_reset=state, after_reset=state)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', required=True, type=Path)
@@ -54,6 +62,7 @@ def main():
 
 def run(args, config, base):
     started = time.time()
+    print('M0 seed probe: verify original sources and inputs', flush=True)
     diag = base / 'diagnostics'
     legacy = diag / 'molmoact2_train32_candidate_v1'
     # These sibling imports are the existing checkpoint format, not a new copy.
@@ -89,12 +98,14 @@ def run(args, config, base):
     from lerobot.policies.molmoact2.modeling_molmoact2 import MolmoAct2Policy
     ckpt.seed_all(torch, 61)
     policy = MolmoAct2Policy(cfg).to('cuda')
+    print('M0 seed probe: restore final512 parameters', flush=True)
     restore = ckpt.load_trainable_parameters(directory, policy, torch,
         config['checkpoint_complete_sha256'], 512, context)
     ckpt.save_json(args.output / 'checkpoint_loaded.json', dict(cursor=restore['cursor'],
         trainable_tensors=len(restore['restored_parameters']),
         optimizer_loaded=False, checkpoint_complete_sha256=config['checkpoint_complete_sha256']))
-    probe.reset_modulation_cache(policy._action_expert())
+    invalidate_loaded_cache(probe, policy._action_expert())
+    print('M0 seed probe: start 320 label-free predictions', flush=True)
     raw = np.empty((20, 16, 10, 7), dtype=np.float32)
     normalized = np.empty_like(raw)
     prediction_seconds = []
