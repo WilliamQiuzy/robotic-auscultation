@@ -16,6 +16,7 @@ GUARD_SHA = '48c47cf0d6d8f3d770028931a61d2882c5281684053a6149dacfcbe7b2483ff2'
 MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
            'act_baseline': 'sim.ausc_policy.act_baseline',
            'act_runtime': 'sim.ausc_policy.act_runtime',
+           'executor_probe': 'sim.ausc_policy.executor_probe',
            'isaac_run': 'sim.ausc_policy.isaac_run'}
 
 
@@ -57,6 +58,8 @@ def main():
         HF_HUB_DISABLE_IMPLICIT_TOKEN='1', TOKENIZERS_PARALLELISM='false')
     for key in ['PYTHONPATH', 'HF_TOKEN', 'JAX_PLATFORMS']:
         env.pop(key, None)
+    if config['experiment'] == 'executor_probe':
+        env['CUDA_VISIBLE_DEVICES'] = ''
     os.chdir(root)
     record = dict(run_id=args.run_id, code_commit=commit, config=config,
         config_sha256=hashlib.sha256(config_bytes).hexdigest(), command=command,

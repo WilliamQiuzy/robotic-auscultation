@@ -11,7 +11,7 @@ FIELDS = ('run_id', 'experiment', 'mode', 'action_representation', 'seed',
           'code_commit', 'config_sha256', 'data_manifest_sha256', 'train_episodes',
           'completed', 'exit_code', 'gpu_released', 'optimizer_updates',
           'median_sample_mae_rad', 'hold_median_sample_mae_rad',
-          'cv_median_sample_mae_rad', 'm0_passed', 'closed_loop_evaluated',
+          'cv_median_sample_mae_rad', 'case_passed', 'm0_passed', 'closed_loop_evaluated',
           'started_utc', 'ended_utc', 'failure')
 
 
@@ -43,9 +43,9 @@ def record(folder):
         median_sample_mae_rad=m.get('act', {}).get('median_sample_mae_rad'),
         hold_median_sample_mae_rad=m.get('hold', {}).get('median_sample_mae_rad'),
         cv_median_sample_mae_rad=m.get('constant_velocity', {}).get('median_sample_mae_rad'),
-        m0_passed=complete.get('m0_passed'), closed_loop_evaluated=complete.get('closed_loop_evaluated'),
+        case_passed=complete.get('case_passed'),m0_passed=complete.get('m0_passed'), closed_loop_evaluated=complete.get('closed_loop_evaluated'),
         started_utc=run.get('started_utc'), ended_utc=result.get('ended_utc'),
-        failure=failure.get('reason') or '|'.join(map(str, stage.get('errors', []))))
+        failure=failure.get('reason') or complete.get('failure_reason') or '|'.join(map(str, stage.get('errors', []))))
 
 
 def build(root):
