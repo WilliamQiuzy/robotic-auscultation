@@ -40,6 +40,8 @@ SOURCES = {
     '/evidence/near-state-labels': 'reports/ausc_policy/m0_near_state_labels.md',
     '/media/near-state-labels.svg': 'results/ausc_policy/m0_velocity_probe/near_state_labels.svg',
     '/evidence/capture-region': 'reports/ausc_policy/m0_capture_region.md',
+    '/media/recovery-moving.mp4': 'results/ausc_policy/m0_moving_recovery/m0-moving-recovery-act609-20260929/output/review-act609.mp4',
+    '/media/recovery-moving-poster.jpg': 'results/ausc_policy/m0_moving_recovery_media/review-moving-poster.jpg',
     '/media/recovery-perturbed.svg': 'results/ausc_policy/m0_recovery_perturbed_report/recovery.svg',
     '/media/recovery-plus.mp4': 'results/ausc_policy/m0_recovery_perturbed/m0-recovery-perturbed-position-history-20260929/output/review-joint3-plus.mp4',
     '/media/recovery-minus.mp4': 'results/ausc_policy/m0_recovery_perturbed/m0-recovery-perturbed-position-history-20260929/output/review-joint3-minus.mp4',

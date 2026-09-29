@@ -62,7 +62,7 @@ def main():
     from sim.auscultation_expert_layout_v1.posture import PostureChecker,PostureLimits
     from sim.auscultation_skill_v1.certified_collision import CertifiedCollisionChecker
     from sim.auscultation_skill_v1.curve import FixedNormalCurve,force_derived_domain
-    from sim.auscultation_skill_v1.config import CONTACT_DEFAULTS
+    from sim.auscultation_skill_v1.controller import CONTACT_DEFAULTS
     from sim.curobo_expert_v1.static_world import load_static_world,install_fcl_static_world
     from .contact_entry import check_retained_pose
     kin=OpenArmKinematics();base=np.asarray(bundle.plan['world_from_left_base']);row=bundle.row
