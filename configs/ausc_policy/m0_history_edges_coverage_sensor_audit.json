@@ -1,0 +1,17 @@
+{
+  "experiment": "recovery_sensor_audit",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 2100,
+  "cases": [
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free120-recovery-edges-20260929/output/history120",
+      "owner_sha256": "cfdaa737198e657c538fffca3525381dda5a9ccd4119cee6d9b4a7343cc00d1f",
+      "case_sha256": "c98b6b3ee895fb82bef5759fd2c2cfca301e73f31303661702abbbacf61bb3a2"
+    },
+    {
+      "path": "/home/william/wam-vla-v2/runs/ausc_policy/m0-history-free220-recovery-edges-20260929/output/history220",
+      "owner_sha256": "d2e1e8aac2a2bb178237b3c2a9eb312eecda8793d05901c59610650f2068951f",
+      "case_sha256": "257712f5596e275caf38260bda604ea2d929eb3b53ff026b9d0fa46604874f95"
+    }
+  ]
+}

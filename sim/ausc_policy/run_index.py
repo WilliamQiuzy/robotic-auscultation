@@ -12,6 +12,7 @@ FIELDS = ('run_id', 'experiment', 'mode', 'action_representation', 'seed',
           'completed', 'exit_code', 'gpu_released', 'optimizer_updates',
           'median_sample_mae_rad', 'hold_median_sample_mae_rad',
           'cv_median_sample_mae_rad', 'case_passed', 'm0_passed', 'closed_loop_evaluated',
+          'expert_cases', 'expert_cases_passed', 'learned_policy', 'training_dataset_eligible',
           'started_utc', 'ended_utc', 'failure')
 
 
@@ -32,6 +33,12 @@ def record(folder):
     metrics = read(output / f'checkpoint_{step:04d}' / 'metrics.json') if isinstance(step, int) else {}
     m = metrics.get('metrics', {})
     failure = read(output / 'FAILED.json')
+    expert_cases = complete.get('cases', []) if config.get('experiment') == 'recovery_run' else None
+    case_passed = complete.get('case_passed')
+    if expert_cases is not None:
+        case_passed = complete.get('all_cases_passed')
+    case_failures = '|'.join(f"{case['case_id']}: {case['failure_reason']}"
+        for case in (expert_cases or []) if case.get('failure_reason'))
     return dict(run_id=run['run_id'], experiment=config.get('experiment'), mode=config.get('mode'),
         action_representation=config.get('action_representation'), seed=config.get('seed'),
         code_commit=run.get('code_commit'), config_sha256=run.get('config_sha256'),
@@ -43,9 +50,12 @@ def record(folder):
         median_sample_mae_rad=m.get('act', {}).get('median_sample_mae_rad'),
         hold_median_sample_mae_rad=m.get('hold', {}).get('median_sample_mae_rad'),
         cv_median_sample_mae_rad=m.get('constant_velocity', {}).get('median_sample_mae_rad'),
-        case_passed=complete.get('case_passed'),m0_passed=complete.get('m0_passed'), closed_loop_evaluated=complete.get('closed_loop_evaluated'),
+        case_passed=case_passed,m0_passed=complete.get('m0_passed'), closed_loop_evaluated=complete.get('closed_loop_evaluated'),
+        expert_cases=len(expert_cases) if expert_cases is not None else None,
+        expert_cases_passed=sum(case.get('case_passed') is True for case in expert_cases) if expert_cases is not None else None,
+        learned_policy=complete.get('learned_policy'),training_dataset_eligible=complete.get('training_dataset_eligible'),
         started_utc=run.get('started_utc'), ended_utc=result.get('ended_utc'),
-        failure=failure.get('reason') or complete.get('failure_reason') or '|'.join(map(str, stage.get('errors', []))))
+        failure=failure.get('reason') or complete.get('failure_reason') or case_failures or '|'.join(map(str, stage.get('errors', []))))
 
 
 def build(root):

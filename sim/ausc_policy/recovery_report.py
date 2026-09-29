@@ -56,6 +56,7 @@ def load(root,run_id):
                 position_difference_velocity_peak_rad_s=float(abs(np.diff(q,axis=0)/np.diff(clock)[:,None]).max()),
                 position_range_rad=float(np.ptp(q,axis=0).max()))
         dynamics=read(prefix+'measured_dynamics.json')
+        posture=read(prefix+'posture_audit.json')
         components=('diaphragm_N','lip_N','contact_rim_N','carriage_other_N','frame_N','forbidden_N')
         hold=[r for r in rows if r['phase']=='HOLD']
         role_timeline=[]
@@ -71,6 +72,9 @@ def load(root,run_id):
             verified_front_contact_hold_s=max((p.get('verified_front_contact_hold_s',0.) for p in outcome['points']),default=0.),
             centered_acceleration_rad_s2=dynamics['centered']['acceleration_rad_s2']['max'],
             centered_jerk_rad_s3=dynamics['centered']['jerk_rad_s3']['max'],
+            measured_posture=posture['measured'],actual_rigid_pose_posture=posture['actual_replay'],
+            source_posture_audit_accepted=posture['accepted'],
+            source_posture_audit_reasons=posture['reasons'],
             observed_supervisor_replay_passed=result['observed_supervisor_replay_passed'],
             moving_recovery=outcome.get('moving_recovery'),
             role_timeline=role_timeline,
@@ -89,13 +93,23 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--evidence',type=Path,required=True)
     parser.add_argument('--run-id',required=True)
+    parser.add_argument('--additional-run',action='append',nargs=2,default=[],
+                        metavar=('EVIDENCE_DIRECTORY','RUN_ID'),
+                        help='Append an independently SHA-verified run in the declared comparison order')
     parser.add_argument('--output',type=Path,required=True)
-    args=parser.parse_args();summaries,traces=load(args.evidence,args.run_id)
+    args=parser.parse_args()
+    requested=[(args.evidence,args.run_id)]+[(Path(path),name) for path,name in args.additional_run]
+    if len({name for _,name in requested})!=len(requested):
+        raise ValueError('A run may only appear once in a comparison')
+    summaries,traces=[],[]
+    for path,name in requested:
+        run_summaries,run_traces=load(path,name)
+        summaries.extend(run_summaries);traces.extend(run_traces)
     args.output.mkdir(parents=True,exist_ok=False)
     moving=any(r['moving_recovery'] is not None for r in summaries)
     report=dict(scope=('Actual R4 moving expert takeover after student command replay' if moving
         else 'Actual R4 stationary expert pilot')+'; single body, no policy/dataset qualification',
-        m0_passed=False,cases=summaries)
+        m0_passed=False,source_runs=[name for _,name in requested],cases=summaries)
     (args.output/'summary.json').write_text(json.dumps(report,indent=2,allow_nan=False)+'\n')
     import matplotlib
     matplotlib.use('Agg')
@@ -124,6 +138,37 @@ def main():
         ' diagnostics — not a learned-policy test',fontsize=13)
     for suffix in ('svg','png'):fig.savefig(args.output/('recovery.'+suffix),dpi=150)
     plt.close(fig)
+    if len(traces)>1:
+        fig,axes=plt.subplots(1,2,figsize=(12,5.5),layout='constrained')
+        components=[('lip_N','Front lip','#36777d'),
+                    ('diaphragm_N','Diaphragm','#ac614c'),
+                    ('forbidden_N','Forbidden contact','#a97a38')]
+        for j,(component,label,color) in enumerate(components):
+            values=[r['physical_contact_component_peak_N'][component] for r in summaries]
+            bars=axes[0].bar(x+(j-1)*.24,values,.24,label=label,color=color)
+            axes[0].bar_label(bars,labels=[f'{v:.3f}' for v in values],padding=3,fontsize=8)
+        axes[0].set(xticks=x,xticklabels=[r['case_id'] for r in summaries],
+                    ylabel='Actual peak physical contact force (N)',
+                    title='Front contact does not establish diaphragm loading')
+        axes[0].legend(fontsize=8,loc='upper center',bbox_to_anchor=(.5,-.17),ncol=3)
+        labels={'STUDENT_COMMAND_REPLAY':'Student prefix replay','EXPERT_BRAKE':'Brake / settle',
+                'EXPERT_RECOVERY':'Expert recovery / settle','MEASURED_ANALYTIC_L3':'Contact / hold / release',
+                'FINAL_RETURN':'Return home'}
+        colors=['#9ba7b5','#c8a974','#7da7ac','#91b1a0','#c2cad3']
+        left=np.zeros(len(summaries))
+        for j,(role,label) in enumerate(labels.items()):
+            durations=[sum(s['end_time_s']-s['start_time_s']+1/240
+                for s in r['role_timeline'] if s['role']==role) for r in summaries]
+            axes[1].barh(x,durations,left=left,label=label,color=colors[j])
+            left+=durations
+        axes[1].set(yticks=x,yticklabels=[r['case_id'] for r in summaries],
+                    xlabel='Actual simulation duration (s)',title='Same pipeline from predetermined origins')
+        axes[1].invert_yaxis()
+        axes[1].legend(fontsize=8,loc='upper center',bbox_to_anchor=(.5,-.17),ncol=2)
+        for ax in axes:ax.spines[['right','top']].set_visible(False)
+        fig.suptitle('Expert recovery coverage — same body; no learned-policy or diaphragm acceptance',fontsize=12)
+        for suffix in ('svg','png'):fig.savefig(args.output/('coverage.'+suffix),dpi=150)
+        plt.close(fig)
     if len(traces)==1:
         trace=traces[0];t=np.asarray([r['time_s'] for r in trace])
         fig,axes=plt.subplots(2,1,figsize=(10,6),layout='constrained',sharex=True,
