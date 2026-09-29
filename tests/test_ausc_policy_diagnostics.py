@@ -1,5 +1,6 @@
 """CPU tests for physical metrics and evidence boundaries, without model imports."""
 import copy
+import csv
 import json
 from pathlib import Path
 import tempfile
@@ -62,15 +63,19 @@ class DiagnosticsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             d.audit_temporal([bad], np.array([[1., 1.05]]), .05)
 
-    def test_seed_variability_uses_observation_seed_axes_and_zero_increment(self):
+    def test_seed_variability_uses_observation_seed_axes_and_zero_command_measured_gap(self):
         samples = np.zeros((20, 16, 2, 7))
         samples[:, :, 0, 0] = np.arange(16)[None, :]
         reference = np.ones((20, 2, 7))
         reference[:, 0, 1] = 0
         result = d.seed_variability(samples, reference, np.zeros((20, 7)))
         self.assertAlmostEqual(result['per_joint_mean_std_rad'][0], np.std(np.arange(16)))
-        self.assertIsNone(result['per_observation_std_to_true_increment'][0][1])
-        self.assertEqual(result['zero_true_increment_count'][1], 20)
+        gap = result['command_measured_gap_comparison']
+        self.assertIsNone(gap['per_observation_std_to_signal_ratio'][0][1])
+        self.assertEqual(gap['per_joint_zero_signal_count'][1], 20)
+        self.assertEqual(result['direct_trace_increment']['status'], 'unavailable')
+        self.assertFalse(result['command_measured_gap_is_observed_single_step_motion'])
+        self.assertNotIn('per_observation_true_increment_rad', result)
         with self.assertRaisesRegex(ValueError, '20 observations.*16 seeds'):
             d.seed_variability(samples[:19], reference[:19], np.zeros((19, 7)))
 
@@ -101,7 +106,34 @@ class DiagnosticsTests(unittest.TestCase):
         reference = np.array([[[1.001, 1.002], [1.003, 1.004]]])
         result = d.chunk_metrics(reference, reference, q, ['FREE'], .05)
         self.assertEqual(result['absolute']['full_chunk']['mae_rad'], 0)
-        self.assertAlmostEqual(result['true_delta_from_observation']['full_chunk']['mae_rad'], .0025)
+        self.assertAlmostEqual(result['reference_command_measured_gap']['full_chunk']['mae_rad'], .0025)
+        self.assertIn('servo tracking error', result['command_measured_gap_definition'])
+
+    def test_servo_gap_and_local_velocity_estimate_are_distinct_signals(self):
+        predictions = np.zeros((20, 16, 2, 7))
+        predictions[:, :, 0, :] = np.arange(16)[None, :, None]/10000.
+        # A persistent .01 rad command/measured gap can exist at zero measured
+        # velocity. It cannot establish any command-to-command or measured
+        # one-step motion without the original trace.
+        result = d.seed_variability(predictions, np.full((20, 2, 7), .01),
+                                    np.zeros((20, 7)), measured_dq=np.zeros((20, 7)), period_s=.05)
+        gap = result['command_measured_gap_comparison']
+        estimate = result['local_velocity_estimate_comparison']
+        self.assertEqual(gap['per_observation_signal_rad'][0][0], .01)
+        self.assertEqual(estimate['per_observation_signal_rad'][0][0], 0)
+        self.assertIsNone(estimate['per_observation_std_to_signal_ratio'][0][0])
+        self.assertTrue(estimate['is_estimate'])
+        self.assertFalse(estimate['is_observed_trace_increment'])
+        self.assertNotEqual(gap['per_joint_std_ge_signal_fraction'], estimate['per_joint_std_ge_signal_fraction'])
+
+    def test_seed_velocity_estimate_uses_radian_per_second_and_rejects_wrong_shape(self):
+        predictions = np.zeros((20, 16, 2, 7))
+        reference = np.ones((20, 2, 7))
+        q = np.zeros((20, 7))
+        result = d.seed_variability(predictions, reference, q, measured_dq=np.full((20, 7), -.2), period_s=.05)
+        np.testing.assert_allclose(result['local_velocity_estimate_comparison']['per_observation_signal_rad'], .01)
+        with self.assertRaisesRegex(ValueError, 'dq shape'):
+            d.seed_variability(predictions, reference, q, measured_dq=np.zeros((20, 6)))
 
     def test_real_cache_export_is_bound_and_does_not_claim_acceptance(self):
         root = Path(__file__).resolve().parents[1]
@@ -122,6 +154,39 @@ class DiagnosticsTests(unittest.TestCase):
             if 'native_0512' in result['metrics']:
                 self.assertAlmostEqual(result['metrics']['native_0512']['absolute']['h0']['mae_rad'],
                                        .00021149022520271826, places=14)
+
+    def test_seed_npz_export_keeps_gap_and_velocity_estimate_explicit(self):
+        root = Path(__file__).resolve().parents[1]
+        config = json.loads((root/'configs/ausc_policy/m0_diagnostics.json').read_text())
+        cache = root/config['prepared_directory']/'cache.npz'
+        if not cache.exists():
+            self.skipTest('Bound local evidence is not distributed with source')
+        indices = np.arange(20, dtype=np.int64)
+        with np.load(cache, allow_pickle=False) as archive:
+            reference = archive['reference'][indices]
+            measured = archive['state'][indices, :7]
+            dq = archive['state'][indices, 7:14]
+        with tempfile.TemporaryDirectory() as td:
+            folder = Path(td)
+            # Deliberately synthetic test fixture, never written to result evidence.
+            predictions = np.repeat(reference[:, None], 16, axis=1)
+            predictions += np.arange(16, dtype=np.float32)[None, :, None, None]*1e-6
+            seed_file = folder/'synthetic_seed_fixture.npz'
+            np.savez(seed_file, raw=predictions, reference=reference, measured=measured,
+                     sample_indices=indices, seeds=np.arange(917, 933, dtype=np.int64))
+            config['seed_predictions'] = str(seed_file)
+            cfg_path = folder/'test_config.json'
+            cfg_path.write_text(json.dumps(config))
+            result = d.run(cfg_path, root=root, output=folder/'output')
+            estimate = result['seed_variability']['local_velocity_estimate_comparison']
+            np.testing.assert_allclose(estimate['per_observation_signal_rad'], np.abs(dq.astype(float)*.05))
+            with (folder/'output'/'seed_variability.csv').open() as stream:
+                rows = list(csv.DictReader(stream))
+            self.assertEqual(len(rows), 20*7)
+            self.assertEqual(rows[0]['observed_trace_increment_available'], 'False')
+            text = (folder/'output'/'REPORT.md').read_text()
+            self.assertIn('包含伺服跟踪滞后', text)
+            self.assertNotIn('真实运动比', text)
 
 
 if __name__ == '__main__':

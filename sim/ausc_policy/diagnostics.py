@@ -86,10 +86,11 @@ def chunk_metrics(prediction, reference, measured_q, phases, period_s):
     step_ref = np.diff(np.concatenate([q[:, None], reference], axis=1), axis=1)
     return dict(absolute=absolute, delta_from_observation=absolute,
                 step_delta=_error_groups(step_pred-step_ref, phases, period_s),
-                true_delta_from_observation=_error_groups(reference-q[:, None], phases, period_s),
-                predicted_delta_from_observation=_error_groups(prediction-q[:, None], phases, period_s),
+                reference_command_measured_gap=_error_groups(reference-q[:, None], phases, period_s),
+                predicted_command_measured_gap=_error_groups(prediction-q[:, None], phases, period_s),
+                command_measured_gap_definition='future command minus current measured q; includes servo tracking error and is not measured single-step motion',
                 delta_definition='prediction[h]-q_observed versus reference[h]-q_observed; errors equal absolute errors',
-                step_delta_definition='h0 relative to observed q; later horizons relative to preceding predicted/reference command')
+                step_delta_definition='mixed differences: h0 command minus current measured q; h>0 command minus preceding command; neither establishes measured trajectory motion')
 
 
 def dimension_audit(raw, encoded, *, clamp_applied, buckets=256, near_constant_span=1e-8):
@@ -154,24 +155,56 @@ def audit_temporal(rows, times, period_s):
         limitation='本轮核对已绑定缓存中的原始索引和时间映射，未重新读取 frames/expert_trace 做独立逐值复验。')
 
 
-def seed_variability(predictions, reference, measured_q):
+def _std_signal_comparison(std, signal):
+    """Compare a sampling std with a named nonnegative signal, not a motion label."""
+    ratio = np.divide(std, signal, out=np.zeros_like(std), where=signal > 0)
+    return dict(per_observation_signal_rad=signal.tolist(),
+        per_observation_std_to_signal_ratio=[[float(ratio[i,j]) if signal[i,j] > 0 else None
+            for j in range(std.shape[1])] for i in range(len(std))],
+        per_joint_zero_signal_count=(signal == 0).sum(axis=0).tolist(),
+        per_joint_std_ge_signal_fraction=(std >= signal).mean(axis=0).tolist(),
+        std_ge_fraction_includes_zero_signal=True,
+        per_joint_median_ratio_nonzero_signal=[float(np.median(ratio[signal[:,j] > 0,j]))
+            if np.any(signal[:,j] > 0) else None for j in range(std.shape[1])])
+
+
+def seed_variability(predictions, reference, measured_q, *, measured_dq=None, period_s=.05):
+    """Inputs are decoded radians; dq, when present, is measured rad/s.
+
+    reference[:, 0] - measured_q mixes a future command with a current measured
+    state. It includes present tracking lag and cannot substitute for either
+    command(t+dt)-command(t) or measured_q(t+dt)-measured_q(t). dq*dt is only a
+    local constant-velocity estimate; those two observed trace differences
+    require independent trace evidence not contained in this cache.
+    """
     predictions, reference = finite(predictions, 'seed predictions'), finite(reference, 'reference')
     q = finite(measured_q, 'measured_q')
+    need(np.isfinite(period_s) and period_s > 0, 'Invalid seed diagnostic period')
     need(predictions.ndim == 4 and predictions.shape[:2] == (20, 16), 'Expected 20 observations and 16 seeds')
     need(reference.shape == (20, predictions.shape[2], predictions.shape[3]) and
          q.shape == (20, predictions.shape[3]), 'Seed reference/anchor shapes differ')
     std = predictions[:, :, 0].std(axis=1, ddof=0)
-    increment = np.abs(reference[:, 0]-q)
-    ratio = np.divide(std, increment, out=np.zeros_like(std), where=increment > 0)
-    return dict(status='available', observations=20, seeds=16, std_ddof=0, units='rad',
-        per_observation_h0_std_rad=std.tolist(), per_observation_true_increment_rad=increment.tolist(),
-        per_observation_std_to_true_increment=[[float(ratio[i,j]) if increment[i,j] > 0 else None
-            for j in range(std.shape[1])] for i in range(20)],
+    gap = _std_signal_comparison(std, np.abs(reference[:, 0]-q))
+    gap.update(signal_definition='abs(q_command(t+period_s)-q_measured(t))',
+        contains_servo_tracking_gap=True, is_observed_trace_increment=False)
+    result = dict(status='available', observations=20, seeds=16, std_ddof=0, units='rad', period_s=period_s,
+        per_observation_h0_std_rad=std.tolist(), command_measured_gap_comparison=gap,
+        command_measured_gap_is_observed_single_step_motion=False,
         per_joint_mean_std_rad=std.mean(axis=0).tolist(), per_joint_median_std_rad=np.median(std, axis=0).tolist(),
-        zero_true_increment_count=(increment == 0).sum(axis=0).tolist(),
-        per_joint_std_ge_true_increment_fraction=(std >= increment).mean(axis=0).tolist(),
-        per_joint_median_ratio_nonzero_increment=[float(np.median(ratio[increment[:,j] > 0,j]))
-            if np.any(increment[:,j] > 0) else None for j in range(std.shape[1])])
+        direct_trace_increment=dict(status='unavailable',
+            required=['q_command(t+period_s)-q_command(t)', 'q_measured(t+period_s)-q_measured(t)'],
+            reason='The bound observation cache has no independently validated current command or next measured q.'),
+        local_velocity_estimate_comparison=dict(status='unavailable', reason='No measured dq supplied'),
+        interpretation='Ratios to the command/measured gap or dq*dt are descriptive comparisons, not proof that seed noise exceeds observed motion or causes closed-loop failure.')
+    if measured_dq is not None:
+        dq = finite(measured_dq, 'measured_dq')
+        need(dq.shape == q.shape, 'Seed measured dq shape differs from measured_q')
+        estimate = _std_signal_comparison(std, np.abs(dq*period_s))
+        estimate.update(status='available', signal_definition='abs(qdot_measured(t) * period_s)',
+            is_estimate=True, is_observed_trace_increment=False,
+            limitation='Local constant-velocity estimate; acceleration and tracking dynamics are not observed over the next interval.')
+        result['local_velocity_estimate_comparison'] = estimate
+    return result
 
 
 def load_predictions(path, cached):
@@ -269,7 +302,7 @@ def _report_zh(report):
         full, h0 = result['absolute']['full_chunk'], result['absolute']['h0']
         lines.append(f"| {name} | {full['mae_rad']:.8g} | {full['median_absolute_rad']:.8g} | {full['median_sample_mae_rad']:.8g} | {h0['mae_rad']:.8g} |")
     lines += ['', '![整块拟合与基线曲线](fit_vs_baselines.svg)',
-        '', '绝对动作与相对观测 q 的 delta 误差数学上相同；另外导出逐步指令增量误差、真实和预测运动幅度。分阶段、每个视界与每关节指标见 JSON/CSV。',
+        '', '绝对动作与相对观测 q 的 delta 误差数学上相同；另外导出参考/预测的“未来指令－当前实测 q”差值，以及混合差分误差（h0 是指令－实测，后续是相邻指令－指令）。这些量均不等于实测轨迹运动。分阶段、每个视界与每关节指标见 JSON/CSV。',
         '', '时间对齐：已核对缓存保存的原始 label index、相邻帧与 12 个物理步映射。第 0 项是 +50 ms 指令，最后一项是 +500 ms；缓存 times 是观测帧时间。历史 qualification 证据保留，本轮未独立重读原始 trace。',
         '', '实际归一化：冻结 physical/asinh StateCodec + native 256 桶；native adapter 配置为 IDENTITY，绕过 generic normalizer/clamp。状态 token 函数含 clamp，实际改变比例由表中数值报告。动作使用 V11 分阶段有界 latent 编码，连续标签未硬裁剪。子集分位数裁剪比例属于反事实。']
     audit = report['normalization_audit']
@@ -281,7 +314,8 @@ def _report_zh(report):
         values = comparisons[name]
         lines.append(f"\n{name}：整块逐样本 MAE 中位数 / hold = {values['median_ratio_to_hold']:.5g}，/ 匀速 = {values['median_ratio_to_constant_velocity']:.5g}。元素绝对误差中位数 / hold = {values['element_median_ratio_to_hold']:.5g}，/ 匀速 = {values['element_median_ratio_to_constant_velocity']:.5g}。比值小于 1 表示点估计较低；未定义“明显优于”的统计门。")
         lines.append('FREE 阶段整块逐样本 MAE 中位数 (rad)：' + '，'.join(f"{key} = {report['metrics'][key]['absolute']['by_phase']['FREE']['full_chunk']['median_sample_mae_rad']:.8g}" for key in ('hold','constant_velocity',name))+'。')
-    lines += ['', '20 观测 × 16 种子：' + ('已读取真实预测并导出首步逐关节标准差/真实运动比。' if report['seed_variability']['status'] == 'available' else '尚无输入预测，不填造结果。'),
+    lines += ['', '20 观测 × 16 种子：' + ('已读取真实预测，导出首步逐关节标准差及其相对“未来指令－当前实测 q”差值的比值。' if report['seed_variability']['status'] == 'available' else '尚无输入预测，不填造结果。'),
+        '', '种子诊断的分母口径：reference[:, 0] − measured 是 +50 ms 指令与当前实测关节之差，包含伺服跟踪滞后，不能称为真实单步运动。缓存 dq × 0.05 s 另列为局部匀速估计，也不是原始轨迹增量。原始 command→command 和 measured→measured 的单步增量尚需 trace 独立核验；不能据此宣称种子噪声导致闭环失败。',
         '', '**M0 尚未完成。** 交接区尚未测量，不能以关节误差伪造 TCP 位置容差通过；状态输入 ACT/DP 的训练场景闭环复现仍是 M0 退出条件。',
         '', '复现信息：配置、当前诊断代码、输入 shard 与实际依赖源码哈希见 JSON；没有全量逐文件审计。']
     return '\n'.join(lines)+'\n'
@@ -335,7 +369,7 @@ def _write_exports(report, output):
     (output/'diagnostics.json').write_text(json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False)+'\n')
     metric_rows = []
     for model, values in report['metrics'].items():
-        for representation in ('absolute','delta_from_observation','step_delta','true_delta_from_observation','predicted_delta_from_observation'):
+        for representation in ('absolute','delta_from_observation','step_delta','reference_command_measured_gap','predicted_command_measured_gap'):
             result = values[representation]
             groups = [('ALL', result)] + list(result['by_phase'].items())
             for phase, group in groups:
@@ -356,6 +390,21 @@ def _write_exports(report, output):
     with (output/'normalization.csv').open('w', newline='') as stream:
         writer = csv.DictWriter(stream, fieldnames=list(dict.fromkeys(k for row in audit_rows for k in row)))
         writer.writeheader(); writer.writerows(audit_rows)
+    variability = report['seed_variability']
+    if variability['status'] == 'available':
+        seed_rows = []
+        gap = variability['command_measured_gap_comparison']
+        estimate = variability['local_velocity_estimate_comparison']
+        for i, sample in enumerate(variability['sample_indices']):
+            for j, std in enumerate(variability['per_observation_h0_std_rad'][i]):
+                seed_rows.append(dict(sample_index=sample, joint_index=j, h0_std_rad=std,
+                    h0_command_measured_gap_rad=gap['per_observation_signal_rad'][i][j],
+                    std_to_command_measured_gap=gap['per_observation_std_to_signal_ratio'][i][j],
+                    local_velocity_estimate_abs_rad=estimate['per_observation_signal_rad'][i][j],
+                    std_to_local_velocity_estimate=estimate['per_observation_std_to_signal_ratio'][i][j],
+                    observed_trace_increment_available=False))
+        with (output/'seed_variability.csv').open('w', newline='') as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(seed_rows[0])); writer.writeheader(); writer.writerows(seed_rows)
     (output/'REPORT.md').write_text(_report_zh(report))
     _write_curve(report, output)
 
@@ -427,11 +476,12 @@ def run(config_path, *, root=None, output=None):
              and np.all((indices >= 0)&(indices < len(rows))), 'Invalid seed observation IDs')
         need(multi['seeds'].shape == (16,) and multi['seeds'].dtype.kind in 'iu' and len(set(multi['seeds'].tolist())) == 16, 'Invalid noise seed IDs')
         need(np.array_equal(multi['reference'], arrays['reference'][indices]) and np.array_equal(multi['measured'], q[indices]), 'Seed observation references differ from cache')
-        variability = seed_variability(multi['raw'], multi['reference'], multi['measured'])
+        variability = seed_variability(multi['raw'], multi['reference'], multi['measured'],
+                                       measured_dq=arrays['state'][indices, 7:14], period_s=config['period_s'])
         variability.update(sample_indices=indices.tolist(), seed_ids=multi['seeds'].tolist())
         used_inputs.append(path)
     commit = subprocess.run(['git','rev-parse','HEAD'], cwd=root, text=True, capture_output=True, check=False)
-    report = dict(schema='ausc_policy_m0_offline_diagnostics_v1', scope='TRAIN32 offline pipeline evidence only',
+    report = dict(schema='ausc_policy_m0_offline_diagnostics_v2', scope='TRAIN32 offline pipeline evidence only',
         config_sha256=sha256(config_path), code_commit=commit.stdout.strip() if commit.returncode == 0 else None,
         code_sha256={str(p.relative_to(root)):sha256(p) for p in code_files},
         input_shards_sha256={str(p.relative_to(root)) if p.is_relative_to(root) else str(p):sha256(p) for p in set(used_inputs)},
@@ -441,7 +491,7 @@ def run(config_path, *, root=None, output=None):
         missing_prediction_updates=missing, metrics=metrics, baseline_comparisons=comparisons,
         seed_variability=variability, acceptance=dict(status='not_assessed', m0_complete=False,
             capture_region='not_measured', position_error='not_computed_from_joint_error',
-            required_remaining=['20 observations x 16 seeds if unavailable', 'measured capture region and TCP error', 'state-only ACT/DP training-scene closed-loop reproduction']))
+            required_remaining=['20 observations x 16 seeds if unavailable', 'independent command/measured trace increments', 'measured capture region and TCP error', 'state-only ACT/DP training-scene closed-loop reproduction']))
     output = Path(output) if output else resolve(config['output_directory'])
     _write_exports(report, output)
     return report

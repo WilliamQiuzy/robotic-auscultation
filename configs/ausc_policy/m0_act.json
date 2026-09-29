@@ -1,0 +1,39 @@
+{
+  "schema": "ausc_m0_act_v1",
+  "experiment": "act_baseline",
+  "mode": "prepare",
+  "base": "/home/william/wam-vla-v2",
+  "lerobot_root": "/home/william/wam-vla-v2/vendor/molmoact2-wam-v1",
+  "upstream_commit": "eb7a54c6ff4983fc86075442bf4fa61503e7b5d1",
+  "manifest": "/home/william/wam-vla-v2/datasets/pi05_v10_recovery_B7300_bound_v1/manifest.json",
+  "manifest_sha256": "7d14572aa58bc3f1d58396e26d9de620d4b23603eff156831f109cb6368c429e",
+  "prepared_manifest": null,
+  "prepared_manifest_sha256": null,
+  "device": "cpu",
+  "seed": 61,
+  "horizon": 10,
+  "execute_steps": 5,
+  "period_s": 0.05,
+  "state_dim": 19,
+  "action_representation": "absolute_joint_radians",
+  "time_limit_seconds": 7200,
+  "train_episode_ids": [
+    "R1_observed_armature02_v1", "L1_observed_armature02_v1",
+    "R2_observed_armature02_v1", "L2_observed_armature02_v1",
+    "R3_observed_armature02_v1", "L3_observed_armature02_v1",
+    "R4_observed_armature02_v1", "L4_observed_armature02_v1",
+    "R1_train_yaw_positive_v1_001", "L1_train_yaw_positive_v1_001",
+    "R2_train_yaw_positive_v1_001", "L2_train_yaw_positive_v1_001",
+    "R4_train_yaw_positive_v1_001", "R4_train_B7300_prefix20_v1_001",
+    "R4_train_B7300_approach_entry_v1_001", "R4_train_B7300_outward_onset_v1_001"
+  ],
+  "model": {
+    "dim_model": 256, "n_heads": 4, "dim_feedforward": 1024,
+    "n_encoder_layers": 2, "n_decoder_layers": 1, "use_vae": false, "dropout": 0.0
+  },
+  "optimizer": {"lr": 0.0001, "betas": [0.9, 0.999], "weight_decay": 0.0001, "grad_clip_norm": 10.0},
+  "modes": {
+    "train32": {"steps": 512, "batch_size": 32, "q_dropout": 0.0},
+    "train": {"steps": 2000, "batch_size": 32, "q_dropout": 0.1}
+  }
+}
