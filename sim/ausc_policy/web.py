@@ -10,6 +10,13 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/retainer-l4l5-near.mp4': 'results/ausc_policy/retainer_l4l5_near_v4/actual_fresh_expert.mp4',
+    '/media/retainer-l4l5-near-poster.png': 'results/ausc_policy/retainer_l4l5_near_v4/contact_frame.png',
+    '/media/retainer-l4l5-force.svg': 'results/ausc_policy/retainer_l4l5_near_v4/independent_force.svg',
+    '/evidence/retainer-l4l5-independent': 'results/ausc_policy/retainer_l4l5_near_v4/independent_summary.json',
+    '/evidence/retainer-l4l5-native': 'results/ausc_policy/retainer_l4l5_near_v4/fresh_expert_result.json',
+    '/evidence/retainer-l4l5-owner': 'results/ausc_policy/retainer_l4l5_near_v4/result.json',
+
     '/media/m2-codec-comparison.svg': 'results/ausc_policy/compact_codec_benchmark_v1/codec_comparison.svg',
     '/evidence/m2-storage-reachability': 'reports/ausc_policy/m2_storage_reachability_20260930.md',
     '/evidence/m2-codec-delta': 'results/ausc_policy/compact_codec_benchmark_v1/compact_codec_benchmark_20260930_u32_xor20_v3__summary.json',
