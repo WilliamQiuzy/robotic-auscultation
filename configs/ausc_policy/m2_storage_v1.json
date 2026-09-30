@@ -1,0 +1,16 @@
+{
+  "schema": "m2_storage_v1",
+  "raw_host": "linux_only",
+  "mac_export": ["summary", "chart", "video"],
+  "recursive_mac_mirror": false,
+  "default_capture": "training",
+  "episode_definition": "one target approach-contact-hold-release attempt",
+  "continuous_sequence_resets": false,
+  "training_episode_limit_bytes": 100000000,
+  "training_camera_hz": 20,
+  "training_modalities": ["rgb", "depth", "depth_valid", "state17", "actions", "hall_downsampled"],
+  "tier_b_percent": 2,
+  "tier_b_selection": "frozen_seed_and_episode_ids_before_outcomes",
+  "final_acceptance_capture": "full_raw_linux",
+  "training_eligible": false
+}

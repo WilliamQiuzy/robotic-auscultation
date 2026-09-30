@@ -410,7 +410,7 @@ def test_contact_timing_rejects_the_real_40mm_failure_before_any_motion(tmp_path
     monkeypatch.setattr(f.SkillExpert,'run',lambda self,points:called.append('motion'))
     short=deepcopy(row);short['free_approach_start_gap_m']=.025
     long=deepcopy(row);long['free_approach_start_gap_m']=.04
-    with pytest.raises(f.EpisodeRejected,match='contact timing necessary lower bound'):
+    with pytest.raises(f.EpisodeRejected,match='contact timing planning screen'):
         controller.run([(target,short),(target,long)])
     assert not called
     report=controller.contact_preflights[-1]
@@ -432,7 +432,8 @@ def test_contact_timing_uses_loaded_surface_projection_and_keeps_timeout(tmp_pat
     report=f.contact_timing_preflight(kin,target,row,config,.0014)
     assert report['surface_gap_m']==pytest.approx(.00202)
     assert report['minimum_travel_s']==pytest.approx((.038-2e-5)/.0014)
-    assert report['passed'] and not report['success_guaranteed']
+    assert not report['passed'] and report['necessary_bound_passed']
+    assert not report['success_guaranteed']
     assert config.contact_timeout_s==20/.7
     row['free_approach_start_gap_m']=.025
     target.position_world=np.asarray(row['position_world'])
@@ -560,12 +561,33 @@ def test_near_surface_timing_counts_slower_distance_and_does_not_extend_timeout(
     # At the speed transition the retained inward velocity remains above the
     # desired 0.5 mm/s briefly: an actual NormalExecutor CPU integration takes
     # 18.891667 s to contact, less than the idealized two-zone 19.128571 s.
-    # A 19.3 s watchdog must not be declared mathematically impossible by
-    # mistakenly treating a desired speed as an instantaneous hard limit.
+    # A 19.3 s watchdog is not mathematically impossible but now fails the
+    # distinct planning screen, which includes nominal loading time.
     tight=PhaseConfig(contact_timeout_s=19.3)
     report=f.contact_timing_preflight(kin,target,row,tight,.0014,settings)
-    assert report['passed'] and not report['success_guaranteed']
+    assert not report['passed'] and report['necessary_bound_passed']
+    assert not report['nominal_schedule_passed'] and not report['success_guaranteed']
     assert report['nominal_schedule_total_s']>tight.contact_timeout_s
+
+
+def test_current_l4_nominal_schedule_rejects_40mm_but_accepts_25mm(tmp_path):
+    from sim.auscultation_expert_layout_v1.phase_manager import PhaseConfig
+    row,_,_,kin=fixture_plan(tmp_path)
+    target=SimpleNamespace(name='L4',position_world=np.asarray(row['position_world']).copy())
+    target.position_world-=np.asarray(row['command_normal_world'])*(.002554286897830192-2e-5)
+    row['free_approach_start_gap_m']=.04
+    config=PhaseConfig(contact_timeout_s=20/.7)
+    settings=dict(distance_m=.001,inward_speed_m_s=.0005)
+    report=f.contact_timing_preflight(kin,target,row,config,.0014,settings)
+    assert report['necessary_lower_bound_s']<config.contact_timeout_s
+    assert report['nominal_schedule_total_s']==pytest.approx(33.33265221583557)
+    assert not report['passed']
+    assert report['necessary_bound_passed'] is True
+    assert report['nominal_schedule_passed'] is False
+    row['free_approach_start_gap_m']=.025
+    near=f.contact_timing_preflight(kin,target,row,config,.0014,settings)
+    assert near['passed'] and near['nominal_schedule_passed']
+    assert config.contact_timeout_s==20/.7
 
 
 @pytest.mark.parametrize('bad',[

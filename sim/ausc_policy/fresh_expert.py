@@ -200,12 +200,13 @@ def near_surface_settings(value, inward_speed):
 
 
 def contact_timing_preflight(kin, target, row, config, inward_speed, near_surface=None):
-    """Optimistic travel/settle lower bound, not a successful-contact prediction.
+    """Reject inadequate contact schedules without changing physical watchdogs.
 
     The verified loaded FK locates the finite face's first-contact center. Its
     projection can differ from the target point plane when the head is tilted.
-    Loading, acceleration, tracking and feedback delay are deliberately omitted:
-    even this lower bound must fit before the unchanged contact watchdog expires.
+    Keep the mathematical optimistic bound separate from the nominal two-speed
+    and loaded-pose schedule. Both must fit. The nominal estimate is a planning
+    screen, not a proof: acceleration, tracking and feedback delay remain unknown.
     read_plans remains responsible for the contact-geometry evidence.
     """
     base = _base_transform(row['world_from_left_base'])
@@ -231,22 +232,28 @@ def contact_timing_preflight(kin, target, row, config, inward_speed, near_surfac
     # retained v/a and the 20 Hz actor delay can cross part of that region more
     # quickly. Only the original global hard inward ceiling gives a necessary
     # lower bound. Keep the two-speed schedule as a separately named estimate.
-    loading = (None if settings is None else
-        float(row['loaded_compression_m'])/settings['inward_speed_m_s'])
+    compression = float(row['loaded_compression_m'])
+    if not np.isfinite(compression) or compression < 0:
+        raise ValueError('Invalid loaded compression for contact timing')
+    loading = compression/(inward_speed if settings is None else settings['inward_speed_m_s'])
     necessary = travel+config.settle_duration_s
+    nominal = nominal_travel+loading+config.settle_duration_s
+    necessary_passed = bool(necessary < config.contact_timeout_s)
+    schedule_passed = bool(nominal < config.contact_timeout_s)
     return dict(target=target.name, precontact_gap_m=pre_gap, surface_gap_m=surface_gap,
         inward_speed_limit_m_s=float(inward_speed), minimum_travel_s=travel,
         minimum_settle_s=float(config.settle_duration_s), necessary_lower_bound_s=necessary,
         contact_timeout_s=float(config.contact_timeout_s),
-        passed=bool(necessary < config.contact_timeout_s), success_guaranteed=False,
+        passed=necessary_passed and schedule_passed, success_guaranteed=False,
+        necessary_bound_passed=necessary_passed, nominal_schedule_passed=schedule_passed,
         near_surface_motion=settings,
         nominal_two_speed_travel_s=nominal_travel,
         nominal_loaded_pose_travel_s=loading,
-        nominal_schedule_total_s=(None if loading is None else
-            nominal_travel+loading+config.settle_duration_s),
+        nominal_schedule_total_s=nominal,
+        nominal_schedule_margin_s=float(config.contact_timeout_s)-nominal,
         nominal_schedule_exclusions='retained v/a, actor delay, feedback and changing joint tracking',
         excluded_time='acceleration, loading, tracking and feedback delay',
-        scope='necessary timing screen only; no physical or model qualification')
+        scope='necessary bound and nominal planning screen; no physical or model qualification')
 
 
 class FreshExpert(SkillExpert):
@@ -403,7 +410,7 @@ class FreshExpert(SkillExpert):
                                            getattr(self,'near_surface_motion',None))
             self.contact_preflights.append(report)
             if not report['passed']:
-                raise EpisodeRejected('contact timing necessary lower bound exceeds watchdog: '
+                raise EpisodeRejected('contact timing planning screen exceeds watchdog: '
                                       +str(report))
         outcome=super().run(points)
         # Parent acceptance belongs to its older episode-data contract. These
