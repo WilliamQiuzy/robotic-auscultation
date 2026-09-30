@@ -150,6 +150,7 @@ class M2HallStream:
         self.output.mkdir(parents=True, exist_ok=False)
         (self.output/'calibration.json').write_bytes(calibration_bytes)
         _write(self.output/'manifest.json', self._metadata)
+        self._manifest_sha256 = _file_sha256(self.output/'manifest.json')
         self._physics = self._adc = self._hall = None
         try:
             self._physics = (self.output/'physics.jsonl').open('x')
@@ -166,9 +167,25 @@ class M2HallStream:
         self._failure = None
         self._closed = False
         self._receipt = None
+        self._latest = None
 
     def snapshot(self):
         return deepcopy(self._metadata)
+
+    def latest_evidence(self):
+        """Copy the latest completed live append, never a decoder estimate alone.
+
+        No disk schema or append return changes. A bounded manifest hash binds
+        the stream identity, while the raw displacement and complete returned
+        packet are retained from the same successfully flushed append.
+        """
+        if (self._closed or self._failure is not None or self._latest is None or
+                self._physics_rows != self._hall_rows or self._packet_count != self._adc_rows or
+                self._latest['physics']['physics_row'] != self._physics_rows-1):
+            raise RuntimeError('Live Hall evidence requires an active complete successful append')
+        if _file_sha256(self.output/'manifest.json') != self._manifest_sha256:
+            raise RuntimeError('Live Hall source manifest changed')
+        return deepcopy(dict(self._latest, snapshot=self._metadata, manifest_sha256=self._manifest_sha256))
 
     def append(self, physics_row, time_s, compression_m):
         """Persist displacement first, then acquired ADC and same-calibration decode.
@@ -241,6 +258,7 @@ class M2HallStream:
             self._hall_rows += 1
             result = deepcopy(hall_row)
             result['packet'] = deepcopy(self._last_packet) if packet is not None else None
+            self._latest = deepcopy(dict(physics=physical,hall=result))
             return result
         except Exception as error:
             self._failure = dict(stage=stage,error=type(error).__name__+': '+str(error),

@@ -310,3 +310,41 @@ def test_same_numeric_packet_with_invalid_numpy_type_gets_its_own_raw_evidence(t
     assert hall[1]['packet']==acquired[1]['packet']
     assert hall[1]['status']=='error' and hall[1]['decoded'] is None
     assert not acquisition.finalize()['completed']
+
+
+def test_latest_evidence_binds_full_return_and_raw_physics_without_aliases(tmp_path):
+    import hashlib
+    acquisition=stream(tmp_path)
+    assert hasattr(acquisition,'latest_evidence'), 'Missing live Hall evidence accessor'
+    with pytest.raises(RuntimeError): acquisition.latest_evidence()
+    first=acquisition.append(0,1/240,.001)
+    evidence=acquisition.latest_evidence()
+    assert evidence['physics']==dict(physics_row=0,time_s=1/240,compression_m=.001,training_eligible=False)
+    assert evidence['hall']==first and evidence['snapshot']==acquisition.snapshot()
+    assert evidence['manifest_sha256']==hashlib.sha256((tmp_path/'sensors/manifest.json').read_bytes()).hexdigest()
+    first['packet']['raw']=1
+    evidence['physics']['compression_m']=99.
+    evidence['hall']['packet']['raw']=2
+    evidence['snapshot']['episode_id']='other'
+    fresh=acquisition.latest_evidence()
+    assert fresh['physics']['compression_m']==.001 and fresh['hall']['packet']['raw'] not in (1,2)
+    assert fresh['snapshot']['episode_id']=='m2-test'
+    second=acquisition.append(1,2/240,.002)
+    assert not second['is_new_packet'] and second['packet'] is not None
+    assert acquisition.latest_evidence()['hall']==second
+    assert acquisition.latest_evidence()['physics']['compression_m']==.002
+    acquisition.finalize()
+    with pytest.raises(RuntimeError): acquisition.latest_evidence()
+
+
+@pytest.mark.parametrize('failure',['append','incomplete','manifest'])
+def test_latest_evidence_refuses_failed_incomplete_or_changed_stream(tmp_path,failure):
+    acquisition=stream(tmp_path)
+    assert hasattr(acquisition,'latest_evidence'), 'Missing live Hall evidence accessor'
+    acquisition.append(0,1/240,.001)
+    if failure=='append':
+        with pytest.raises(ValueError): acquisition.append(2,3/240,.001)
+    elif failure=='incomplete': acquisition._physics_rows+=1
+    else: (tmp_path/'sensors/manifest.json').write_text('{}\n')
+    with pytest.raises(RuntimeError): acquisition.latest_evidence()
+    acquisition.finalize()
