@@ -15,6 +15,7 @@ import time
 import numpy as np
 
 from .edge_timing import checked_edge_commands
+from .expert_capture import ExpertCapture, capture_settings, checked_render, controller_labels
 from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
                                  gravity_feedforward_settings, read_native_angular_drive_modes)
 from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
@@ -261,8 +262,26 @@ class FreshExpert(SkillExpert):
                                            next_physics_row_index=len(self.env.rows))
         if not hasattr(self,'collision_failure_diagnostics'):
             self.collision_failure_diagnostics=[]
+        capture=getattr(self.env,'raw_capture',None)
+        rows_before=len(self.env.rows)
+        before=controller_labels(self,subphase,active,recovery) if capture is not None else None
         try:
-            return super()._tick(command,subphase,active=active,recovery=recovery)
+            try:
+                state=super()._tick(command,subphase,active=active,recovery=recovery)
+            except BaseException as error:
+                if capture is not None:
+                    try:
+                        capture.finish_tick(self.env,rows_before,before,
+                            controller_labels(self,subphase,active,recovery),error=repr(error))
+                    except BaseException:
+                        # The capture owns its failure evidence; retain the
+                        # initiating controller exception without storing it.
+                        pass
+                raise
+            if capture is not None:
+                capture.finish_tick(self.env,rows_before,before,
+                                    controller_labels(self,subphase,active,recovery))
+            return state
         finally:
             del self._fresh_collision_context
 
@@ -426,11 +445,21 @@ class FreshContactEnv(IsaacContactEnv):
                 raise
             metadata['gravity_feedforward']=receipt
         self.robot.apply_action(ArticulationAction(joint_efforts=efforts,joint_indices=indices))
-        state=super().step(q_target,label,target,metadata)
+        capture=getattr(self,'raw_capture',None)
+        rows_before=len(self.rows)
+        try:
+            state=super().step(q_target,label,target,metadata)
+        except BaseException:
+            if capture is not None:
+                try:capture.after_physics(self,rows_before)
+                except BaseException:pass  # Preserve the initiating step failure.
+            raise
+        if capture is not None:capture.after_physics(self,rows_before)
         if feedforward is not None:
             feedforward.verify_applied(receipt)
         if self.video_recorder is not None:
-            self.video_recorder.after_step()
+            if capture is None:self.video_recorder.after_step()
+            else:checked_render(self,self.video_recorder.after_step,'expert video render')
         return state
 
 
@@ -490,18 +519,19 @@ class _VideoRecorder:
             except Exception as error:
                 errors.append(label+': '+repr(error))
                 return None
-        attempt('stdin_close',self.process.stdin.close)
-        try:code=self.process.wait(timeout=60)
-        except subprocess.TimeoutExpired:
-            attempt('encoder_kill',self.process.kill)
-            attempt('encoder_reap',lambda:self.process.wait(timeout=5))
-            errors.append('encoder timed out')
-        except Exception as error:errors.append('encoder_wait: '+repr(error))
+        if getattr(self,'process',None) is not None:
+            attempt('stdin_close',self.process.stdin.close)
+            try:code=self.process.wait(timeout=60)
+            except subprocess.TimeoutExpired:
+                attempt('encoder_kill',self.process.kill)
+                attempt('encoder_reap',lambda:self.process.wait(timeout=5))
+                errors.append('encoder timed out')
+            except Exception as error:errors.append('encoder_wait: '+repr(error))
         # Releasing Replicator resources and preserving the frame index are
         # independent of ffmpeg or its stderr stream successfully closing.
-        attempt('stderr_close',self.stderr.close)
-        attempt('annotator_detach',self.annotator.detach)
-        attempt('render_product_destroy',self.product.destroy)
+        if getattr(self,'stderr',None) is not None:attempt('stderr_close',self.stderr.close)
+        if getattr(self,'annotator',None) is not None:attempt('annotator_detach',self.annotator.detach)
+        if getattr(self,'product',None) is not None:attempt('render_product_destroy',self.product.destroy)
         attempt('frame_index_save',lambda:_write(self.output/'video_frames.json',self.frames))
         if code!=0 or not self.frames:errors.append('encoding failed or no frames captured')
         if errors:raise RuntimeError('; '.join(errors))
@@ -510,7 +540,7 @@ class _VideoRecorder:
 
 
 
-def finalize_probe(env,controller,recorder,output):
+def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
     """Attempt every independent preservation/release operation after a failure.
 
     An encoder must close and the physics world must stop even when a disk write
@@ -519,10 +549,13 @@ def finalize_probe(env,controller,recorder,output):
     errors=[];video=None;output=Path(output)
     def attempt(label,operation):
         try:return operation()
-        except Exception as error:
-            errors.append(dict(stage=label,error=repr(error)))
+        except BaseException as caught:
+            if capture is None and not isinstance(caught,Exception):raise
+            errors.append(dict(stage=label,error=repr(caught)))
             return None
+    if capture is not None:attempt('raw_capture_finalize',lambda:capture.close(error))
     if env is not None:
+        if capture is not None:attempt('raw_capture_hook_detach',lambda:setattr(env,'raw_capture',None))
         attempt('video_hook_detach',lambda:setattr(env,'video_recorder',None))
         def save_trace():
             for row in env.rows:row['training_accepted']=False
@@ -559,6 +592,7 @@ def run_probe(app,stage,output,config,mass):
     if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':
         raise RuntimeError('Owned Linux Isaac runtime required')
     feedforward_settings=gravity_feedforward_settings(config['fresh_expert'])
+    raw_settings=capture_settings(config['fresh_expert'])
     output=Path(output);kin=OpenArmKinematics(contact_frame=contact_frame)
     points,metadata=read_plans(config,output/'geometry',kin)
     base=np.asarray(metadata['world_from_left_base'])
@@ -589,10 +623,13 @@ def run_probe(app,stage,output,config,mass):
     if not np.isfinite(mass_kg) or mass_kg<=0:raise ValueError('Invalid current moving mass')
     def factory(destination):
         stage.GetRootLayer().Export(str(destination));return stage
-    env=None;controller=None;recorder=None;video=None
+    env=None;controller=None;recorder=None;video=None;capture=None
     outcome=dict(success=False,points=[],training_accepted=False)
     errors=[]
     try:
+        if raw_settings is not None:
+            capture=ExpertCapture(output/'raw_multimodal',binding=raw_settings,
+                geometry_metadata=metadata,source_paths=source_paths)
         env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
                             contact_offset_m=.132,moving_mass_kg=mass_kg)
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
@@ -603,19 +640,36 @@ def run_probe(app,stage,output,config,mass):
         # No joint setter, teleport, or contact-pose reset. The asset home state
         # must be dynamically followed through the complete canonical route.
         if np.max(np.abs(env.state()['q']))>.03:raise ValueError('Scene does not start at original home')
-        recorder=_VideoRecorder(env,output);env.video_recorder=recorder
+        def create_recorder():
+            nonlocal recorder
+            if capture is None:recorder=_VideoRecorder(env,output)
+            else:
+                # Register ownership before setup can fail after creating a
+                # render product, annotator or encoder stream.
+                recorder=_VideoRecorder.__new__(_VideoRecorder)
+                recorder.__init__(env,output)
+        if capture is None:create_recorder()
+        else:checked_render(env,create_recorder,'expert video setup')
+        env.video_recorder=recorder
+        if capture is not None:
+            env.raw_capture=capture
+            capture.start(env)
         controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
                                static_geometry_dir=output/'geometry',
                                near_surface_motion=config['fresh_expert'].get('near_surface_motion'))
         outcome=controller.run(points)
-    except Exception as error:
+    except BaseException as error:
+        if raw_settings is None and not isinstance(error,Exception):raise
         import traceback
         errors.append(dict(stage='execution',error=repr(error)))
         try:(output/'fresh_expert_failure.txt').write_text(traceback.format_exc())
         except Exception as write_error:
             errors.append(dict(stage='failure_text_save',error=repr(write_error)))
     finally:
-        video,cleanup_errors=finalize_probe(env,controller,recorder,output)
+        capture_error=('; '.join(item['error'] for item in errors) if errors else
+                       None if outcome.get('success') else outcome.get('failure_reason','Expert execution incomplete'))
+        video,cleanup_errors=finalize_probe(env,controller,recorder,output,
+                                          capture=capture,error=capture_error)
         errors.extend(cleanup_errors)
     rows=[] if env is None else env.rows
     try:result=audit_physics(outcome,rows)
@@ -662,6 +716,12 @@ def run_probe(app,stage,output,config,mass):
     try:require_geometry_artifacts(output/'geometry',current)
     except Exception as error:errors.append(dict(stage='geometry_fingerprint',error=repr(error)))
     result['errors']=errors
+    if capture is not None:
+        result['raw_multimodal_capture']=capture.result(len(rows),
+            execution_completed=bool(outcome.get('success')),errors=errors)
+        result['raw_capture_complete']=result['raw_multimodal_capture']['raw_capture_complete']
+    elif raw_settings is not None:
+        result['raw_capture_complete']=False
     if errors:
         result.update(success=False,physical_validation=False,
             failure_reason='; '.join(error['stage']+': '+error['error'] for error in errors))
@@ -670,6 +730,9 @@ def run_probe(app,stage,output,config,mass):
         errors.append(dict(stage='result_save',error=repr(error)))
         result.update(success=False,physical_validation=False,
             failure_reason='; '.join(item['stage']+': '+item['error'] for item in errors))
+        if capture is not None:
+            result['raw_multimodal_capture']=capture.result(len(rows),execution_completed=False,errors=errors)
+            result['raw_capture_complete']=False
         # The owner still receives a failed receipt even if this artifact cannot
         # be written. All release operations have already been attempted.
         print('FRESH_EXPERT_RESULT_SAVE_FAILED',repr(error),flush=True)

@@ -10,6 +10,92 @@ from sim.ausc_policy import fresh_expert as f
 from sim.ausc_policy.geometry_epoch import GEOMETRY_ID, GEOMETRY_SOURCE_SHA256
 
 
+@pytest.mark.parametrize('fault',['none','parent_after_row','gravity','prestep'])
+def test_raw_hall_hook_follows_actual_row_before_readback_and_video(monkeypatch,fault):
+    import sys
+    from sim.ausc_policy.gravity_feedforward import GravityFeedforwardRejected
+    monkeypatch.setitem(sys.modules,'isaacsim.core.utils.types',SimpleNamespace(ArticulationAction=SimpleNamespace))
+    events=[]
+    env=f.FreshContactEnv.__new__(f.FreshContactEnv)
+    env.rows=[];env.slider=7;env.passive_preload_N=1.5
+    env.world=SimpleNamespace(current_time=7.)
+    env.state=lambda:dict(time_s=len(env.rows)/240.,q=np.zeros(7),dq=np.zeros(7),compression_m=.001)
+    env.robot=SimpleNamespace(apply_action=lambda action:events.append('effort'))
+    def prepare(command):
+        if fault=='prestep':raise GravityFeedforwardRejected('prestep',{})
+        return np.arange(8),np.zeros(8),{}
+    def verify(receipt):
+        events.append('readback')
+        if fault=='gravity':raise ValueError('gravity readback failed')
+    env.gravity_feedforward=SimpleNamespace(prepare=prepare,verify_applied=verify)
+    env.video_recorder=SimpleNamespace(after_step=lambda:events.append('video'))
+    def append(environment,before):
+        assert environment is env and before==0 and len(env.rows)==1
+        events.append('hall')
+    env.raw_capture=SimpleNamespace(after_physics=append)
+    def parent(self,*args):
+        events.append('physics');self.rows.append(dict(time_s=1/240.,compression_m=.001))
+        self.world.current_time+=1/240.
+        if fault=='parent_after_row':raise ValueError('parent failed after row')
+        return self.state()
+    monkeypatch.setattr(f.IsaacContactEnv,'step',parent)
+    if fault=='none':env.step(np.zeros(7))
+    else:
+        with pytest.raises(ValueError):env.step(np.zeros(7))
+    expected=[] if fault=='prestep' else ['effort','physics','hall']
+    if fault in ('none','gravity'):expected+=['readback']
+    if fault=='none':expected+=['video']
+    assert events==expected
+
+
+@pytest.mark.parametrize('fault',['none','observed','prestep','capture','both'])
+def test_raw_camera_tick_finalization_keeps_due_rejected_row_and_original_error(monkeypatch,fault):
+    controller=f.FreshExpert.__new__(f.FreshExpert);events=[]
+    controller.manager=SimpleNamespace(state=SimpleNamespace(phase=SimpleNamespace(value='APPROACH')))
+    controller.target=SimpleNamespace(name='R3');controller.env=SimpleNamespace(rows=[{} for _ in range(11)])
+    def finish(env,before,start,end,*,error=None):
+        if len(env.rows)==before:return
+        events.append(('camera',len(env.rows)-1,start['phase'],end['phase'],error))
+        if fault in ('capture','both'):raise RuntimeError('camera failed')
+    controller.env.raw_capture=SimpleNamespace(finish_tick=finish)
+    def parent(self,*args,**kwargs):
+        if fault=='prestep':raise ValueError('command rejected')
+        self.env.rows.append(dict(physical_violations=[]))
+        self.manager.state.phase.value='HOLD'
+        events.append('audit')
+        if fault in ('observed','both'):raise ValueError('observed collision rejected')
+        return {'state':'current'}
+    monkeypatch.setattr(f.SkillExpert,'_tick',parent)
+    if fault=='none':assert controller._tick(np.zeros(7),'contact_cycle',active=True)=={'state':'current'}
+    else:
+        with pytest.raises(RuntimeError if fault=='capture' else ValueError,
+                           match='camera' if fault=='capture' else 'command|observed'):
+            controller._tick(np.zeros(7),'contact_cycle',active=True)
+    if fault=='prestep':assert not events
+    else:
+        assert events[0]=='audit' and events[1][0:4]==('camera',11,'APPROACH','HOLD')
+        assert bool(events[1][4])==(fault in ('observed','both'))
+    assert not hasattr(controller,'_fresh_collision_context')
+
+
+def test_raw_cleanup_precedes_trace_video_and_world_even_if_it_fails(tmp_path):
+    events=[]
+    def raw_close(error):events.append('raw');raise OSError('raw close failed')
+    env=SimpleNamespace(rows=[],video_recorder=object(),save=lambda _:events.append('trace'),
+                        world=SimpleNamespace(stop=lambda:events.append('world')))
+    capture=SimpleNamespace(close=raw_close)
+    _,errors=f.finalize_probe(env,None,SimpleNamespace(close=lambda:events.append('video')),
+                             tmp_path,capture=capture,error='initiating')
+    assert events==['raw','trace','video','world']
+    assert any(error['stage']=='raw_capture_finalize' for error in errors)
+
+
+def test_default_off_cleanup_preserves_existing_interrupt_semantics(tmp_path):
+    def interrupted(_):raise KeyboardInterrupt('stop')
+    env=SimpleNamespace(rows=[],video_recorder=None,save=interrupted)
+    with pytest.raises(KeyboardInterrupt):f.finalize_probe(env,None,None,tmp_path)
+
+
 def test_preload_is_physical_slider_effort_and_never_a_force_label():
     indices, efforts = f.passive_effort(11, 1.5)
     assert indices.tolist() == [11]
@@ -294,6 +380,17 @@ def test_video_release_is_independent_of_encoder_log_close(tmp_path):
     with pytest.raises(RuntimeError,match='stderr_close'):recorder.close()
     assert called==['stdin_close','stderr_close','detach','destroy']
     assert json.loads((tmp_path/'video_frames.json').read_text())==recorder.frames
+
+
+def test_video_partial_setup_still_releases_registered_native_resources(tmp_path):
+    called=[];recorder=f._VideoRecorder.__new__(f._VideoRecorder)
+    recorder.output=tmp_path;recorder.frames=[]
+    recorder.annotator=SimpleNamespace(detach=lambda:called.append('detach'))
+    recorder.product=SimpleNamespace(destroy=lambda:called.append('destroy'))
+    with pytest.raises(RuntimeError,match='encoding failed'):
+        recorder.close()
+    assert called==['detach','destroy']
+    assert json.loads((tmp_path/'video_frames.json').read_text())==[]
 
 
 def test_contact_timing_rejects_the_real_40mm_failure_before_any_motion(tmp_path,monkeypatch):
