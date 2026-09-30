@@ -160,6 +160,8 @@ def main():
         from .geometry_export import export_geometry
         from sim.auscultation_repair_v3.physics_profile import PhysicsProfile,apply_profile
         stage=Usd.Stage.Open(str(source));stage=Usd.Stage.Open(stage.Flatten())
+        from .approved_camera import apply_approved_camera
+        write(args.output/'approved_camera_restoration.json',apply_approved_camera(stage))
         patient=None
         if config.get('patient_asset'):
             from .patient_scene import install_patient
