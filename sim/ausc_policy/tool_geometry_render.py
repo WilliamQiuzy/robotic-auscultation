@@ -20,6 +20,7 @@ def main():
     p.add_argument('--config', type=Path, required=True)
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
+    config = json.loads(args.config.read_text())
     if sys.platform != 'linux' or os.environ.get('AUSC_OWNED_RUN') != '1':
         raise RuntimeError('Owned Linux rendering only')
     args.output.mkdir(parents=True, exist_ok=False)
@@ -33,11 +34,13 @@ def main():
         import omni.timeline
         from PIL import Image
         from pxr import Usd, UsdGeom, UsdPhysics, Gf
-        from sim.auscultation_expert_layout_v1.scene import prepare_stage, physical_sources, WRIST
-        _, sources = physical_sources()
-        source_hashes = {str(k): digest(v) for k, v in sources.items()}
+        from sim.auscultation_expert_layout_v1.scene import WRIST
+        from .isaac_case import approved_assets
         before_file = args.output / 'before.usdc'
-        stage = prepare_stage(before_file)
+        with approved_assets(Path(config['asset_root'])) as scene:
+            _, sources = scene.physical_sources()
+            source_hashes = {str(k): digest(v) for k, v in sources.items()}
+            stage = scene.prepare_stage(before_file)
         def protected(s):
             result = {}
             for prim in s.Traverse():
@@ -142,6 +145,11 @@ def main():
             images={p.name:digest(p) for p in args.output.glob('*.png')})
         (args.output/'COMPLETE.json').write_text(json.dumps(report, indent=2)+'\n')
         print('TOOL_GEOMETRY_REVIEW_COMPLETE', flush=True)
+    except Exception as error:
+        import traceback
+        traceback.print_exc()
+        (args.output/'FAILED.json').write_text(json.dumps(dict(error=type(error).__name__, reason=str(error)), indent=2)+'\n')
+        raise
     finally:
         app.close()
 

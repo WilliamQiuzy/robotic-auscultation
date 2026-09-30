@@ -16,6 +16,9 @@ def main():
     if os.environ.get('AUSC_OWNED_RUN') != '1' or c['experiment'] != 'tool_geometry_review':
         raise RuntimeError('Existing experiment owner required')
     args.output.mkdir(parents=True, exist_ok=False)
+    from .isaac_case import approved_assets
+    with approved_assets(Path(c['asset_root'])) as scene:
+        scene.physical_sources()
     with (Path(c['base'])/'locks/isaac_gpu.lock').open('a+') as lock:
         fcntl.flock(lock.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         if subprocess.check_output(['nvidia-smi', '--query-compute-apps=pid', '--format=csv,noheader'], text=True).strip():
