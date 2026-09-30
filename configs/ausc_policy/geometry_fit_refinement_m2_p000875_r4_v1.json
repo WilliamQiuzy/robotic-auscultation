@@ -1,0 +1,96 @@
+{
+  "base": "/home/william/wam-vla-v2",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "geometry_id": "stethoscope_protruding_5mm_v1",
+  "freshly_generated": true,
+  "geometry_source": "/home/william/wam-vla-v2/runs/ausc_policy/tool-protrusion-5mm-review-20260929-v1/output/review/candidate.usdc",
+  "geometry_source_sha256": "4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081",
+  "posture_limits": {
+    "schema": "low_elbow_posture_v1",
+    "elbow_link": "openarm_left_link4",
+    "max_elbow_z_m": 1.451228420583354,
+    "joint_lower_rad": [
+      -2.443460952792061,
+      -2.443460952792061,
+      -1.5184361224401701,
+      0.0,
+      -1.5184361224401701,
+      -0.7330381224401702,
+      -1.5184361224401701
+    ],
+    "joint_upper_rad": [
+      1.2217304763960306,
+      0.12217279564527346,
+      1.5184361224401701,
+      2.3911011224401704,
+      1.5184361224401701,
+      0.7330381224401702,
+      1.5184361224401701
+    ],
+    "observed_joint_tolerance_rad": 0.005,
+    "max_elbow_above_shoulder_m": 0.075,
+    "min_contact_elbow_below_wrist_m": 0.0
+  },
+  "experiment": "m2_geometry_plan",
+  "time_limit_seconds": 2400,
+  "collision_directory": "/home/william/wam-vla-v2/runs/ausc_policy/m2-patient-preview-20260930-v1/output/review/geometry",
+  "world_from_left_base": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -3.5745606228321236e-06,
+      0.9999999999936114,
+      0.3309999994933605
+    ],
+    [
+      0.0,
+      -0.9999999999936114,
+      -3.5745606228321236e-06,
+      1.376228643993393
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "loaded_compression_m": 0.0025,
+  "seeds_per_candidate": 4,
+  "per_gap_seconds": 180,
+  "fresh_pre_gap_search_m": [
+    0.025
+  ],
+  "targets": [
+    {
+      "name": "R4",
+      "position_world_m": [
+        0.09007716720221595,
+        0.8676446129900189,
+        1.205139443586572
+      ],
+      "normal_world": [
+        0.3551732935358348,
+        -0.9293292488522404,
+        -0.10099048859490836
+      ]
+    }
+  ],
+  "collision_geometry_sha256": "77ec3b227a0374c9c9f48e9c1b59cd39cbd2698611b2ea60c89b97a1b0eea1d8",
+  "collision_arrays_sha256": "715b2e0a1fcd64a6462acaedb6c771a11ce86ca46698cc071e53b601af7e076c",
+  "patient_receipt": {
+    "file": "/home/william/wam-vla-v2/runs/ausc_policy/m2-patient-preview-20260930-v1/output/review/patient_receipt.json",
+    "sha256": "fdfd4ab0856df99e2fe9274719faaaa8e55adb8ed98c20e31c21816add09c010"
+  },
+  "fit_refinement_diagnostic": {
+    "top_k": 8,
+    "max_calls": 10000
+  }
+}

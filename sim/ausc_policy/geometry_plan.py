@@ -49,6 +49,19 @@ def main():
     patient=patient_provenance(config)
     args.output.mkdir(parents=True,exist_ok=False)
     from .finite_head import FiniteHeadFit
+    if config.get('fit_refinement_diagnostic') is not None:
+        from .fit_refinement_run import run_fit_diagnostic
+        rows=run_fit_diagnostic(FiniteHeadFit(directory,config),config['targets'],args.output,
+                                config['fit_refinement_diagnostic'])
+        require_geometry_artifacts(directory,config)
+        if patient_provenance(config)!=patient:raise ValueError('Patient provenance changed during diagnostic')
+        if hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:
+            raise ValueError('Geometry source changed during diagnostic')
+        write(args.output/'COMPLETE.json',dict(completed=True,geometry_id=config['geometry_id'],
+            geometry_artifacts=hashes,patient_provenance=patient,targets=rows,
+            physics_executed=False,training_eligible=False,
+            scope='Bounded finite-head hypotheses and raw rejection evidence; no robot IK or physical qualification'))
+        return
     from .contact_collision import ContactCollisionChecker
     from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
     from sim.auscultation_expert_layout_v1.posture import PostureLimits,PostureChecker
