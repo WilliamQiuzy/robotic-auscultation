@@ -376,3 +376,82 @@ def test_successful_hold_retraction_keeps_the_original_velocity_policy():
     controller.action_provider=None;controller.speed_scale=.7
     controller.executor_config=dict(normal_speed_limit_m_s=.004,normal_inward_speed_limit_m_s=.002)
     assert controller.desired_normal_velocity(dict(hall_N=4.,compression_m=.0025))==.004
+
+
+def near_controller():
+    from sim.auscultation_expert_layout_v1.phase_manager import Phase, PhaseConfig
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.manager=SimpleNamespace(state=SimpleNamespace(phase=Phase.CONTACT,failure_reason=None))
+    controller.action_provider=None;controller.speed_scale=.7;controller.config=PhaseConfig()
+    controller.executor_config=dict(normal_speed_limit_m_s=.004,normal_inward_speed_limit_m_s=.002)
+    controller.near_surface_motion=dict(distance_m=.001,inward_speed_m_s=.0005)
+    controller._point_plan=dict(expected_contact_gap_m=2e-5)
+    controller.metrics=lambda state:dict(gap_m=state['gap_m'])
+    controller.contact_executor=SimpleNamespace(gap=.0009)
+    return controller
+
+
+def test_near_surface_inward_speed_uses_both_measured_and_retained_positions():
+    controller=near_controller()
+    state=dict(hall_N=0.,compression_m=0.,gap_m=.00104)
+    # Reproduce the ~25 um wrist-command lead in the actual R3 failure:
+    # start slowing from the earlier retained position, without changing any
+    # collision configuration, pose, compression or safety threshold.
+    controller.contact_executor.gap=.001015
+    assert controller.desired_normal_velocity(state)==-.0005
+    assert state['compression_m']==0. and state['gap_m']==.00104
+    controller.contact_executor.gap=.003
+    assert controller.desired_normal_velocity(state)==pytest.approx(-.0014)
+    state['gap_m']=.001
+    assert controller.desired_normal_velocity(state)==-.0005
+
+
+def test_loading_reduces_only_inward_policy_and_preserves_correction_and_unload():
+    from sim.auscultation_expert_layout_v1.phase_manager import Phase
+    controller=near_controller()
+    state=dict(hall_N=2.,compression_m=.0005,gap_m=2e-5)
+    assert controller.desired_normal_velocity(state)==-.0005
+    state['hall_N']=3.8
+    assert controller.desired_normal_velocity(state)==pytest.approx(-.0002)
+    state['hall_N']=4.
+    assert controller.desired_normal_velocity(state)==0.
+    state['hall_N']=4.8
+    assert controller.desired_normal_velocity(state)==pytest.approx(.0008)
+    controller.manager.state.phase=Phase.RETRACT
+    assert controller.desired_normal_velocity(state)==.004
+
+
+def test_near_surface_timing_counts_slower_distance_and_does_not_extend_timeout(tmp_path):
+    from sim.auscultation_expert_layout_v1.phase_manager import PhaseConfig
+    row,_,_,kin=fixture_plan(tmp_path);row['free_approach_start_gap_m']=.025
+    target=SimpleNamespace(name='R3',position_world=np.asarray(row['position_world']))
+    config=PhaseConfig(contact_timeout_s=20/.7)
+    settings=dict(distance_m=.001,inward_speed_m_s=.0005)
+    report=f.contact_timing_preflight(kin,target,row,config,.0014,settings)
+    assert report['necessary_lower_bound_s']==pytest.approx((.025-2e-5)/.0014+.3)
+    assert report['nominal_two_speed_travel_s']==pytest.approx((.025-2e-5-.001)/.0014+.001/.0005)
+    assert report['nominal_loaded_pose_travel_s']==5.
+    assert report['passed'] and not report['success_guaranteed']
+    assert report['contact_timeout_s']==20/.7
+    # At the speed transition the retained inward velocity remains above the
+    # desired 0.5 mm/s briefly: an actual NormalExecutor CPU integration takes
+    # 18.891667 s to contact, less than the idealized two-zone 19.128571 s.
+    # A 19.3 s watchdog must not be declared mathematically impossible by
+    # mistakenly treating a desired speed as an instantaneous hard limit.
+    tight=PhaseConfig(contact_timeout_s=19.3)
+    report=f.contact_timing_preflight(kin,target,row,tight,.0014,settings)
+    assert report['passed'] and not report['success_guaranteed']
+    assert report['nominal_schedule_total_s']>tight.contact_timeout_s
+
+
+@pytest.mark.parametrize('bad',[
+    dict(distance_m=.001,inward_speed_m_s=.002),
+    dict(distance_m=.001,inward_speed_m_s=.0014),
+    dict(distance_m=.006,inward_speed_m_s=.0005),
+    dict(distance_m=.001,inward_speed_m_s=True),
+    dict(distance_m=.001,inward_speed_m_s=float('nan')),
+    dict(distance_m=.001,inward_speed_m_s='0.0005'),
+    dict(distance_m=.001),
+])
+def test_near_motion_cannot_raise_limits_or_accept_malformed_settings(bad):
+    with pytest.raises(ValueError):f.near_surface_settings(bad,.0014)

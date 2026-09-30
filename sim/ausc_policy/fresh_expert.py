@@ -174,7 +174,21 @@ def read_plans(config, geometry, kin):
     return points, dict(**geometry_meta,world_from_left_base=base.tolist(),plans=records)
 
 
-def contact_timing_preflight(kin, target, row, config, inward_speed):
+def near_surface_settings(value, inward_speed):
+    """Optional slower inward motion, never an increased actuator/safety limit."""
+    if value is None:
+        return None
+    if not isinstance(value, dict) or set(value) != {'distance_m', 'inward_speed_m_s'}:
+        raise ValueError('Explicit near-surface distance and inward speed required')
+    distance, speed = value['distance_m'], value['inward_speed_m_s']
+    if (any(isinstance(v, (bool, np.bool_)) or not isinstance(v, (int,float,np.integer,np.floating))
+            or not np.isfinite(v) for v in (distance, speed))
+            or not 0 < distance <= .005 or not 0 < speed < inward_speed):
+        raise ValueError('Near-surface motion must reduce inward speed within 5 mm')
+    return dict(distance_m=float(distance), inward_speed_m_s=float(speed))
+
+
+def contact_timing_preflight(kin, target, row, config, inward_speed, near_surface=None):
     """Optimistic travel/settle lower bound, not a successful-contact prediction.
 
     The verified loaded FK locates the finite face's first-contact center. Its
@@ -195,24 +209,44 @@ def contact_timing_preflight(kin, target, row, config, inward_speed):
               config.contact_timeout_s]
     if not np.isfinite(values).all() or min(values[1:]) <= 0:
         raise ValueError('Invalid contact timing inputs')
-    travel = max(0., pre_gap-surface_gap)/inward_speed
+    settings = near_surface_settings(near_surface, inward_speed)
+    distance = max(0., pre_gap-surface_gap)
+    slow_distance = 0. if settings is None else min(distance, settings['distance_m'])
+    travel = distance/inward_speed
+    nominal_travel = (distance-slow_distance)/inward_speed
+    if settings is not None:
+        nominal_travel += slow_distance/settings['inward_speed_m_s']
+    # The inner speed is a desired velocity, not an instantaneous bound:
+    # retained v/a and the 20 Hz actor delay can cross part of that region more
+    # quickly. Only the original global hard inward ceiling gives a necessary
+    # lower bound. Keep the two-speed schedule as a separately named estimate.
+    loading = (None if settings is None else
+        float(row['loaded_compression_m'])/settings['inward_speed_m_s'])
     necessary = travel+config.settle_duration_s
     return dict(target=target.name, precontact_gap_m=pre_gap, surface_gap_m=surface_gap,
         inward_speed_limit_m_s=float(inward_speed), minimum_travel_s=travel,
         minimum_settle_s=float(config.settle_duration_s), necessary_lower_bound_s=necessary,
         contact_timeout_s=float(config.contact_timeout_s),
         passed=bool(necessary < config.contact_timeout_s), success_guaranteed=False,
+        near_surface_motion=settings,
+        nominal_two_speed_travel_s=nominal_travel,
+        nominal_loaded_pose_travel_s=loading,
+        nominal_schedule_total_s=(None if loading is None else
+            nominal_travel+loading+config.settle_duration_s),
+        nominal_schedule_exclusions='retained v/a, actor delay, feedback and changing joint tracking',
         excluded_time='acceleration, loading, tracking and feedback delay',
         scope='necessary timing screen only; no physical or model qualification')
 
 
 class FreshExpert(SkillExpert):
     """Retain the original contact executor; use stop-at-waypoint free timing."""
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, near_surface_motion=None, **kwargs):
         super().__init__(*args, speed_scale=.7,
             executor_config=dict(joint_velocity_limit_rad_s=.175), **kwargs)
         # .25*.7 is mathematically .175 but retain the explicit contract value.
         self.joint_speed_limit=.175
+        self.near_surface_motion=near_surface_settings(near_surface_motion,
+            self.executor_config['normal_inward_speed_limit_m_s']*self.speed_scale)
         self.contact_preflights=[]
         self.phase_failure_diagnostics=[]
 
@@ -237,7 +271,20 @@ class FreshExpert(SkillExpert):
                 response='stop simulation at original supervisor fault; no alternate motion')
             self.phase_failure_diagnostics.append(diagnostic)
             raise EpisodeRejected('contact phase supervision failed: '+phase.failure_reason)
-        return super().desired_normal_velocity(state)
+        desired = super().desired_normal_velocity(state)
+        settings = getattr(self, 'near_surface_motion', None)
+        if settings is not None and desired < 0.:
+            # A commanded wrist pose paired with the currently measured passive
+            # slider can reach the unchanged shell gate before actual contact.
+            # Slow the approach/loading; retain BOTH command and observed mesh
+            # checks, original velocity/acceleration/jerk and all force gates.
+            center = float(self._point_plan['expected_contact_gap_m'])
+            gaps = [float(self.metrics(state)['gap_m']), float(self.contact_executor.gap), center]
+            if not np.isfinite(gaps).all():
+                raise EpisodeRejected('Nonfinite near-surface speed observation')
+            if min(gaps[:2])-center <= settings['distance_m']:
+                desired = max(desired, -settings['inward_speed_m_s'])
+        return desired
 
     def _continuous_path(self, route, subphase):
         route=_route(route,'free route')
@@ -279,7 +326,8 @@ class FreshExpert(SkillExpert):
         # Screen the entire sequence before the first home/transfer command.
         inward=self.executor_config['normal_inward_speed_limit_m_s']*self.speed_scale
         for target,row in points:
-            report=contact_timing_preflight(self.kin,target,row,self.config,inward)
+            report=contact_timing_preflight(self.kin,target,row,self.config,inward,
+                                           getattr(self,'near_surface_motion',None))
             self.contact_preflights.append(report)
             if not report['passed']:
                 raise EpisodeRejected('contact timing necessary lower bound exceeds watchdog: '
@@ -304,7 +352,12 @@ class FreshExpert(SkillExpert):
             training_eligible=False,learned_policy=False,
             contact_preflights=self.contact_preflights,
             phase_failure_diagnostics=self.phase_failure_diagnostics,
+            near_surface_motion=getattr(self,'near_surface_motion',None),
             scope='Fresh full-route expert mechanics diagnostic; no raw multimodal training dataset')
+        if getattr(self,'near_surface_motion',None) is not None:
+            outcome['actual_contact_policy']['near_surface_motion']=self.near_surface_motion
+            outcome['actual_contact_policy']['near_surface_rule']='reduce inward desired velocity within distance of fitted first-contact center; outward force correction and withdrawal unchanged'
+            outcome['variation']['free_approach_near_speed_m_s']=self.near_surface_motion['inward_speed_m_s']
         return outcome
 
 
@@ -481,7 +534,8 @@ def run_probe(app,stage,output,config,mass):
         if np.max(np.abs(env.state()['q']))>.03:raise ValueError('Scene does not start at original home')
         recorder=_VideoRecorder(env,output);env.video_recorder=recorder
         controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
-                               static_geometry_dir=output/'geometry')
+                               static_geometry_dir=output/'geometry',
+                               near_surface_motion=config['fresh_expert'].get('near_surface_motion'))
         outcome=controller.run(points)
     except Exception as error:
         import traceback
