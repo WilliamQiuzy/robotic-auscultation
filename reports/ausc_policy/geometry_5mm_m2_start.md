@@ -99,3 +99,14 @@ M2 seated_pose_pilot_v1：同8训练身份×3个作者定义的合成非T姿手�
 新人体p000875/lap_low的同条件完整R3对照已另行启动；结果不得预写为通过。新RGB-D原始采集模块已补充读取前后物理与相机一致性检查，仍需原生Isaac验证。当前没有合格新数据进入全量训练。
 
 新人体对照 `geometry-m2-p000875-fresh-expert-r3-20260930-v1` 已结束：14834步/61.8083s、618录像帧、膜片与全部其他接触力0，下一command DeviceEdge–SMPLSurface间隙298.539598μm低于300μm而被拒。prepose静态轴偏0.06619°、切向392μm，末行0.07051°/433μm。trace SHA `6e1081b007351af6c7feba6e812ba6282cc441a2cca77fc3403b7bb55c944da1`。结果仍不合格，原失败数据独立归档。
+
+
+## 2026-09-30：批准相机恢复与原生同步采集
+
+实际 `m2-native-sensors-20260930-v3`（源码36f0549）通过仅一秒的home采集：240物理行、100独立模拟ADC、20组640×360 RGB-D、10视频帧。Hall逐行重放通过，20份原始NPZ SHA一致，每次渲染的物理时间差为0；末帧深度有效比例0.937869。这不是接触技能或模型验收，所有训练资格仍为false。
+
+v1启动前缺少已存在的Hall主机解码模块，补齐精确依赖后保留失败；v2在0步处拒绝相机姿态。原生USD核查发现新5mm源场景仍为原相机（z=1.548169924m），没有应用已批准的+5cm/下转7°覆盖层（批准z=1.598169924m）。36f0549显式恢复两个camera/body视觉prim的变换；原始配置SHA不变，其他属性/关系和内参不变。v3导出的碰撞JSON/NPZ仍为067e8bb5.../2b518c8b...，因此此次相机修正没有改变既有新几何路径的物理坐标。第21/22篇新几何视频及早期新患者预览属于旧相机诊断，不得作为批准相机训练资料。
+
+原生完整重力对照 `geometry-5mm-fresh-expert-r3-gravity-20260930-v1`执行1361步（5.670833s），所有已执行步的外加G与slider努力持续性核对通过，但在自由转移时被新增PD+G门拒绝；无接触。trace SHA a2c8e1430188f81d1e7c312554aa53be50ecf82ec4fb8df7e4874e6e0f2603b8。实际七轴均为acceleration drive，PD是rad/s²而不是N·m；该拒绝是诊断单位错误，不能解释为真实超过7N·m。修复保留原驱动模式/增益/maxForce、原G单独限值和物理安全门，不将隐式驱动与外加G的总力矩称为已验证。历史失败收据原样保留。
+
+本地原始证据：`results/ausc_policy/m2_native_sensors_v1`、`m2_native_sensors_v2`、`m2_native_sensors_v3`；相机纯USD检查 `camera_restore_cpu_receipt.json`；首轮重力证据 `geometry_5mm_fresh_expert_r3_gravity_v1`。未开始新全量训练。
