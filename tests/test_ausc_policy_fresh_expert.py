@@ -274,6 +274,8 @@ def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_pa
         assert result['gravity_feedforward']['enabled']
         assert result['gravity_feedforward']['controller_type']=='model-based controller feedforward'
         assert not result['gravity_feedforward']['real_hardware_validated']
+        assert not result['gravity_feedforward']['total_actuator_torque_validated']
+        assert result['gravity_feedforward']['required_drive_mode']=='acceleration'
     saved=json.loads((tmp_path/'fresh_expert_result.json').read_text())
     assert not saved['success'] and saved['errors']==result['errors']
 

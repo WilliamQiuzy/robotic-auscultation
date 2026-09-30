@@ -16,7 +16,7 @@ import numpy as np
 
 from .edge_timing import checked_edge_commands
 from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
-                                 gravity_feedforward_settings)
+                                 gravity_feedforward_settings, read_native_angular_drive_modes)
 from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
                              require_geometry_artifacts, qualify_contact)
 from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS, EpisodeRejected
@@ -597,7 +597,8 @@ def run_probe(app,stage,output,config,mass):
                             contact_offset_m=.132,moving_mass_kg=mass_kg)
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
         if feedforward_settings is not None and feedforward_settings['enabled']:
-            env.gravity_feedforward=NativeGravityFeedforward(env.robot,env.left,env.slider)
+            env.gravity_feedforward=NativeGravityFeedforward(env.robot,env.left,env.slider,
+                drive_mode_provider=lambda:read_native_angular_drive_modes(env.stage,env.robot,env.left))
         if not np.allclose(env.base,base,atol=1e-7,rtol=0):raise ValueError('Actual robot base differs from fresh plan')
         # No joint setter, teleport, or contact-pose reset. The asset home state
         # must be dynamically followed through the complete canonical route.
@@ -633,11 +634,15 @@ def run_probe(app,stage,output,config,mass):
         result['gravity_feedforward_failure_receipts']=deepcopy(
             getattr(env,'gravity_feedforward_failure_receipts',[]))
         result['gravity_feedforward']=dict(feedforward_settings,
+            schema='native_acceleration_drive_gravity_v2',required_drive_mode='acceleration',
             controller_type='model-based controller feedforward',
             native_api='get_generalized_gravity_forces',sign='positive native counter-gravity',
             position_drives_and_limits='unchanged; no setters',
-            torque_screen='native gravity and PD-plus-gravity estimate within existing effort caps',
-            estimate_is_measured_motor_torque=False,learned_policy=False,
+            torque_screen='external native gravity independently within existing Nm caps; unchanged native maxForce applies to implicit drives; no combined total bound',
+            pd_diagnostic='native-gain PD expression is rad/s^2; never added to gravity or compared with Nm',
+            total_actuator_torque_validated=False,
+            historical_units_correction='v1 PD-as-Nm and PD-plus-G-as-Nm fields/gate invalid for acceleration drives; removed',
+            learned_policy=False,
             real_hardware_validated=False,training_eligible=False)
     if env is not None:
         try:result['trace_sha256']=_sha(env.out/'fresh_expert_trace.jsonl')
