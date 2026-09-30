@@ -1,0 +1,209 @@
+{
+  "base": "/home/william/wam-vla-v2",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "geometry_id": "stethoscope_protruding_5mm_v1",
+  "freshly_generated": true,
+  "geometry_source": "/home/william/wam-vla-v2/runs/ausc_policy/tool-protrusion-5mm-review-20260929-v1/output/review/candidate.usdc",
+  "geometry_source_sha256": "4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081",
+  "posture_limits": {
+    "schema": "low_elbow_posture_v1",
+    "elbow_link": "openarm_left_link4",
+    "max_elbow_z_m": 1.451228420583354,
+    "joint_lower_rad": [
+      -2.443460952792061,
+      -2.443460952792061,
+      -1.5184361224401701,
+      0.0,
+      -1.5184361224401701,
+      -0.7330381224401702,
+      -1.5184361224401701
+    ],
+    "joint_upper_rad": [
+      1.2217304763960306,
+      0.12217279564527346,
+      1.5184361224401701,
+      2.3911011224401704,
+      1.5184361224401701,
+      0.7330381224401702,
+      1.5184361224401701
+    ],
+    "observed_joint_tolerance_rad": 0.005,
+    "max_elbow_above_shoulder_m": 0.075,
+    "min_contact_elbow_below_wrist_m": 0.0
+  },
+  "experiment": "m2_geometry_plan",
+  "time_limit_seconds": 7200,
+  "collision_directory": "/home/william/wam-vla-v2/runs/ausc_policy/m2-patient-preview-20260930-v1/output/review/geometry",
+  "world_from_left_base": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -3.5745606228321236e-06,
+      0.9999999999936114,
+      0.3309999994933605
+    ],
+    [
+      0.0,
+      -0.9999999999936114,
+      -3.5745606228321236e-06,
+      1.376228643993393
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "loaded_compression_m": 0.0025,
+  "seeds_per_candidate": 4,
+  "per_gap_seconds": 180,
+  "fresh_pre_gap_search_m": [
+    0.025
+  ],
+  "targets": [
+    {
+      "name": "L1",
+      "position_world_m": [
+        -0.09866868195881409,
+        0.8810964575200056,
+        1.4298959411371799
+      ],
+      "normal_world": [
+        -0.26514720949196374,
+        -0.8972879326240366,
+        0.3529466294865375
+      ]
+    },
+    {
+      "name": "R1",
+      "position_world_m": [
+        0.06377253843816198,
+        0.8733481354834866,
+        1.4186742065033384
+      ],
+      "normal_world": [
+        -0.17570257009996823,
+        -0.9524234044084623,
+        0.24903466745668257
+      ]
+    },
+    {
+      "name": "L2",
+      "position_world_m": [
+        -0.06493482571396515,
+        0.8566360400302718,
+        1.3416209530782486
+      ],
+      "normal_world": [
+        -0.01456330759572073,
+        -0.9996020859364683,
+        0.02415739769375045
+      ]
+    },
+    {
+      "name": "R2",
+      "position_world_m": [
+        0.06121359051893,
+        0.8566513225648505,
+        1.3446597174465649
+      ],
+      "normal_world": [
+        -0.13262723108764626,
+        -0.9678239205726928,
+        0.21383843513579592
+      ]
+    },
+    {
+      "name": "L3",
+      "position_world_m": [
+        -0.04194541778890429,
+        0.8554119019117473,
+        1.2656696879443772
+      ],
+      "normal_world": [
+        0.07327525764481348,
+        -0.9966276109080314,
+        -0.036934290203494126
+      ]
+    },
+    {
+      "name": "R3",
+      "position_world_m": [
+        0.06428672493556722,
+        0.8546186127154354,
+        1.2670335072832286
+      ],
+      "normal_world": [
+        0.062390996446210226,
+        -0.9961851923745931,
+        -0.061011687864245046
+      ]
+    },
+    {
+      "name": "L4",
+      "position_world_m": [
+        -0.06979024700569882,
+        0.8641333345566848,
+        1.1934585741228363
+      ],
+      "normal_world": [
+        -0.3260332544376326,
+        -0.9407475195594691,
+        -0.09325460548151213
+      ]
+    },
+    {
+      "name": "R4",
+      "position_world_m": [
+        0.09007716720221595,
+        0.8676446129900189,
+        1.205139443586572
+      ],
+      "normal_world": [
+        0.3551732935358348,
+        -0.9293292488522404,
+        -0.10099048859490836
+      ]
+    },
+    {
+      "name": "L5",
+      "position_world_m": [
+        -0.1081963806043323,
+        0.892091154008826,
+        1.1511799214487735
+      ],
+      "normal_world": [
+        -0.7452234532277143,
+        -0.6583440086379311,
+        -0.10594890773339999
+      ]
+    },
+    {
+      "name": "R5",
+      "position_world_m": [
+        0.10980132812985756,
+        0.8942303192543276,
+        1.1461405190127354
+      ],
+      "normal_world": [
+        0.6396981321205332,
+        -0.7214876642824118,
+        -0.265031790639936
+      ]
+    }
+  ],
+  "collision_geometry_sha256": "77ec3b227a0374c9c9f48e9c1b59cd39cbd2698611b2ea60c89b97a1b0eea1d8",
+  "collision_arrays_sha256": "715b2e0a1fcd64a6462acaedb6c771a11ce86ca46698cc071e53b601af7e076c",
+  "patient_receipt": {
+    "file": "/home/william/wam-vla-v2/runs/ausc_policy/m2-patient-preview-20260930-v1/output/review/patient_receipt.json",
+    "sha256": "fdfd4ab0856df99e2fe9274719faaaa8e55adb8ed98c20e31c21816add09c010"
+  }
+}

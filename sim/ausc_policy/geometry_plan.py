@@ -18,6 +18,22 @@ def write(path,value):
     Path(path).write_text(json.dumps(value,indent=2,allow_nan=False)+'\n')
 
 
+def patient_provenance(config):
+    """Bind varied-body targets to the actual patient installed in Isaac."""
+    binding=config.get('patient_receipt')
+    if binding is None:return None
+    data=Path(binding['file']).read_bytes()
+    if hashlib.sha256(data).hexdigest()!=binding['sha256']:
+        raise ValueError('Installed patient receipt changed')
+    receipt=json.loads(data)
+    targets={row['name']:row for row in receipt['targets']}
+    if (receipt.get('non_patient_scene_unchanged') is not True
+            or any(row!=targets.get(row['name']) for row in config['targets'])):
+        raise ValueError('Planning targets differ from the installed patient surface')
+    return dict(binding=binding,identity=receipt['identity'],asset_sha256=receipt['asset_sha256'],
+                identity_split_sha256=receipt['identity_split_sha256'])
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config',type=Path,required=True)
@@ -30,6 +46,7 @@ def main():
     source=Path(config['geometry_source'])
     if hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:
         raise ValueError('Geometry source changed')
+    patient=patient_provenance(config)
     args.output.mkdir(parents=True,exist_ok=False)
     from .finite_head import FiniteHeadFit
     from .contact_collision import ContactCollisionChecker
@@ -58,6 +75,7 @@ def main():
         audit=dict(name=name,compression_m=config['loaded_compression_m'],candidates=[dict(
             normal_world=c['normal_world'],wrist_rotation_world=c['rotation_world'],
             gap_m=c['surface_gap_m'],angle_change_deg=c['normal_deviation_from_surface_deg'],
+            gap_axis=c['gap_axis'],first_contact=c,
             finite_head_fit=c['fit']) for c in candidates['candidates']])
         plans=[]
         if audit['candidates']:
@@ -81,11 +99,13 @@ def main():
             selected=min((p for p in plans if p['success']),key=lambda p:p['route_score'])
             selected.update(geometry_id=config['geometry_id'],geometry_source_sha256=config['geometry_source_sha256'],
                 freshly_generated=True,geometry_artifacts=hashes,world_from_left_base=base.tolist(),
-                physics_executed=False,training_eligible=False)
+                gap_axis='command_normal',physics_executed=False,training_eligible=False)
+            if patient is not None:selected['patient_provenance']=patient
             write(args.output/(name+'_fresh_plan.json'),selected)
         rows.append(row);write(args.output/'progress.json',rows)
         print('FRESH_PLAN',name,row,flush=True)
     require_geometry_artifacts(directory,config)
+    if patient_provenance(config)!=patient:raise ValueError('Patient provenance changed during planning')
     write(args.output/'COMPLETE.json',dict(completed=True,geometry_id=config['geometry_id'],
         geometry_artifacts=hashes,targets=rows,physics_executed=False,training_eligible=False,
         scope='Fresh finite-head and sampled free paths; loaded approach and actual contact still require Isaac'))

@@ -59,12 +59,41 @@ def _route(value, label):
     return result
 
 
+def require_near_contact(row, target, normal, center, fitted_gap):
+    """Reject coarse noncontact fits and mismatched planner/controller lines."""
+    fit=row.get('selected_fit',{})
+    receipt=fit.get('first_contact',{})
+    if (row.get('gap_axis')!='command_normal' or fit.get('gap_axis')!='command_normal'
+            or receipt.get('gap_axis')!='command_normal' or receipt.get('passed') is not True):
+        raise ValueError('Missing command-line first-contact fit receipt')
+    residual=receipt.get('diaphragm_residual_distance_m',float('nan'))
+    resolution=receipt.get('first_contact_search_resolution_m',float('nan'))
+    bracket=_vector(receipt.get('contact_surface_gap_bracket_m'),(2,),'contact bracket')
+    recorded_center=_vector(receipt.get('center_world_m'),(3,),'contact center')
+    raw=_vector(receipt.get('raw_anchor_world_m'),(3,),'unchanged raw target')
+    if (not np.isfinite([residual,resolution]).all() or not 1e-5<=residual<=3e-5
+            or not 0<resolution<=1e-6 or not 0<=bracket[0]<=bracket[1]<=.005
+            or bracket[1]-bracket[0]>resolution+1e-12
+            or not bracket[1] < fitted_gap <= .005
+            or not np.allclose(raw,target,atol=1e-10,rtol=0)
+            or not np.allclose(recorded_center,center,atol=1e-10,rtol=0)
+            or not np.allclose(center,target+normal*fitted_gap,atol=1e-10,rtol=0)):
+        raise ValueError('First-contact position or resolution does not match command line')
+    final=receipt.get('fit',{})
+    distances=final.get('distances_m',{})
+    if (final.get('passed') is not True or final.get('diaphragm_collision') is not False
+            or not np.isclose(distances.get('diaphragm',float('nan')),residual,rtol=0,atol=1e-12)
+            or any(not np.isfinite(distances.get(k,float('nan'))) or distances[k]<minimum
+                   for k,minimum in [('fixed',.003),('clamp',.003),('shell',.0003)])):
+        raise ValueError('First-contact fit lacks unchanged noncontact clearances')
+
+
 def read_plans(config, geometry, kin):
     """Verify exact new plan bytes, collider bytes, safety profile and FK identity.
 
-    A loaded fit may have an explicit gap along the *raw* surface normal. The
-    raw task point remains unchanged; the fitted command normal is separately
-    recorded and is the existing five-degree orientation-tracking reference.
+    A loaded fit has a measured micrometre membrane gap on the *command* normal
+    through the unchanged raw task point, the same line used by the controller.
+    The fitted command normal remains distinct from the raw surface normal.
     """
     require_current(config)
     requested = config['fresh_expert']
@@ -117,8 +146,7 @@ def read_plans(config, geometry, kin):
                 or not 0 <= fitted_gap < .015):
             raise ValueError('Unsupported contact or free domain')
         center = _vector(row['expected_contact_center_world'],(3,),'fitted center')
-        if not np.allclose(center, target+raw_normal*fitted_gap, atol=1e-9, rtol=0):
-            raise ValueError('Fitted center changed the source target or fit gap')
+        require_near_contact(row,target,normal,center,fitted_gap)
         transfer=_route(row['transfer_q'],'home transfer'); approach=_route(row['approach_q'],'free approach')
         loaded=_vector(row['loaded_q'],(7,),'loaded joint pose')
         staging=_vector(row['lower_staging_q'],(7,),'lower staging joint pose')
@@ -146,6 +174,38 @@ def read_plans(config, geometry, kin):
     return points, dict(**geometry_meta,world_from_left_base=base.tolist(),plans=records)
 
 
+def contact_timing_preflight(kin, target, row, config, inward_speed):
+    """Optimistic travel/settle lower bound, not a successful-contact prediction.
+
+    The verified loaded FK locates the finite face's first-contact center. Its
+    projection can differ from the target point plane when the head is tilted.
+    Loading, acceleration, tracking and feedback delay are deliberately omitted:
+    even this lower bound must fit before the unchanged contact watchdog expires.
+    read_plans remains responsible for the contact-geometry evidence.
+    """
+    base = _base_transform(row['world_from_left_base'])
+    normal = _vector(row['command_normal_world'], (3,), 'command normal')
+    if not np.isclose(np.linalg.norm(normal), 1., atol=1e-6, rtol=0):
+        raise ValueError('Contact timing requires a unit command normal')
+    pose = base @ kin.tcp(_vector(row['loaded_q'], (7,), 'loaded joint pose'),
+                          float(row['loaded_compression_m']))
+    surface_gap = float((pose[:3,3]-target.position_world) @ normal)
+    pre_gap = float(row['free_approach_start_gap_m'])
+    values = [surface_gap, pre_gap, inward_speed, config.settle_duration_s,
+              config.contact_timeout_s]
+    if not np.isfinite(values).all() or min(values[1:]) <= 0:
+        raise ValueError('Invalid contact timing inputs')
+    travel = max(0., pre_gap-surface_gap)/inward_speed
+    necessary = travel+config.settle_duration_s
+    return dict(target=target.name, precontact_gap_m=pre_gap, surface_gap_m=surface_gap,
+        inward_speed_limit_m_s=float(inward_speed), minimum_travel_s=travel,
+        minimum_settle_s=float(config.settle_duration_s), necessary_lower_bound_s=necessary,
+        contact_timeout_s=float(config.contact_timeout_s),
+        passed=bool(necessary < config.contact_timeout_s), success_guaranteed=False,
+        excluded_time='acceleration, loading, tracking and feedback delay',
+        scope='necessary timing screen only; no physical or model qualification')
+
+
 class FreshExpert(SkillExpert):
     """Retain the original contact executor; use stop-at-waypoint free timing."""
     def __init__(self, *args, **kwargs):
@@ -153,6 +213,31 @@ class FreshExpert(SkillExpert):
             executor_config=dict(joint_velocity_limit_rad_s=.175), **kwargs)
         # .25*.7 is mathematically .175 but retain the explicit contract value.
         self.joint_speed_limit=.175
+        self.contact_preflights=[]
+        self.phase_failure_diagnostics=[]
+
+    def desired_normal_velocity(self, state):
+        # The inherited contact loop refreshes this hook on every phase change,
+        # before executor.step. Preserve the initiating fault before a finite
+        # acceleration reversal could produce a secondary braking rejection.
+        phase = self.manager.state
+        if phase.failure_reason is not None:
+            def finite_or_none(value):
+                try: return float(value) if np.isfinite(value) else None
+                except (ValueError, TypeError): return None
+            executor = self.contact_executor
+            diagnostic = dict(target=self.target.name, phase=phase.phase.value,
+                phase_failure_reason=phase.failure_reason, physics_rows=len(self.env.rows),
+                time_s=finite_or_none(state.get('time_s')),
+                observed_gap_m=finite_or_none(self.metrics(state)['gap_m']),
+                executor_gap_m=finite_or_none(executor.gap),
+                executor_velocity_m_s=finite_or_none(executor.velocity),
+                executor_acceleration_m_s2=finite_or_none(executor.acceleration),
+                rejected_before_next_executor_step=True,
+                response='stop simulation at original supervisor fault; no alternate motion')
+            self.phase_failure_diagnostics.append(diagnostic)
+            raise EpisodeRejected('contact phase supervision failed: '+phase.failure_reason)
+        return super().desired_normal_velocity(state)
 
     def _continuous_path(self, route, subphase):
         route=_route(route,'free route')
@@ -189,18 +274,36 @@ class FreshExpert(SkillExpert):
         return violations,total
 
     def run(self,points):
+        self.contact_preflights=[]
+        self.phase_failure_diagnostics=[]
+        # Screen the entire sequence before the first home/transfer command.
+        inward=self.executor_config['normal_inward_speed_limit_m_s']*self.speed_scale
+        for target,row in points:
+            report=contact_timing_preflight(self.kin,target,row,self.config,inward)
+            self.contact_preflights.append(report)
+            if not report['passed']:
+                raise EpisodeRejected('contact timing necessary lower bound exceeds watchdog: '
+                                      +str(report))
         outcome=super().run(points)
         # Parent acceptance belongs to its older episode-data contract. These
         # traces deliberately lack synchronized RGB-D/ADC training observations.
         outcome['training_accepted']=False
         for row in [*self.env.rows,*self.control_rows,*outcome.get('points',[])]:
             row['training_accepted']=False
+        for point in outcome.get('points',[]):
+            failures=[item for item in self.phase_failure_diagnostics
+                      if item['target']==point.get('target')]
+            if failures:
+                point['phase_failure_reason']=failures[-1]['phase_failure_reason']
+                point['phase_failure_diagnostic']=failures[-1]
         outcome.update(executed_controller_class=__name__+'.FreshExpert',
             candidate_method=__name__+'.FreshExpert',
             candidate_timing='each retained free edge uses quintic time, with a stationary waypoint; contact uses bounded normal executor',
             free_motion_command_bounds=dict(joint_velocity_rad_s=.175,joint_acceleration_rad_s2=.5,
                                             joint_jerk_rad_s3=1.5),
             training_eligible=False,learned_policy=False,
+            contact_preflights=self.contact_preflights,
+            phase_failure_diagnostics=self.phase_failure_diagnostics,
             scope='Fresh full-route expert mechanics diagnostic; no raw multimodal training dataset')
         return outcome
 
@@ -321,7 +424,9 @@ def finalize_probe(env,controller,recorder,output):
         attempt('diagnostics_save',lambda:_write(output/'fresh_expert_controller_diagnostics.json',dict(
             contact_curves=getattr(controller,'contact_curves',[]),
             free_motion_timing=getattr(controller,'free_motion_timing',[]),
-            inter_point_routes=getattr(controller,'inter_point_routes',[]))))
+            inter_point_routes=getattr(controller,'inter_point_routes',[]),
+            contact_preflights=getattr(controller,'contact_preflights',[]),
+            phase_failure_diagnostics=getattr(controller,'phase_failure_diagnostics',[]))))
     if recorder is not None:video=attempt('video_finalize',lambda:recorder.close())
     if env is not None:attempt('world_stop',lambda:env.world.stop())
     return video,errors

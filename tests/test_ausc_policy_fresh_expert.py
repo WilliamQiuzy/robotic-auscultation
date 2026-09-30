@@ -27,7 +27,7 @@ def fixture_plan(tmp_path):
     q = np.array([0., -1., .2, 1.4, .1, .1, -.1])
     pose = kin.tcp(q, .0025)
     normal = -pose[:3, 2]
-    target = pose[:3, 3]
+    target = pose[:3, 3]-normal*2e-5
     pre = kin.solve_ik(target+normal*.03, orientation_base=pose[:3, :3], seed=q,
                        max_starts=1)
     assert pre.success
@@ -42,13 +42,20 @@ def fixture_plan(tmp_path):
                freshly_generated=True, geometry_artifacts=hashes, name='R3', success=True,
                world_from_left_base=np.eye(4).tolist(), position_world=target.tolist(),
                normal_world=normal.tolist(), command_normal_world=normal.tolist(),
-               command_rotation_world=pose[:3,:3].tolist(), expected_contact_center_world=target.tolist(),
-               expected_contact_gap_m=0., free_approach_start_gap_m=.03,
+               command_rotation_world=pose[:3,:3].tolist(), expected_contact_center_world=pose[:3,3].tolist(),
+               expected_contact_gap_m=2e-5, free_approach_start_gap_m=.03,
                transfer_q=[np.zeros(7).tolist(), (pre.q*.5).tolist(), pre.q.tolist()],
                lower_staging_q=(pre.q*.5).tolist(), approach_q=[pre.q.tolist(), pre.q.tolist()],
                loaded_q=q.tolist(), loaded_compression_m=.0025, posture_limits=limits,
                geometric_clearance_m=.003, loaded_noncontact_clearance_m=.0003,
                joint_edge_sample_step_rad=.015)
+    row['gap_axis']='command_normal'
+    row['selected_fit']=dict(gap_axis='command_normal',first_contact=dict(
+        gap_axis='command_normal',passed=True,raw_anchor_world_m=target.tolist(),
+        center_world_m=pose[:3,3].tolist(),first_contact_search_resolution_m=1e-6,
+        contact_surface_gap_bracket_m=[0.,1e-9],diaphragm_residual_distance_m=2e-5,
+        fit=dict(passed=True,diaphragm_collision=False,
+                 distances_m=dict(fixed=.01,clamp=.005,shell=.00032,diaphragm=2e-5))))
     path=tmp_path/'plan.json'; path.write_text(json.dumps(row))
     binding=dict(file=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
     config=dict(geometry_id=GEOMETRY_ID, geometry_source_sha256=GEOMETRY_SOURCE_SHA256,
@@ -62,12 +69,27 @@ def test_hashbound_new_plan_keeps_surface_point_and_tcp(tmp_path):
     points, metadata = f.read_plans(config, geometry, kin)
     target, actual = points[0]
     np.testing.assert_array_equal(target.position_world, row['position_world'])
-    assert actual['expected_contact_gap_m'] == 0.
+    assert actual['expected_contact_gap_m'] == 2e-5
     assert metadata['plans'][0]['sha256'] == config['fresh_expert']['plans'][0]['sha256']
     path = config['fresh_expert']['plans'][0]['file']
     with open(path, 'a') as stream: stream.write(' ')
     with pytest.raises(ValueError, match='plan.*changed'):
         f.read_plans(config, geometry, kin)
+
+
+@pytest.mark.parametrize('mutation',['missing','coarse','different_line','shell_clearance'])
+def test_coarse_or_mismatched_contact_fit_cannot_enter_runtime(tmp_path,mutation):
+    from pathlib import Path
+    row,config,geometry,kin=fixture_plan(tmp_path)
+    receipt=row['selected_fit']['first_contact']
+    if mutation=='missing':row.pop('selected_fit')
+    elif mutation=='coarse':receipt['diaphragm_residual_distance_m']=.0015
+    elif mutation=='different_line':row['gap_axis']='surface_normal'
+    else:receipt['fit']['distances_m']['shell']=.000299
+    path=Path(config['fresh_expert']['plans'][0]['file']);path.write_text(json.dumps(row))
+    config['fresh_expert']['plans'][0]['sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+    with pytest.raises(ValueError,match='contact|clearances'):
+        f.read_plans(config,geometry,kin)
 
 
 @pytest.mark.parametrize('mutation', ['epoch', 'arrays', 'pose', 'posture', 'home'])
@@ -249,3 +271,108 @@ def test_video_release_is_independent_of_encoder_log_close(tmp_path):
     with pytest.raises(RuntimeError,match='stderr_close'):recorder.close()
     assert called==['stdin_close','stderr_close','detach','destroy']
     assert json.loads((tmp_path/'video_frames.json').read_text())==recorder.frames
+
+
+def test_contact_timing_rejects_the_real_40mm_failure_before_any_motion(tmp_path,monkeypatch):
+    from sim.auscultation_expert_layout_v1.phase_manager import PhaseConfig
+    row,_,_,kin=fixture_plan(tmp_path)
+    target=SimpleNamespace(name='R3',position_world=np.asarray(row['position_world']))
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.kin=kin;controller.speed_scale=.7
+    controller.config=PhaseConfig(contact_timeout_s=20/.7)
+    controller.executor_config=dict(normal_inward_speed_limit_m_s=.002)
+    controller.contact_preflights=[]
+    called=[]
+    monkeypatch.setattr(f.SkillExpert,'run',lambda self,points:called.append('motion'))
+    short=deepcopy(row);short['free_approach_start_gap_m']=.025
+    long=deepcopy(row);long['free_approach_start_gap_m']=.04
+    with pytest.raises(f.EpisodeRejected,match='contact timing necessary lower bound'):
+        controller.run([(target,short),(target,long)])
+    assert not called
+    report=controller.contact_preflights[-1]
+    assert report['minimum_travel_s']==pytest.approx((.04-2e-5)/.0014)
+    assert report['necessary_lower_bound_s']==pytest.approx((.04-2e-5)/.0014+.3)
+    assert report['contact_timeout_s']==pytest.approx(20/.7)
+    assert not report['passed'] and not report['success_guaranteed']
+
+
+def test_contact_timing_uses_loaded_surface_projection_and_keeps_timeout(tmp_path):
+    from sim.auscultation_expert_layout_v1.phase_manager import PhaseConfig
+    row,_,_,kin=fixture_plan(tmp_path)
+    target=SimpleNamespace(name='R3',position_world=np.asarray(row['position_world']))
+    config=PhaseConfig(contact_timeout_s=20/.7)
+    # The actual finite head's first-contact center can be outside the target
+    # point plane. Time is measured to its FK projection, not to an assumed 0.
+    row['free_approach_start_gap_m']=.04
+    target.position_world-=np.asarray(row['command_normal_world'])*.002
+    report=f.contact_timing_preflight(kin,target,row,config,.0014)
+    assert report['surface_gap_m']==pytest.approx(.00202)
+    assert report['minimum_travel_s']==pytest.approx((.038-2e-5)/.0014)
+    assert report['passed'] and not report['success_guaranteed']
+    assert config.contact_timeout_s==20/.7
+    row['free_approach_start_gap_m']=.025
+    target.position_world=np.asarray(row['position_world'])
+    report=f.contact_timing_preflight(kin,target,row,config,.0014)
+    assert report['passed']
+    assert report['necessary_lower_bound_s']==pytest.approx((.025-2e-5)/.0014+.3)
+
+
+def test_original_phase_timeout_stops_before_executor_step_and_is_preserved(monkeypatch,tmp_path):
+    from sim.auscultation_expert_layout_v1.phase_manager import PhaseManager,PhaseConfig,ContactObservation
+    from sim.auscultation_skill_v1 import controller as skill
+    cfg=PhaseConfig(precontact_gap_m=.04,contact_timeout_s=20/.7)
+    manager=PhaseManager(cfg)
+    def obs(gap):return ContactObservation(0.,0.,gap,0.,0.,.0014)
+    manager.update(obs(.04),1/240)
+    for _ in range(6858): manager.update(obs(.0003479074491176248),1/240)
+    assert manager.state.failure_reason=='contact_timeout'
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.config=cfg;controller.manager=manager
+    controller.executor_config={**skill.CONTACT_DEFAULTS,**skill.config_values(),
+                                'joint_velocity_limit_rad_s':.175}
+    controller.speed_scale=.7;controller.pre_gap=.04
+    controller.sensor_condition=controller.action_provider=None
+    controller.contact_curves=[];controller.phase_failure_diagnostics=[]
+    controller._point_plan=dict(loaded_q=np.zeros(7),loaded_compression_m=.0025)
+    controller.q=np.zeros(7);controller.normal=controller.normal_base=np.array([0.,0.,1.])
+    controller.rotation_base=np.eye(3);controller.posture_limits=None
+    controller.target=SimpleNamespace(name='R3',position_base=np.zeros(3))
+    controller.kin=SimpleNamespace(tcp=lambda q:np.eye(4))
+    controller._skill_observation=lambda state,metadata:{}
+    controller.metrics=lambda state:dict(gap_m=.0003479074491176248)
+    state=dict(time_s=80.47916666667564,hall_N=0.,compression_m=0.)
+    controller.env=SimpleNamespace(base=np.eye(4),rows=[dict(q_command=np.zeros(7)) for _ in range(3)],
+                                   state=lambda:state)
+    controller._policy_group=0
+    class Executor:
+        def __init__(self,*args):
+            self.gap=.00033625000000172064;self.velocity=-.0014;self.acceleration=0.
+        def step(self,desired):raise AssertionError('executor must not move after original phase failure')
+    curve=SimpleNamespace(report=dict(knots=3,verification_samples=9),maximum_gap=.04)
+    monkeypatch.setattr(skill.FixedNormalCurve,'build',lambda *a,**kw:curve)
+    monkeypatch.setattr(skill,'NormalExecutor',Executor)
+    with pytest.raises(f.EpisodeRejected,match='contact_timeout'):
+        controller._contact_cycle()
+    report=controller.phase_failure_diagnostics[-1]
+    assert report['phase']=='RETRACT' and report['phase_failure_reason']=='contact_timeout'
+    assert report['observed_gap_m']==pytest.approx(.0003479074491176248)
+    assert report['executor_gap_m']==pytest.approx(.00033625000000172064)
+    assert report['executor_velocity_m_s']==-.0014 and report['executor_acceleration_m_s2']==0.
+    assert report['rejected_before_next_executor_step']
+    assert len(controller.env.rows)==3
+    # The same evidence is preserved even if the run exits through an exception.
+    controller.control_rows=[];controller.free_motion_timing=[];controller.inter_point_routes=[]
+    env=SimpleNamespace(rows=[],video_recorder=None,save=lambda name:None,world=SimpleNamespace(stop=lambda:None))
+    _,errors=f.finalize_probe(env,controller,None,tmp_path)
+    assert not errors
+    saved=json.loads((tmp_path/'fresh_expert_controller_diagnostics.json').read_text())
+    assert saved['phase_failure_diagnostics']==controller.phase_failure_diagnostics
+
+
+def test_successful_hold_retraction_keeps_the_original_velocity_policy():
+    from sim.auscultation_expert_layout_v1.phase_manager import Phase
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.manager=SimpleNamespace(state=SimpleNamespace(phase=Phase.RETRACT,failure_reason=None))
+    controller.action_provider=None;controller.speed_scale=.7
+    controller.executor_config=dict(normal_speed_limit_m_s=.004,normal_inward_speed_limit_m_s=.002)
+    assert controller.desired_normal_velocity(dict(hall_N=4.,compression_m=.0025))==.004

@@ -14,7 +14,6 @@ from pathlib import Path
 
 import numpy as np
 
-from .collision import CollisionChecker
 from .kinematics import OpenArmKinematics, DEFAULT_URDF_PATH
 from .scene import ROOT
 from .targets import _base_transform, _vector, load_targets
@@ -79,7 +78,11 @@ def rrt_path(checker, start, goal, rng, max_iterations=600):
 
 
 def candidate_geometry(target, candidate, world_from_base, pre_gap=.06):
-    """Keep detector coordinates fixed; apply the audit gap on its original normal.
+    """Keep target coordinates fixed and use the explicitly declared gap axis.
+
+    Historical audits default to the original target normal. New surface fits
+    declare command_normal so their loaded pose and the contact curve lie on
+    the same line through the unchanged target.
 
     The audit records wrist rotation. The diaphragm frame has the same rotation,
     so it is also the full TCP orientation required by ``solve_ik``.
@@ -98,7 +101,10 @@ def candidate_geometry(target, candidate, world_from_base, pre_gap=.06):
     gap = float(candidate["gap_m"])
     if not np.isfinite(gap) or not 0 <= gap < .015:
         raise ValueError("candidate gap must be finite, nonnegative, and below the free approach gap")
-    center = target.position_world + target.normal_world * gap
+    gap_axis = candidate.get('gap_axis', 'surface_normal')
+    if gap_axis not in ('surface_normal', 'command_normal'):
+        raise ValueError('unknown candidate gap axis')
+    center = target.position_world + (normal if gap_axis == 'command_normal' else target.normal_world) * gap
     if not np.isfinite(pre_gap) or not .025 <= pre_gap <= .06:
         raise ValueError('pre_gap must be between 25 and 60 mm')
     pre = target.position_world + normal * pre_gap
@@ -295,6 +301,7 @@ def plan_target(target, audit, base, kin, checker, *, max_attempts=30,
 
 
 def main():
+    from .collision import CollisionChecker
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--point", default="R1")
     parser.add_argument("--targets", type=Path, default=ROOT / "results/contact_targets.json")

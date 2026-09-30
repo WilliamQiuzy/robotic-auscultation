@@ -1,7 +1,9 @@
 # 听诊策略实验
 
 以 `docs/superpowers/plans/2026-09-29-ausc-diverse-data-policy-redesign.md` 为当前方向。
-M0 尚未通过。旧 41 维、只执行首步、单身体 VLA 全量训练已停止。
+按用户修订，M0 管线部分已经通过；单身体闭环失败保留为覆盖不足的证据。
+当前进入 M2。5 mm 实物一致工具的 TCP 为132 mm；旧几何路径、预接触、
+TRAIN16 与派生模型、交接区测量全部退出新规划/训练，历史文件只读保留。
 
 这里集中放新实验代码；变体由 `configs/ausc_policy/` 控制，历史目录只读。
 Mac 用于开发、纯软件检查和查看网页。GPU 推理、训练与 Isaac 均在 Linux；
@@ -10,11 +12,10 @@ Mac 用于开发、纯软件检查和查看网页。GPU 推理、训练与 Isaac
 ## 入口
 
 ```sh
-python -m sim.ausc_policy.diagnostics --config configs/ausc_policy/m0_diagnostics.json
 python -m sim.ausc_policy.web --port 8774
 python -m sim.ausc_policy.run_index --runs /home/william/wam-vla-v2/runs/ausc_policy
 # 仅 Linux，由指定 Molmo Python 环境执行；每次唯一 run-id。
-python -m sim.ausc_policy.run --config configs/ausc_policy/m0_seed_probe.json --run-id m0-seed512-20260929
+python -m sim.ausc_policy.run --config configs/ausc_policy/fresh_expert_r3_5mm_v1.json --run-id fresh-expert-unique-id
 ```
 
 GPU owner 复用既有进程组/资源保护器与共享 GPU 锁。每个 run 保存配置、
@@ -38,7 +39,20 @@ Linux 已有资产与结果保留，资产定位/哈希从历史 manifest 读取
 下一步；视频只使用真实 Isaac 录像。服务只绑定回环地址并开放固定清单，
 不会把项目根目录、凭证、患者资产或模型暴露成网站。
 
-## M0 当前执行与解释
+## M2 当前资格边界
+
+首轮新几何静态路径搜索为8/10，但完整R3物理测试未接触即超时，并发现粗拟合
+间隙不等于触面位置。该批路径只保留为失败诊断；新版重新求首次触面与25mm入口。
+单R3 reset膜片诊断通过不等于home全路径、十点专家或模型资格。完整专家执行使用
+`fresh_expert.py`，所有诊断痕迹仍为训练不合格。
+
+冻结身份划分为340人，隔离两个跨序列beta不一致身份；新坐姿候选保留相同体型。
+随机专家至少100个真实物理回合、成功率≥95%的门还未运行，批量数据/全量训练禁开。
+`m2_contract.py`只实现数值及来源契约：RGB与深度估计几何送入L2（state17/H20/E10），
+Hall电压/ADC送入L3与安全；这不是原生深度编码器或已训练多模态模型。
+块相对关节/绝对关节已实现，目标位姿+肘部psi仍需统一数学定义及IK约束。
+
+## M0 历史诊断与解释（以下入口不用于新几何训练）
 
 状态 ACT 使用官方 LeRobot（源码版本固定）的有限预算基线，19 维估计状态，
 块相对关节动作，H10/E5、20 Hz。它是诊断用小基线，不是已完成的多模态 VLA。
