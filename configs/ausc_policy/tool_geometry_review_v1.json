@@ -1,0 +1,7 @@
+{
+  "experiment": "tool_geometry_review",
+  "base": "/home/william/wam-vla-v2",
+  "time_limit_seconds": 1200,
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu"
+}

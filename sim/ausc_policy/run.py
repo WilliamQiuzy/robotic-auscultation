@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 GUARD_SHA = '48c47cf0d6d8f3d770028931a61d2882c5281684053a6149dacfcbe7b2483ff2'
 MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
+           'tool_geometry_review': 'sim.ausc_policy.tool_geometry_review',
            'act_baseline': 'sim.ausc_policy.act_baseline',
            'act_runtime': 'sim.ausc_policy.act_runtime',
            'executor_probe': 'sim.ausc_policy.executor_probe',
