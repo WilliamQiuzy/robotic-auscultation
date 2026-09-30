@@ -69,7 +69,8 @@ class OpenArmKinematics:
     base_link = "openarm_left_link0"
     wrist_link = "openarm_left_link7"
 
-    def __init__(self, urdf_path=DEFAULT_URDF_PATH):
+    def __init__(self, urdf_path=DEFAULT_URDF_PATH, *, contact_frame=wrist_from_diaphragm):
+        self.contact_frame = contact_frame
         self.urdf_path = Path(urdf_path)
         try:
             root = ET.parse(self.urdf_path).getroot()
@@ -152,12 +153,12 @@ class OpenArmKinematics:
 
     def tcp(self, q, compression=0.0):
         """Return the diaphragm pose, with positive compression retracting it."""
-        return self.fk(q) @ wrist_from_diaphragm(compression)
+        return self.fk(q) @ self.contact_frame(compression)
 
     def jacobian(self, q, compression=0.0):
         """Return the diaphragm geometric Jacobian (6 x 7) in the base frame."""
         links, origins, axes = self._chain(self._q(q))
-        position = (links[self.wrist_link] @ wrist_from_diaphragm(compression))[:3, 3]
+        position = (links[self.wrist_link] @ self.contact_frame(compression))[:3, 3]
         return np.vstack((np.cross(axes, position - origins).T, axes.T))
 
     def solve_ik(
@@ -181,7 +182,7 @@ class OpenArmKinematics:
         position = _vector(position_base, 3, "position_base")
         if not np.isscalar(posture_weight) or not np.isfinite(posture_weight) or posture_weight < 0:
             raise ValueError('posture_weight must be finite and nonnegative')
-        tcp_offset = wrist_from_diaphragm(compression)
+        tcp_offset = self.contact_frame(compression)
         for value, name in ((position_tolerance, "position_tolerance"), (orientation_tolerance, "orientation_tolerance")):
             if not np.isscalar(value) or not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be a finite positive scalar")

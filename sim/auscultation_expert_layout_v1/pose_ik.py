@@ -30,7 +30,7 @@ class PoseConstraint:
             raise ValueError('rotation_base must be a finite proper 3 x 3 rotation')
         if deadline is not None and (not np.isscalar(deadline) or not np.isfinite(deadline)):
             raise ValueError('IK deadline must be a finite absolute monotonic time')
-        self.offset = wrist_from_diaphragm(compression)
+        self.offset = kin.contact_frame(compression)
         self.deadline, self.last = deadline, None
 
     def calc(self,q):

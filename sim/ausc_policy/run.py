@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 GUARD_SHA = '48c47cf0d6d8f3d770028931a61d2882c5281684053a6149dacfcbe7b2483ff2'
 MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
+           'geometry_qualification': 'sim.ausc_policy.tool_geometry_review',
            'tool_geometry_review': 'sim.ausc_policy.tool_geometry_review',
            'act_baseline': 'sim.ausc_policy.act_baseline',
            'act_runtime': 'sim.ausc_policy.act_runtime',
@@ -48,6 +49,9 @@ def main():
     config_path = args.config.resolve()
     config_bytes = config_path.read_bytes()
     config = json.loads(config_bytes)
+    from .geometry_epoch import RETIRED_EXPERIMENTS
+    if config['experiment'] in RETIRED_EXPERIMENTS:
+        raise ValueError('Old-geometry training/planning retired by user; use the 5 mm M2 pipeline')
     module = MODULES[config['experiment']]
     base = Path(config['base'])
     path = base / 'diagnostics/coverage_pilot_cloud_launcher/process_guard.py'

@@ -13,7 +13,7 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     c = json.loads(args.config.read_text())
-    if os.environ.get('AUSC_OWNED_RUN') != '1' or c['experiment'] != 'tool_geometry_review':
+    if os.environ.get('AUSC_OWNED_RUN') != '1' or c['experiment'] not in ('tool_geometry_review', 'geometry_qualification'):
         raise RuntimeError('Existing experiment owner required')
     args.output.mkdir(parents=True, exist_ok=False)
     from .isaac_case import approved_assets
@@ -25,7 +25,8 @@ def main():
             raise RuntimeError('GPU already occupied')
         env = dict(os.environ, LD_LIBRARY_PATH=c['ld_library_path'], OMNI_KIT_ACCEPT_EULA='YES')
         with (args.output/'isaac.log').open('w') as log:
-            child = subprocess.Popen([c['isaac_python'], '-u', '-B', '-m', 'sim.ausc_policy.tool_geometry_render',
+            worker = 'sim.ausc_policy.geometry_qualification' if c['experiment']=='geometry_qualification' else 'sim.ausc_policy.tool_geometry_render'
+            child = subprocess.Popen([c['isaac_python'], '-u', '-B', '-m', worker,
                 '--config', str(args.config.resolve()), '--output', str(args.output/'review')],
                 stdout=log, stderr=subprocess.STDOUT, env=env)
             try:
