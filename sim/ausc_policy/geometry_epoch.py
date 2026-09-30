@@ -1,4 +1,6 @@
 """Active geometry contract. Old evidence is retained, never silently relabeled."""
+import hashlib
+from pathlib import Path
 import numpy as np
 from .tool_protrusion import wrist_contact_offset
 
@@ -30,6 +32,21 @@ def require_current(metadata):
             or metadata.get('freshly_generated') is not True
             or metadata.get('geometry_source_sha256') != GEOMETRY_SOURCE_SHA256):
         raise ValueError('Retired or unbound geometry: regenerate paths, data and handoff measurements')
+
+
+def require_geometry_artifacts(directory, metadata):
+    """Bind both exported collision files, not merely their caller's epoch label."""
+    require_current(metadata)
+    result={}
+    for name,key in [('collision_geometry.json','collision_geometry_sha256'),
+                     ('collision_geometry.npz','collision_arrays_sha256')]:
+        expected=metadata.get(key)
+        if not isinstance(expected,str) or len(expected)!=64:
+            raise ValueError('Missing geometry artifact hash: '+name)
+        actual=hashlib.sha256((Path(directory)/name).read_bytes()).hexdigest()
+        if actual!=expected:raise ValueError('Geometry artifact changed: '+name)
+        result[key]=actual
+    return result
 
 
 def qualify_contact(rows, dt=1/240):

@@ -41,6 +41,23 @@ def test_old_inputs_cannot_enter_new_epoch():
                      'freshly_generated': True})
 
 
+def test_export_bytes_must_match_current_receipt(tmp_path):
+    import hashlib
+    from sim.ausc_policy import geometry_epoch as g
+    meta=dict(geometry_id=g.GEOMETRY_ID,geometry_source_sha256=g.GEOMETRY_SOURCE_SHA256,freshly_generated=True)
+    for name,key,data in [('collision_geometry.json','collision_geometry_sha256',b'fresh metadata'),
+                          ('collision_geometry.npz','collision_arrays_sha256',b'fresh arrays')]:
+        (tmp_path/name).write_bytes(data);meta[key]=hashlib.sha256(data).hexdigest()
+    result=g.require_geometry_artifacts(tmp_path,meta)
+    assert result['collision_arrays_sha256']==meta['collision_arrays_sha256']
+    (tmp_path/'collision_geometry.npz').write_bytes(b'retired')
+    with pytest.raises(ValueError,match='artifact'):
+        g.require_geometry_artifacts(tmp_path,meta)
+    del meta['collision_arrays_sha256']
+    with pytest.raises(ValueError,match='artifact'):
+        g.require_geometry_artifacts(tmp_path,meta)
+
+
 def test_contact_gate_requires_membrane_and_zero_lip():
     from sim.ausc_policy.geometry_epoch import qualify_contact
     rows = [dict(diaphragm_N=4., lip_N=0., contact_rim_N=0., carriage_other_N=0.,
