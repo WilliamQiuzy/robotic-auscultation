@@ -52,6 +52,9 @@ def env(monkeypatch, enabled=True):
     result.robot = Robot(); result.left = result.robot.left; result.slider = 15
     result.rows = []; result.t = 0.; result.passive_preload_N = 1.5
     result.video_recorder = None
+    result.contact_points=[];result.last_contacts={}
+    result.bodies=[('/World/Stethoscope/Carriage',SimpleNamespace(
+        get_world_pose=lambda:(np.zeros(3),np.array([1.,0.,0.,0.]))))]
     result.world = SimpleNamespace(current_time=5., get_physics_dt=lambda: DT)
     if enabled:
         result.velocity_feedforward = module().NativeVelocityFeedforward(result.robot, result.left, physics_dt=DT)
@@ -204,7 +207,7 @@ def test_actual_parent_steps_once_with_joint_targets_already_installed(monkeypat
     e = env(monkeypatch); observed = []
     e.contact_impulses = defaultdict(float); e.contact_pairs = defaultdict(float); e.contact_points = []
     e.filtered_hall_force = 0.; e.previous_tcp = None; e.base = np.eye(4)
-    e.poses = []; e.pose_row_indices = []; e.bodies = []
+    e.poses = []; e.pose_row_indices = []
     e.state = lambda: dict(q=np.zeros(7), dq=np.zeros(7), hall_raw_N=0.,
         compression_m=0., tcp_world=np.zeros(3), tcp_base=np.zeros(3),
         axis_world=np.array([0., 0., 1.]), rotation_world=np.eye(3))

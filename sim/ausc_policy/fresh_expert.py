@@ -2,7 +2,7 @@
 
 The planner's paths are proposals. Every commanded free sample is checked again,
 contact runs the Hall feedback controller, and physical acceptance uses the actual
-membrane impulses independently. No raw multimodal training dataset is produced.
+membrane and device-retainer impulses independently. No raw multimodal training dataset is produced.
 Imports are safe on the development Mac; only run_probe imports Isaac/Replicator.
 """
 from copy import deepcopy
@@ -19,6 +19,8 @@ from .expert_capture import ExpertCapture, capture_settings, checked_render, con
 from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
                                  gravity_feedforward_settings, read_native_angular_drive_modes)
 from .velocity_feedforward import NativeVelocityFeedforward, velocity_feedforward_settings
+from .retainer_contact import (CONTACT_SURFACE, RETAINER_PATHS, DIAPHRAGM_PATH, ALL_FORCE_GROUPS,
+                               CONTACT_FORCE_GROUPS, is_retainer_patient_pair, audit_retainer_front)
 from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
                              require_geometry_artifacts, qualify_contact)
 from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS, EpisodeRejected
@@ -67,10 +69,13 @@ def require_near_contact(row, target, normal, center, fitted_gap):
     """Reject coarse noncontact fits and mismatched planner/controller lines."""
     fit=row.get('selected_fit',{})
     receipt=fit.get('first_contact',{})
+    if any(value.get('contact_surface')!=CONTACT_SURFACE
+           for value in (row,fit,receipt,receipt.get('fit',{}))):
+        raise ValueError('Missing current B/C contact surface contract')
     if (row.get('gap_axis')!='command_normal' or fit.get('gap_axis')!='command_normal'
             or receipt.get('gap_axis')!='command_normal' or receipt.get('passed') is not True):
         raise ValueError('Missing command-line first-contact fit receipt')
-    residual=receipt.get('diaphragm_residual_distance_m',float('nan'))
+    residual=receipt.get('contact_face_residual_distance_m',float('nan'))
     resolution=receipt.get('first_contact_search_resolution_m',float('nan'))
     bracket=_vector(receipt.get('contact_surface_gap_bracket_m'),(2,),'contact bracket')
     recorded_center=_vector(receipt.get('center_world_m'),(3,),'contact center')
@@ -85,8 +90,8 @@ def require_near_contact(row, target, normal, center, fitted_gap):
         raise ValueError('First-contact position or resolution does not match command line')
     final=receipt.get('fit',{})
     distances=final.get('distances_m',{})
-    if (final.get('passed') is not True or final.get('diaphragm_collision') is not False
-            or not np.isclose(distances.get('diaphragm',float('nan')),residual,rtol=0,atol=1e-12)
+    if (final.get('passed') is not True or final.get('contact_face_collision') is not False
+            or not np.isclose(distances.get('contact_face',float('nan')),residual,rtol=0,atol=1e-12)
             or any(not np.isfinite(distances.get(k,float('nan'))) or distances[k]<minimum
                    for k,minimum in [('fixed',.003),('clamp',.003),('shell',.0003)])):
         raise ValueError('First-contact fit lacks unchanged noncontact clearances')
@@ -95,7 +100,7 @@ def require_near_contact(row, target, normal, center, fitted_gap):
 def read_plans(config, geometry, kin):
     """Verify exact new plan bytes, collider bytes, safety profile and FK identity.
 
-    A loaded fit has a measured micrometre membrane gap on the *command* normal
+    A loaded fit has a measured micrometre contact-interface gap on the *command* normal
     through the unchanged raw task point, the same line used by the controller.
     The fitted command normal remains distinct from the raw surface normal.
     """
@@ -121,7 +126,7 @@ def read_plans(config, geometry, kin):
             raise ValueError('Plan sequence geometry differs')
         geometry_meta = dict(geometry_id=row['geometry_id'], freshly_generated=True,
                             geometry_source_sha256=row['geometry_source_sha256'],
-                            geometry_artifacts=artifacts)
+                            geometry_artifacts=artifacts,contact_surface=CONTACT_SURFACE)
         current_base = _base_transform(row['world_from_left_base'])
         if base is not None and not np.allclose(current_base, base, rtol=0, atol=1e-9):
             raise ValueError('Plan sequence robot base differs')
@@ -246,6 +251,10 @@ def contact_timing_preflight(kin, target, row, config, inward_speed, near_surfac
 
 class FreshExpert(SkillExpert):
     """Retain the original contact executor; use stop-at-waypoint free timing."""
+    # Printed lip/rim remain included in the total stop and strict forbidden
+    # checks below, while the true device ring contributes to contact evidence.
+    front_contact_groups = CONTACT_FORCE_GROUPS
+    total_contact_groups = ALL_FORCE_GROUPS
     def __init__(self, *args, near_surface_motion=None, **kwargs):
         super().__init__(*args, speed_scale=.7,
             executor_config=dict(joint_velocity_limit_rad_s=.175), **kwargs)
@@ -377,7 +386,10 @@ class FreshExpert(SkillExpert):
         for group in FORBIDDEN:
             force=float(self.env.last_contacts.get(group,0.))
             if not np.isfinite(force) or force!=0.:
-                violations.append('strict membrane-only physical contact: '+group)
+                violations.append('forbidden non-interface physical contact: '+group)
+        front=getattr(self.env,'retainer_front_audit',None)
+        if front is not None and front.get('passed') is not True:
+            violations.append('device retainer side/back or unreconciled contact')
         return violations,total
 
     def run(self,points):
@@ -406,6 +418,7 @@ class FreshExpert(SkillExpert):
                 point['phase_failure_reason']=failures[-1]['phase_failure_reason']
                 point['phase_failure_diagnostic']=failures[-1]
         outcome.update(executed_controller_class=__name__+'.FreshExpert',
+            contact_surface=CONTACT_SURFACE,
             candidate_method=__name__+'.FreshExpert',
             candidate_timing='each retained free edge uses quintic time, with a stationary waypoint; contact uses bounded normal executor',
             free_motion_command_bounds=dict(joint_velocity_rad_s=.175,joint_acceleration_rad_s2=.5,
@@ -424,6 +437,14 @@ class FreshExpert(SkillExpert):
 
 
 class FreshContactEnv(IsaacContactEnv):
+    contact_groups = ALL_FORCE_GROUPS
+
+    def contact_group(self, a, b):
+        if is_retainer_patient_pair(a, b):return 'retainer'
+        label=super().contact_group(a, b)
+        if label=='diaphragm' and DIAPHRAGM_PATH not in (a,b):return 'carriage_other'
+        return label
+
     def step(self,q_target,label='',target='',meta=None):
         velocity=getattr(self,'velocity_feedforward',None)
         if velocity is None:return self._position_step(q_target,label,target,meta)
@@ -459,6 +480,18 @@ class FreshContactEnv(IsaacContactEnv):
         rows_before=len(self.rows)
         try:
             state=super().step(q_target,label,target,metadata)
+            # Read the actual rigid-body pose after the executed step. The raw
+            # impulses remain separate B/C records, even when this audit fails.
+            from scipy.spatial.transform import Rotation
+            carriage=next(body for path,body in self.bodies if path=='/World/Stethoscope/Carriage')
+            position,quaternion=carriage.get_world_pose()
+            world=np.eye(4)
+            world[:3,:3]=Rotation.from_quat(np.asarray(quaternion)[[1,2,3,0]]).as_matrix()
+            world[:3,3]=position
+            self.retainer_front_audit=audit_retainer_front(
+                self.contact_points,world,self.last_contacts.get('retainer',0.))
+            self.rows[-1]['retainer_front_audit']=deepcopy(self.retainer_front_audit)
+            self.rows[-1]['contact_surface']=CONTACT_SURFACE
         except BaseException:
             if capture is not None:
                 try:capture.after_physics(self,rows_before)
@@ -474,7 +507,7 @@ class FreshContactEnv(IsaacContactEnv):
 
 
 def audit_physics(outcome,rows):
-    """Each target must independently complete ≥3 s of actual membrane load."""
+    """Each target must independently complete ≥3 s of actual B+C contact load."""
     result=deepcopy(outcome)
     result['training_accepted']=result['training_eligible']=False
     valid=bool(result.get('success') and result.get('points'))
@@ -626,6 +659,7 @@ def run_probe(app,stage,output,config,mass):
         (snapshot/(str(index).zfill(2)+'_'+binding['name']+'.json')).write_bytes(data)
     source_paths=[Path(__file__),Path(__file__).with_name('edge_timing.py'),
                   Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py'),
+                  Path(__file__).with_name('retainer_contact.py'),
                   Path(__file__).with_name('gravity_feedforward.py'),
                   Path(__file__).with_name('velocity_feedforward.py')]
     import inspect
@@ -700,8 +734,9 @@ def run_probe(app,stage,output,config,mass):
         errors.append(dict(stage='physics_audit',error=repr(error)))
         result=dict(success=False,physical_validation=False,training_accepted=False,points=[])
     if not result['physical_validation']:
-        result.setdefault('failure_reason','actual per-point membrane contact/withdrawal qualification failed')
+        result.setdefault('failure_reason','actual per-point contact-interface/withdrawal qualification failed')
     result.update(geometry_id=GEOMETRY_ID,geometry_source_sha256=config['geometry_source_sha256'],
+                  contact_surface=CONTACT_SURFACE,
                   geometry_artifacts=metadata['geometry_artifacts'],plan_bindings=metadata['plans'],
                   explicit_passive_preload_N=1.5,moving_mass_kg=mass_kg,
                   diagnostic_completed=True,physics_steps=len(rows),video=video,learned_policy=False,

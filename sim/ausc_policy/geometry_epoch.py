@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 from .tool_protrusion import wrist_contact_offset
 
-GEOMETRY_ID = 'stethoscope_protruding_5mm_v1'
-GEOMETRY_SOURCE_SHA256 = '4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081'
+GEOMETRY_ID = 'stethoscope_retainer_contact_5mm_recess1mm_v2'
+GEOMETRY_SOURCE_SHA256 = 'd4ef5726096055c5cdbbb409825d853d610ec865a7bd32e7135c39ec7653a571'
 RETIRED_EXPERIMENTS = frozenset(('act_baseline', 'act_runtime', 'history_fit',
     'history_runtime', 'isaac_run', 'recovery_run', 'history_prepare',
     'history_runtime_prepare'))
@@ -51,18 +51,28 @@ def require_geometry_artifacts(directory, metadata):
 
 def qualify_contact(rows, dt=1/240):
     """Strict physical hold gate; successful setup alone is never a pass."""
-    required = ('diaphragm_N', 'lip_N', 'contact_rim_N', 'carriage_other_N',
-                'frame_N', 'forbidden_N', 'compression_m', 'hall_N')
+    from .retainer_contact import ALL_FORCE_GROUPS, CONTACT_SURFACE
+    required = tuple(k+'_N' for k in ALL_FORCE_GROUPS) + ('compression_m', 'hall_N')
     values = np.asarray([[r[k] for k in required] for r in rows], float)
-    if not len(rows) or values.shape != (len(rows), 8) or not np.isfinite(values).all():
+    if (not len(rows) or values.shape != (len(rows), 9) or not np.isfinite(values).all()
+            or (values[:,:7]<0).any() or not np.isfinite(dt) or dt<=0):
         return dict(passed=False, reason='missing or nonfinite physics')
-    loaded = (values[:, 0] >= 3.5) & (values[:, 0] <= 4.5)
+    for row,retainer in zip(rows,values[:,1]):
+        if retainer==0.:continue
+        front=row.get('retainer_front_audit',{})
+        if (front.get('passed') is not True or front.get('force_matches_ledger') is not True
+                or not np.isclose(front.get('force_N',float('nan')),retainer,atol=1e-8,rtol=1e-8)
+                or front.get('off_front_force_N')!=0.):
+            return dict(passed=False,reason='unverified or non-front retainer contact')
+    contact_force=values[:,:2].sum(axis=1)
+    loaded = (contact_force >= 3.5) & (contact_force <= 4.5)
     longest = count = 0
     for good in loaded:
         count = count + 1 if good else 0
         longest = max(longest, count)
     maxima = dict(zip(required, values.max(axis=0).tolist()))
-    return dict(passed=bool(longest*dt >= 3.-1e-9 and (values[:,1:6] == 0.).all()
-        and (values[:,:6].sum(axis=1) <= 6.).all() and (values[:,6] <= .006).all()
-        and (values[:,7] < 5.5).all()), continuous_membrane_hold_s=longest*dt,
+    return dict(passed=bool(longest*dt >= 3.-1e-9 and (values[:,2:7] == 0.).all()
+        and (values[:,:7].sum(axis=1) <= 6.).all() and (values[:,7] <= .006).all()
+        and (values[:,8] < 5.5).all()), continuous_contact_hold_s=longest*dt,
+        contact_surface=CONTACT_SURFACE, contact_force_peak_N=float(contact_force.max()),
         maxima=maxima, lip_must_be_exactly_zero=True, training_eligible=False)

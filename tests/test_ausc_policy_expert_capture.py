@@ -245,6 +245,9 @@ def test_run_probe_owns_capture_and_revokes_for_any_cleanup_failure(tmp_path,mon
         def __init__(self,output,**kwargs):
             Env.__init__(self);self.out=Path(output);self.out.mkdir()
             self.base=np.eye(4);self.slider=7;self.robot=SimpleNamespace(apply_action=lambda _:None)
+            self.bodies=[('/World/Stethoscope/Carriage',SimpleNamespace(
+                get_world_pose=lambda:(np.zeros(3),np.array([1.,0.,0.,0.]))))]
+            self.contact_points=[];self.last_contacts={'retainer':0.}
             self.world.stop=lambda:events.append('stop')
         def save(self,name):
             events.append('trace')
@@ -294,7 +297,11 @@ def test_run_probe_owns_capture_and_revokes_for_any_cleanup_failure(tmp_path,mon
     assert not result['training_eligible'] and not result['raw_multimodal_training_capture']
     receipt=json.loads((tmp_path/'raw_multimodal/receipt.json').read_text())
     assert receipt==result['raw_multimodal_capture']
-    if fault=='none':assert receipt['receipts']['hall_replay']['passed']
+    if fault=='none':
+        assert receipt['receipts']['hall_replay']['passed']
+        assert result['physics_steps']==24
+        manifest=json.loads((tmp_path/'fresh_expert_inputs/manifest.json').read_text())
+        assert str(Path(fresh.__file__).with_name('retainer_contact.py')) in manifest['runtime_sources_sha256']
 
 
 @pytest.mark.parametrize('camera_fails',[False,True])

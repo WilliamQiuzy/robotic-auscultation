@@ -206,6 +206,10 @@ class EpisodeRejected(RuntimeError):
 
 
 class ExpertController:
+    # Current-geometry subclasses explicitly select their true front interface.
+    # Historical controllers retain their original group definitions.
+    front_contact_groups = FRONT_GROUPS
+    total_contact_groups = FRONT_GROUPS + FORBIDDEN_GROUPS
     """One environment, continuously integrated motion, bounded actor commands."""
     def __init__(self, env, kinematics, checker, config=None, speed_scale=1.):
         self.variation = timing_variation(speed_scale)
@@ -233,7 +237,7 @@ class ExpertController:
     def _violations(self, state):
         contacts = self.env.last_contacts
         violations = [key + " contact" for key in FORBIDDEN_GROUPS if contacts.get(key, 0.) > .5]
-        total = sum(contacts.get(key, 0.) for key in FRONT_GROUPS + FORBIDDEN_GROUPS)
+        total = sum(contacts.get(key, 0.) for key in self.total_contact_groups)
         if not np.isfinite(total) or total > 6.:
             violations.append("physical force limit")
         if not np.isfinite(state["compression_m"]) or state["compression_m"] > .006:
@@ -248,7 +252,7 @@ class ExpertController:
         self.q = np.asarray(command).copy()
         metrics = self.metrics(state)
         violations, total = self._violations(state)
-        face = sum(self.env.last_contacts.get(key, 0.) for key in FRONT_GROUPS)
+        face = sum(self.env.last_contacts.get(key, 0.) for key in self.front_contact_groups)
         alpha = DT / (.02 + DT)
         self.face_filtered += alpha * (face - self.face_filtered)
         self.total_filtered += alpha * (total - self.total_filtered)

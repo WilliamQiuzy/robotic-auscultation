@@ -7,6 +7,8 @@ import pytest
 
 from sim.ausc_policy.finite_head import FiniteHeadFit
 
+CONTACT_SURFACE = "membrane_and_device_retainer_v2"
+
 
 def orientation(tilt, azimuth=0., roll=0., normal=(0., 0., 1.)):
     normal = np.asarray(normal, float)
@@ -34,9 +36,9 @@ def distance_oracle(target=None):
         margin = -.0001 if target is None else .000005 - .001*np.linalg.norm(rotation-target)
         signed_gap = float(center[2])
         calls.append((center.copy(), rotation.copy(), compression))
-        return dict(distances_m=dict(fixed=.003+margin, clamp=.01, shell=.001,
-                                     diaphragm=max(0., signed_gap)),
-                    diaphragm_collision=signed_gap <= 0.,
+        return dict(contact_surface=CONTACT_SURFACE,distances_m=dict(fixed=.003+margin, clamp=.01, shell=.001,
+                                     contact_face=max(0., signed_gap)),
+                    contact_face_collision=signed_gap <= 0.,
                     diagnostic_marker={'retained': [1, 2, 3]})
 
     fit.check = check
@@ -67,6 +69,10 @@ def test_coarse_enumeration_matches_every_original_orientation_in_order():
         np.testing.assert_allclose(record['rotation_world'], previous[2], atol=1e-14, rtol=0)
         assert record['compression_m'] == previous[3] == .0025
     assert result['orientation_attempts'] == 1260
+    assert result['contact_surface'] == CONTACT_SURFACE
+    assert result['search_definition']['contact_surface'] == CONTACT_SURFACE
+    assert result['search_definition']['contact_face_gap_band_m'] == [1e-5,3e-5]
+    assert all(record['contact_surface'] == CONTACT_SURFACE for record in records)
     assert result['stage_counts'] == {'coarse': 1260, 'refine': 0}
     assert result['outside_family_proposals_skipped'] == 0
     assert not result['candidates']
@@ -88,7 +94,7 @@ def test_refinement_finds_off_grid_fit_on_both_sides_of_failed_coarse_tilt(tilt)
     np.testing.assert_allclose(candidate['rotation_world'], target, atol=1e-12)
     assert candidate['normal_deviation_from_surface_deg'] == tilt
     assert candidate['fit']['distances_m']['fixed'] >= .003
-    assert 1e-5 <= candidate['fit']['distances_m']['diaphragm'] <= 3e-5
+    assert 1e-5 <= candidate['fit']['distances_m']['contact_face'] <= 3e-5
     assert all(q[2] == .0025 for q in queries)
     assert all(r['first_contact']['first_contact_search_interval_m'] == [0., .005] for r in records)
     assert result['scope'].find('no CCD') >= 0
@@ -239,10 +245,10 @@ def test_invalid_oracle_output_is_streamed_before_fail_closed_validation():
 def test_contradictory_oracle_cannot_use_ranking_to_pass_below_original_floor(part, floor):
     from sim.ausc_policy.fit_refinement import refine_finite_head_fit
     oracle, _ = distance_oracle()
-    distances = dict(fixed=.01, clamp=.01, shell=.001, diaphragm=.00002)
+    distances = dict(fixed=.01, clamp=.01, shell=.001, contact_face=.00002)
     distances[part] = floor - 1e-12
-    invalid = dict(passed=True, fit_evaluations=1,
-                   fit=dict(distances_m=distances, diaphragm_collision=False))
+    invalid = dict(contact_surface=CONTACT_SURFACE,passed=True, fit_evaluations=1,
+                   fit=dict(contact_surface=CONTACT_SURFACE,distances_m=distances, contact_face_collision=False))
     oracle.first_contact = lambda *args: deepcopy(invalid)
     records = []
     with pytest.raises(ValueError, match='accepted fit'):
@@ -282,12 +288,39 @@ def test_failed_search_without_distance_report_keeps_evidence_and_sorts_after_me
         nonlocal count
         count += 1
         if count == 1:
-            return dict(passed=False, reason='near_contact_gap_not_resolved', fit_evaluations=7)
+            return dict(contact_surface=CONTACT_SURFACE,passed=False, reason='near_contact_gap_not_resolved', fit_evaluations=7)
         return original(*args)
     oracle.first_contact = missing_report
     records = []
     result = refine_finite_head_fit(oracle, [0, 0, 0], [0, 0, 1], sink=records.append,
                                    config=FitRefinementConfig(top_k=1))
     assert result['selected_seed_attempts'][0]['attempt_index'] == 1
-    assert records[0]['first_contact'] == dict(passed=False, reason='near_contact_gap_not_resolved', fit_evaluations=7)
+    assert records[0]['first_contact'] == dict(contact_surface=CONTACT_SURFACE,passed=False, reason='near_contact_gap_not_resolved', fit_evaluations=7)
     assert result['fit_attempts'] == len(records) + 6
+
+
+@pytest.mark.parametrize('layer', ['first_contact','fit'])
+def test_unversioned_oracle_cannot_pass_refinement(layer):
+    from sim.ausc_policy.fit_refinement import refine_finite_head_fit
+    oracle,_=distance_oracle(orientation(0.))
+    found=oracle.first_contact(np.zeros(3),[0,0,1],orientation(0.))
+    assert found['passed']
+    (found if layer=='first_contact' else found['fit']).pop('contact_surface',None)
+    oracle.first_contact=lambda *args:deepcopy(found)
+    records=[]
+    with pytest.raises(ValueError,match='contact.surface'):
+        refine_finite_head_fit(oracle,[0,0,0],[0,0,1],sink=records.append)
+    assert records[0]['first_contact']==found
+
+
+def test_unversioned_rejected_fit_cannot_guide_refinement():
+    from sim.ausc_policy.fit_refinement import refine_finite_head_fit
+    oracle,_=distance_oracle()
+    found=oracle.first_contact(np.zeros(3),[0,0,1],orientation(0.))
+    assert not found['passed']
+    found['rejected_fit'].pop('contact_surface')
+    oracle.first_contact=lambda *args:deepcopy(found)
+    records=[]
+    with pytest.raises(ValueError,match='contact.surface'):
+        refine_finite_head_fit(oracle,[0,0,0],[0,0,1],sink=records.append)
+    assert records[0]['first_contact']==found

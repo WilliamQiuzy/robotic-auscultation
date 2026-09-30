@@ -8,6 +8,21 @@ from .scene import ROOT, ROBOT, WRIST, FIXED, MOVING, prepare_stage
 DT=1/240
 
 class IsaacContactEnv:
+    contact_groups = ('diaphragm','lip','contact_rim','carriage_other','frame','forbidden')
+
+    def contact_group(self,a,b):
+        patient=a.startswith('/World/Patient/') or b.startswith('/World/Patient/')
+        module=a if a.startswith('/World/Stethoscope/') else b if b.startswith('/World/Stethoscope/') else ''
+        if patient and module:
+            if '/Fixed/' in module:return 'frame'
+            if module.endswith('/Diaphragm'):return 'diaphragm'
+            if '/RetentionLip/' in module:return 'lip'
+            if '/ContactRim/' in module:return 'contact_rim'
+            return 'carriage_other'
+        if patient or module or 'openarm_left_link' in a or 'openarm_left_link' in b:
+            return 'forbidden'
+        return None
+
     def __init__(self, output_dir=None, *, stage_factory=None,
                  contact_offset_m=.1262, moving_mass_kg=.067155):
         import carb, omni.usd
@@ -48,19 +63,8 @@ class IsaacContactEnv:
                             'position_world':list(data[i].position),'impulse_Ns':list(data[i].impulse),
                             'separation_m':float(data[i].separation)})
                 self.contact_pairs[tuple(sorted((a,b)))]+=impulse
-                patient=a.startswith('/World/Patient/') or b.startswith('/World/Patient/')
-                module=a if a.startswith('/World/Stethoscope/') else b if b.startswith('/World/Stethoscope/') else ''
-                if patient and module:
-                    if '/Fixed/' in module: group='frame'
-                    elif module.endswith('/Diaphragm'):group='diaphragm'
-                    elif '/RetentionLip/' in module:group='lip'
-                    elif '/ContactRim/' in module:group='contact_rim'
-                    else:group='carriage_other'
-                    self.contact_impulses[group]+=impulse
-                elif patient or module or ('openarm_left_link' in a or 'openarm_left_link' in b):
-                    # PhysX already filters linked neighbors. Any reported residual
-                    # moving-arm contact with another exterior object is a violation.
-                    self.contact_impulses['forbidden']+=impulse
+                group=self.contact_group(a,b)
+                if group is not None:self.contact_impulses[group]+=impulse
         self.contact_subscription=get_physx_simulation_interface().subscribe_contact_report_events(callback)
         self.t=0.;self.filtered_hall_force=0.;self.rows=[];self.poses=[];self.pose_row_indices=[]
         self.previous_tcp=None;self.last_contacts={};self.last_pairs={}
@@ -99,7 +103,7 @@ class IsaacContactEnv:
         self.previous_tcp=s['tcp_world'].copy()
         row={'time_s':self.t,'phase':label,'target':target,'compression_m':s['compression_m'],
              'hall_N':s['hall_N'],'tcp_speed_m_s':velocity,
-             **{k+'_N':self.last_contacts.get(k,0.) for k in ('diaphragm','lip','contact_rim','carriage_other','frame','forbidden')},
+             **{k+'_N':self.last_contacts.get(k,0.) for k in self.contact_groups},
              'contact_pairs_N':self.last_pairs.copy(),
              'contact_points':self.contact_points.copy(),
              'q':s['q'].tolist(),'dq':s['dq'].tolist(),'q_command':q_target.tolist(),

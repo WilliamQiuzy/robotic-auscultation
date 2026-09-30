@@ -294,6 +294,9 @@ def fake_env(monkeypatch, enabled):
     env = fresh.FreshContactEnv.__new__(fresh.FreshContactEnv)
     env.robot = Robot(); env.left = env.robot.left; env.slider = 15
     env.passive_preload_N = 1.5; env.video_recorder = None; env.rows = []
+    env.contact_points=[];env.last_contacts={}
+    env.bodies=[('/World/Stethoscope/Carriage',SimpleNamespace(
+        get_world_pose=lambda:(np.zeros(3),np.array([1.,0.,0.,0.]))))]
     if enabled:
         env.gravity_feedforward = controller(env.robot)
     return env
@@ -307,6 +310,7 @@ def test_missing_variant_keeps_original_effort_position_and_metadata_path(monkey
         np.testing.assert_array_equal(self.robot.actions[0].joint_efforts, [-1.5])
         assert q_target is target
         assert meta == dict(subphase='home', explicit_passive_preload_N=1.5, training_eligible=False)
+        self.rows.append(dict(meta))
         return {'unmodified': True}
     monkeypatch.setattr(fresh.IsaacContactEnv, 'step', parent)
     assert env.step(target, 'HOME', 'R3', supplied) == {'unmodified': True}

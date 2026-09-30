@@ -1,4 +1,4 @@
-"""Fresh-geometry full-robot clearance policy with membrane-only contact.
+"""Fresh-geometry clearance policy with membrane and device-retainer contact.
 
 Uses the original FastCollisionChecker FK, collider inventory, allowed body
 pairs and conservative broad phase. Only its overly broad patient-contact
@@ -15,6 +15,7 @@ import json
 import numpy as np
 
 from .geometry_epoch import require_current, plane_lower_clearance
+from .retainer_contact import CONTACT_PATHS
 
 
 GENERAL_CLEARANCE_M = .003
@@ -39,7 +40,7 @@ def _query(q, clearance, allow_patient_contact, compression):
 
 
 def pair_clearance(path_a, path_b, clearance=.003, allow_patient_contact=False):
-    """Return required separation, or None for the single permitted face pair.
+    """Return separation, or None for a permitted patient contact interface.
 
 The shell's 0.3 mm contact threshold applies only to its three named parts
 against the patient. Contact mode never changes table/robot/tool thresholds.
@@ -52,7 +53,7 @@ Calling with a small clearance cannot lower the 3 mm general safety floor.
     if allow_patient_contact:
         for component, patient in ((path_a, path_b), (path_b, path_a)):
             if patient.startswith('/World/Patient/'):
-                if component == _FACE:
+                if component in CONTACT_PATHS:
                     return None
                 if component in _SHELLS:
                     return SHELL_CLEARANCE_M
@@ -123,7 +124,8 @@ class _ContactPolicyMixin:
                 if not details:
                     return worst
         # Original pair order retained; no triangle/collider removal or cached
-        # previous configuration's distance. The only exemption is the face.
+        # previous configuration's distance. Only the defined B/C contact
+        # interface is exempt, never the printed lip or backing shell.
         for i, j in near_pairs:
             a, b = self.entries[i]['path'], self.entries[j]['path']
             required = pair_clearance(a, b, general, allow_patient_contact)

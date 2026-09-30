@@ -3,6 +3,7 @@ import hashlib
 import json
 from pathlib import Path
 from .fit_refinement import FitRefinementConfig,refine_finite_head_fit
+from .retainer_contact import CONTACT_SURFACE
 
 
 def run_fit_diagnostic(oracle,targets,output,settings):
@@ -23,7 +24,7 @@ def run_fit_diagnostic(oracle,targets,output,settings):
             raw_attempts_file=ledger.name,raw_attempts_sha256=hashlib.sha256(ledger.read_bytes()).hexdigest())
         with (output/(name+'_refined_fits.json')).open('x') as stream:
             stream.write(json.dumps(report,indent=2,allow_nan=False)+'\n')
-        row=dict(name=name,fit_candidates=len(report['candidates']),
+        row=dict(name=name,contact_surface=CONTACT_SURFACE,fit_candidates=len(report['candidates']),
             orientation_attempts=report['orientation_attempts'],stage_counts=report['stage_counts'],
             raw_attempts_sha256=report['raw_attempts_sha256'],physics_executed=False,training_eligible=False)
         rows.append(row);print('REFINED_FITS',row,flush=True)

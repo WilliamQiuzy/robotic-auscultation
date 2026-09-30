@@ -41,6 +41,13 @@ def test_old_inputs_cannot_enter_new_epoch():
                      'freshly_generated': True})
 
 
+def test_flat_membrane_5mm_predecessor_cannot_enter_recessed_retainer_epoch():
+    from sim.ausc_policy.geometry_epoch import require_current
+    with pytest.raises(ValueError,match='Retired'):
+        require_current(dict(geometry_id='stethoscope_protruding_5mm_v1',freshly_generated=True,
+                             geometry_source_sha256='4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081'))
+
+
 def test_export_bytes_must_match_current_receipt(tmp_path):
     import hashlib
     from sim.ausc_policy import geometry_epoch as g
@@ -60,7 +67,7 @@ def test_export_bytes_must_match_current_receipt(tmp_path):
 
 def test_contact_gate_requires_membrane_and_zero_lip():
     from sim.ausc_policy.geometry_epoch import qualify_contact
-    rows = [dict(diaphragm_N=4., lip_N=0., contact_rim_N=0., carriage_other_N=0.,
+    rows = [dict(diaphragm_N=4., retainer_N=0., lip_N=0., contact_rim_N=0., carriage_other_N=0.,
         frame_N=0., forbidden_N=0., compression_m=.001, hall_N=4.) for _ in range(720)]
     assert qualify_contact(rows)['passed']
     rows[0]['lip_N'] = 1e-8

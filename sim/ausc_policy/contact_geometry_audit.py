@@ -11,6 +11,7 @@ from pathlib import Path
 import sys
 
 import numpy as np
+from .retainer_contact import ALL_FORCE_GROUPS, CONTACT_SURFACE, DIAPHRAGM_PATH, is_retainer_patient_pair
 
 
 GROUPS=('diaphragm','lip','contact_rim','carriage_other','frame','forbidden')
@@ -24,14 +25,16 @@ def sha(path):
     return h.hexdigest()
 
 
-def group(pair):
+def group(pair, revised=False):
     if len(pair)!=2 or any(not isinstance(p,str) for p in pair):
         raise ValueError('Invalid collider pair')
+    if is_retainer_patient_pair(*pair):return 'retainer'
     patient=any(p.startswith('/World/Patient/') for p in pair)
     module=next((p for p in pair if p.startswith('/World/Stethoscope/')),'')
     if patient and module:
         if '/Fixed/' in module:return 'frame'
-        if module.endswith('/Diaphragm'):return 'diaphragm'
+        if module.endswith('/Diaphragm'):
+            return 'carriage_other' if revised and module!=DIAPHRAGM_PATH else 'diaphragm'
         if '/RetentionLip/' in module:return 'lip'
         if '/ContactRim/' in module:return 'contact_rim'
         return 'carriage_other'
@@ -42,20 +45,25 @@ def group(pair):
 def audit_contacts(rows):
     hold=[r for r in rows if r['phase']=='HOLD']
     if not hold:raise ValueError('No actual HOLD rows')
-    values=[];counts={k:0 for k in GROUPS};pairs={};max_error=0.
+    revised=any('retainer_N' in row or 'contact_surface' in row for row in hold)
+    if revised and any('retainer_N' not in row or row.get('contact_surface')!=CONTACT_SURFACE for row in hold):
+        raise ValueError('Mixed or missing retainer contact contract')
+    groups=ALL_FORCE_GROUPS if revised else GROUPS
+    values=[];counts={k:0 for k in groups};pairs={};max_error=0.
     for row in hold:
-        forces={k:0. for k in GROUPS}
+        forces={k:0. for k in groups}
         for point in row['contact_points']:
             impulse=np.asarray(point['impulse_Ns'],float)
             if impulse.shape!=(3,) or not np.isfinite(impulse).all():raise ValueError('Invalid recorded impulse')
-            label=group(point['colliders'])
+            label=group(point['colliders'],revised=revised)
             if label is None:continue
+            if label not in forces:raise ValueError('Contact pair requires revised retainer contract')
             force=float(np.linalg.norm(impulse)*240)
             forces[label]+=force;counts[label]+=1
             name=' | '.join(sorted(point['colliders']))
             pairs[name]=pairs.get(name,0)+1
-        expected=np.asarray([row[k+'_N'] for k in GROUPS],float)
-        actual=np.asarray([forces[k] for k in GROUPS])
+        expected=np.asarray([row[k+'_N'] for k in groups],float)
+        actual=np.asarray([forces[k] for k in groups])
         error=float(np.max(np.abs(expected-actual)));max_error=max(error,max_error)
         if not np.isfinite(expected).all() or error>1e-9:
             raise ValueError('Raw contact impulses disagree with recorded component force')
@@ -64,8 +72,9 @@ def audit_contacts(rows):
     return dict(hold_physics_rows=len(hold),hold_duration_s=len(hold)/240,
         contact_impulse_force_max_error_N=max_error,component_contact_point_counts=counts,
         diaphragm_contact_points=counts['diaphragm'],contact_pair_point_counts=pairs,
-        component_force_peak_N=dict(zip(GROUPS,values.max(axis=0).tolist())),
-        component_force_mean_N=dict(zip(GROUPS,values.mean(axis=0).tolist())))
+        component_force_peak_N=dict(zip(groups,values.max(axis=0).tolist())),
+        component_force_mean_N=dict(zip(groups,values.mean(axis=0).tolist())),
+        **(dict(contact_surface=CONTACT_SURFACE) if revised else {}))
 
 
 def sampled_hold_poses(rows,arrays):

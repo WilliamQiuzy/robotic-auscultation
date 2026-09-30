@@ -11,7 +11,8 @@ from numbers import Integral
 import numpy as np
 
 from .finite_head import (
-    DIAPHRAGM_GAP_BAND_M,
+    CONTACT_SURFACE,
+    CONTACT_FACE_GAP_BAND_M,
     FIRST_CONTACT_INTERVAL_M,
     FIRST_CONTACT_RESOLUTION_M,
     _observation,
@@ -99,13 +100,19 @@ def _validate_output(found):
             or not isinstance(found.get('fit_evaluations'), Integral)
             or found['fit_evaluations'] < 1):
         raise ValueError('Invalid first_contact output')
+    if found.get('contact_surface')!=CONTACT_SURFACE:
+        raise ValueError('Missing or retired first_contact contact surface policy')
     if found['passed']:
         # Fail closed on a contradictory injected oracle, reusing the original
         # gate without rewriting or discarding its raw output in the sink.
         if not isinstance(found.get('fit'), dict) or not _observation(found['fit'])['passed']:
             raise ValueError('Invalid first_contact accepted fit')
-    elif not isinstance(found.get('reason'), str) or not found['reason']:
-        raise ValueError('Invalid first_contact rejection reason')
+    else:
+        if not isinstance(found.get('reason'), str) or not found['reason']:
+            raise ValueError('Invalid first_contact rejection reason')
+        report=found.get('rejected_fit')
+        if report is not None and (not isinstance(report,dict) or report.get('contact_surface')!=CONTACT_SURFACE):
+            raise ValueError('Missing or retired rejected-fit contact surface policy')
 
 
 def _clearance_priority(record):
@@ -125,6 +132,7 @@ def _clearance_priority(record):
 
 def _search_definition(config):
     return dict(
+        contact_surface=CONTACT_SURFACE,
         family='normalize(n + u*x + v*y), abs(u)<=0.6 and abs(v)<=0.6',
         coarse_tilt_deg=list(COARSE_TILT_DEG), coarse_azimuth_step_deg=22.5,
         coarse_roll_step_deg=30., zero_tilt_coarse_azimuth_deg=[0.],
@@ -142,7 +150,7 @@ def _search_definition(config):
         rotation_deduplication='matrix entries rounded to 12 decimal places across both stages',
         first_contact_search_interval_m=list(FIRST_CONTACT_INTERVAL_M),
         first_contact_search_resolution_m=FIRST_CONTACT_RESOLUTION_M,
-        diaphragm_gap_band_m=list(DIAPHRAGM_GAP_BAND_M),
+        contact_face_gap_band_m=list(CONTACT_FACE_GAP_BAND_M),
         compression_m=LOADED_COMPRESSION_M, gap_axis='command_normal',
         scope=SCOPE,
     )
@@ -199,6 +207,7 @@ def refine_finite_head_fit(oracle, position, local_normal, *, sink,
             return False
         seen.add(key)
         record = dict(
+            contact_surface=CONTACT_SURFACE,
             attempt_index=sum(counts.values()), stage=stage, seed_attempt_index=seed_index,
             angles_deg=dict(tilt=float(tilt), azimuth=float(np.rad2deg(azimuth)), roll=float(np.rad2deg(roll))),
             azimuth_rad=float(azimuth), roll_rad=float(roll),
@@ -242,6 +251,7 @@ def refine_finite_head_fit(oracle, position, local_normal, *, sink,
         if budget_exhausted:
             break
     return dict(
+        contact_surface=CONTACT_SURFACE,
         candidates=candidates, orientation_attempts=sum(counts.values()), fit_attempts=fit_evaluations,
         stage_counts=counts, rejected_orientations=rejections,
         duplicate_orientations_skipped=duplicates, outside_family_proposals_skipped=outside_family,

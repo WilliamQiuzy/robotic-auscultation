@@ -7,8 +7,13 @@ import numpy as np
 FIRST_CONTACT_RESOLUTION_M = 1e-6
 CONTACT_NUMERIC_TOLERANCE_M = 1e-9
 FIRST_CONTACT_MIN_STEP_M = 1e-9
-DIAPHRAGM_GAP_BAND_M = (1e-5, 3e-5)
+CONTACT_FACE_GAP_BAND_M = (1e-5, 3e-5)
 FIRST_CONTACT_INTERVAL_M = (0., .005)
+CONTACT_SURFACE = 'membrane_and_device_retainer_v2'
+_COLLIDERS = '/World/Stethoscope/Carriage/Colliders/'
+_CONTACT_FACE_PATHS = frozenset([_COLLIDERS+'Diaphragm'] + [
+    _COLLIDERS+f'DeviceContactRing/sector_{i:02d}' for i in range(32)])
+_SHELL_PATHS = frozenset(_COLLIDERS+part for part in ('DeviceEdge','DeviceCone','DeviceDial'))
 
 
 def _surface_anchor(position, local_normal):
@@ -23,25 +28,27 @@ def _surface_anchor(position, local_normal):
 
 def _observation(report):
     """Recompute gates from distances; never trust a caller's coarse-fit flag."""
+    if report.get('contact_surface')!=CONTACT_SURFACE:
+        raise ValueError('Missing or retired contact surface policy')
     distances=report.get('distances_m',{})
     try:
-        values=np.asarray([distances[k] for k in ('fixed','clamp','shell','diaphragm')],float)
+        values=np.asarray([distances[k] for k in ('fixed','clamp','shell','contact_face')],float)
     except (KeyError,TypeError,ValueError) as error:
         raise ValueError('Invalid finite-head distance report') from error
-    collision=report.get('diaphragm_collision')
+    collision=report.get('contact_face_collision')
     if (values.shape!=(4,) or not np.isfinite(values).all()
             or not isinstance(collision,(bool,np.bool_))
             or (values[3]<0 and not collision)):
         raise ValueError('Invalid or nonfinite finite-head distance/collision report')
     clear=bool(values[0]>=.003 and values[1]>=.003 and values[2]>=.0003)
     touch=bool(collision or values[3]<=CONTACT_NUMERIC_TOLERANCE_M)
-    passed=bool(clear and not touch and DIAPHRAGM_GAP_BAND_M[0]<=values[3]<=DIAPHRAGM_GAP_BAND_M[1])
-    return {**report,'passed':passed,'noncontact_clear':clear,'diaphragm_touch':touch,
-            'diaphragm_gap_band_m':list(DIAPHRAGM_GAP_BAND_M)}
+    passed=bool(clear and not touch and CONTACT_FACE_GAP_BAND_M[0]<=values[3]<=CONTACT_FACE_GAP_BAND_M[1])
+    return {**report,'passed':passed,'noncontact_clear':clear,'contact_face_touch':touch,
+            'contact_face_gap_band_m':list(CONTACT_FACE_GAP_BAND_M)}
 
 
 def component_frames(center, wrist_rotation, compression):
-    """Actual new diaphragm centre to fixed and sliding component frames."""
+    """Actual retainer-front TCP centre to fixed and sliding component frames."""
     center=np.asarray(center,float);rotation=np.asarray(wrist_rotation,float)
     if (center.shape!=(3,) or rotation.shape!=(3,3) or not np.isfinite(center).all()
             or not np.isfinite(rotation).all() or not np.isfinite(compression)
@@ -67,50 +74,74 @@ class FiniteHeadFit:
     def __init__(self,directory,metadata):
         from .geometry_epoch import require_geometry_artifacts
         self.artifact_hashes=require_geometry_artifacts(directory,metadata)
-        import fcl
-        self.fcl=fcl
         directory=Path(directory)
         entries=json.loads((directory/'collision_geometry.json').read_text())['colliders']
-        arrays=np.load(directory/'collision_geometry.npz',allow_pickle=False)
-        groups={k:[] for k in ('patient','fixed','clamp','shell','diaphragm')}
-        for e in entries:
-            path=e['path'];group=None
-            if path.startswith('/World/Patient/'):group='patient'
-            elif e['body']=='/World/Stethoscope/Fixed':group='fixed'
-            elif e['body']=='/World/Stethoscope/Carriage':
-                suffix=path.split('/')[-1]
-                group=('diaphragm' if suffix=='Diaphragm' else 'shell'
-                       if suffix in ('DeviceEdge','DeviceCone','DeviceDial') else 'clamp')
-            if group is None:continue
-            vertices=np.asarray(arrays[e['key']+'_v'],float)
-            faces=np.asarray(arrays[e['key']+'_f'],np.int32)
-            if group=='patient':
-                matrix=np.asarray(e['world_from_body'])
-                vertices=vertices@matrix[:3,:3].T+matrix[:3,3]
-            groups[group].append((vertices,faces))
-        arrays.close()
-        self.objects={}
+        paths=[e.get('path') for e in entries];keys=[e.get('key') for e in entries]
+        if (any(not isinstance(value,str) or not value for value in paths+keys)
+                or len(set(paths))!=len(paths) or len(set(keys))!=len(keys)):
+            raise ValueError('Invalid or duplicate collision geometry path/mesh key')
+        contact_paths=[e['path'] for e in entries
+                       if e['body']=='/World/Stethoscope/Carriage' and e['path'] in _CONTACT_FACE_PATHS]
+        if len(contact_paths)!=len(_CONTACT_FACE_PATHS) or set(contact_paths)!=_CONTACT_FACE_PATHS:
+            raise ValueError('Missing or duplicate membrane/retainer contact geometry')
+        groups={k:[] for k in ('patient','fixed','clamp','shell','contact_face')}
+        with np.load(directory/'collision_geometry.npz',allow_pickle=False) as arrays:
+            for e in entries:
+                path=e['path'];group=None
+                if path.startswith('/World/Patient/'):group='patient'
+                elif e['body']=='/World/Stethoscope/Fixed':group='fixed'
+                elif e['body']=='/World/Stethoscope/Carriage':
+                    group=('contact_face' if path in _CONTACT_FACE_PATHS else 'shell'
+                           if path in _SHELL_PATHS else 'clamp')
+                if group is None:continue
+                # Validate the saved arrays without casting: float faces must
+                # not truncate and wide unsigned indices must not wrap. Every
+                # used mesh is checked before any conversion or native call.
+                vertices=arrays[e['key']+'_v'];faces=arrays[e['key']+'_f']
+                if (vertices.ndim!=2 or vertices.shape[1]!=3 or len(vertices)==0
+                        or vertices.dtype.kind not in 'iuf' or not np.isfinite(vertices).all()):
+                    raise ValueError('Invalid collision/contact geometry vertices: '+path)
+                if (faces.ndim!=2 or faces.shape[1]!=3 or len(faces)==0
+                        or faces.dtype.kind not in 'iu' or np.any(faces<0)
+                        or np.any(faces>=len(vertices))):
+                    raise ValueError('Invalid collision/contact geometry mesh faces: '+path)
+                groups[group].append((vertices,faces,e))
+
+        # Check all groups before constructing even the first native model.
         for group,meshes in groups.items():
             if not meshes:raise ValueError('Missing current component geometry: '+group)
+            if sum(len(v) for v,_,_ in meshes)>np.iinfo(np.int32).max:
+                raise ValueError('Collision geometry exceeds native mesh index range: '+group)
+        prepared={}
+        for group,meshes in groups.items():
             vertices=[];faces=[];offset=0
-            for v,f in meshes:vertices.append(v);faces.append(f+offset);offset+=len(v)
-            v=np.concatenate(vertices);f=np.concatenate(faces)
+            for raw_v,raw_f,entry in meshes:
+                v=np.asarray(raw_v,float);f=np.asarray(raw_f,np.int32)
+                if group=='patient':
+                    matrix=np.asarray(entry['world_from_body'])
+                    v=v@matrix[:3,:3].T+matrix[:3,3]
+                vertices.append(v);faces.append(f+offset);offset+=len(v)
+            prepared[group]=(np.concatenate(vertices),np.concatenate(faces))
+        import fcl
+        self.fcl=fcl;self.objects={}
+        for group,(v,f) in prepared.items():
             model=fcl.BVHModel();model.beginModel(len(v),len(f));model.addSubModel(v,f);model.endModel()
             self.objects[group]=fcl.CollisionObject(model)
 
     def check(self,center,rotation,compression=.0025):
         fixed,moving=component_frames(center,rotation,compression)
-        for name in ('fixed','clamp','shell','diaphragm'):
+        for name in ('fixed','clamp','shell','contact_face'):
             t=fixed if name=='fixed' else moving
             self.objects[name].setTransform(self.fcl.Transform(t[:3,:3],t[:3,3]))
         distances={name:float(self.fcl.distance(self.objects[name],self.objects['patient']))
-                   for name in ('fixed','clamp','shell','diaphragm')}
+                   for name in ('fixed','clamp','shell','contact_face')}
         if not np.isfinite(list(distances.values())).all():raise ValueError('Nonfinite finite-head distance')
-        count=self.fcl.collide(self.objects['diaphragm'],self.objects['patient'],
+        count=self.fcl.collide(self.objects['contact_face'],self.objects['patient'],
                               self.fcl.CollisionRequest(),self.fcl.CollisionResult())
         if not np.isscalar(count) or not np.isfinite(count) or count<0:
-            raise ValueError('Invalid native diaphragm collision result')
-        return _observation(dict(distances_m=distances,diaphragm_collision=bool(count>0),
+            raise ValueError('Invalid native contact face collision result')
+        return _observation(dict(contact_surface=CONTACT_SURFACE,
+            distances_m=distances,contact_face_collision=bool(count>0),
             full_robot_collision_checked=False,physics_executed=False))
 
     def first_contact(self,position,local_normal,rotation,compression=.0025):
@@ -137,7 +168,8 @@ class FiniteHeadFit:
         if dot<=0 or np.max(abs(np.array([direction@x,direction@y])/dot))>.6+1e-12:
             raise ValueError('First-contact direction exceeds the original fitted-normal family')
         evaluations=0
-        common=dict(raw_anchor_world_m=position.tolist(),gap_axis='command_normal',
+        common=dict(contact_surface=CONTACT_SURFACE,
+            raw_anchor_world_m=position.tolist(),gap_axis='command_normal',
             gap_direction_world=direction.tolist(),
             first_contact_search_resolution_m=FIRST_CONTACT_RESOLUTION_M,
             first_contact_search_min_step_m=FIRST_CONTACT_MIN_STEP_M,
@@ -166,19 +198,19 @@ class FiniteHeadFit:
         inner,outer=FIRST_CONTACT_INTERVAL_M
         gap=outer;report=evaluate(gap)
         if not report['noncontact_clear']:return rejected('noncontact_obstruction',report)
-        if report['diaphragm_touch']:return rejected('outer_endpoint_not_clear',report)
+        if report['contact_face_touch']:return rejected('outer_endpoint_not_clear',report)
         history=[(gap,report)]
         bracket=None
         for _ in range(512):
             if gap<=inner:break
-            distance=report['distances_m']['diaphragm']
+            distance=report['distances_m']['contact_face']
             # Near a shell exactly 0.3 mm behind the face, a 1 um step could
             # physically pass the boundary. Use a 1 nm terminal step instead.
             step=max(.8*max(0.,distance-CONTACT_NUMERIC_TOLERANCE_M),FIRST_CONTACT_MIN_STEP_M)
             next_gap=max(inner,gap-step)
             following=evaluate(next_gap)
             if not bracket_clear(following):return rejected('noncontact_obstruction',following)
-            if following['diaphragm_touch']:
+            if following['contact_face_touch']:
                 bracket=[next_gap,gap]
                 break
             gap,report=next_gap,following
@@ -190,7 +222,7 @@ class FiniteHeadFit:
             if bracket[1]-bracket[0]<=FIRST_CONTACT_RESOLUTION_M:break
             middle=.5*(bracket[0]+bracket[1]);sample=evaluate(middle)
             if not bracket_clear(sample):return rejected('noncontact_obstruction',sample)
-            if sample['diaphragm_touch']:bracket[0]=middle
+            if sample['contact_face_touch']:bracket[0]=middle
             else:
                 bracket[1]=middle;history.append((middle,sample))
         if bracket[1]-bracket[0]>FIRST_CONTACT_RESOLUTION_M:
@@ -198,9 +230,9 @@ class FiniteHeadFit:
 
         # Retain the last outside sample with enough space to bracket a 20 um
         # residual. Distances need not be monotonic across the entire mesh.
-        target=.5*sum(DIAPHRAGM_GAP_BAND_M)
+        target=.5*sum(CONTACT_FACE_GAP_BAND_M)
         outside=next(((g,r) for g,r in reversed(history)
-                      if r['distances_m']['diaphragm']>=target),None)
+                      if r['distances_m']['contact_face']>=target),None)
         candidate=None
         if outside is None:
             candidate=next(((g,r) for g,r in reversed(history) if r['passed']),None)
@@ -211,7 +243,7 @@ class FiniteHeadFit:
                 if not sample['noncontact_clear']:return rejected('noncontact_obstruction',sample)
                 if sample['passed']:
                     candidate=(middle,sample);break
-                if sample['diaphragm_touch'] or sample['distances_m']['diaphragm']<DIAPHRAGM_GAP_BAND_M[0]:
+                if sample['contact_face_touch'] or sample['distances_m']['contact_face']<CONTACT_FACE_GAP_BAND_M[0]:
                     low=middle
                 else:high=middle
                 if high-low<FIRST_CONTACT_RESOLUTION_M:break
@@ -224,7 +256,7 @@ class FiniteHeadFit:
             'surface_gap_m':float(final_gap),'contact_surface_gap_m':float(np.mean(bracket)),
             'contact_surface_gap_bracket_m':list(map(float,bracket)),
             'contact_bracket_width_m':float(bracket[1]-bracket[0]),
-            'diaphragm_residual_distance_m':float(final['distances_m']['diaphragm']),
+            'contact_face_residual_distance_m':float(final['distances_m']['contact_face']),
             'fit_evaluations':evaluations,'fit':final}
 
     def candidates(self,position,local_normal,*,compression=.0025):
@@ -262,9 +294,10 @@ class FiniteHeadFit:
             if accepted:
                 ids=np.linspace(0,len(accepted)-1,min(16,len(accepted)),dtype=int)
                 rows.extend(accepted[i] for i in ids)
-        return dict(candidates=rows,fit_attempts=attempts,orientation_attempts=orientations,
+        return dict(contact_surface=CONTACT_SURFACE,
+                    candidates=rows,fit_attempts=attempts,orientation_attempts=orientations,
                     rejected_orientations=rejections,loaded_compression_m=compression,
                     geometry_artifacts=getattr(self,'artifact_hashes',{}),
                     first_contact_search_resolution_m=FIRST_CONTACT_RESOLUTION_M,
-                    diaphragm_gap_band_m=list(DIAPHRAGM_GAP_BAND_M),gap_axis='command_normal',
+                    contact_face_gap_band_m=list(CONTACT_FACE_GAP_BAND_M),gap_axis='command_normal',
                     scope='sampled finite tool near-contact hypotheses only; no CCD, robot, physics or training qualification')

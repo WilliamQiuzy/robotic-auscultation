@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from sim.ausc_policy.contact_geometry_audit import audit_contacts, sampled_hold_poses
+from sim.ausc_policy.retainer_contact import CONTACT_SURFACE, RETAINER_PATHS
 
 
 def sample():
@@ -24,6 +25,36 @@ def test_nonzero_hall_or_lip_cannot_be_counted_as_diaphragm_contact():
 def test_misclassified_or_missing_contact_points_are_detected():
     row=sample();row['contact_points'][0]['colliders'][1]='/World/Stethoscope/Carriage/Colliders/Diaphragm'
     with pytest.raises(ValueError,match='component'): audit_contacts([row])
+
+
+def retainer_sample():
+    row=sample();row.update(lip_N=0.,retainer_N=4.,contact_surface=CONTACT_SURFACE)
+    row['contact_points'][0]['colliders'][1]=sorted(RETAINER_PATHS)[0]
+    return row
+
+
+def test_contact_ring_impulses_reconcile_independently_from_membrane():
+    row=retainer_sample();original=deepcopy(row)
+    result=audit_contacts([row])
+    assert result['component_force_peak_N']['retainer']==4.
+    assert result['component_force_peak_N']['diaphragm']==0.
+    assert result['component_contact_point_counts']['retainer']==1
+    assert result['contact_surface']==CONTACT_SURFACE
+    assert row==original
+
+
+def test_mixed_or_unversioned_contact_ledger_cannot_be_reinterpreted():
+    row=retainer_sample()
+    with pytest.raises(ValueError,match='contract'):audit_contacts([row,sample()])
+    row.pop('retainer_N')
+    with pytest.raises(ValueError,match='contract'):audit_contacts([row])
+    row=retainer_sample();row.pop('contact_surface')
+    with pytest.raises(ValueError,match='contract'):audit_contacts([row])
+
+
+def test_new_retainer_pair_cannot_hide_in_legacy_accounting():
+    row=retainer_sample();row.pop('retainer_N');row.pop('contact_surface')
+    with pytest.raises(ValueError,match='contract'):audit_contacts([row])
     row=sample();row['contact_points']=[]
     with pytest.raises(ValueError,match='component'): audit_contacts([row])
 

@@ -18,6 +18,9 @@ def test_raw_hall_hook_follows_actual_row_before_readback_and_video(monkeypatch,
     events=[]
     env=f.FreshContactEnv.__new__(f.FreshContactEnv)
     env.rows=[];env.slider=7;env.passive_preload_N=1.5
+    env.contact_points=[];env.last_contacts={}
+    env.bodies=[('/World/Stethoscope/Carriage',SimpleNamespace(
+        get_world_pose=lambda:(np.zeros(3),np.array([1.,0.,0.,0.]))))]
     env.world=SimpleNamespace(current_time=7.)
     env.state=lambda:dict(time_s=len(env.rows)/240.,q=np.zeros(7),dq=np.zeros(7),compression_m=.001)
     env.robot=SimpleNamespace(apply_action=lambda action:events.append('effort'))
@@ -145,12 +148,13 @@ def fixture_plan(tmp_path):
                geometric_clearance_m=.003, loaded_noncontact_clearance_m=.0003,
                joint_edge_sample_step_rad=.015)
     row['gap_axis']='command_normal'
-    row['selected_fit']=dict(gap_axis='command_normal',first_contact=dict(
-        gap_axis='command_normal',passed=True,raw_anchor_world_m=target.tolist(),
+    row['contact_surface']='membrane_and_device_retainer_v2'
+    row['selected_fit']=dict(contact_surface='membrane_and_device_retainer_v2',gap_axis='command_normal',first_contact=dict(
+        contact_surface='membrane_and_device_retainer_v2',gap_axis='command_normal',passed=True,raw_anchor_world_m=target.tolist(),
         center_world_m=pose[:3,3].tolist(),first_contact_search_resolution_m=1e-6,
-        contact_surface_gap_bracket_m=[0.,1e-9],diaphragm_residual_distance_m=2e-5,
-        fit=dict(passed=True,diaphragm_collision=False,
-                 distances_m=dict(fixed=.01,clamp=.005,shell=.00032,diaphragm=2e-5))))
+        contact_surface_gap_bracket_m=[0.,1e-9],contact_face_residual_distance_m=2e-5,
+        fit=dict(contact_surface='membrane_and_device_retainer_v2',passed=True,contact_face_collision=False,
+                 distances_m=dict(fixed=.01,clamp=.005,shell=.00032,contact_face=2e-5))))
     path=tmp_path/'plan.json'; path.write_text(json.dumps(row))
     binding=dict(file=str(path), sha256=hashlib.sha256(path.read_bytes()).hexdigest())
     config=dict(geometry_id=GEOMETRY_ID, geometry_source_sha256=GEOMETRY_SOURCE_SHA256,
@@ -178,7 +182,7 @@ def test_coarse_or_mismatched_contact_fit_cannot_enter_runtime(tmp_path,mutation
     row,config,geometry,kin=fixture_plan(tmp_path)
     receipt=row['selected_fit']['first_contact']
     if mutation=='missing':row.pop('selected_fit')
-    elif mutation=='coarse':receipt['diaphragm_residual_distance_m']=.0015
+    elif mutation=='coarse':receipt['contact_face_residual_distance_m']=.0015
     elif mutation=='different_line':row['gap_axis']='surface_normal'
     else:receipt['fit']['distances_m']['shell']=.000299
     path=Path(config['fresh_expert']['plans'][0]['file']);path.write_text(json.dumps(row))
@@ -237,7 +241,7 @@ def test_a_late_collision_prevents_the_entire_free_motion():
 
 def test_physical_audit_is_per_point_and_never_training_acceptance():
     def row(target, force):
-        return dict(target=target, diaphragm_N=force, lip_N=0., contact_rim_N=0.,
+        return dict(target=target, diaphragm_N=force, retainer_N=0., lip_N=0., contact_rim_N=0.,
                     carriage_other_N=0., frame_N=0., forbidden_N=0., compression_m=.0025,
                     hall_N=4., training_accepted=True)
     rows=[row('R3',4.) for _ in range(720)]+[row('L3',0.) for _ in range(720)]
@@ -315,7 +319,7 @@ def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_pa
     import sys
     from sim.ausc_policy import contact_collision
     called=[]
-    rows=[dict(target='R3',diaphragm_N=4.,lip_N=0.,contact_rim_N=0.,carriage_other_N=0.,
+    rows=[dict(target='R3',diaphragm_N=4.,retainer_N=0.,lip_N=0.,contact_rim_N=0.,carriage_other_N=0.,
         frame_N=0.,forbidden_N=0.,compression_m=.0025,hall_N=4.) for _ in range(720)]
     class Env:
         def __init__(self,output,**kwargs):
