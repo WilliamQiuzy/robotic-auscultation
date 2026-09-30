@@ -645,6 +645,10 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
 
 def run_probe(app,stage,output,config,mass):
     """Called only by the owned Linux geometry-qualification Isaac worker."""
+    import time
+    from .runtime_cost import runtime_cost
+    probe_wall_started=time.monotonic()
+    controller_wall_started=None;controller_wall_ended=None
     from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
     from .contact_collision import ContactCollisionChecker
     import os,sys
@@ -671,7 +675,7 @@ def run_probe(app,stage,output,config,mass):
         if hashlib.sha256(data).hexdigest()!=binding['sha256']:
             raise ValueError('Fresh plan changed before scene initialization')
         (snapshot/(str(index).zfill(2)+'_'+binding['name']+'.json')).write_bytes(data)
-    source_paths=[Path(__file__),Path(__file__).with_name('edge_timing.py'),
+    source_paths=[Path(__file__),Path(__file__).with_name('runtime_cost.py'),Path(__file__).with_name('edge_timing.py'),
                   Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py'),
                   Path(__file__).with_name('retainer_contact.py'),
                   Path(__file__).with_name('gravity_feedforward.py'),
@@ -733,6 +737,7 @@ def run_probe(app,stage,output,config,mass):
         controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
                                static_geometry_dir=output/'geometry',
                                near_surface_motion=config['fresh_expert'].get('near_surface_motion'))
+        controller_wall_started=time.monotonic()
         outcome=controller.run(points)
     except BaseException as error:
         if raw_settings is None and not isinstance(error,Exception):raise
@@ -742,6 +747,7 @@ def run_probe(app,stage,output,config,mass):
         except Exception as write_error:
             errors.append(dict(stage='failure_text_save',error=repr(write_error)))
     finally:
+        if controller_wall_started is not None:controller_wall_ended=time.monotonic()
         capture_error=('; '.join(item['error'] for item in errors) if errors else
                        None if outcome.get('success') else outcome.get('failure_reason','Expert execution incomplete'))
         video,cleanup_errors=finalize_probe(env,controller,recorder,output,
@@ -818,6 +824,13 @@ def run_probe(app,stage,output,config,mass):
     if errors:
         result.update(success=False,physical_validation=False,
             failure_reason='; '.join(error['stage']+': '+error['error'] for error in errors))
+    result['runtime_cost']=runtime_cost(physics_steps=len(rows),physics_dt_s=DT,
+        probe_wall_s=time.monotonic()-probe_wall_started,
+        controller_wall_s=(None if controller_wall_started is None else
+                           controller_wall_ended-controller_wall_started),
+        setup_wall_s=(None if controller_wall_started is None else
+                      controller_wall_started-probe_wall_started),
+        capture_profile='full_raw' if raw_settings is not None else 'diagnostic_video')
     try:_write(output/'fresh_expert_result.json',result)
     except Exception as error:
         errors.append(dict(stage='result_save',error=repr(error)))
