@@ -9,6 +9,16 @@ RETIRED_EXPERIMENTS = frozenset(('act_baseline', 'act_runtime', 'history_fit',
     'history_runtime_prepare'))
 
 
+def plane_lower_clearance(boxes, normal, point):
+    boxes=np.asarray(boxes,float);normal=np.asarray(normal,float);point=np.asarray(point,float)
+    if (boxes.ndim!=3 or boxes.shape[1:]!=(2,3) or normal.shape!=(3,) or point.shape!=(3,)
+            or not np.isfinite(boxes).all() or not np.isfinite(point).all()
+            or not np.isclose(np.linalg.norm(normal),1.) or np.any(boxes[:,0]>boxes[:,1])):
+        raise ValueError('Invalid infinite plane clearance query')
+    corners=np.where(normal>=0,boxes[:,0],boxes[:,1])
+    return float(np.min((corners-point)@normal))
+
+
 def contact_frame(compression=0.):
     transform = np.eye(4)
     transform[2, 3] = wrist_contact_offset(compression)

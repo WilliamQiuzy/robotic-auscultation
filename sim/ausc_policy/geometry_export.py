@@ -9,7 +9,7 @@ def export_geometry(s, output):
     OUT = Path(output)
     OUT.mkdir(parents=True, exist_ok=False)
     cache = UsdGeom.XformCache()
-    arrays, entries, ignored = {}, [], []
+    arrays, entries, ignored, planes = {}, [], [], []
     ROBOT = '/World/StethoArmMount/OpenArmStetho'
     def world(p): return np.array(cache.GetLocalToWorldTransform(p)).T
     def owner(p):
@@ -32,6 +32,13 @@ def export_geometry(s, output):
         path=str(p.GetPath())
         if path.startswith('/World/ContactFixture'): continue
         kind=p.GetTypeName(); mesh=None
+        if kind=='Plane':
+            axis=UsdGeom.Plane(p).GetAxisAttr().Get(); transform=world(p)
+            normal=transform[:3,:3]@np.eye(3)['XYZ'.index(axis)]
+            normal/=np.linalg.norm(normal)
+            if owner(p)!='world':raise ValueError('Moving infinite plane not supported')
+            planes.append(dict(path=path,normal=normal.tolist(),point=transform[:3,3].tolist()))
+            continue
         if kind=='Mesh':
             m=UsdGeom.Mesh(p); v=np.asarray(m.GetPointsAttr().Get(), dtype=float)
             ids=np.asarray(m.GetFaceVertexIndicesAttr().Get()); faces=[]; start=0
@@ -60,6 +67,6 @@ def export_geometry(s, output):
         key=f'c{len(entries):03d}';arrays[key+'_v']=np.asarray(mesh.vertices);arrays[key+'_f']=np.asarray(mesh.faces,dtype=np.int32)
         entries.append({'key':key,'path':path,'body':body,'world_from_body':wb.tolist(),'approximation':approximation,'bounds_local':mesh.bounds.tolist()})
     np.savez_compressed(OUT/'collision_geometry.npz',**arrays)
-    (OUT/'collision_geometry.json').write_text(json.dumps({'colliders':entries,'allowed_body_pairs':allowed,'unsupported':ignored},indent=2))
+    (OUT/'collision_geometry.json').write_text(json.dumps({'colliders':entries,'allowed_body_pairs':allowed,'unsupported':ignored,'analytic_planes':planes},indent=2))
     if ignored: raise ValueError('Unsupported collision shapes: '+str(ignored))
     return entries

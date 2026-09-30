@@ -49,3 +49,9 @@ def test_contact_gate_requires_membrane_and_zero_lip():
     for r in rows:
         r.update(lip_N=2., diaphragm_N=0.)
     assert not qualify_contact(rows)['passed']
+
+
+def test_infinite_ground_is_not_silently_dropped():
+    from sim.ausc_policy.geometry_epoch import plane_lower_clearance
+    boxes = np.array([[[-1,-1,.004],[1,1,.02]], [[100,100,.002],[101,101,.03]]])
+    assert plane_lower_clearance(boxes,[0,0,1],[0,0,0]) == pytest.approx(.002)

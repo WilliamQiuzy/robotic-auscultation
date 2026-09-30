@@ -72,7 +72,17 @@ def search_targets(stage, entries, output, config):
     base=np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(stage.GetPrimAtPath(ROBOT+'/openarm_left_link0'))).T
     kin=OpenArmKinematics(contact_frame=contact_frame)
     limits=PostureLimits.from_dict(config['posture_limits'],kin)
-    checker=CertifiedCollisionChecker(kin,base,directory=output/'geometry')
+    from .geometry_epoch import plane_lower_clearance
+    planes=json.loads((output/'geometry/collision_geometry.json').read_text())['analytic_planes']
+    class WithPlanes(CertifiedCollisionChecker):
+        def check(self,q,**kwargs):
+            result=super().check(q,**kwargs)
+            for plane in planes:
+                distance=plane_lower_clearance(self.bounds[self.dynamic],plane['normal'],plane['point'])
+                if distance<kwargs.get('clearance',.003):
+                    return dict(clear=False,minimum_distance_m=distance,pair=['dynamic bounds',plane['path']])
+            return result
+    checker=WithPlanes(kin,base,directory=output/'geometry')
     arrays=np.load(output/'geometry/collision_geometry.npz')
     meshes=[]
     for e in entries:
