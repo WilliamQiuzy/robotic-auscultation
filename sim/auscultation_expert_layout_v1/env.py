@@ -8,14 +8,16 @@ from .scene import ROOT, ROBOT, WRIST, FIXED, MOVING, prepare_stage
 DT=1/240
 
 class IsaacContactEnv:
-    def __init__(self, output_dir=None):
+    def __init__(self, output_dir=None, *, stage_factory=None,
+                 contact_offset_m=.1262, moving_mass_kg=.067155):
         import carb, omni.usd
         from pxr import UsdGeom, UsdPhysics, PhysicsSchemaTools
         from omni.physx import get_physx_simulation_interface
         from isaacsim.core.api import World
         from isaacsim.core.prims import SingleArticulation, SingleRigidPrim
         self.out=Path(output_dir or ROOT/'results').resolve();self.out.mkdir(parents=True,exist_ok=True)
-        stage=prepare_stage(self.out/'training_scene.usdc')
+        self.contact_offset_m=float(contact_offset_m);self.moving_mass_kg=float(moving_mass_kg)
+        stage=(stage_factory or prepare_stage)(self.out/'training_scene.usdc')
         self.base=np.array(UsdGeom.XformCache().GetLocalToWorldTransform(stage.GetPrimAtPath(ROBOT+'/openarm_left_link0'))).T
         omni.usd.get_context().open_stage(str(self.out/'training_scene.usdc'))
         # SimulationApp is owned by entrypoint; app.update needed before World.
@@ -71,9 +73,9 @@ class IsaacContactEnv:
         compression=float(q_all[self.slider]);velocity=float(dq_all[self.slider])
         # Positive compression moves the carriage toward the wrist. The actual
         # diaphragm, not the adapter origin, defines the contact pose.
-        tcp=np.asarray(p)+R[:,2]*(.1262-compression)
+        tcp=np.asarray(p)+R[:,2]*(self.contact_offset_m-compression)
         outward=-R[:,2]
-        hall_force=0. if compression<.0001 else max(0.,1.5+1000*compression+3.2*velocity+.067155*9.81*outward[2])
+        hall_force=0. if compression<.0001 else max(0.,1.5+1000*compression+3.2*velocity+self.moving_mass_kg*9.81*outward[2])
         base_tcp=self.base[:3,:3].T@(tcp-self.base[:3,3])
         return {'q':np.asarray(q_all[self.left]),'dq':np.asarray(dq_all[self.left]),
                 'tcp_world':tcp,'tcp_base':base_tcp,'rotation_world':R,

@@ -55,3 +55,15 @@ def test_infinite_ground_is_not_silently_dropped():
     from sim.ausc_policy.geometry_epoch import plane_lower_clearance
     boxes = np.array([[[-1,-1,.004],[1,1,.02]], [[100,100,.002],[101,101,.03]]])
     assert plane_lower_clearance(boxes,[0,0,1],[0,0,0]) == pytest.approx(.002)
+
+
+def test_actual_state_uses_new_tcp_not_legacy_offset():
+    from types import SimpleNamespace
+    from sim.auscultation_expert_layout_v1.env import IsaacContactEnv
+    env=IsaacContactEnv.__new__(IsaacContactEnv)
+    env.robot=SimpleNamespace(get_joint_positions=lambda:np.r_[np.zeros(7),.001],
+                              get_joint_velocities=lambda:np.zeros(8))
+    env.wrist=SimpleNamespace(get_world_pose=lambda:(np.zeros(3),np.array([1.,0,0,0])))
+    env.slider=7;env.left=np.arange(7);env.base=np.eye(4);env.t=0.;env.filtered_hall_force=0.
+    env.contact_offset_m=.132;env.moving_mass_kg=.067
+    np.testing.assert_allclose(env.state()['tcp_world'],[0,0,.131])

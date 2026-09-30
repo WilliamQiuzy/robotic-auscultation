@@ -113,6 +113,12 @@ def search_targets(stage, entries, output, config):
         for index,seed in enumerate(seeds):
             if time.monotonic()>=deadline:break
             rotation=reference@Rotation.from_rotvec([0,0,np.deg2rad((0,45,-45,90,-90,180)[index%6])]).as_matrix()
+            if config.get('axis_seed_search',False):
+                proposal=kin.solve_ik(base[:3,:3].T@(center-base[:3,3]),
+                    approach_axis_base=base[:3,:3].T@(-normal),seed=seed,max_starts=1,max_nfev=100)
+                if proposal.success:
+                    seed=proposal.q
+                    rotation=base[:3,:3]@kin.tcp(seed)[:3,:3]
             try:
                 q,ok,pe,re=solve_posture_ik(kin,base,limits,base[:3,:3].T@(center-base[:3,3]),
                     base[:3,:3].T@rotation,seed,maxiter=120,deadline=deadline,contact=True)
@@ -159,6 +165,11 @@ def main():
         stage.GetRootLayer().customLayerData=dict(stage.GetRootLayer().customLayerData,wamGeometryVersion=GEOMETRY_ID)
         filename=args.output/'candidate_physics.usdc';stage.GetRootLayer().Export(str(filename))
         entries=export_geometry(stage,args.output/'geometry')
+        if config.get('contact_probe'):
+            from .geometry_contact_probe import run_probe
+            result=run_probe(app,stage,args.output,config,mass)
+            write(args.output/'COMPLETE.json',result)
+            return
         result=search_targets(stage,entries,args.output,config)
         write(args.output/'COMPLETE.json',dict(geometry_id=GEOMETRY_ID,source_sha256=config['geometry_source_sha256'],
             effective_scene_sha256=hashlib.sha256(filename.read_bytes()).hexdigest(),
