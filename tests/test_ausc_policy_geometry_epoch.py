@@ -31,11 +31,13 @@ def test_new_ik_targets_actual_new_membrane():
 
 
 def test_old_inputs_cannot_enter_new_epoch():
-    from sim.ausc_policy.geometry_epoch import require_current, GEOMETRY_ID
+    from sim.ausc_policy.geometry_epoch import require_current, GEOMETRY_ID, GEOMETRY_SOURCE_SHA256
     for old in ({}, {'geometry_id': 'legacy_1262'}, {'geometry_id': GEOMETRY_ID}):
         with pytest.raises(ValueError):
             require_current(old)
-    require_current({'geometry_id': GEOMETRY_ID, 'geometry_source_sha256': 'a'*64,
+    with pytest.raises(ValueError):
+        require_current({'geometry_id':GEOMETRY_ID,'geometry_source_sha256':'a'*64,'freshly_generated':True})
+    require_current({'geometry_id': GEOMETRY_ID, 'geometry_source_sha256': GEOMETRY_SOURCE_SHA256,
                      'freshly_generated': True})
 
 
@@ -67,3 +69,28 @@ def test_actual_state_uses_new_tcp_not_legacy_offset():
     env.slider=7;env.left=np.arange(7);env.base=np.eye(4);env.t=0.;env.filtered_hall_force=0.
     env.contact_offset_m=.132;env.moving_mass_kg=.067
     np.testing.assert_allclose(env.state()['tcp_world'],[0,0,.131])
+
+
+def test_axis_ik_can_use_roll_freedom_inside_safety_bounds():
+    from sim.ausc_policy.axis_ik import solve_axis
+    from sim.auscultation_expert_layout_v1.posture import PostureLimits
+    kin=OpenArmKinematics(contact_frame=frame)
+    q=(kin.lower_limits+kin.upper_limits)/2
+    pose=kin.tcp(q)
+    limits=PostureLimits(10.,tuple(kin.lower_limits),tuple(kin.upper_limits))
+    result=solve_axis(kin,np.eye(4),limits,pose[:3,3],pose[:3,2],q+.03,contact=False)
+    assert result['success']
+    np.testing.assert_allclose(kin.tcp(result['q'])[:3,3],pose[:3,3],atol=2e-5)
+
+
+def test_axis_cone_never_exceeds_original_five_degree_contact_tolerance():
+    from sim.ausc_policy.axis_ik import solve_axis
+    from sim.auscultation_expert_layout_v1.posture import PostureLimits
+    kin=OpenArmKinematics(contact_frame=frame);q=(kin.lower_limits+kin.upper_limits)/2
+    pose=kin.tcp(q);a=np.deg2rad(4.)
+    normal_axis=np.cos(a)*pose[:3,2]+np.sin(a)*pose[:3,0]
+    limits=PostureLimits(10.,tuple(kin.lower_limits),tuple(kin.upper_limits))
+    result=solve_axis(kin,np.eye(4),limits,pose[:3,3],normal_axis,q,contact=False,axis_tolerance_deg=5.)
+    assert result['success'] and result['orientation_error_rad']<=np.deg2rad(5.)+1e-8
+    with pytest.raises(ValueError):
+        solve_axis(kin,np.eye(4),limits,pose[:3,3],normal_axis,q,axis_tolerance_deg=5.1)

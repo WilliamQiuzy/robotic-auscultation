@@ -14,8 +14,8 @@ def test_identity_split_is_order_independent_and_disjoint():
 
 def test_bulk_requires_current_actual_randomized_expert_qualification():
     from sim.ausc_policy.m2_identity import require_bulk_qualification
-    from sim.ausc_policy.geometry_epoch import GEOMETRY_ID
-    good = dict(geometry_id=GEOMETRY_ID,geometry_source_sha256='a'*64,freshly_generated=True,
+    from sim.ausc_policy.geometry_epoch import GEOMETRY_ID, GEOMETRY_SOURCE_SHA256
+    good = dict(geometry_id=GEOMETRY_ID,geometry_source_sha256=GEOMETRY_SOURCE_SHA256,freshly_generated=True,
         randomized_cases=100,successes=95,physics_executed=True,identity_split_sha256='b'*64)
     require_bulk_qualification(good,'b'*64)
     for changes in ({'physics_executed':False},{'successes':94},{'randomized_cases':10},

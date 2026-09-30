@@ -1,0 +1,28 @@
+{
+  "geometry_id": "stethoscope_protruding_5mm_v1",
+  "geometry_source_sha256": "4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081",
+  "real_geometry_status": "User confirms 5 mm protrusion matches the real assembly; no new bench dimensional measurement by agent",
+  "protrusion_m": 0.005,
+  "contact_point_translation_m": 0.0058,
+  "zero_compression_wrist_tcp_m": 0.132,
+  "old_geometry_policy": "Preserve historical evidence; exclude from every new training, planning and handoff input",
+  "retired": [
+    "old expert joint paths",
+    "old precontact distances",
+    "ACT TRAIN16 and derived labels/checkpoints",
+    "old handoff/capture-region measurements",
+    "old-geometry recovery episodes"
+  ],
+  "m0_pipeline": "passed_by_revised_user_gate",
+  "m0_closed_loop": "failed on old single-body coverage; not an exclusive causal proof",
+  "contact_evidence": "geometry-5mm-contact-preload-20260930-v1",
+  "contact_scope": "One R3 reset/contact/withdrawal, not a full expert path or generalization validation",
+  "nominal_passive_preload_N": 1.5,
+  "preload_status": "explicit passive effort comparison in simulation; not real force calibration",
+  "randomized_expert_gate": {
+    "minimum_cases": 100,
+    "minimum_success_rate": 0.95,
+    "status": "not_run"
+  },
+  "bulk_generation_allowed": false
+}

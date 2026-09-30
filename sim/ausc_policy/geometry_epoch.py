@@ -1,9 +1,9 @@
 """Active geometry contract. Old evidence is retained, never silently relabeled."""
-import re
 import numpy as np
 from .tool_protrusion import wrist_contact_offset
 
 GEOMETRY_ID = 'stethoscope_protruding_5mm_v1'
+GEOMETRY_SOURCE_SHA256 = '4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081'
 RETIRED_EXPERIMENTS = frozenset(('act_baseline', 'act_runtime', 'history_fit',
     'history_runtime', 'isaac_run', 'recovery_run', 'history_prepare',
     'history_runtime_prepare'))
@@ -28,7 +28,7 @@ def contact_frame(compression=0.):
 def require_current(metadata):
     if (metadata.get('geometry_id') != GEOMETRY_ID
             or metadata.get('freshly_generated') is not True
-            or not re.fullmatch('[0-9a-f]{64}', metadata.get('geometry_source_sha256', ''))):
+            or metadata.get('geometry_source_sha256') != GEOMETRY_SOURCE_SHA256):
         raise ValueError('Retired or unbound geometry: regenerate paths, data and handoff measurements')
 
 
