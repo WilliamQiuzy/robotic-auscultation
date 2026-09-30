@@ -27,3 +27,11 @@
 - Mac镜像：`results/ausc_policy/geometry_5mm_fresh_expert_r3_gravity_velocity_v1/`；实际视频743帧、640×360、10 fps、74.3秒，已检查末段画面。
 - 预先冻结分析脚本及两轮输出：`results/ausc_policy/velocity_comparison_v1/`，图为 `comparison.svg`。
 - 这是一个名义人体上的专家控制对照，没有学习模型推理、随机场景资格或泛化证明。总执行器力矩仍未独立验证。
+
+## 实际动作中的多模态采集对照
+
+随后同源码、同控制配置实际执行 `geometry-5mm-fresh-expert-r3-velocity-capture-20260930-v1`，仅增加原始RGB-D/Hall采集。记录17,848个物理步、7,437个独立ADC包、1,487组640×360 RGB-D。全部帧的原始字节哈希、物理行/时间、关节状态与Hall数据绑定通过；根据真实保存的滑块位移独立重建ADC包及解码，逐项一致。原始深度有效比例约93.79%。
+
+与未开启采集的速度前馈对照相比，完整物理trace SHA完全相同；时间、关节、指令、TCP、滑块和各部件接触力的逐行差均为0。采集没有改变这一次实际运动与失败结果。
+
+**这是失败回合已保存部分的数据一致性核对，不是合格完整回合。** 原始 `raw_capture_complete=false`、`physical_validation=false` 和控制拒绝证据全部保留，没有重写失败收据来通过检查。回合未接触，不能证明受力变化时Hall信号的有效性、学习模型模态利用或任何训练资格。独立报告：`results/ausc_policy/expert_capture_prefix_audit_v1/REPORT.json`；审计脚本SHA `d1d2e89e86437f956f17386cf5a948d30ba3b33e014beced02fac6a2d5b83867`。
