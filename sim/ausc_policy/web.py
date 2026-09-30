@@ -10,6 +10,12 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/velocity-r3-v1.mp4': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_gravity_velocity_v1/output/review/actual_fresh_expert.mp4',
+    '/media/velocity-r3-v1-poster.png': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_gravity_velocity_v1/output/review/poster.png',
+    '/media/velocity-r3-comparison.svg': 'results/ausc_policy/velocity_comparison_v1/comparison.svg',
+    '/evidence/velocity-r3-native': 'reports/ausc_policy/velocity_feedforward_native.md',
+    '/evidence/head-contact-envelope': 'reports/ausc_policy/head_contact_envelope_audit.md',
+    '/evidence/m2-readiness': 'reports/ausc_policy/m2_readiness_20260930.md',
     '/media/gravity-r3-v2.mp4': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_gravity_v2/output/review/actual_fresh_expert.mp4',
     '/media/gravity-r3-v2-poster.png': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_gravity_v2/output/review/video_check_70s.png',
     '/media/contact-clearance-audit.svg': 'results/ausc_policy/contact_geometry_profile_v1/clearance_diagnosis.svg',
