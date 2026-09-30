@@ -70,6 +70,8 @@ def run_probe(app,stage,output,config,mass):
     np.testing.assert_allclose(env.base,base,atol=1e-7)
     env.robot.set_joint_positions(q,joint_indices=env.left)
     env.robot.set_joint_velocities(np.zeros(7),joint_indices=env.left)
+    preload=float(binding.get('explicit_passive_preload_N',0.))
+    if preload not in (0.,1.5):raise ValueError('Only nominal CAD preload comparison is supported')
     reason=None;phase='SETTLE';gap=initial_gap;hold=0.;completed=False
     nominal_q=q.copy();frames=[]
     annotator=product=None
@@ -93,7 +95,15 @@ def run_probe(app,stage,output,config,mass):
                 next_q=solve(gap,nominal_q)
                 if np.max(abs(next_q-nominal_q))/.05>.175:raise ValueError('Joint command speed bound')
                 block=np.linspace(nominal_q,next_q,13)[1:];nominal_q=next_q
-            state=env.step(block[index%12],phase,binding['target'],dict(diagnostic=True,training_eligible=False))
+            if preload:
+                from isaacsim.core.utils.types import ArticulationAction
+                # Joint-positive means compression. A negative constant effort
+                # models the declared spring preload; this is a diagnostic
+                # comparison, not a newly bench-measured sensor calibration.
+                env.robot.apply_action(ArticulationAction(joint_efforts=np.array([-preload]),
+                    joint_indices=np.array([env.slider])))
+            state=env.step(block[index%12],phase,binding['target'],dict(diagnostic=True,
+                explicit_passive_preload_N=preload,training_eligible=False))
             contacts=env.last_contacts
             if sum(contacts.values())>6. or state['hall_N']>=5.5 or state['compression_m']>.006:
                 raise ValueError('Original force/stroke stop')
@@ -122,6 +132,7 @@ def run_probe(app,stage,output,config,mass):
         scope='Actual approved patient contact from a fresh free-space reset; no home transfer/expert/student qualification',
         contact_shell_threshold_m=.0003,contact_shell_minimum_m=minimum_shell,
         free_space_threshold_m=.003,training_eligible=False,learned_policy=False)
+    result['explicit_passive_preload_N']=preload
     if frames:
         import subprocess
         video=output/'actual_contact_probe.mp4'

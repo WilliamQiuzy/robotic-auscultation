@@ -1,0 +1,728 @@
+{
+  "experiment": "geometry_qualification",
+  "base": "/home/william/wam-vla-v2",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "time_limit_seconds": 1200,
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "geometry_id": "stethoscope_protruding_5mm_v1",
+  "freshly_generated": true,
+  "geometry_source": "/home/william/wam-vla-v2/runs/ausc_policy/tool-protrusion-5mm-review-20260929-v1/output/review/candidate.usdc",
+  "geometry_source_sha256": "4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081",
+  "worker": "sim.ausc_policy.geometry_qualification",
+  "physics": {
+    "position_iterations": 32,
+    "velocity_iterations": 1,
+    "armature_kg_m2": 0.02
+  },
+  "posture_limits": {
+    "schema": "low_elbow_posture_v1",
+    "elbow_link": "openarm_left_link4",
+    "max_elbow_z_m": 1.451228420583354,
+    "joint_lower_rad": [
+      -2.443460952792061,
+      -2.443460952792061,
+      -1.5184361224401701,
+      0.0,
+      -1.5184361224401701,
+      -0.7330381224401702,
+      -1.5184361224401701
+    ],
+    "joint_upper_rad": [
+      1.2217304763960306,
+      0.12217279564527346,
+      1.5184361224401701,
+      2.3911011224401704,
+      1.5184361224401701,
+      0.7330381224401702,
+      1.5184361224401701
+    ],
+    "observed_joint_tolerance_rad": 0.005,
+    "max_elbow_above_shoulder_m": 0.075,
+    "min_contact_elbow_below_wrist_m": 0.0
+  },
+  "safety_provenance": {
+    "note": "Only unchanged safety envelope retained; all prior target fits, q, paths and handoff measurements excluded",
+    "source": "sim/upper_pair_posture_20260924/results/candidate_b_plans/planned_paths_R4.json",
+    "sha256": "a5350dc5f5da21c5e476264da927636ea3c2dbf3c7a8a77d08898c4561a0e53f"
+  },
+  "raw_target_provenance": {
+    "source": "sim/auscultation_assets_20260922/model_predictions.json",
+    "sha256": "bb2045bbba89a1c7cc6341dc97962d29f80ead79b50bbf52f42b02af4a97d01d",
+    "translation_world_m": [
+      0,
+      0.05,
+      -0.02
+    ],
+    "note": "Approved body target positions, no old tool pose or plan; surface fits regenerated"
+  },
+  "targets": [
+    {
+      "name": "R1",
+      "position_world_m": [
+        0.08840470061175827,
+        0.8403528503324804,
+        1.443161179382234
+      ],
+      "normal_world": [
+        -0.3480111083651107,
+        -0.7293645919542897,
+        0.5889953823739534
+      ]
+    },
+    {
+      "name": "L1",
+      "position_world_m": [
+        -0.061992837215208374,
+        0.8430490675866763,
+        1.4483370524389687
+      ],
+      "normal_world": [
+        -0.1881480212956606,
+        -0.7931164302801115,
+        0.5792811494449489
+      ]
+    },
+    {
+      "name": "R2",
+      "position_world_m": [
+        0.059750434312446546,
+        0.8155386684974679,
+        1.399732014791313
+      ],
+      "normal_world": [
+        0.06007724077999239,
+        -0.9095218372776677,
+        0.41129156647726045
+      ]
+    },
+    {
+      "name": "L2",
+      "position_world_m": [
+        -0.03627533309651958,
+        0.8166265977749452,
+        1.4031595367378416
+      ],
+      "normal_world": [
+        0.026786360750456296,
+        -0.8489343140151762,
+        0.5278191180369739
+      ]
+    },
+    {
+      "name": "R3",
+      "position_world_m": [
+        0.05183294497215267,
+        0.8012506785106474,
+        1.353007810366402
+      ],
+      "normal_world": [
+        -0.050088730314188964,
+        -0.9986593533492345,
+        -0.013061970127094818
+      ]
+    },
+    {
+      "name": "L3",
+      "position_world_m": [
+        -0.032356133862156064,
+        0.8040350722968241,
+        1.3551892943972756
+      ],
+      "normal_world": [
+        0.13010818544977343,
+        -0.9864052042515633,
+        0.1003824342422481
+      ]
+    },
+    {
+      "name": "R4",
+      "position_world_m": [
+        0.07646868106160853,
+        0.8030988095957279,
+        1.2947749823010097
+      ],
+      "normal_world": [
+        0.029415431761573053,
+        -0.9981768174377729,
+        -0.05270458712559473
+      ]
+    },
+    {
+      "name": "L4",
+      "position_world_m": [
+        -0.06039352186398354,
+        0.7976351029841607,
+        1.3038318291499928
+      ],
+      "normal_world": [
+        -0.1360904365396781,
+        -0.9905485077334063,
+        -0.0171186129567224
+      ]
+    },
+    {
+      "name": "R5",
+      "position_world_m": [
+        0.12295303291422541,
+        0.8097887120658821,
+        1.22610558058728
+      ],
+      "normal_world": [
+        0.4477468424538294,
+        -0.8926453715771615,
+        -0.05202889268951017
+      ]
+    },
+    {
+      "name": "L5",
+      "position_world_m": [
+        -0.11057967160571211,
+        0.8006985260217909,
+        1.2432775813386114
+      ],
+      "normal_world": [
+        -0.12339727921524153,
+        -0.9909952026791182,
+        0.051977107934638035
+      ]
+    }
+  ],
+  "component_priors": {
+    "source": "sim/real2sim_20260922/assets/component_manifest.json",
+    "sha256": "8a605be41c3e834bda6973574dd287191145019186047eab223ed60a4f29151f",
+    "parts": [
+      {
+        "name": "left_clamshell",
+        "group": "moving",
+        "material": "printed_petg",
+        "display_color_srgb": [
+          0.025,
+          0.028,
+          0.03
+        ],
+        "density_kg_m3_estimate": 698.5,
+        "install_default": true,
+        "note": "Mass estimate uses PETG density 1270 kg/m3 times 0.55 effective fill; not weighed. Concave visual mesh; do not use a single convex hull.",
+        "contact_category": "lip_clamp",
+        "npz": "components/left_clamshell.npz",
+        "obj": "components/left_clamshell.obj",
+        "vertices": 4317,
+        "triangles": 4248,
+        "bbox_m": {
+          "min": [
+            -0.04,
+            -0.035,
+            -0.042
+          ],
+          "max": [
+            -0.0014999999999999957,
+            0.035,
+            -0.019
+          ],
+          "size": [
+            0.038500000000000006,
+            0.07,
+            0.023000000000000003
+          ]
+        },
+        "volume_m3": 7.926234503179252e-06,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.0055364748004707075,
+        "center_of_mass_m_estimate": [
+          -0.018154172201290123,
+          -0.0004523694996905446,
+          -0.03265245626152117
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            2.633689106594205e-06,
+            -3.973772785523998e-08,
+            1.2128441374155252e-07
+          ],
+          [
+            -3.973772785523998e-08,
+            7.188989075286858e-07,
+            3.8242917392088974e-09
+          ],
+          [
+            1.2128441374155252e-07,
+            3.8242917392088974e-09,
+            3.0775764527337983e-06
+          ]
+        ],
+        "mesh_sha256": "09b0010ac94adfa941c20c9225c53a6c1a7c5f00490ba471dc00b2603c30500e",
+        "obj_sha256": "f573c2fa115c510c46dc7e51cc0336e6c908d0dc5e135378639718b7e334b753",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 0.0
+      },
+      {
+        "name": "right_clamshell",
+        "group": "moving",
+        "material": "printed_petg",
+        "display_color_srgb": [
+          0.025,
+          0.028,
+          0.03
+        ],
+        "density_kg_m3_estimate": 698.5,
+        "install_default": true,
+        "note": "Mass estimate uses PETG density 1270 kg/m3 times 0.55 effective fill; not weighed. Concave visual mesh; do not use a single convex hull.",
+        "contact_category": "lip_clamp",
+        "npz": "components/right_clamshell.npz",
+        "obj": "components/right_clamshell.obj",
+        "vertices": 5983,
+        "triangles": 5868,
+        "bbox_m": {
+          "min": [
+            0.001499999999999986,
+            -0.035,
+            -0.042
+          ],
+          "max": [
+            0.04,
+            0.035,
+            -0.019
+          ],
+          "size": [
+            0.03850000000000001,
+            0.07,
+            0.023000000000000003
+          ]
+        },
+        "volume_m3": 8.811956570674209e-06,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.0061551516646159345,
+        "center_of_mass_m_estimate": [
+          0.019175832299740604,
+          -0.0015887071144713928,
+          -0.03181332197468788
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            2.728140384797779e-06,
+            3.566439679782277e-08,
+            -1.4517383226006442e-07
+          ],
+          [
+            3.566439679782277e-08,
+            7.822389822363374e-07,
+            6.32145350183638e-08
+          ],
+          [
+            -1.4517383226006442e-07,
+            6.32145350183638e-08,
+            3.169773602826429e-06
+          ]
+        ],
+        "mesh_sha256": "20fe68715eb89f4f2a7879508951b26519b498521c64381d9271f340f9d188eb",
+        "obj_sha256": "b8c95bbea112d7c8847c1ea150e5e7dc4d4392ddc348dc5c863f50e3106c7490",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 0.0
+      },
+      {
+        "name": "thinklabs_black_edge",
+        "group": "moving",
+        "material": "device_black",
+        "display_color_srgb": [
+          0.025,
+          0.028,
+          0.031
+        ],
+        "density_kg_m3_estimate": null,
+        "install_default": true,
+        "note": "Exact z-slice of CAD device; 50 g nominal total apportioned by CAD volume, inertia/distribution estimated.",
+        "contact_category": "diaphragm",
+        "npz": "components/thinklabs_black_edge.npz",
+        "obj": "components/thinklabs_black_edge.obj",
+        "vertices": 506,
+        "triangles": 500,
+        "bbox_m": {
+          "min": [
+            -0.023,
+            -0.023,
+            -0.0412
+          ],
+          "max": [
+            0.023,
+            0.023,
+            -0.0352
+          ],
+          "size": [
+            0.046,
+            0.046,
+            0.005999999999999998
+          ]
+        },
+        "volume_m3": 9.971415082494004e-06,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.012829104540029097,
+        "center_of_mass_m_estimate": [
+          -2.3714650378571635e-18,
+          1.360155694843209e-18,
+          -0.03820000000000001
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            1.7351363890389562e-06,
+            1.1026662244794803e-22,
+            4.881845402721916e-22
+          ],
+          [
+            1.1026662244794803e-22,
+            1.7351363890389202e-06,
+            -2.6185694331991687e-24
+          ],
+          [
+            4.881845402721916e-22,
+            -2.6185694331991687e-24,
+            3.39329815083771e-06
+          ]
+        ],
+        "mesh_sha256": "e141749e79c7bfb03d2adee604345e7a629f862408079105f4b7801505e59af4",
+        "obj_sha256": "df2e87c68f507d2224462351afdb51adb55368b57694608cd70b59f41d08ada2",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 7.148813981224661e-06
+      },
+      {
+        "name": "thinklabs_cone",
+        "group": "moving",
+        "material": "device_black",
+        "display_color_srgb": [
+          0.04,
+          0.044,
+          0.048
+        ],
+        "density_kg_m3_estimate": null,
+        "install_default": true,
+        "note": "Exact z-slice of CAD device; 50 g nominal total apportioned by CAD volume, inertia/distribution estimated.",
+        "contact_category": "device_body",
+        "npz": "components/thinklabs_cone.npz",
+        "obj": "components/thinklabs_cone.obj",
+        "vertices": 1415,
+        "triangles": 1576,
+        "bbox_m": {
+          "min": [
+            -0.0230000001,
+            -0.0230000001,
+            -0.0352000001
+          ],
+          "max": [
+            0.0230000001,
+            0.0230000001,
+            -0.0241999999
+          ],
+          "size": [
+            0.0460000002,
+            0.0460000002,
+            0.011000000200000002
+          ]
+        },
+        "volume_m3": 1.5273257391064687e-05,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.019650392057265834,
+        "center_of_mass_m_estimate": [
+          1.5219368349176172e-05,
+          7.531542495713655e-06,
+          -0.03005032366734993
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            2.3961757931347187e-06,
+            3.0284545410801885e-09,
+            -8.67555976728772e-10
+          ],
+          [
+            3.0284545410801885e-09,
+            2.3921488800362816e-06,
+            -3.0817800095127983e-10
+          ],
+          [
+            -8.67555976728772e-10,
+            -3.0817800095127983e-10,
+            4.395739086650536e-06
+          ]
+        ],
+        "mesh_sha256": "7aca3caf581a0e33495d9637992aec36f0b53a2df700846d9bac30c0a87d2ba3",
+        "obj_sha256": "de89236875a60d492fe7389aff64a9f340a31ce49261f0662aacb1fff6ef9287",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 7.148913981225996e-06
+      },
+      {
+        "name": "thinklabs_dial",
+        "group": "moving",
+        "material": "device_metallic_dial",
+        "display_color_srgb": [
+          0.63,
+          0.66,
+          0.7
+        ],
+        "density_kg_m3_estimate": null,
+        "install_default": true,
+        "note": "Exact z-slice of CAD device; 50 g nominal total apportioned by CAD volume, inertia/distribution estimated.",
+        "contact_category": "device_body",
+        "npz": "components/thinklabs_dial.npz",
+        "obj": "components/thinklabs_dial.obj",
+        "vertices": 1138,
+        "triangles": 1118,
+        "bbox_m": {
+          "min": [
+            -0.0197326269979454,
+            -0.019,
+            -0.024200000000000003
+          ],
+          "max": [
+            0.019,
+            0.019,
+            -0.012200000000000003
+          ],
+          "size": [
+            0.0387326269979454,
+            0.038,
+            0.012
+          ]
+        },
+        "volume_m3": 1.3617802556597973e-05,
+        "solid_count": 3,
+        "mass_kg_estimate": 0.017520503475056886,
+        "center_of_mass_m_estimate": [
+          -1.1354395334671676e-05,
+          -3.474740910925582e-06,
+          -0.018202703872624498
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            1.7910007546824158e-06,
+            -1.0528343620096857e-09,
+            -8.612550409685757e-10
+          ],
+          [
+            -1.0528343620096857e-09,
+            1.7942814778109497e-06,
+            -2.7528428054176483e-10
+          ],
+          [
+            -8.612550409685757e-10,
+            -2.7528428054176483e-10,
+            3.164620743352036e-06
+          ]
+        ],
+        "mesh_sha256": "596bd822fc50711964ed166643a445bd82e86140d2100241e7d7ac119b1ac554",
+        "obj_sha256": "6930b12d1888f77ffc9b207a0af19c60e9799bd524a0fd9e8e59af58af72dc02",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 8.016191520646143e-07
+      },
+      {
+        "name": "clamp_screw_0",
+        "group": "moving",
+        "material": "black_steel",
+        "display_color_srgb": [
+          0.025,
+          0.028,
+          0.031
+        ],
+        "density_kg_m3_estimate": 7850,
+        "install_default": true,
+        "note": "",
+        "contact_category": "hardware",
+        "npz": "components/clamp_screw_0.npz",
+        "obj": "components/clamp_screw_0.obj",
+        "vertices": 1554,
+        "triangles": 1532,
+        "bbox_m": {
+          "min": [
+            -0.02,
+            -0.032674999999999996,
+            -0.03825
+          ],
+          "max": [
+            0.013000000000000001,
+            -0.026325,
+            -0.03275
+          ],
+          "size": [
+            0.033,
+            0.0063499999999999945,
+            0.005499999999999998
+          ]
+        },
+        "volume_m3": 3.2922434393562106e-07,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.0025844110998946256,
+        "center_of_mass_m_estimate": [
+          -0.0036903189953996487,
+          -0.0295,
+          -0.0355
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            5.911062378533534e-09,
+            -2.284650690853596e-22,
+            0.0
+          ],
+          [
+            -2.284650690853596e-22,
+            3.389947242200599e-07,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            3.389947242200589e-07
+          ]
+        ],
+        "mesh_sha256": "52237d8adf4eeefa54f12f1d5e2d693bf591cdf8f9d17b1990225e853a93770a",
+        "obj_sha256": "24d1e673afb24db90d83b09f70a79c291035e6fb295cb2778b00b0e0a53ae4bc",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 3.6934298440483015e-07
+      },
+      {
+        "name": "clamp_screw_1",
+        "group": "moving",
+        "material": "black_steel",
+        "display_color_srgb": [
+          0.025,
+          0.028,
+          0.031
+        ],
+        "density_kg_m3_estimate": 7850,
+        "install_default": true,
+        "note": "",
+        "contact_category": "hardware",
+        "npz": "components/clamp_screw_1.npz",
+        "obj": "components/clamp_screw_1.obj",
+        "vertices": 1554,
+        "triangles": 1532,
+        "bbox_m": {
+          "min": [
+            -0.02,
+            0.026325,
+            -0.03825
+          ],
+          "max": [
+            0.013000000000000001,
+            0.032675,
+            -0.03275
+          ],
+          "size": [
+            0.033,
+            0.0063500000000000015,
+            0.005499999999999998
+          ]
+        },
+        "volume_m3": 3.29224343935621e-07,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.002584411099894625,
+        "center_of_mass_m_estimate": [
+          -0.00369031899539965,
+          0.029500000000000005,
+          -0.035500000000000004
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            5.911062378532621e-09,
+            -1.713488018140197e-22,
+            5.71162672713399e-23
+          ],
+          [
+            -1.713488018140197e-22,
+            3.389947242200585e-07,
+            -4.569301381707192e-22
+          ],
+          [
+            5.71162672713399e-23,
+            -4.569301381707192e-22,
+            3.3899472422005665e-07
+          ]
+        ],
+        "mesh_sha256": "101cd2887302db27824ff7e024a049ba2db1965d0c20cdd80bf4018f04bfe95c",
+        "obj_sha256": "5ddf64802d775995354bfe0d81ba939b830ca9c40a808832ee683318c2542ef0",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 3.6934298440483015e-07
+      },
+      {
+        "name": "magnet",
+        "group": "moving",
+        "material": "nickel_magnet",
+        "display_color_srgb": [
+          0.48,
+          0.5,
+          0.53
+        ],
+        "density_kg_m3_estimate": 7500,
+        "install_default": true,
+        "note": "",
+        "contact_category": "hardware",
+        "npz": "components/magnet.npz",
+        "obj": "components/magnet.obj",
+        "vertices": 506,
+        "triangles": 500,
+        "bbox_m": {
+          "min": [
+            0.0225,
+            -0.0185,
+            -0.022350000000000002
+          ],
+          "max": [
+            0.0275,
+            -0.0135,
+            -0.020350000000000004
+          ],
+          "size": [
+            0.005000000000000001,
+            0.004999999999999999,
+            0.0019999999999999983
+          ]
+        },
+        "volume_m3": 3.926990816987243e-08,
+        "solid_count": 1,
+        "mass_kg_estimate": 0.0002945243112740432,
+        "center_of_mass_m_estimate": [
+          0.024999999999999998,
+          -0.016,
+          -0.02135
+        ],
+        "inertia_about_com_kg_m2_estimate": [
+          [
+            5.583690067903718e-10,
+            -1.3642420526593923e-23,
+            -2.7284841053187847e-23
+          ],
+          [
+            -1.3642420526593923e-23,
+            5.583690067904537e-10,
+            1.3642420526593923e-23
+          ],
+          [
+            -2.7284841053187847e-23,
+            1.3642420526593923e-23,
+            9.203884727314108e-10
+          ]
+        ],
+        "mesh_sha256": "339f60c1d5c955fab473036d76afcf1e75d33f312f8cba1b78e8d9d7b6c188b6",
+        "obj_sha256": "cd7be01f727867f20e07c6326876bc3f316bc0f317232d591ef7bc4dbc17ec2a",
+        "decoded_ok": true,
+        "cad_valid": true,
+        "tessellation_bbox_max_error_m": 7.770449979606353e-07
+      }
+    ]
+  },
+  "search_starts": 24,
+  "per_target_seconds": 100,
+  "contact_test": false,
+  "contact_probe": {
+    "reachability": "/home/william/wam-vla-v2/runs/ausc_policy/geometry-5mm-tenpoint-20260930-v2/output/review/reachability.json",
+    "sha256": "27572919be7b491356441658af6d8a853ba23e9adcd33106eb04a3bc2478298e",
+    "target": "R3",
+    "candidate_index": 0,
+    "explicit_passive_preload_N": 1.5
+  },
+  "comparison_note": "Isolated test of declared CAD 1.5 N passive spring preload; actual prior force/Hall residual is ~1.51 N; not real calibration"
+}
