@@ -172,6 +172,22 @@ def test_large_finite_acceleration_estimate_is_not_compared_to_Nm_caps():
     assert 'pd_plus_gravity_estimate_Nm' not in receipt
 
 
+def test_desired_velocity_changes_only_acceleration_diagnostic():
+    robot = Robot(); feedforward = controller(robot)
+    target = robot.q+.001; desired = np.linspace(-.1, .1, 7)
+    _, efforts, receipt = feedforward.prepare(target, desired_velocity=desired)
+    expected = robot.kp[robot.left]*(target-robot.q)+robot.kd[robot.left]*(desired-robot.dq)
+    np.testing.assert_allclose(receipt['pd_acceleration_estimate_rad_s2'], expected)
+    assert receipt['desired_velocity_rad_s'] == desired.tolist()
+    assert receipt['desired_velocity_source'] == 'explicit_joint_velocity_target'
+    np.testing.assert_array_equal(efforts, [*robot.gravity[0], -1.5])
+    assert not receipt['total_actuator_torque_validated']
+    assert feedforward.prepare(target)[2]['desired_velocity_rad_s'] == [0.]*7
+    for bad in (np.full(7, np.nan), np.zeros(6), ['0']*7):
+        with pytest.raises(module().GravityFeedforwardRejected):
+            feedforward.prepare(target, desired_velocity=bad)
+
+
 @pytest.mark.parametrize('mode', ['force', '', None, 'unknown'])
 def test_explicit_variant_rejects_non_acceleration_mode_and_preserves_partial_receipt(mode):
     robot = Robot(); feedforward = controller(robot)

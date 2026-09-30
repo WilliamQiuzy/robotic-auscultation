@@ -113,18 +113,21 @@ class NativeGravityFeedforward:
         self.slider = int(slider)
         self.indices = np.r_[self.left, self.slider]
 
-    def prepare(self, q_target):
+    def prepare(self, q_target, desired_velocity=None):
         """Require acceleration drives; bound native gravity independently."""
         receipt = dict(schema='native_acceleration_drive_gravity_v2',
             enabled=True, source=SOURCE, learned_policy=False,
             real_hardware_validated=False, training_eligible=False,
             left_joint_indices=self.left.tolist(), slider_joint_index=self.slider,
             q_target_rad=None, q_rad=None, dq_rad_s=None, kp=None, kd=None,
+            desired_velocity_rad_s=None,
+            desired_velocity_source=('default_stationary_zero' if desired_velocity is None else
+                                     'explicit_joint_velocity_target'),
             effort_limits_Nm=None, gravity_efforts_Nm=None,
             drive_mode_bindings=None, required_drive_mode='acceleration',
             pd_acceleration_estimate_rad_s2=None, pd_estimate_units='rad/s^2',
             pd_estimate_is_measured_acceleration=False,
-            pd_estimate_assumption='kp*(q_target-q)-kd*dq; zero desired velocity',
+            pd_estimate_assumption='kp*(q_target-q)+kd*(desired_velocity-dq)',
             total_actuator_torque_validated=False,
             implicit_drive_max_force_unchanged=True, external_gravity_effort_separately_bounded=True,
             torque_validation_scope='native implicit-drive maxForce unchanged; external G independently bounded; combined total not bounded by this diagnostic',
@@ -144,6 +147,8 @@ class NativeGravityFeedforward:
             return result
         try:
             target = read('q_target_rad', lambda: q_target, (7,))
+            velocity = read('desired_velocity_rad_s',
+                            lambda: np.zeros(7) if desired_velocity is None else desired_velocity, (7,))
             q = read('q_rad', lambda: self.robot.get_joint_positions(joint_indices=self.left), (7,))
             dq = read('dq_rad_s', lambda: self.robot.get_joint_velocities(joint_indices=self.left), (7,))
             receipt['preparation_stage'] = 'existing_gains'
@@ -178,7 +183,9 @@ class NativeGravityFeedforward:
                 if binding.get('drive_type') != 'acceleration':
                     raise ValueError('Gravity feedforward variant requires existing acceleration drives')
             with np.errstate(over='ignore', invalid='ignore'):
-                read('pd_acceleration_estimate_rad_s2', lambda: kp*(target-q)-kd*dq, (7,))
+                read('pd_acceleration_estimate_rad_s2', lambda: kp*(target-q)+kd*(velocity-dq), (7,))
+                read('pd_zero_velocity_estimate_rad_s2', lambda: kp*(target-q)-kd*dq, (7,))
+                read('desired_velocity_pd_difference_rad_s2', lambda: kd*velocity, (7,))
             view = self.robot._articulation_view
             gravity = read('gravity_efforts_Nm',
                 lambda: view.get_generalized_gravity_forces(joint_indices=self.left), (1, 7))[0]

@@ -18,10 +18,11 @@ from .edge_timing import checked_edge_commands
 from .expert_capture import ExpertCapture, capture_settings, checked_render, controller_labels
 from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
                                  gravity_feedforward_settings, read_native_angular_drive_modes)
+from .velocity_feedforward import NativeVelocityFeedforward, velocity_feedforward_settings
 from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
                              require_geometry_artifacts, qualify_contact)
 from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS, EpisodeRejected
-from sim.auscultation_expert_layout_v1.env import IsaacContactEnv
+from sim.auscultation_expert_layout_v1.env import DT, IsaacContactEnv
 from sim.auscultation_expert_layout_v1.targets import Target, _base_transform
 from sim.auscultation_expert_layout_v1.posture import PostureLimits
 from sim.auscultation_skill_v1.controller import ExpertController as SkillExpert
@@ -101,6 +102,7 @@ def read_plans(config, geometry, kin):
     require_current(config)
     requested = config['fresh_expert']
     gravity_feedforward_settings(requested)
+    velocity_feedforward_settings(requested)
     passive_effort(0, requested.get('passive_preload_N'))
     bindings = requested.get('plans')
     if not isinstance(bindings, list) or not bindings:
@@ -423,6 +425,12 @@ class FreshExpert(SkillExpert):
 
 class FreshContactEnv(IsaacContactEnv):
     def step(self,q_target,label='',target='',meta=None):
+        velocity=getattr(self,'velocity_feedforward',None)
+        if velocity is None:return self._position_step(q_target,label,target,meta)
+        with velocity.command(self,q_target,label,target,meta) as receipt:
+            return self._position_step(q_target,label,target,dict(meta or {},velocity_feedforward=receipt))
+
+    def _position_step(self,q_target,label='',target='',meta=None):
         from isaacsim.core.utils.types import ArticulationAction
         indices,efforts=passive_effort(self.slider,self.passive_preload_N)
         feedforward=getattr(self,'gravity_feedforward',None)
@@ -431,7 +439,9 @@ class FreshContactEnv(IsaacContactEnv):
         if feedforward is not None:
             rows_before=len(self.rows)
             try:
-                indices,efforts,receipt=feedforward.prepare(q_target)
+                desired=(metadata.get('velocity_feedforward') or {}).get('velocity_target_rad_s')
+                indices,efforts,receipt=(feedforward.prepare(q_target) if desired is None else
+                    feedforward.prepare(q_target,desired_velocity=desired))
             except GravityFeedforwardRejected as error:
                 # A rejected preparation advances no physics. Preserve it in
                 # an independent ledger, never by inventing an executed row.
@@ -553,6 +563,11 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
             if capture is None and not isinstance(caught,Exception):raise
             errors.append(dict(stage=label,error=repr(caught)))
             return None
+    if env is not None and getattr(env,'velocity_feedforward',None) is not None:
+        attempt('velocity_feedforward_reset',lambda:env.velocity_feedforward.reset(env))
+        attempt('velocity_feedforward_reset_save',lambda:_write(
+            output/'fresh_expert_velocity_feedforward_reset.json',
+            getattr(env,'velocity_feedforward_reset_receipt',None)))
     if capture is not None:attempt('raw_capture_finalize',lambda:capture.close(error))
     if env is not None:
         if capture is not None:attempt('raw_capture_hook_detach',lambda:setattr(env,'raw_capture',None))
@@ -565,6 +580,10 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
             attempt('gravity_feedforward_failure_save',lambda:_write(
                 output/'fresh_expert_gravity_feedforward_failures.json',
                 env.gravity_feedforward_failure_receipts))
+        if hasattr(env,'velocity_feedforward_failure_receipts'):
+            attempt('velocity_feedforward_failure_save',lambda:_write(
+                output/'fresh_expert_velocity_feedforward_failures.json',
+                env.velocity_feedforward_failure_receipts))
     if controller is not None:
         def save_controls():
             with (output/'fresh_expert_control.jsonl').open('w') as stream:
@@ -592,6 +611,7 @@ def run_probe(app,stage,output,config,mass):
     if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':
         raise RuntimeError('Owned Linux Isaac runtime required')
     feedforward_settings=gravity_feedforward_settings(config['fresh_expert'])
+    velocity_settings=velocity_feedforward_settings(config['fresh_expert'])
     raw_settings=capture_settings(config['fresh_expert'])
     output=Path(output);kin=OpenArmKinematics(contact_frame=contact_frame)
     points,metadata=read_plans(config,output/'geometry',kin)
@@ -606,7 +626,8 @@ def run_probe(app,stage,output,config,mass):
         (snapshot/(str(index).zfill(2)+'_'+binding['name']+'.json')).write_bytes(data)
     source_paths=[Path(__file__),Path(__file__).with_name('edge_timing.py'),
                   Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py'),
-                  Path(__file__).with_name('gravity_feedforward.py')]
+                  Path(__file__).with_name('gravity_feedforward.py'),
+                  Path(__file__).with_name('velocity_feedforward.py')]
     import inspect
     from sim.auscultation_skill_v1 import curve,executor
     from sim.curobo_expert_v1 import static_world
@@ -633,6 +654,8 @@ def run_probe(app,stage,output,config,mass):
         env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
                             contact_offset_m=.132,moving_mass_kg=mass_kg)
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
+        if velocity_settings is not None and velocity_settings['enabled']:
+            env.velocity_feedforward=NativeVelocityFeedforward(env.robot,env.left,physics_dt=DT)
         if feedforward_settings is not None and feedforward_settings['enabled']:
             env.gravity_feedforward=NativeGravityFeedforward(env.robot,env.left,env.slider,
                 drive_mode_provider=lambda:read_native_angular_drive_modes(env.stage,env.robot,env.left))
@@ -698,6 +721,19 @@ def run_probe(app,stage,output,config,mass):
             historical_units_correction='v1 PD-as-Nm and PD-plus-G-as-Nm fields/gate invalid for acceleration drives; removed',
             learned_policy=False,
             real_hardware_validated=False,training_eligible=False)
+    if velocity_settings is not None:
+        result['velocity_feedforward']=dict(velocity_settings,
+            schema='native_joint_velocity_target_v1',
+            source='adjacent executed position commands / unchanged physics dt',
+            native_api='ArticulationAction joint_positions + joint_velocities; native applied-action target readback',
+            first_command='explicit stationary zero',stationary_hold='zero; moving force corrections retain derivative',
+            position_commands_gains_effort_caps_gravity='unchanged',
+            joint_velocity_limit_rad_s=.175,learned_policy=False,
+            real_hardware_validated=False,training_eligible=False)
+        result['velocity_feedforward_failure_receipts']=deepcopy(
+            getattr(env,'velocity_feedforward_failure_receipts',[]))
+        result['velocity_feedforward_reset_receipt']=deepcopy(
+            getattr(env,'velocity_feedforward_reset_receipt',None))
     if env is not None:
         try:result['trace_sha256']=_sha(env.out/'fresh_expert_trace.jsonl')
         except Exception as error:errors.append(dict(stage='trace_hash',error=repr(error)))
