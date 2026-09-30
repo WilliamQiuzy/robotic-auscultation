@@ -1,0 +1,432 @@
+"""Actual home-to-home expert mechanics on hash-bound current 5 mm geometry.
+
+The planner's paths are proposals. Every commanded free sample is checked again,
+contact runs the Hall feedback controller, and physical acceptance uses the actual
+membrane impulses independently. No raw multimodal training dataset is produced.
+Imports are safe on the development Mac; only run_probe imports Isaac/Replicator.
+"""
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import Path
+import subprocess
+import time
+
+import numpy as np
+
+from .edge_timing import checked_edge_commands
+from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
+                             require_geometry_artifacts, qualify_contact)
+from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS, EpisodeRejected
+from sim.auscultation_expert_layout_v1.env import IsaacContactEnv
+from sim.auscultation_expert_layout_v1.targets import Target, _base_transform
+from sim.auscultation_expert_layout_v1.posture import PostureLimits
+from sim.auscultation_skill_v1.controller import ExpertController as SkillExpert
+
+
+FORBIDDEN = ('lip', 'contact_rim', 'carriage_other', 'frame', 'forbidden')
+
+
+def _sha(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def _write(path, data):
+    Path(path).write_text(json.dumps(data, indent=2, allow_nan=False)+'\n')
+
+
+def passive_effort(slider, preload):
+    """Positive slider means compression; preload pushes outward continuously."""
+    if (isinstance(preload, (bool, np.bool_)) or not np.isscalar(preload)
+            or not np.isfinite(preload) or float(preload) != 1.5
+            or isinstance(slider, (bool, np.bool_))
+            or not isinstance(slider, (int, np.integer)) or slider < 0):
+        raise ValueError('Fresh mechanics requires explicit nominal 1.5 N passive preload')
+    return np.array([slider], dtype=int), np.array([-float(preload)])
+
+
+def _vector(value, shape, label):
+    result = np.asarray(value, float)
+    if result.shape != shape or not np.isfinite(result).all():
+        raise ValueError('Invalid '+label)
+    return result
+
+
+def _route(value, label):
+    result = np.asarray(value, float)
+    if result.ndim != 2 or result.shape[1:] != (7,) or len(result) < 2 or not np.isfinite(result).all():
+        raise ValueError('Invalid '+label)
+    return result
+
+
+def read_plans(config, geometry, kin):
+    """Verify exact new plan bytes, collider bytes, safety profile and FK identity.
+
+    A loaded fit may have an explicit gap along the *raw* surface normal. The
+    raw task point remains unchanged; the fitted command normal is separately
+    recorded and is the existing five-degree orientation-tracking reference.
+    """
+    require_current(config)
+    requested = config['fresh_expert']
+    passive_effort(0, requested.get('passive_preload_N'))
+    bindings = requested.get('plans')
+    if not isinstance(bindings, list) or not bindings:
+        raise ValueError('Fresh plan bindings are required')
+    reference_limits = PostureLimits.from_dict(config['posture_limits'], kin).to_dict()
+    records=[]; points=[]; base=None; seen=set(); geometry_meta=None
+    for binding in bindings:
+        path = Path(binding['file']); data = path.read_bytes()
+        actual = hashlib.sha256(data).hexdigest()
+        if actual != binding.get('sha256'):
+            raise ValueError('Fresh plan bytes changed: '+str(path))
+        row = json.loads(data); require_current(row)
+        metadata = {**row, **row.get('geometry_artifacts', {})}
+        artifacts = require_geometry_artifacts(geometry, metadata)
+        if geometry_meta is not None and artifacts != geometry_meta['geometry_artifacts']:
+            raise ValueError('Plan sequence geometry differs')
+        geometry_meta = dict(geometry_id=row['geometry_id'], freshly_generated=True,
+                            geometry_source_sha256=row['geometry_source_sha256'],
+                            geometry_artifacts=artifacts)
+        current_base = _base_transform(row['world_from_left_base'])
+        if base is not None and not np.allclose(current_base, base, rtol=0, atol=1e-9):
+            raise ValueError('Plan sequence robot base differs')
+        base=current_base
+        name=row.get('name')
+        if name not in [s+str(i) for s in 'LR' for i in range(1,6)] or name in seen:
+            raise ValueError('Unknown or duplicate target')
+        seen.add(name)
+        if row.get('success') is not True:
+            raise ValueError('Fresh plan has no complete checked free route')
+        limits = PostureLimits.from_dict(row['posture_limits'], kin).to_dict()
+        if limits != reference_limits:
+            raise ValueError('Plan safety posture differs from runtime configuration')
+        target = _vector(row['position_world'], (3,), 'surface target')
+        raw_normal = _vector(row['normal_world'], (3,), 'surface normal')
+        normal = _vector(row['command_normal_world'], (3,), 'command normal')
+        rotation = _vector(row['command_rotation_world'], (3,3), 'command rotation')
+        if (not np.isclose(np.linalg.norm(raw_normal),1.,atol=1e-6,rtol=0)
+                or not np.isclose(np.linalg.norm(normal),1.,atol=1e-6,rtol=0)
+                or not np.allclose(rotation.T@rotation,np.eye(3),atol=1e-6,rtol=0)
+                or not np.isclose(np.linalg.det(rotation),1.,atol=1e-6,rtol=0)
+                or not np.allclose(rotation[:,2],-normal,atol=1e-6,rtol=0)):
+            raise ValueError('Invalid fitted contact frame')
+        compression=float(row['loaded_compression_m']); gap=float(row['free_approach_start_gap_m'])
+        fitted_gap=float(row['expected_contact_gap_m'])
+        if (not np.isfinite([compression,gap,fitted_gap]).all()
+                or not 0 < compression <= .005 or not .025 <= gap <= .06
+                or not 0 <= fitted_gap < .015):
+            raise ValueError('Unsupported contact or free domain')
+        center = _vector(row['expected_contact_center_world'],(3,),'fitted center')
+        if not np.allclose(center, target+raw_normal*fitted_gap, atol=1e-9, rtol=0):
+            raise ValueError('Fitted center changed the source target or fit gap')
+        transfer=_route(row['transfer_q'],'home transfer'); approach=_route(row['approach_q'],'free approach')
+        loaded=_vector(row['loaded_q'],(7,),'loaded joint pose')
+        staging=_vector(row['lower_staging_q'],(7,),'lower staging joint pose')
+        matches=np.flatnonzero(np.all(np.isclose(transfer,staging,atol=1e-9,rtol=0),axis=1))
+        if (not np.allclose(transfer[0],0.,atol=1e-9,rtol=0)
+                or not np.allclose(transfer[-1],approach[0],atol=1e-9,rtol=0)
+                or len(matches)!=1 or not 0<matches[0]<len(transfer)-1):
+            raise ValueError('Disconnected home/approach route or missing unique lower stage')
+        if (row.get('geometric_clearance_m') != .003
+                or row.get('loaded_noncontact_clearance_m') != .0003
+                or not 0 < row.get('joint_edge_sample_step_rad',1) <= .015):
+            raise ValueError('Planner clearance criteria differ')
+        for q,c,expected,label in ((transfer[-1],0.,target+normal*gap,'prepose'),
+                                  (loaded,compression,center,'loaded')):
+            pose=base@kin.tcp(q,c)
+            if (np.linalg.norm(pose[:3,3]-expected)>3e-5
+                    or np.linalg.norm(pose[:3,:3]-rotation)>4e-4):
+                raise ValueError('Fresh '+label+' FK identity differs from 132 mm TCP')
+        provenance=dict(plan_file=str(path),plan_sha256=actual,geometry_artifacts=artifacts,
+                        target_definition='unchanged fresh surface point',
+                        fitted_normal_deviation_deg=float(np.rad2deg(np.arccos(np.clip(normal@raw_normal,-1.,1.)))))
+        points.append((Target(name,target.copy(),raw_normal.copy(),base[:3,:3].T@(target-base[:3,3]),
+                              base[:3,:3].T@raw_normal,provenance),row))
+        records.append(dict(file=str(path),sha256=actual,name=name))
+    return points, dict(**geometry_meta,world_from_left_base=base.tolist(),plans=records)
+
+
+class FreshExpert(SkillExpert):
+    """Retain the original contact executor; use stop-at-waypoint free timing."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, speed_scale=.7,
+            executor_config=dict(joint_velocity_limit_rad_s=.175), **kwargs)
+        # .25*.7 is mathematically .175 but retain the explicit contract value.
+        self.joint_speed_limit=.175
+
+    def _continuous_path(self, route, subphase):
+        route=_route(route,'free route')
+        if not np.allclose(route[0],self.q,rtol=0,atol=1e-9):
+            raise EpisodeRejected('free route disconnected from retained command')
+        commands,report=checked_edge_commands(route,maximum_seconds=300.)
+        started=time.monotonic(); deadline=started+max(180.,min(1200.,30.+.02*len(commands)))
+        for index,command in enumerate(commands):
+            if time.monotonic()>deadline:
+                raise EpisodeRejected('free command verification deadline at '+str(index))
+            checked=self.checker.check(command,clearance=.003,allow_patient_contact=False,compression=0.)
+            distance=float(checked.get('minimum_distance_m',float('nan')))
+            if checked.get('clear') is not True or not np.isfinite(distance) or distance < .003-1e-9:
+                raise EpisodeRejected('free command failed mesh/posture check: '+str(checked))
+        self.free_collision_samples+=len(commands)
+        report.update(subphase=subphase,target=self.target.name,start_physics_row=len(self.env.rows),
+                      motion_complete=False,all_240hz_commands_mesh_checked=True,
+                      collision_verification_samples=len(commands),
+                      collision_verification_seconds=time.monotonic()-started)
+        self.free_motion_timing.append(report)
+        try:
+            for index in range(0,len(commands),CONTROL_STEPS):
+                self._block(commands[index:index+CONTROL_STEPS],subphase)
+            report['motion_complete']=True
+        finally:
+            report['end_physics_row_exclusive']=len(self.env.rows)
+
+    def _violations(self, state):
+        violations,total=super()._violations(state)
+        for group in FORBIDDEN:
+            force=float(self.env.last_contacts.get(group,0.))
+            if not np.isfinite(force) or force!=0.:
+                violations.append('strict membrane-only physical contact: '+group)
+        return violations,total
+
+    def run(self,points):
+        outcome=super().run(points)
+        # Parent acceptance belongs to its older episode-data contract. These
+        # traces deliberately lack synchronized RGB-D/ADC training observations.
+        outcome['training_accepted']=False
+        for row in [*self.env.rows,*self.control_rows,*outcome.get('points',[])]:
+            row['training_accepted']=False
+        outcome.update(executed_controller_class=__name__+'.FreshExpert',
+            candidate_method=__name__+'.FreshExpert',
+            candidate_timing='each retained free edge uses quintic time, with a stationary waypoint; contact uses bounded normal executor',
+            free_motion_command_bounds=dict(joint_velocity_rad_s=.175,joint_acceleration_rad_s2=.5,
+                                            joint_jerk_rad_s3=1.5),
+            training_eligible=False,learned_policy=False,
+            scope='Fresh full-route expert mechanics diagnostic; no raw multimodal training dataset')
+        return outcome
+
+
+class FreshContactEnv(IsaacContactEnv):
+    def step(self,q_target,label='',target='',meta=None):
+        from isaacsim.core.utils.types import ArticulationAction
+        indices,efforts=passive_effort(self.slider,self.passive_preload_N)
+        self.robot.apply_action(ArticulationAction(joint_efforts=efforts,joint_indices=indices))
+        state=super().step(q_target,label,target,dict(meta or {},
+            explicit_passive_preload_N=self.passive_preload_N,training_eligible=False))
+        if self.video_recorder is not None:
+            self.video_recorder.after_step()
+        return state
+
+
+def audit_physics(outcome,rows):
+    """Each target must independently complete ≥3 s of actual membrane load."""
+    result=deepcopy(outcome)
+    result['training_accepted']=result['training_eligible']=False
+    valid=bool(result.get('success') and result.get('points'))
+    for point in result.get('points',[]):
+        start=point.get('start_physics_row');end=point.get('end_physics_row')
+        if (not isinstance(start,int) or not isinstance(end,int) or not 0<=start<end<=len(rows)
+                or any(row.get('target')!=point.get('target') for row in rows[start:end])):
+            audit=dict(passed=False,reason='missing or inconsistent per-point physics range')
+        else:
+            try:
+                audit=qualify_contact(rows[start:end])
+            except (KeyError, ValueError, TypeError):
+                audit=dict(passed=False,reason='missing or malformed physical contact samples')
+        point['force_audit']=audit;point['training_accepted']=False
+        valid=bool(valid and point.get('success') and audit['passed'])
+    for row in rows: row['training_accepted']=False
+    result['controller_motion_complete']=bool(outcome.get('success'))
+    result['success']=result['physical_validation']=valid
+    return result
+
+
+class _VideoRecorder:
+    """Stream actual fixed-camera frames, with their authoritative physics indices."""
+    def __init__(self,env,output):
+        import omni.replicator.core as rep
+        self.env=env;self.output=Path(output);self.frames=[]
+        self.product=rep.create.render_product('/World/RobotCam',(640,360))
+        self.annotator=rep.AnnotatorRegistry.get_annotator('rgb')
+        self.annotator.attach([self.product])
+        # Rendering warmup advances no physics and never moves any joint.
+        for _ in range(3): env.world.render()
+        self.stderr=(self.output/'video_encoder.log').open('wb')
+        self.process=subprocess.Popen(['ffmpeg','-y','-loglevel','error','-f','rawvideo',
+            '-pix_fmt','rgb24','-s','640x360','-r','10','-i','-','-an','-c:v','libx264',
+            '-pix_fmt','yuv420p',str(self.output/'actual_fresh_expert.mp4')],
+            stdin=subprocess.PIPE,stdout=subprocess.DEVNULL,stderr=self.stderr)
+
+    def after_step(self):
+        if len(self.env.rows)%24: return
+        self.env.world.render()
+        image=np.asarray(self.annotator.get_data())
+        if image.shape!=(360,640,4) or image.dtype!=np.uint8:
+            raise RuntimeError('Missing fixed-camera RGB render at requested physics frame')
+        self.process.stdin.write(np.ascontiguousarray(image[:,:,:3]).tobytes())
+        self.frames.append(dict(video_frame=len(self.frames),physics_row=len(self.env.rows)-1,
+                                time_s=float(self.env.rows[-1]['time_s'])))
+
+    def close(self):
+        errors=[];code=None
+        def attempt(label,operation):
+            try:return operation()
+            except Exception as error:
+                errors.append(label+': '+repr(error))
+                return None
+        attempt('stdin_close',self.process.stdin.close)
+        try:code=self.process.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            attempt('encoder_kill',self.process.kill)
+            attempt('encoder_reap',lambda:self.process.wait(timeout=5))
+            errors.append('encoder timed out')
+        except Exception as error:errors.append('encoder_wait: '+repr(error))
+        # Releasing Replicator resources and preserving the frame index are
+        # independent of ffmpeg or its stderr stream successfully closing.
+        attempt('stderr_close',self.stderr.close)
+        attempt('annotator_detach',self.annotator.detach)
+        attempt('render_product_destroy',self.product.destroy)
+        attempt('frame_index_save',lambda:_write(self.output/'video_frames.json',self.frames))
+        if code!=0 or not self.frames:errors.append('encoding failed or no frames captured')
+        if errors:raise RuntimeError('; '.join(errors))
+        return dict(file=str(self.output/'actual_fresh_expert.mp4'),frames=len(self.frames),fps=10,
+                    width=640,height=360,camera='/World/RobotCam')
+
+
+
+def finalize_probe(env,controller,recorder,output):
+    """Attempt every independent preservation/release operation after a failure.
+
+    An encoder must close and the physics world must stop even when a disk write
+    or strict JSON serialization fails. Return all errors to revoke acceptance.
+    """
+    errors=[];video=None;output=Path(output)
+    def attempt(label,operation):
+        try:return operation()
+        except Exception as error:
+            errors.append(dict(stage=label,error=repr(error)))
+            return None
+    if env is not None:
+        attempt('video_hook_detach',lambda:setattr(env,'video_recorder',None))
+        def save_trace():
+            for row in env.rows:row['training_accepted']=False
+            env.save('fresh_expert')
+        attempt('trace_save',save_trace)
+    if controller is not None:
+        def save_controls():
+            with (output/'fresh_expert_control.jsonl').open('w') as stream:
+                for row in controller.control_rows:
+                    row['training_accepted']=False
+                    stream.write(json.dumps(row,allow_nan=False)+'\n')
+        attempt('control_save',save_controls)
+        attempt('diagnostics_save',lambda:_write(output/'fresh_expert_controller_diagnostics.json',dict(
+            contact_curves=getattr(controller,'contact_curves',[]),
+            free_motion_timing=getattr(controller,'free_motion_timing',[]),
+            inter_point_routes=getattr(controller,'inter_point_routes',[]))))
+    if recorder is not None:video=attempt('video_finalize',lambda:recorder.close())
+    if env is not None:attempt('world_stop',lambda:env.world.stop())
+    return video,errors
+
+
+def run_probe(app,stage,output,config,mass):
+    """Called only by the owned Linux geometry-qualification Isaac worker."""
+    from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
+    from .contact_collision import ContactCollisionChecker
+    import os,sys
+    if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':
+        raise RuntimeError('Owned Linux Isaac runtime required')
+    output=Path(output);kin=OpenArmKinematics(contact_frame=contact_frame)
+    points,metadata=read_plans(config,output/'geometry',kin)
+    base=np.asarray(metadata['world_from_left_base'])
+    current={**metadata,**metadata['geometry_artifacts']}
+    checker=ContactCollisionChecker(kin,base,output/'geometry',current)
+    snapshot=output/'fresh_expert_inputs';snapshot.mkdir(exist_ok=False)
+    for index,binding in enumerate(metadata['plans']):
+        data=Path(binding['file']).read_bytes()
+        if hashlib.sha256(data).hexdigest()!=binding['sha256']:
+            raise ValueError('Fresh plan changed before scene initialization')
+        (snapshot/(str(index).zfill(2)+'_'+binding['name']+'.json')).write_bytes(data)
+    source_paths=[Path(__file__),Path(__file__).with_name('edge_timing.py'),
+                  Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py')]
+    import inspect
+    from sim.auscultation_skill_v1 import curve,executor
+    from sim.curobo_expert_v1 import static_world
+    from sim.auscultation_expert_layout_v1.kinematics import DEFAULT_URDF_PATH
+    source_objects=[IsaacContactEnv,OpenArmKinematics,PostureLimits,curve,executor,static_world]
+    source_objects += [cls for cls in SkillExpert.__mro__ if cls.__module__.startswith('sim.')]
+    source_paths += [Path(inspect.getfile(value)) for value in source_objects]+[Path(DEFAULT_URDF_PATH)]
+    source_hashes={str(path):_sha(path) for path in source_paths}
+    metadata['runtime_sources_sha256']=source_hashes
+    _write(snapshot/'manifest.json',metadata)
+    _write(snapshot/'runtime_config.json',config)
+    _write(snapshot/'current_mass_estimate.json',mass)
+    mass_kg=float(mass['mass_kg'])
+    if not np.isfinite(mass_kg) or mass_kg<=0:raise ValueError('Invalid current moving mass')
+    def factory(destination):
+        stage.GetRootLayer().Export(str(destination));return stage
+    env=None;controller=None;recorder=None;video=None
+    outcome=dict(success=False,points=[],training_accepted=False)
+    errors=[]
+    try:
+        env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
+                            contact_offset_m=.132,moving_mass_kg=mass_kg)
+        env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
+        if not np.allclose(env.base,base,atol=1e-7,rtol=0):raise ValueError('Actual robot base differs from fresh plan')
+        # No joint setter, teleport, or contact-pose reset. The asset home state
+        # must be dynamically followed through the complete canonical route.
+        if np.max(np.abs(env.state()['q']))>.03:raise ValueError('Scene does not start at original home')
+        recorder=_VideoRecorder(env,output);env.video_recorder=recorder
+        controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
+                               static_geometry_dir=output/'geometry')
+        outcome=controller.run(points)
+    except Exception as error:
+        import traceback
+        errors.append(dict(stage='execution',error=repr(error)))
+        try:(output/'fresh_expert_failure.txt').write_text(traceback.format_exc())
+        except Exception as write_error:
+            errors.append(dict(stage='failure_text_save',error=repr(write_error)))
+    finally:
+        video,cleanup_errors=finalize_probe(env,controller,recorder,output)
+        errors.extend(cleanup_errors)
+    rows=[] if env is None else env.rows
+    try:result=audit_physics(outcome,rows)
+    except Exception as error:
+        errors.append(dict(stage='physics_audit',error=repr(error)))
+        result=dict(success=False,physical_validation=False,training_accepted=False,points=[])
+    if not result['physical_validation']:
+        result.setdefault('failure_reason','actual per-point membrane contact/withdrawal qualification failed')
+    result.update(geometry_id=GEOMETRY_ID,geometry_source_sha256=config['geometry_source_sha256'],
+                  geometry_artifacts=metadata['geometry_artifacts'],plan_bindings=metadata['plans'],
+                  explicit_passive_preload_N=1.5,moving_mass_kg=mass_kg,
+                  diagnostic_completed=True,physics_steps=len(rows),video=video,learned_policy=False,
+                  training_eligible=False,raw_multimodal_training_capture=False,
+                  scope='Actual new-geometry complete home/staging/contact/withdrawal expert mechanics; no model or generalization claim')
+    if env is not None:
+        try:result['trace_sha256']=_sha(env.out/'fresh_expert_trace.jsonl')
+        except Exception as error:errors.append(dict(stage='trace_hash',error=repr(error)))
+    # Post-run fingerprints are individually protected too: a missing trace or
+    # replaced source file must not discard the other diagnostic errors.
+    for binding in metadata['plans']:
+        try:
+            if _sha(binding['file'])!=binding['sha256']:
+                raise ValueError('plan source changed during experiment: '+binding['file'])
+        except Exception as error:errors.append(dict(stage='plan_fingerprint',error=repr(error)))
+    result['runtime_sources_sha256']=source_hashes
+    for path,expected in source_hashes.items():
+        try:
+            if _sha(path)!=expected:raise ValueError('runtime source changed during experiment: '+path)
+        except Exception as error:errors.append(dict(stage='source_fingerprint',error=repr(error)))
+    try:require_geometry_artifacts(output/'geometry',current)
+    except Exception as error:errors.append(dict(stage='geometry_fingerprint',error=repr(error)))
+    result['errors']=errors
+    if errors:
+        result.update(success=False,physical_validation=False,
+            failure_reason='; '.join(error['stage']+': '+error['error'] for error in errors))
+    try:_write(output/'fresh_expert_result.json',result)
+    except Exception as error:
+        errors.append(dict(stage='result_save',error=repr(error)))
+        result.update(success=False,physical_validation=False,
+            failure_reason='; '.join(item['stage']+': '+item['error'] for item in errors))
+        # The owner still receives a failed receipt even if this artifact cannot
+        # be written. All release operations have already been attempted.
+        print('FRESH_EXPERT_RESULT_SAVE_FAILED',repr(error),flush=True)
+    return result

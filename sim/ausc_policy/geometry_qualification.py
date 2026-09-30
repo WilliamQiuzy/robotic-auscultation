@@ -160,11 +160,28 @@ def main():
         from .geometry_export import export_geometry
         from sim.auscultation_repair_v3.physics_profile import PhysicsProfile,apply_profile
         stage=Usd.Stage.Open(str(source));stage=Usd.Stage.Open(stage.Flatten())
+        patient=None
+        if config.get('patient_asset'):
+            from .patient_scene import install_patient
+            patient=install_patient(stage,config['patient_asset'])
+            write(args.output/'patient_receipt.json',patient)
         mass=moving_inertia(stage,config['component_priors']);write(args.output/'mass_estimates.json',mass)
         profile=apply_profile(stage,PhysicsProfile(**config['physics']));write(args.output/'physics_profile.json',profile)
         stage.GetRootLayer().customLayerData=dict(stage.GetRootLayer().customLayerData,wamGeometryVersion=GEOMETRY_ID)
         filename=args.output/'candidate_physics.usdc';stage.GetRootLayer().Export(str(filename))
         entries=export_geometry(stage,args.output/'geometry')
+        if config.get('patient_preview'):
+            if patient is None:raise ValueError('Patient preview requires explicit new asset')
+            from .patient_scene import render_preview
+            preview=render_preview(app,filename,args.output,patient)
+            write(args.output/'COMPLETE.json',dict(completed=True,patient=patient,preview=preview,
+                physical_validation=False,training_eligible=False))
+            return
+        if config.get('fresh_expert'):
+            from .fresh_expert import run_probe
+            result=run_probe(app,stage,args.output,config,mass)
+            write(args.output/'COMPLETE.json',result)
+            return
         if config.get('contact_probe'):
             from .geometry_contact_probe import run_probe
             result=run_probe(app,stage,args.output,config,mass)
