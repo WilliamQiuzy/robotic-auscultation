@@ -10,6 +10,12 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/retainer-r3-contact.mp4': 'results/ausc_policy/retainer_r3_contact_v2/output/review/actual_fresh_expert.mp4',
+    '/media/retainer-r3-contact-poster.png': 'results/ausc_policy/retainer_r3_contact_v2/output/review/contact_frame.png',
+    '/media/retainer-r3-force.svg': 'results/ausc_policy/retainer_r3_contact_analysis_v2/contact.svg',
+    '/evidence/retainer-r3-force': 'results/ausc_policy/retainer_r3_contact_analysis_v2/summary.json',
+    '/evidence/retainer-preload': 'results/ausc_policy/retainer_r3_contact_analysis_v2/preload_diagnosis.json',
+    '/evidence/retainer-tenpoint': 'results/ausc_policy/retainer_tenpoint_plan_v2/output/review/COMPLETE.json',
     '/media/retainer-recess-oblique.png': 'results/ausc_policy/retainer_geometry_review_v2/output/review/after_oblique.png',
     '/evidence/retainer-contact': 'reports/ausc_policy/retainer_contact_revision_20260930.md',
     '/evidence/retainer-geometry': 'results/ausc_policy/retainer_geometry_review_v2/output/review/COMPLETE.json',
