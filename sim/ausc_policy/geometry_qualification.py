@@ -170,6 +170,11 @@ def main():
         stage.GetRootLayer().customLayerData=dict(stage.GetRootLayer().customLayerData,wamGeometryVersion=GEOMETRY_ID)
         filename=args.output/'candidate_physics.usdc';stage.GetRootLayer().Export(str(filename))
         entries=export_geometry(stage,args.output/'geometry')
+        if config.get('m2_sensor_probe'):
+            from .m2_sensor_probe import run_probe
+            result=run_probe(app,stage,args.output,config,mass)
+            write(args.output/'COMPLETE.json',result)
+            return
         if config.get('patient_preview'):
             if patient is None:raise ValueError('Patient preview requires explicit new asset')
             from .patient_scene import render_preview
