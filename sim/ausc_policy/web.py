@@ -10,6 +10,13 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/evidence/tool-protrusion': 'reports/ausc_policy/tool_protrusion_review.md',
+    '/media/tool-after-oblique.png': 'results/ausc_policy/tool_protrusion_review_v1/review/after_oblique.png',
+    '/media/tool-before-oblique.png': 'results/ausc_policy/tool_protrusion_review_v1/review/before_oblique.png',
+    '/media/tool-after-side.png': 'results/ausc_policy/tool_protrusion_review_v1/review/after_side.png',
+    '/media/tool-before-side.png': 'results/ausc_policy/tool_protrusion_review_v1/review/before_side.png',
+    '/media/tool-after-face.png': 'results/ausc_policy/tool_protrusion_review_v1/review/after_face.png',
+    '/media/tool-after-scene.png': 'results/ausc_policy/tool_protrusion_review_v1/review/after_scene.png',
     '/evidence/redesign-plan': 'docs/superpowers/plans/2026-09-29-ausc-diverse-data-policy-redesign.md',
     '/evidence/pi05-v11-r4': 'results/pi05_v11_delivery/ISAAC_R4_FAILED.md',
     '/evidence/pi05-v12-fit': 'results/diagnostics/pi05_v12_train_fit_terminal_evidence_v1/REPORT.md',
