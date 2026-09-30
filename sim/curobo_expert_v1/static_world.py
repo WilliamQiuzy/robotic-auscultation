@@ -251,8 +251,19 @@ def install_fcl_static_world(checker, bundle, *, geometry_dir=None):
 
 class StaticWorldMonitor:
     def __init__(self, env, checker, bundle=None, *, geometry_dir=None):
-        self.env = env; self.bundle = bundle or build_static_world()
-        self.installation = install_fcl_static_world(checker, self.bundle, geometry_dir=geometry_dir)
+        self.env = env
+        self.bundle = bundle or getattr(checker,'static_bundle',None) or build_static_world()
+        installed=getattr(checker,'static_installation',None)
+        if installed is None:
+            self.installation = install_fcl_static_world(checker, self.bundle, geometry_dir=geometry_dir)
+        else:
+            expected={key:value['sha256'] for key,value in self.bundle['geometry'].items()}
+            if (not getattr(checker,'_static_containment_installed',False)
+                    or installed.get('contract_sha256')!=contract_sha(self.bundle['contract'])
+                    or installed.get('contract_sha256')!=self.bundle['contract_sha256']
+                    or installed.get('geometry_sha256')!=expected):
+                raise ValueError('Preinstalled static world installation differs from runtime bundle')
+            self.installation=installed
         self.bodies = {name: body for name, body in env.bodies if name in self.bundle['contract']['body_reference_poses']}
         self.checked_steps = 0
         self.last_report = None

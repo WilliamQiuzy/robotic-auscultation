@@ -5,19 +5,20 @@ from scipy.interpolate import CubicSpline
 from scipy.spatial.transform import Rotation
 
 
-def force_derived_domain(loaded_gap, loaded_compression, normal_world, target_force_N, reserve_m):
+def force_derived_domain(loaded_gap, loaded_compression, normal_world, target_force_N, reserve_m,
+                         *, moving_mass_kg=.067155):
     """Declare an operating domain from the frozen static Hall model.
 
     The reserve is fixed before geometry verification. It is not a guarantee
     about dynamic force, sensor perturbations, tracking error or actor actions.
     """
     normal = np.asarray(normal_world, float)
-    values = np.asarray([loaded_gap, loaded_compression, target_force_N, reserve_m], float)
+    values = np.asarray([loaded_gap, loaded_compression, target_force_N, reserve_m,moving_mass_kg], float)
     if (normal.shape != (3,) or not np.isfinite(normal).all()
             or abs(np.linalg.norm(normal)-1.) > 1e-6 or not np.isfinite(values).all()
-            or loaded_compression < 0. or target_force_N <= 0. or reserve_m <= 0.):
+            or loaded_compression < 0. or target_force_N <= 0. or reserve_m <= 0. or moving_mass_kg<=0):
         raise ValueError('invalid force-derived curve domain inputs')
-    preload, stiffness, mass, gravity = 1.5, 1000., .067155, 9.81
+    preload, stiffness, mass, gravity = 1.5, 1000., moving_mass_kg, 9.81
     static_compression = (target_force_N-preload-mass*gravity*normal[2])/stiffness
     if static_compression <= 0.:
         raise ValueError('force target has no positive static compression')

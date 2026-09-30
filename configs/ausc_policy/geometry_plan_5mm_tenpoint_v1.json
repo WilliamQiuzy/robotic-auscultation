@@ -1,0 +1,207 @@
+{
+  "base": "/home/william/wam-vla-v2",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "geometry_id": "stethoscope_protruding_5mm_v1",
+  "freshly_generated": true,
+  "geometry_source": "/home/william/wam-vla-v2/runs/ausc_policy/tool-protrusion-5mm-review-20260929-v1/output/review/candidate.usdc",
+  "geometry_source_sha256": "4637a4e7218da2b91ef2688f45f879102a243082d11d709c61a3a953a46d8081",
+  "posture_limits": {
+    "schema": "low_elbow_posture_v1",
+    "elbow_link": "openarm_left_link4",
+    "max_elbow_z_m": 1.451228420583354,
+    "joint_lower_rad": [
+      -2.443460952792061,
+      -2.443460952792061,
+      -1.5184361224401701,
+      0.0,
+      -1.5184361224401701,
+      -0.7330381224401702,
+      -1.5184361224401701
+    ],
+    "joint_upper_rad": [
+      1.2217304763960306,
+      0.12217279564527346,
+      1.5184361224401701,
+      2.3911011224401704,
+      1.5184361224401701,
+      0.7330381224401702,
+      1.5184361224401701
+    ],
+    "observed_joint_tolerance_rad": 0.005,
+    "max_elbow_above_shoulder_m": 0.075,
+    "min_contact_elbow_below_wrist_m": 0.0
+  },
+  "experiment": "m2_geometry_plan",
+  "time_limit_seconds": 7200,
+  "collision_directory": "/home/william/wam-vla-v2/runs/ausc_policy/geometry-5mm-tenpoint-axis-20260930-v1/output/review/geometry",
+  "world_from_left_base": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -3.5745606228321236e-06,
+      0.9999999999936114,
+      0.3309999994933605
+    ],
+    [
+      0.0,
+      -0.9999999999936114,
+      -3.5745606228321236e-06,
+      1.376228643993393
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "loaded_compression_m": 0.0025,
+  "seeds_per_candidate": 4,
+  "per_gap_seconds": 180,
+  "fresh_pre_gap_search_m": [
+    0.04,
+    0.05,
+    0.03
+  ],
+  "targets": [
+    {
+      "name": "R1",
+      "position_world_m": [
+        0.08876974805357968,
+        0.8411655886865055,
+        1.442518362220396
+      ],
+      "normal_world": [
+        -0.012131850842301986,
+        -0.7630422081349718,
+        0.6462347923159557
+      ]
+    },
+    {
+      "name": "L1",
+      "position_world_m": [
+        -0.06179230972007287,
+        0.8439032718777043,
+        1.4477434098674606
+      ],
+      "normal_world": [
+        -0.08873904705528128,
+        -0.8555103884806182,
+        0.5101248442582096
+      ]
+    },
+    {
+      "name": "R2",
+      "position_world_m": [
+        0.05971375953441714,
+        0.8160645224957577,
+        1.3994042234390265
+      ],
+      "normal_world": [
+        0.02453920970426262,
+        -0.8481875554264345,
+        0.5291272984895217
+      ]
+    },
+    {
+      "name": "L2",
+      "position_world_m": [
+        -0.03629637348399506,
+        0.8173084388974059,
+        1.4027704895600754
+      ],
+      "normal_world": [
+        0.025844478772121537,
+        -0.8534299540324897,
+        0.520566399681251
+      ]
+    },
+    {
+      "name": "R3",
+      "position_world_m": [
+        0.051841069816166284,
+        0.8013804941413468,
+        1.3530024228270736
+      ],
+      "normal_world": [
+        -0.0624118227261517,
+        -0.9971920835307245,
+        0.04138493599912947
+      ]
+    },
+    {
+      "name": "L3",
+      "position_world_m": [
+        -0.03244480353865702,
+        0.8048342304564832,
+        1.3550839460758692
+      ],
+      "normal_world": [
+        0.10934262228896119,
+        -0.9854783760239983,
+        0.12990982002942084
+      ]
+    },
+    {
+      "name": "R4",
+      "position_world_m": [
+        0.07645707675068167,
+        0.8035780697378669,
+        1.2948411726646425
+      ],
+      "normal_world": [
+        0.02397840262079152,
+        -0.9903123693190687,
+        -0.1367715152413235
+      ]
+    },
+    {
+      "name": "L4",
+      "position_world_m": [
+        -0.06034262995940057,
+        0.7982599061238943,
+        1.303826980483004
+      ],
+      "normal_world": [
+        -0.0811814110702016,
+        -0.9966693316019969,
+        0.007734464472714513
+      ]
+    },
+    {
+      "name": "R5",
+      "position_world_m": [
+        0.12262060039036077,
+        0.8104974385143989,
+        1.226109919605586
+      ],
+      "normal_world": [
+        0.4246546077308988,
+        -0.9053384683442637,
+        -0.005542731184092793
+      ]
+    },
+    {
+      "name": "L5",
+      "position_world_m": [
+        -0.11038237529034989,
+        0.8018929567253128,
+        1.2431898258020038
+      ],
+      "normal_world": [
+        -0.16254537688453474,
+        -0.9840487315233676,
+        0.07229864757183085
+      ]
+    }
+  ],
+  "collision_geometry_sha256": "067e8bb52aff067b1eac92a16ebd386b1412de43a0cc25d8886a57068b658095",
+  "collision_arrays_sha256": "2b518c8b289a71ea6b241a9d99191ef0affb023babb28e10287a792af91d14a9"
+}

@@ -145,7 +145,8 @@ class ExpertController(ParentController):
         loaded_gap = float((self.kin.tcp(np.asarray(self._point_plan['loaded_q']))[:3, 3]-self.target.position_base) @ self.normal_base)
         loaded_compression = float(self._point_plan['loaded_compression_m'])
         domain = force_derived_domain(loaded_gap, loaded_compression, self.normal,
-                                      self.config.target_force_N, self.executor_config['nominal_compression_reserve_m'])
+                                      self.config.target_force_N, self.executor_config['nominal_compression_reserve_m'],
+                                      moving_mass_kg=getattr(self.env,'moving_mass_kg',.067155))
         center_gap = domain['nominal_contact_center_gap_m']
         def nominal_check(q, gap):
             compression = max(0., center_gap-gap)

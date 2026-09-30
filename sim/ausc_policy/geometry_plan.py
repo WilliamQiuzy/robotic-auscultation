@@ -69,6 +69,11 @@ def main():
                 plans.append(result)
                 write(args.output/(name+'_planning_attempts.json'),plans)
                 if result['success']:break
+                if (result.get('attempts') and
+                        set(result.get('failure_counts',{}))=={'loaded_ik_or_posture'}):
+                    # Pre-gap does not enter loaded IK. Repeating identical
+                    # candidates/seeds at another pre-gap cannot change this.
+                    break
         row=dict(name=name,fit_candidates=len(audit['candidates']),
                  geometry_path_found=any(p['success'] for p in plans),
                  elapsed_s=time.monotonic()-start,physics_executed=False,training_eligible=False)
