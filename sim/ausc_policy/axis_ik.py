@@ -50,14 +50,27 @@ def solve_axis(kin,base,limits,position,axis,seed,*,contact=True,deadline=None,a
 
 
 def solve_contact_region(kin, base, limits, position, axis, seed, *, contact=True,
-                         tangent_limit_m=.002, angle_limit_deg=4.5, deadline=None):
+                         tangent_limit_m=.002, angle_limit_deg=4.5, deadline=None,
+                         compression=0.):
     """Propose a pose inside the existing 3 mm / 5 degree target region.
 
     Target coordinates are never changed. The nominal surface plane is retained;
     the actual residual is reported separately for collision and physics checks.
     Defaults reserve tracking margin inside the original acceptance tolerances.
-    This does not certify finite-head fit or permit motion.
+    The diaphragm TCP is 132 mm minus the explicitly supplied compression,
+    consistently used by FK, Jacobian and posture pose constraints. This does
+    not certify finite-head fit or permit motion.
     """
+    if (not np.isscalar(compression) or isinstance(compression, (bool, np.bool_))
+            or not np.isfinite(compression) or not 0. <= compression <= .006):
+        raise ValueError('Contact-region compression must be finite and in [0, 0.006] m')
+    compression = float(compression)
+    from .geometry_epoch import contact_frame
+    for amount in (0., compression):
+        actual = np.asarray(kin.contact_frame(amount), float)
+        if (actual.shape != (4, 4) or not np.isfinite(actual).all()
+                or not np.allclose(actual, contact_frame(amount), atol=1e-12, rtol=0.)):
+            raise ValueError('Contact-region IK requires the current 132 mm minus compression TCP')
     position, axis, seed = [np.array(x, dtype=float, copy=True) for x in (position, axis, seed)]
     if (position.shape != (3,) or axis.shape != (3,) or seed.shape != (7,)
             or not np.isfinite(np.r_[position, axis, seed]).all()
@@ -68,7 +81,7 @@ def solve_contact_region(kin, base, limits, position, axis, seed, *, contact=Tru
     axis /= np.linalg.norm(axis)
     u = np.cross(axis, np.eye(3)[np.argmin(abs(axis))]); u /= np.linalg.norm(u)
     rotation = np.column_stack([u, np.cross(axis, u), axis])
-    pose = PoseConstraint(kin, base, position, rotation, deadline=deadline)
+    pose = PoseConstraint(kin, base, position, rotation, compression=compression, deadline=deadline)
     lower = np.array(limits.joint_lower_rad, dtype=float)
     upper = np.array(limits.joint_upper_rad, dtype=float)
     if (lower.shape != (7,) or upper.shape != (7,)
@@ -90,7 +103,7 @@ def solve_contact_region(kin, base, limits, position, axis, seed, *, contact=Tru
             raise IKBudgetExpired
         if 'q' in cached and np.array_equal(q, cached['q']): return
         pose.calc(q)
-        tcp = kin.tcp(q); jac = kin.jacobian(q)
+        tcp = kin.tcp(q, compression=compression); jac = kin.jacobian(q, compression=compression)
         residual = tcp[:3,3] - position
         cached.update(q=q.copy(), error=residual, jac=jac, tangent=tangent_projection@residual,
                       axis=tcp[:3,2], dot=float(tcp[:3,2]@axis))
