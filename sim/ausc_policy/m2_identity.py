@@ -8,6 +8,14 @@ import numpy as np
 from .geometry_epoch import require_current
 
 
+def canonical_shape(sequence_shapes):
+    values=np.asarray(sequence_shapes,float)
+    if (values.ndim!=2 or values.shape[1]!=10 or not len(values)
+            or not np.isfinite(values).all() or np.max(np.ptp(values,axis=0))>1e-4):
+        raise ValueError('Inconsistent identity shape; quarantine all its sequences pending review')
+    return np.median(values,axis=0)
+
+
 def identity_split(identities, seed):
     unique=set(identities)
     if not unique or any(not re.fullmatch(r'p\d+', value) for value in unique):
@@ -56,15 +64,24 @@ def main():
     split_sha=hashlib.sha256(encoded).hexdigest()
     (args.output/'identity_split.json').write_bytes(encoded)
     across=[float(np.max(np.ptp(np.asarray(v),axis=0))) for v in bodies.values()]
+    eligible={};quarantined=[]
+    for identity,values in bodies.items():
+        try:eligible[identity]=canonical_shape(values).tolist()
+        except ValueError:quarantined.append(identity)
+    quality=dict(eligible_shape_betas=eligible,quarantined_identities=quarantined,
+        criterion='Across-sequence beta max difference <=1e-4; not an anatomical accuracy claim',
+        identity_split_sha256=split_sha)
     summary=dict(sequences_total=len(files),sequences_valid=len(records),identities=len(bodies),
         counts={k:len(v) for k,v in split.items()},identity_split_sha256=split_sha,
         source_inventory_sha256=hashlib.sha256(json.dumps(records,sort_keys=True).encode()).hexdigest(),
         rejected_sequences=len(errors),beta_within_sequence_max_abs=max(r['beta_within_sequence_max_abs'] for r in records),
         beta_across_sequences_max_abs=max(across),identities_with_beta_variation_above_1e_4=sum(v>1e-4 for v in across),
-        gender='not present in these parameter files; unresolved model gender selection',
+        eligible_consistent_identities=len(eligible),quarantined_identities=len(quarantined),
+        eligible_split_counts={k:sum(i in eligible for i in ids) for k,ids in split.items()},
+        gender='not stored; use existing project SMPL_NEUTRAL convention, not inferred patient sex',
         smpl_topology_validated=False,body_generation_complete=False,expert_qualification_complete=False,
         bulk_generation_allowed=False,training_eligible=False)
-    for name,value in [('summary.json',summary),('source_inventory.json',records),('rejected_sequences.json',errors)]:
+    for name,value in [('summary.json',summary),('source_inventory.json',records),('rejected_sequences.json',errors),('identity_quality.json',quality)]:
         (args.output/name).write_text(json.dumps(value,indent=2)+'\n')
     print(json.dumps(summary,indent=2))
 

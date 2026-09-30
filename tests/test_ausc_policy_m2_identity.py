@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 
 
 def test_identity_split_is_order_independent_and_disjoint():
@@ -20,3 +21,9 @@ def test_bulk_requires_current_actual_randomized_expert_qualification():
     for changes in ({'physics_executed':False},{'successes':94},{'randomized_cases':10},
                     {'identity_split_sha256':'c'*64},{'geometry_id':'old'}):
         with pytest.raises(ValueError):require_bulk_qualification(dict(good,**changes),'b'*64)
+
+
+def test_inconsistent_identity_shape_is_quarantined_not_averaged():
+    from sim.ausc_policy.m2_identity import canonical_shape
+    np.testing.assert_allclose(canonical_shape([np.zeros(10),np.zeros(10)]),0.)
+    with pytest.raises(ValueError):canonical_shape([np.zeros(10),np.ones(10)])

@@ -70,7 +70,6 @@ def run_probe(app,stage,output,config,mass):
     np.testing.assert_allclose(env.base,base,atol=1e-7)
     env.robot.set_joint_positions(q,joint_indices=env.left)
     env.robot.set_joint_velocities(np.zeros(7),joint_indices=env.left)
-    env.robot.set_joint_position_targets(q,joint_indices=env.left)
     reason=None;phase='SETTLE';gap=initial_gap;hold=0.;completed=False
     nominal_q=q.copy();frames=[]
     annotator=product=None
