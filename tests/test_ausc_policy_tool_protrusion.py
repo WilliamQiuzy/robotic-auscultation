@@ -4,10 +4,10 @@ import pytest
 from sim.ausc_policy import tool_protrusion as tool
 
 
-def test_contact_face_is_two_mm_ahead_and_tcp_follows_compression():
-    assert tool.FACE_Z_M == pytest.approx(-.044)
-    assert tool.LIP_Z_M - tool.FACE_Z_M == pytest.approx(.002)
-    assert tool.wrist_contact_offset(.003) == pytest.approx(.126)
+def test_contact_face_is_five_mm_ahead_and_tcp_follows_compression():
+    assert tool.FACE_Z_M == pytest.approx(-.047)
+    assert tool.LIP_Z_M - tool.FACE_Z_M == pytest.approx(.005)
+    assert tool.wrist_contact_offset(.003) == pytest.approx(.129)
     with pytest.raises(ValueError):
         tool.wrist_contact_offset(.01)
 
@@ -17,7 +17,7 @@ def test_whole_head_translation_preserves_shape():
     old = v.copy()
     shifted = tool.shift_head(v)
     np.testing.assert_allclose(shifted[:, :2], old[:, :2])
-    np.testing.assert_allclose(shifted[:, 2], old[:, 2] - .0028)
+    np.testing.assert_allclose(shifted[:, 2], old[:, 2] - .0058)
     np.testing.assert_array_equal(v, old)
 
 

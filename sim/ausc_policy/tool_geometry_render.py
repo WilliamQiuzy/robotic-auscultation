@@ -8,7 +8,7 @@ import sys
 
 import numpy as np
 
-from .tool_protrusion import MOVING, FACE_Z_M, apply_to_stage, wrist_contact_offset
+from .tool_protrusion import MOVING, FACE_Z_M, HEAD_VISUALS, HEAD_COLLIDERS, apply_to_stage, wrist_contact_offset
 
 
 def digest(path):
@@ -41,11 +41,13 @@ def main():
             _, sources = scene.physical_sources()
             source_hashes = {str(k): digest(v) for k, v in sources.items()}
             stage = scene.prepare_stage(before_file)
-        def protected(s):
+        def protected(s, skip=None):
             result = {}
+            if skip is None:
+                skip = (MOVING + '/Visuals/', MOVING + '/Colliders/', MOVING + '/ContactTCP')
             for prim in s.Traverse():
                 path = str(prim.GetPath())
-                if path.startswith(MOVING + '/Visuals/') or path.startswith(MOVING + '/Colliders/') or path.startswith(MOVING + '/ContactTCP'):
+                if any(path.startswith(prefix) for prefix in skip):
                     continue
                 result[path] = dict(attrs={a.GetName():str(a.Get()) for a in prim.GetAttributes()},
                                     rels={r.GetName():str(r.GetTargets()) for r in prim.GetRelationships()})
@@ -72,7 +74,7 @@ def main():
                 lip_vertices.extend(np.asarray(UsdGeom.Mesh(prim).GetPointsAttr().Get()).tolist())
         lip_vertices = np.asarray(lip_vertices)
         actual_protrusion = float(lip_vertices[:, 2].min() - face[2])
-        assert abs(actual_protrusion - .002) < 1e-7
+        assert abs(actual_protrusion - .005) < 1e-7
         np.testing.assert_allclose(face, [0, 0, FACE_Z_M], atol=1e-7)
         tcp = cache.GetLocalToWorldTransform(stage.GetPrimAtPath(MOVING + '/ContactTCP'))
         wrist = cache.GetLocalToWorldTransform(stage.GetPrimAtPath(WRIST))
@@ -82,6 +84,21 @@ def main():
         assert lower_bore_radius > .0234
         visual = UsdGeom.Mesh(stage.GetPrimAtPath(MOVING + '/Visuals/thinklabs_black_edge'))
         assert abs(float(np.asarray(visual.GetPointsAttr().Get())[:, 2].min()) - FACE_Z_M) < 1e-7
+        if 'prior_candidate' in config:
+            prior_path = Path(config['prior_candidate'])
+            assert digest(prior_path) == config['prior_candidate_sha256']
+            prior = Usd.Stage.Open(str(prior_path))
+            allowed = tuple(MOVING + '/Visuals/' + n for n in HEAD_VISUALS)
+            allowed += tuple(MOVING + '/Colliders/' + n for n in HEAD_COLLIDERS)
+            allowed += (MOVING + '/ContactTCP',)
+            assert protected(stage, allowed) == protected(prior, allowed), 'Other reviewed geometry changed'
+            for name in HEAD_VISUALS:
+                path = MOVING + '/Visuals/' + name
+                old = np.asarray(UsdGeom.Mesh(prior.GetPrimAtPath(path)).GetPointsAttr().Get(), dtype=float)
+                new = np.asarray(UsdGeom.Mesh(stage.GetPrimAtPath(path)).GetPointsAttr().Get(), dtype=float)
+                np.testing.assert_allclose(new, old + [0, 0, -.003], atol=1e-8)
+            report.update(prior_candidate_sha256=digest(prior_path),
+                unchanged_from_reviewed_2mm_except_head_and_tcp=True, additional_head_translation_m=-.003)
         candidate = args.output / 'candidate.usdc'
         stage.GetRootLayer().Export(str(candidate))
         report.update(measured_usd_protrusion_m=actual_protrusion,

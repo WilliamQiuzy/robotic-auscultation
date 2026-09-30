@@ -2,7 +2,7 @@
 import numpy as np
 
 LIP_Z_M = -.042
-FACE_Z_M = -.044
+FACE_Z_M = -.047
 OLD_FACE_Z_M = -.0412
 HEAD_SHIFT_M = FACE_Z_M - OLD_FACE_Z_M
 BORE_RADIUS_M = .0235
@@ -80,14 +80,14 @@ def apply_to_stage(stage):
     tcp.AddTranslateOp().Set(Gf.Vec3d(0, 0, FACE_Z_M))
     tcp.GetPrim().CreateAttribute('wam:nominalWristOffsetM', Sdf.ValueTypeNames.Double).Set(wrist_contact_offset())
     tcp.GetPrim().CreateAttribute('wam:protrusionM', Sdf.ValueTypeNames.Double).Set(LIP_Z_M - FACE_Z_M)
-    tcp.GetPrim().CreateAttribute('wam:dimensionStatus', Sdf.ValueTypeNames.String).Set('review estimate; not measured from real assembly')
+    tcp.GetPrim().CreateAttribute('wam:dimensionStatus', Sdf.ValueTypeNames.String).Set('user-requested nominal 5 mm; not measured from real assembly')
     stage.GetRootLayer().customLayerData = dict(stage.GetRootLayer().customLayerData or {},
-        wamGeometryVersion='stethoscope_protruding_2mm_review_v1',
+        wamGeometryVersion='stethoscope_protruding_5mm_review_v1',
         wamTrainingEligible=False)
     return dict(changed_prims=changed, nominal_protrusion_m=LIP_Z_M - FACE_Z_M,
         head_translation_m=HEAD_SHIFT_M, diaphragm_wrist_offset_m=wrist_contact_offset(),
-        clamp_bore_diameter_m=2 * BORE_RADIUS_M, dimension_status='provisional review dimensions, not bench measurements',
-        lower_retention='Old inward bottom catch opened to a straight bore; real retention design still requires confirmation.',
+        clamp_bore_diameter_m=2 * BORE_RADIUS_M, dimension_status='User-requested nominal 5 mm; not bench measurements',
+        lower_retention='Straight bore preserved from user-reviewed 2 mm candidate; mechanical retention not load-validated.',
         physical_validation=False, training_dataset_eligible=False, m0_passed=False,
         inertia_status='Original estimated mass and inertia retained for static geometry review; dynamics not qualified.',
         integration='Use candidate ContactTCP; historical policies and precomputed plans retain their original scene/TCP.')
