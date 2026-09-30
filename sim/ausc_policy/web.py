@@ -10,6 +10,10 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/fresh-r3-v3.mp4': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_v3/output/review/actual_fresh_expert.mp4',
+    '/media/fresh-r3-v3-poster.png': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_v3/output/review/poster.png',
+    '/media/fresh-r3-tracking.svg': 'results/ausc_policy/fresh_r3_dynamic_diagnosis_v1/tracking_and_force.svg',
+    '/evidence/fresh-r3-dynamics': 'results/ausc_policy/fresh_r3_dynamic_diagnosis_v1/REPORT.json',
     '/media/fresh-r3-poster.png': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_v1/output/review/poster.png',
     '/media/fresh-r3-failure.mp4': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_v1/output/review/actual_fresh_expert.mp4',
     '/media/fresh-r3-contact.svg': 'results/ausc_policy/geometry_5mm_fresh_expert_r3_v1/output/review/contact_diagnosis.svg',
