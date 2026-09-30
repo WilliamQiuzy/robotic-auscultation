@@ -143,6 +143,7 @@ def test_hall_release_cannot_start_faster_retreat_while_physical_force_remains(m
 
 def released_actor(compression):
     value = module().NormalWithdrawalMixin()
+    value.total_contact_groups = module().FRONT_GROUPS + module().FORBIDDEN_GROUPS
     value.target = SimpleNamespace(name="R5")
     value._normal_release_target = "R5"
     value.q = np.zeros(7)

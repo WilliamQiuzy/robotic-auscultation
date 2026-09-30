@@ -71,7 +71,7 @@ class LowElbowController(ExpertController):
             return super()._move_to_prepose(row)
         state = self.env.state()
         release = self.released_prepose
-        total = sum(self.env.last_contacts.get(name, 0.) for name in FRONT_GROUPS + FORBIDDEN_GROUPS)
+        total = sum(self.env.last_contacts.get(name, 0.) for name in self.total_contact_groups)
         if (release is None or release["physics_row_end_exclusive"] != len(self.env.rows)
                 or abs(float(state["time_s"]) - release["time_s"]) > 1e-9
                 or not np.isfinite([state["hall_N"], total]).all()
@@ -143,7 +143,7 @@ class LowElbowController(ExpertController):
     def _withdraw_to_prepose(self, transfer):
         super()._withdraw_to_prepose(transfer)
         state = self.env.state()
-        total = sum(self.env.last_contacts.get(name, 0.) for name in FRONT_GROUPS + FORBIDDEN_GROUPS)
+        total = sum(self.env.last_contacts.get(name, 0.) for name in self.total_contact_groups)
         if not np.isfinite(total) or total >= .2:
             raise EpisodeRejected("physical contact release at prepose not verified")
         self.released_prepose = {"target": self.target.name, "time_s": float(state["time_s"]),

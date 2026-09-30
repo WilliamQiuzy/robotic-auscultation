@@ -103,7 +103,7 @@ class ExpertController(NormalWithdrawalMixin, CandidateController):
         canonical,index=self._canonical(row)
         self.canonical_transfer=canonical.copy();self.canonical_stage_index=index
         state=self.env.state();release=self.released_prepose
-        total=sum(self.env.last_contacts.get(name,0.) for name in FRONT_GROUPS+FORBIDDEN_GROUPS)
+        total=sum(self.env.last_contacts.get(name,0.) for name in self.total_contact_groups)
         if (release is None or release['physics_row_end_exclusive']!=len(self.env.rows)
                 or abs(float(state['time_s'])-release['time_s'])>1e-9
                 or not np.isfinite([state['hall_N'],total]).all() or state['hall_N']>=.2 or total>=.2):

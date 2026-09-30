@@ -170,7 +170,7 @@ class NormalWithdrawalMixin:
         state = self.env.state()
         if not np.isfinite(state["hall_N"]) or state["hall_N"] >= self.config.release_force_limit_N:
             raise EpisodeRejected("normal unload did not establish Hall release")
-        physical = sum(self.env.last_contacts.get(name, 0.) for name in FRONT_GROUPS+FORBIDDEN_GROUPS)
+        physical = sum(self.env.last_contacts.get(name, 0.) for name in self.total_contact_groups)
         if not np.isfinite(physical) or physical >= .2:
             raise EpisodeRejected("normal unload physical contact release not verified")
         if unload_goal < self.pre_gap-1e-9:
@@ -218,7 +218,7 @@ class NormalWithdrawalMixin:
         self._hold(.2, "withdraw_settle")
         state = self.env.state()
         gap = self.metrics(state)["gap_m"]
-        total = sum(self.env.last_contacts.get(name, 0.) for name in FRONT_GROUPS+FORBIDDEN_GROUPS)
+        total = sum(self.env.last_contacts.get(name, 0.) for name in self.total_contact_groups)
         if (not np.isfinite([gap, state["hall_N"], total]).all()
                 or gap < self.pre_gap-.002 or state["hall_N"] >= .2):
             raise EpisodeRejected("prepose withdrawal not verified")
