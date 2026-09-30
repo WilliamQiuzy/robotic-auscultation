@@ -15,6 +15,8 @@ import time
 import numpy as np
 
 from .edge_timing import checked_edge_commands
+from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
+                                 gravity_feedforward_settings)
 from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
                              require_geometry_artifacts, qualify_contact)
 from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS, EpisodeRejected
@@ -97,6 +99,7 @@ def read_plans(config, geometry, kin):
     """
     require_current(config)
     requested = config['fresh_expert']
+    gravity_feedforward_settings(requested)
     passive_effort(0, requested.get('passive_preload_N'))
     bindings = requested.get('plans')
     if not isinstance(bindings, list) or not bindings:
@@ -249,6 +252,42 @@ class FreshExpert(SkillExpert):
             self.executor_config['normal_inward_speed_limit_m_s']*self.speed_scale)
         self.contact_preflights=[]
         self.phase_failure_diagnostics=[]
+        self.collision_failure_diagnostics=[]
+
+    def _tick(self, command, subphase, active=False, recovery=False):
+        # The inherited tick performs exactly one command check, then one
+        # observed check. Preserve its gates and counter increments verbatim.
+        self._fresh_collision_context=dict(stage='command',subphase=subphase,
+                                           next_physics_row_index=len(self.env.rows))
+        if not hasattr(self,'collision_failure_diagnostics'):
+            self.collision_failure_diagnostics=[]
+        try:
+            return super()._tick(command,subphase,active=active,recovery=recovery)
+        finally:
+            del self._fresh_collision_context
+
+    def _check_collision(self, q, compression, contact):
+        context=getattr(self,'_fresh_collision_context',{})
+        try:
+            result=super()._check_collision(q,compression,contact)
+        except Exception as error:
+            def finite(value):
+                try:array=np.asarray(value,float)
+                except (ValueError,TypeError):return None
+                return np.where(np.isfinite(array),array,None).tolist()
+            diagnostic=dict(stage=context.get('stage','outside_tick'),
+                target=self.target.name,subphase=context.get('subphase'),
+                query_q_rad=finite(q),query_compression_m=finite(compression),
+                allow_patient_contact=bool(contact),physics_rows=len(self.env.rows),
+                physics_row_index=(len(self.env.rows)-1 if context.get('stage')=='observation' else None),
+                next_physics_row_index=context.get('next_physics_row_index'),error=str(error))
+            if not hasattr(self,'collision_failure_diagnostics'):
+                self.collision_failure_diagnostics=[]
+            self.collision_failure_diagnostics.append(diagnostic)
+            raise
+        if context.get('stage')=='command':
+            context['stage']='observation'
+        return result
 
     def desired_normal_velocity(self, state):
         # The inherited contact loop refreshes this hook on every phase change,
@@ -323,6 +362,7 @@ class FreshExpert(SkillExpert):
     def run(self,points):
         self.contact_preflights=[]
         self.phase_failure_diagnostics=[]
+        self.collision_failure_diagnostics=[]
         # Screen the entire sequence before the first home/transfer command.
         inward=self.executor_config['normal_inward_speed_limit_m_s']*self.speed_scale
         for target,row in points:
@@ -352,6 +392,7 @@ class FreshExpert(SkillExpert):
             training_eligible=False,learned_policy=False,
             contact_preflights=self.contact_preflights,
             phase_failure_diagnostics=self.phase_failure_diagnostics,
+            collision_failure_diagnostics=self.collision_failure_diagnostics,
             near_surface_motion=getattr(self,'near_surface_motion',None),
             scope='Fresh full-route expert mechanics diagnostic; no raw multimodal training dataset')
         if getattr(self,'near_surface_motion',None) is not None:
@@ -365,9 +406,29 @@ class FreshContactEnv(IsaacContactEnv):
     def step(self,q_target,label='',target='',meta=None):
         from isaacsim.core.utils.types import ArticulationAction
         indices,efforts=passive_effort(self.slider,self.passive_preload_N)
+        feedforward=getattr(self,'gravity_feedforward',None)
+        metadata=dict(meta or {},explicit_passive_preload_N=self.passive_preload_N,
+                      training_eligible=False)
+        if feedforward is not None:
+            rows_before=len(self.rows)
+            try:
+                indices,efforts,receipt=feedforward.prepare(q_target)
+            except GravityFeedforwardRejected as error:
+                # A rejected preparation advances no physics. Preserve it in
+                # an independent ledger, never by inventing an executed row.
+                if not hasattr(self,'gravity_feedforward_failure_receipts'):
+                    self.gravity_feedforward_failure_receipts=[]
+                self.gravity_feedforward_failure_receipts.append(dict(
+                    stage='prepare',phase=label,target=target,subphase=metadata.get('subphase'),
+                    physics_rows_before_attempt=rows_before,physics_rows_after_attempt=len(self.rows),
+                    executed_physics_row_index=None,effort_action_applied=False,
+                    physics_step_executed=False,receipt=deepcopy(error.receipt),error=repr(error)))
+                raise
+            metadata['gravity_feedforward']=receipt
         self.robot.apply_action(ArticulationAction(joint_efforts=efforts,joint_indices=indices))
-        state=super().step(q_target,label,target,dict(meta or {},
-            explicit_passive_preload_N=self.passive_preload_N,training_eligible=False))
+        state=super().step(q_target,label,target,metadata)
+        if feedforward is not None:
+            feedforward.verify_applied(receipt)
         if self.video_recorder is not None:
             self.video_recorder.after_step()
         return state
@@ -467,6 +528,10 @@ def finalize_probe(env,controller,recorder,output):
             for row in env.rows:row['training_accepted']=False
             env.save('fresh_expert')
         attempt('trace_save',save_trace)
+        if hasattr(env,'gravity_feedforward_failure_receipts'):
+            attempt('gravity_feedforward_failure_save',lambda:_write(
+                output/'fresh_expert_gravity_feedforward_failures.json',
+                env.gravity_feedforward_failure_receipts))
     if controller is not None:
         def save_controls():
             with (output/'fresh_expert_control.jsonl').open('w') as stream:
@@ -479,7 +544,8 @@ def finalize_probe(env,controller,recorder,output):
             free_motion_timing=getattr(controller,'free_motion_timing',[]),
             inter_point_routes=getattr(controller,'inter_point_routes',[]),
             contact_preflights=getattr(controller,'contact_preflights',[]),
-            phase_failure_diagnostics=getattr(controller,'phase_failure_diagnostics',[]))))
+            phase_failure_diagnostics=getattr(controller,'phase_failure_diagnostics',[]),
+            collision_failure_diagnostics=getattr(controller,'collision_failure_diagnostics',[]))))
     if recorder is not None:video=attempt('video_finalize',lambda:recorder.close())
     if env is not None:attempt('world_stop',lambda:env.world.stop())
     return video,errors
@@ -492,6 +558,7 @@ def run_probe(app,stage,output,config,mass):
     import os,sys
     if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':
         raise RuntimeError('Owned Linux Isaac runtime required')
+    feedforward_settings=gravity_feedforward_settings(config['fresh_expert'])
     output=Path(output);kin=OpenArmKinematics(contact_frame=contact_frame)
     points,metadata=read_plans(config,output/'geometry',kin)
     base=np.asarray(metadata['world_from_left_base'])
@@ -504,7 +571,8 @@ def run_probe(app,stage,output,config,mass):
             raise ValueError('Fresh plan changed before scene initialization')
         (snapshot/(str(index).zfill(2)+'_'+binding['name']+'.json')).write_bytes(data)
     source_paths=[Path(__file__),Path(__file__).with_name('edge_timing.py'),
-                  Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py')]
+                  Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py'),
+                  Path(__file__).with_name('gravity_feedforward.py')]
     import inspect
     from sim.auscultation_skill_v1 import curve,executor
     from sim.curobo_expert_v1 import static_world
@@ -528,6 +596,8 @@ def run_probe(app,stage,output,config,mass):
         env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
                             contact_offset_m=.132,moving_mass_kg=mass_kg)
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
+        if feedforward_settings is not None and feedforward_settings['enabled']:
+            env.gravity_feedforward=NativeGravityFeedforward(env.robot,env.left,env.slider)
         if not np.allclose(env.base,base,atol=1e-7,rtol=0):raise ValueError('Actual robot base differs from fresh plan')
         # No joint setter, teleport, or contact-pose reset. The asset home state
         # must be dynamically followed through the complete canonical route.
@@ -559,6 +629,16 @@ def run_probe(app,stage,output,config,mass):
                   diagnostic_completed=True,physics_steps=len(rows),video=video,learned_policy=False,
                   training_eligible=False,raw_multimodal_training_capture=False,
                   scope='Actual new-geometry complete home/staging/contact/withdrawal expert mechanics; no model or generalization claim')
+    if feedforward_settings is not None:
+        result['gravity_feedforward_failure_receipts']=deepcopy(
+            getattr(env,'gravity_feedforward_failure_receipts',[]))
+        result['gravity_feedforward']=dict(feedforward_settings,
+            controller_type='model-based controller feedforward',
+            native_api='get_generalized_gravity_forces',sign='positive native counter-gravity',
+            position_drives_and_limits='unchanged; no setters',
+            torque_screen='native gravity and PD-plus-gravity estimate within existing effort caps',
+            estimate_is_measured_motor_torque=False,learned_policy=False,
+            real_hardware_validated=False,training_eligible=False)
     if env is not None:
         try:result['trace_sha256']=_sha(env.out/'fresh_expert_trace.jsonl')
         except Exception as error:errors.append(dict(stage='trace_hash',error=repr(error)))

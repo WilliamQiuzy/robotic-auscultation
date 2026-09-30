@@ -19,6 +19,15 @@ def test_preload_is_physical_slider_effort_and_never_a_force_label():
             f.passive_effort(11, bad)
 
 
+@pytest.mark.parametrize('bad',[None,True,{},dict(enabled=1),dict(enabled=True,scale=2)])
+def test_malformed_feedforward_config_rejects_before_plan_or_scene_access(bad):
+    config=dict(geometry_id=GEOMETRY_ID,geometry_source_sha256=GEOMETRY_SOURCE_SHA256,
+                freshly_generated=True,fresh_expert=dict(passive_preload_N=1.5,
+                    gravity_feedforward=bad))
+    with pytest.raises(ValueError,match='gravity_feedforward'):
+        f.read_plans(config,None,None)
+
+
 def fixture_plan(tmp_path):
     from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
     from sim.auscultation_expert_layout_v1.posture import PostureLimits
@@ -215,7 +224,8 @@ def test_cleanup_accumulates_failures_instead_of_short_circuiting(tmp_path):
     assert [error['stage'] for error in errors]==['trace_save','control_save','video_finalize','world_stop']
 
 
-def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_path,monkeypatch):
+@pytest.mark.parametrize('feedforward_setting',[None,dict(enabled=False),dict(enabled=True)])
+def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_path,monkeypatch,feedforward_setting):
     import sys
     from sim.ausc_policy import contact_collision
     called=[]
@@ -225,12 +235,16 @@ def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_pa
         def __init__(self,output,**kwargs):
             self.rows=rows;self.base=np.eye(4);self.out=output
             self.world=SimpleNamespace(stop=lambda:called.append('stop'))
+            self.robot=object();self.left=np.arange(7);self.slider=7
         def state(self):return dict(q=np.zeros(7))
         def save(self,name):
             called.append('save')
             raise OSError('disk write failed')
     class Controller:
-        def __init__(self,*args,**kwargs):self.control_rows=[]
+        def __init__(self,env,*args,**kwargs):
+            self.control_rows=[]
+            assert (getattr(env,'gravity_feedforward',None) is not None)==bool(
+                feedforward_setting and feedforward_setting['enabled'])
         def run(self,points):
             return dict(success=True,points=[dict(target='R3',success=True,
                 start_physics_row=0,end_physics_row=720)])
@@ -246,6 +260,8 @@ def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_pa
     monkeypatch.setattr(f,'_VideoRecorder',Recorder)
     monkeypatch.setattr(f,'require_geometry_artifacts',lambda *args:{})
     config=dict(geometry_source_sha256=GEOMETRY_SOURCE_SHA256,fresh_expert=dict(passive_preload_N=1.5))
+    if feedforward_setting is not None:
+        config['fresh_expert']['gravity_feedforward']=feedforward_setting
     result=f.run_probe(None,None,tmp_path,config,dict(mass_kg=.067))
     assert called==['save','close','stop']
     assert result['controller_motion_complete']
@@ -253,6 +269,11 @@ def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_pa
     assert not result['success'] and not result['physical_validation']
     assert result['video']['file']=='preserved.mp4'
     assert any(error['stage']=='trace_save' for error in result['errors'])
+    assert any(path.endswith('/gravity_feedforward.py') for path in result['runtime_sources_sha256'])
+    if feedforward_setting and feedforward_setting['enabled']:
+        assert result['gravity_feedforward']['enabled']
+        assert result['gravity_feedforward']['controller_type']=='model-based controller feedforward'
+        assert not result['gravity_feedforward']['real_hardware_validated']
     saved=json.loads((tmp_path/'fresh_expert_result.json').read_text())
     assert not saved['success'] and saved['errors']==result['errors']
 
@@ -455,3 +476,64 @@ def test_near_surface_timing_counts_slower_distance_and_does_not_extend_timeout(
 ])
 def test_near_motion_cannot_raise_limits_or_accept_malformed_settings(bad):
     with pytest.raises(ValueError):f.near_surface_settings(bad,.0014)
+
+
+@pytest.mark.parametrize('stage',['command','observation','clear'])
+def test_collision_failure_records_query_stage_without_changing_parent_checks(monkeypatch,tmp_path,stage):
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    command=np.full(7,.1);actual=command+.0001
+    state=dict(q=actual,compression_m=.0004)
+    controller.env=SimpleNamespace(rows=[],state=lambda:state)
+    controller.target=SimpleNamespace(name='R3')
+    controller.executor_config=dict(contact_clearance_m=.0003)
+    controller._contact_active=True
+    controller.command_collision_samples=controller.observed_collision_samples=0
+    controller.control_rows=[];queried=[]
+    def check(q,**kwargs):
+        queried.append((q.copy(),kwargs))
+        clear=stage=='clear' or (stage=='observation' and len(queried)==1)
+        return dict(clear=clear,minimum_distance_m=.00031 if clear else .000298591)
+    controller.checker=SimpleNamespace(check=check)
+    def parent_tick(self,q,subphase,**kwargs):
+        self.env.rows.append(dict(q_command=q.tolist(),q=actual.tolist()))
+        return state
+    monkeypatch.setattr(f.SkillExpert.__mro__[1],'_tick',parent_tick)
+    if stage=='clear':
+        assert controller._tick(command,'approach',active=True) is state
+        assert controller.command_collision_samples==controller.observed_collision_samples==1
+        assert not controller.collision_failure_diagnostics
+        return
+    with pytest.raises(f.EpisodeRejected,match='mesh collision rejected'):
+        controller._tick(command,'approach',active=True)
+    diagnostic=controller.collision_failure_diagnostics[-1]
+    assert diagnostic['stage']==stage and diagnostic['subphase']=='approach'
+    assert diagnostic['query_q_rad']==(command if stage=='command' else actual).tolist()
+    assert diagnostic['query_compression_m']==.0004
+    assert diagnostic['physics_rows']==(0 if stage=='command' else 1)
+    assert diagnostic['physics_row_index']==(None if stage=='command' else 0)
+    assert diagnostic['next_physics_row_index']==0
+    assert controller.command_collision_samples==(0 if stage=='command' else 1)
+    assert controller.observed_collision_samples==0
+    assert len(queried)==(1 if stage=='command' else 2)
+    assert all(kwargs==dict(clearance=.0003,allow_patient_contact=True,compression=.0004)
+               for _,kwargs in queried)
+    assert not hasattr(controller,'_fresh_collision_context')
+    # A failure diagnostic survives normal finalization independently of trace.
+    _,errors=f.finalize_probe(None,controller,None,tmp_path)
+    assert not errors
+    saved=json.loads((tmp_path/'fresh_expert_controller_diagnostics.json').read_text())
+    assert saved['collision_failure_diagnostics']==controller.collision_failure_diagnostics
+
+
+def test_collision_diagnostics_cannot_replace_original_rejection_on_malformed_query(monkeypatch):
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.env=SimpleNamespace(rows=[]);controller.target=SimpleNamespace(name='R3')
+    original=f.EpisodeRejected('original invalid query rejection')
+    def reject(*args):raise original
+    monkeypatch.setattr(f.SkillExpert,'_check_collision',reject)
+    with pytest.raises(f.EpisodeRejected) as failure:
+        controller._check_collision(['invalid'],float('nan'),False)
+    assert failure.value is original
+    assert controller.collision_failure_diagnostics[-1]['query_q_rad'] is None
+    assert controller.collision_failure_diagnostics[-1]['query_compression_m'] is None
+    json.dumps(controller.collision_failure_diagnostics,allow_nan=False)
