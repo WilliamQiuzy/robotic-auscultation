@@ -100,12 +100,12 @@ def main():
             product = rep.create.render_product('/World/RobotCam', (1440, 810))
             annotator = rep.AnnotatorRegistry.get_annotator('rgb')
             annotator.attach([product])
-            rep.orchestrator.step(rt_subframes=12, pause_timeline=True)
+            rep.orchestrator.step(rt_subframes=12, pause_timeline=True, delta_time=0.)
             image = np.asarray(annotator.get_data())[:, :, :3]
             if image.shape != (810, 1440, 3) or image.std() < 3:
                 raise RuntimeError('Missing or blank actual Isaac image')
             Image.fromarray(image).save(args.output/(version+'_scene.png'))
-            annotator.detach([product]); product.destroy()
+            annotator.detach(); product.destroy()
             # Inspection visibility only. The saved candidate retains the whole scene.
             for prim in s.GetPrimAtPath('/World').GetChildren():
                 if prim.GetName() != 'Stethoscope' and UsdGeom.Boundable(prim):
@@ -132,14 +132,14 @@ def main():
                 product = rep.create.render_product(cam.GetPath(), (1440, 1080))
                 annotator.attach([product])
                 for _ in range(12): app.update()
-                rep.orchestrator.step(rt_subframes=16, pause_timeline=True)
+                rep.orchestrator.step(rt_subframes=16, pause_timeline=True, delta_time=0.)
                 image = np.asarray(annotator.get_data())[:, :, :3]
                 if image.shape != (1080, 1440, 3) or image.std() < 3:
                     raise RuntimeError('Invalid inspection render')
                 name = version+'_'+name+'.png'
                 Image.fromarray(image).save(args.output/name)
                 print('RENDERED', name, flush=True)
-                annotator.detach([product]); product.destroy()
+                annotator.detach(); product.destroy()
         assert source_hashes == {str(k): digest(v) for k, v in sources.items()}
         report.update(completed=True, actual_physics_executed=False, source_layers_unchanged=True,
             images={p.name:digest(p) for p in args.output.glob('*.png')})
