@@ -169,8 +169,15 @@ def main():
             write(args.output/'patient_receipt.json',patient)
         mass=moving_inertia(stage,config['component_priors']);write(args.output/'mass_estimates.json',mass)
         profile=apply_profile(stage,PhysicsProfile(**config['physics']));write(args.output/'physics_profile.json',profile)
+        from .passive_preload import apply_single_explicit_preload, verify_preload_readback
+        preload=apply_single_explicit_preload(stage,config.get('fresh_expert'))
+        if preload is not None:write(args.output/'passive_preload_authoring.json',preload)
         stage.GetRootLayer().customLayerData=dict(stage.GetRootLayer().customLayerData,wamGeometryVersion=GEOMETRY_ID)
         filename=args.output/'candidate_physics.usdc';stage.GetRootLayer().Export(str(filename))
+        if preload is not None:
+            saved=Usd.Stage.Open(str(filename))
+            write(args.output/'passive_preload_saved_usd_readback.json',
+                verify_preload_readback(saved,config['fresh_expert'],preload))
         entries=export_geometry(stage,args.output/'geometry')
         if config.get('m2_sensor_probe'):
             from .m2_sensor_probe import run_probe

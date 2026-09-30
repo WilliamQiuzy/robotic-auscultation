@@ -646,8 +646,15 @@ def run_probe(app,stage,output,config,mass):
     feedforward_settings=gravity_feedforward_settings(config['fresh_expert'])
     velocity_settings=velocity_feedforward_settings(config['fresh_expert'])
     raw_settings=capture_settings(config['fresh_expert'])
+    from .passive_preload import passive_preload_settings, verify_preload_readback
+    preload_settings=passive_preload_settings(config['fresh_expert'])
+    preload_receipt=None;preload_startup=None
     output=Path(output);kin=OpenArmKinematics(contact_frame=contact_frame)
     points,metadata=read_plans(config,output/'geometry',kin)
+    if preload_settings is not None:
+        preload_receipt=json.loads((output/'passive_preload_authoring.json').read_text())
+        metadata['passive_preload_model']=dict(authoring=preload_receipt,
+            preinitialization_usd_readback=verify_preload_readback(stage,config['fresh_expert'],preload_receipt))
     base=np.asarray(metadata['world_from_left_base'])
     current={**metadata,**metadata['geometry_artifacts']}
     checker=ContactCollisionChecker(kin,base,output/'geometry',current)
@@ -662,6 +669,7 @@ def run_probe(app,stage,output,config,mass):
                   Path(__file__).with_name('retainer_contact.py'),
                   Path(__file__).with_name('gravity_feedforward.py'),
                   Path(__file__).with_name('velocity_feedforward.py')]
+    if preload_settings is not None:source_paths.append(Path(__file__).with_name('passive_preload.py'))
     import inspect
     from sim.auscultation_skill_v1 import curve,executor
     from sim.curobo_expert_v1 import static_world
@@ -688,6 +696,10 @@ def run_probe(app,stage,output,config,mass):
         env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
                             contact_offset_m=.132,moving_mass_kg=mass_kg)
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
+        if preload_settings is not None:
+            preload_startup=verify_preload_readback(env.stage,config['fresh_expert'],preload_receipt,
+                robot=env.robot,slider=env.slider)
+            _write(output/'passive_preload_startup_usd_readback.json',preload_startup)
         if velocity_settings is not None and velocity_settings['enabled']:
             env.velocity_feedforward=NativeVelocityFeedforward(env.robot,env.left,physics_dt=DT)
         if feedforward_settings is not None and feedforward_settings['enabled']:
@@ -742,6 +754,9 @@ def run_probe(app,stage,output,config,mass):
                   diagnostic_completed=True,physics_steps=len(rows),video=video,learned_policy=False,
                   training_eligible=False,raw_multimodal_training_capture=False,
                   scope='Actual new-geometry complete home/staging/contact/withdrawal expert mechanics; no model or generalization claim')
+    if preload_settings is not None:
+        result['passive_preload_model']=dict(metadata['passive_preload_model'],
+            startup_usd_readback=preload_startup)
     if feedforward_settings is not None:
         result['gravity_feedforward_failure_receipts']=deepcopy(
             getattr(env,'gravity_feedforward_failure_receipts',[]))
