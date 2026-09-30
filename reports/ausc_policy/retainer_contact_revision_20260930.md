@@ -83,4 +83,13 @@ C 接触还核对原始 PhysX 冲量和实际滑架位姿，拒绝侧面/后侧�
 
 [v3完整实际录像](../../results/ausc_policy/retainer_r3_single_preload_v3/output/review/actual_fresh_expert.mp4) · [独立接触和释放核对](../../results/ausc_policy/retainer_r3_single_preload_analysis_v3/summary.json) · [多模态记录审计](../../results/ausc_policy/retainer_r3_raw_audit_v3.json) · [前后数值](../../results/ausc_policy/retainer_preload_comparison_v3/comparison.json)
 
-这只是同一场景R3解析专家的物理成功，`training_accepted`及训练资格仍为false。L4/L5实际单份预紧测试已启动；十点动态、交接、随机场景专家资格及新训练仍未完成。旧平面膜片几何的路径、示范和交接测量不再用于训练。
+这只是同一场景R3解析专家的物理成功，`training_accepted`及训练资格仍为false。L4/L5实际单份预紧测试已结束，结果见下；十点动态、交接、随机场景专家资格及新训练仍未完成。旧平面膜片几何的路径、示范和交接测量不再用于训练。
+
+
+## 最新 L4/L5 动态批次：L4 接触超时，L5 未执行
+
+`retainer-l4l5-single-preload-20260930-v3` 使用源码 `5f11b3f`，于2026-09-30 19:45:23 UTC结束并释放GPU。批次处理正常结束不代表物理通过：原始 `success=false`、`physical_validation=false`。L4运行17,959物理步、74.829秒后触发 `contact_timeout`，进入保持0秒；L5尚未执行。C峰值1.8197 N，B与全部禁止部件受力为零。仿真在故障处停止，没有完成撤离，不能记作释放成功。
+
+运行收据给出L4预接近距离40 mm、阶段预算28.571秒。原预检只检查必要的最短时间27.047秒；同一收据中的两档推进、加载与稳定名义时间已达33.333秒，且尚不含加速度及跟踪延迟。这表明现有预检不足以筛除时间安排不合理的方案，是下一轮优先修复方向；尚未通过独立完整原始轨迹复核确定全部原因。不是已有证据证明关节限位触发了本次停止。
+
+已将终态收据、控制器诊断及74.8秒实际录像复制回Mac并逐SHA核验；完整原始传感数据镜像与独立审计仍待完成。来源：`results/ausc_policy/retainer_l4l5_single_preload_v3/selected_mirror_verification.json`。这次失败记录不进入训练集。
