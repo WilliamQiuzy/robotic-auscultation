@@ -1,0 +1,96 @@
+{
+  "schema": "current_geometry_ik_hints_v1",
+  "geometry_id": "stethoscope_retainer_contact_5mm_recess1mm_v2",
+  "geometry_source_sha256": "d4ef5726096055c5cdbbb409825d853d610ec865a7bd32e7135c39ec7653a571",
+  "geometry_artifacts": {
+    "collision_geometry_sha256": "11a2fc922602a70a97d83b26cd0cd9e0868a535c9d62e0fd10a38ca975b76275",
+    "collision_arrays_sha256": "0cd0e871d723a3505e5c565be688c5c5860d678faac2534f8bb837af77974a05"
+  },
+  "contact_surface": "membrane_and_device_retainer_v2",
+  "target": {
+    "name": "L3",
+    "position_world_m": [
+      -0.03244480353865702,
+      0.8048342304564832,
+      1.3550839460758692
+    ],
+    "normal_world": [
+      0.10934262228896119,
+      -0.9854783760239983,
+      0.12990982002942084
+    ]
+  },
+  "world_from_left_base": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -3.5745606228321236e-06,
+      0.9999999999936114,
+      0.3309999994933605
+    ],
+    [
+      0.0,
+      -0.9999999999936114,
+      -3.5745606228321236e-06,
+      1.376228643993393
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "loaded_compression_m": 0.0025,
+  "patient_provenance": null,
+  "candidate_file": "/home/william/wam-vla-v2/runs/ausc_policy/retainer-tenpoint-plan-20260930-v2/output/review/L3_fits.json",
+  "candidate_file_sha256": "8269ab498e5488b411a9c6ac5a11bc8221f4ef8eeaa735bf7616775b8df28f96",
+  "hints": [
+    {
+      "candidate_index": 33,
+      "loaded_q": [
+        0.9120318757795569,
+        -0.409099777337724,
+        -1.5149454639361815,
+        2.078135032680883,
+        -0.1199059397752762,
+        0.42461169755376815,
+        0.9220894232577973
+      ]
+    },
+    {
+      "candidate_index": 34,
+      "loaded_q": [
+        0.743598398606201,
+        -0.4374794706525706,
+        -1.5149454639361815,
+        2.0756983483971423,
+        0.3052866021769221,
+        -0.1335237971564161,
+        1.0513063172375414
+      ]
+    },
+    {
+      "candidate_index": 35,
+      "loaded_q": [
+        0.6207520703284458,
+        -0.47269808121227475,
+        -1.5149454639361815,
+        2.0715583881555863,
+        0.6606483074009833,
+        -0.7032508860605258,
+        0.9852596858008587
+      ]
+    }
+  ],
+  "collision_checked": false,
+  "path_checked": false,
+  "physics_executed": false,
+  "training_eligible": false,
+  "note": "Current-geometry numeric IK seeds only; source diagnostic SHA256 152455ffcf1c15a58d4e2cd9c8e656aeea9c7f0a02d8580b9a84b0042a534ca0. Re-solve and check all original posture, clearance and path gates."
+}

@@ -1,0 +1,89 @@
+{
+  "base": "/home/william/wam-vla-v2",
+  "asset_root": "/home/william/wam-vla-v2/cloud-runtime-v11/bounded-physical-20260928-v4",
+  "isaac_python": "/home/william/wam-sim/env_isaacsim51/bin/python",
+  "ld_library_path": "/home/william/wam-sim/sysroot/usr/lib/x86_64-linux-gnu",
+  "geometry_id": "stethoscope_retainer_contact_5mm_recess1mm_v2",
+  "freshly_generated": true,
+  "geometry_source": "/home/william/wam-vla-v2/runs/ausc_policy/retainer-5mm-recess1mm-review-20260930-v2/output/review/candidate.usdc",
+  "geometry_source_sha256": "d4ef5726096055c5cdbbb409825d853d610ec865a7bd32e7135c39ec7653a571",
+  "posture_limits": {
+    "schema": "low_elbow_posture_v1",
+    "elbow_link": "openarm_left_link4",
+    "max_elbow_z_m": 1.451228420583354,
+    "joint_lower_rad": [
+      -2.443460952792061,
+      -2.443460952792061,
+      -1.5184361224401701,
+      0.0,
+      -1.5184361224401701,
+      -0.7330381224401702,
+      -1.5184361224401701
+    ],
+    "joint_upper_rad": [
+      1.2217304763960306,
+      0.12217279564527346,
+      1.5184361224401701,
+      2.3911011224401704,
+      1.5184361224401701,
+      0.7330381224401702,
+      1.5184361224401701
+    ],
+    "observed_joint_tolerance_rad": 0.005,
+    "max_elbow_above_shoulder_m": 0.075,
+    "min_contact_elbow_below_wrist_m": 0.0
+  },
+  "experiment": "m2_geometry_plan",
+  "time_limit_seconds": 7200,
+  "collision_directory": "/home/william/wam-vla-v2/runs/ausc_policy/retainer-5mm-recess1mm-review-20260930-v2/output/review/geometry",
+  "world_from_left_base": [
+    [
+      1.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -3.5745606228321236e-06,
+      0.9999999999936114,
+      0.3309999994933605
+    ],
+    [
+      0.0,
+      -0.9999999999936114,
+      -3.5745606228321236e-06,
+      1.376228643993393
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "loaded_compression_m": 0.0025,
+  "seeds_per_candidate": 12,
+  "per_gap_seconds": 180,
+  "fresh_pre_gap_search_m": [
+    0.03,
+    0.025
+  ],
+  "targets": [
+    {
+      "name": "L1",
+      "position_world_m": [
+        -0.06179230972007287,
+        0.8439032718777043,
+        1.4477434098674606
+      ],
+      "normal_world": [
+        -0.08873904705528128,
+        -0.8555103884806182,
+        0.5101248442582096
+      ]
+    }
+  ],
+  "collision_geometry_sha256": "11a2fc922602a70a97d83b26cd0cd9e0868a535c9d62e0fd10a38ca975b76275",
+  "collision_arrays_sha256": "0cd0e871d723a3505e5c565be688c5c5860d678faac2534f8bb837af77974a05"
+}
