@@ -61,4 +61,26 @@ C 接触还核对原始 PhysX 冲量和实际滑架位姿，拒绝侧面/后侧�
 
 `retainer-tenpoint-plan-20260930-v2` 完成十点检查，8 点找到受约束几何路径；L1、L3 当前搜索未找到路径，不能据此宣称绝对不可达。L4、L5 找到了路径，但第二关节相对既定软件安全上限的最小余量为 0.2°，相对 URDF 机械上限为 3.2°；尚未完成实际动态验证。
 
-优先重测单份预紧下的 R3，再完善 L1/L3 搜索、验证十点实际接触和交接。旧平面膜片几何的路径、示范和交接测量不再用于训练。完整训练仍须等待新的随机场景专家资格及合格数据。
+随后在不改变限值的前提下，将 L1 搜索起点增加至12个、预接近距离搜索为30/25 mm；L3 另外使用与当前拟合文件逐字节绑定的3个IK初值，仍重新执行全部姿态、碰撞与路径检查。`retainer-l1-search-20260930-v3`、`retainer-l3-search-20260930-v3` 均找到新路径，十点几何路径已齐。几何路径成功不等于十点实际接触成功。
+
+## 单份预紧重测：R3 接触、保持与撤离通过
+
+`retainer-r3-single-preload-20260930-v3` 使用源码 `313cbba57a7873452ad178185fd2594c26c456f2`，于19:23:14 UTC正常结束并释放GPU。31,435个实际物理步，130.979秒；完整录像130.9秒。运行内与原始冲量独立复核均通过，原结果为 `success=true`、`physical_validation=true`。
+
+| 指标 | 重复预紧 v2 | 单份预紧 v3 |
+|---|---:|---:|
+| HOLD实际接触力均值 | 5.5238 N | 3.9870 N |
+| HOLD实际力范围 | 5.2458–5.6153 N | 3.7038–4.0749 N |
+| 3秒保持中的合格采样 | 0/720 | 720/720 |
+| 实际力与Hall代理均差 | 1.6027 N | 0.0657 N |
+| B及全部禁止部件受力 | 0 N | 0 N |
+
+修复仅将USD弹簧目标位置−1.5 mm归零，保留显式−1.5 N预紧。七通道释放门修复也已进入v3，原力、3秒保持、姿态、行程、相机与几何要求没有放宽。连续实际合格力窗3.75秒，HOLD完整3秒；压缩峰值2.4394 mm；撤离末端全部接触力与压缩归零。原始冲量重算误差小于1e−14 N。
+
+完整原始采集审计核对31,435个物理步、13,098个ADC包、2,619帧RGB-D和所有逐步事件，来源哈希及Hall回放一致，无错误。事件文件原schema没有录制收据哈希，这个限制在审计中保留；审计报告记录其当前SHA并核对跨流一致性。
+
+![保持阶段的实际前后对照](../../results/ausc_policy/retainer_preload_comparison_v3/comparison.png)
+
+[v3完整实际录像](../../results/ausc_policy/retainer_r3_single_preload_v3/output/review/actual_fresh_expert.mp4) · [独立接触和释放核对](../../results/ausc_policy/retainer_r3_single_preload_analysis_v3/summary.json) · [多模态记录审计](../../results/ausc_policy/retainer_r3_raw_audit_v3.json) · [前后数值](../../results/ausc_policy/retainer_preload_comparison_v3/comparison.json)
+
+这只是同一场景R3解析专家的物理成功，`training_accepted`及训练资格仍为false。L4/L5实际单份预紧测试已启动；十点动态、交接、随机场景专家资格及新训练仍未完成。旧平面膜片几何的路径、示范和交接测量不再用于训练。
