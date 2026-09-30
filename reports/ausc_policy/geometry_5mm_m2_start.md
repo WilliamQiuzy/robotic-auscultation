@@ -110,3 +110,18 @@ v1启动前缺少已存在的Hall主机解码模块，补齐精确依赖后保�
 原生完整重力对照 `geometry-5mm-fresh-expert-r3-gravity-20260930-v1`执行1361步（5.670833s），所有已执行步的外加G与slider努力持续性核对通过，但在自由转移时被新增PD+G门拒绝；无接触。trace SHA a2c8e1430188f81d1e7c312554aa53be50ecf82ec4fb8df7e4874e6e0f2603b8。实际七轴均为acceleration drive，PD是rad/s²而不是N·m；该拒绝是诊断单位错误，不能解释为真实超过7N·m。修复保留原驱动模式/增益/maxForce、原G单独限值和物理安全门，不将隐式驱动与外加G的总力矩称为已验证。历史失败收据原样保留。
 
 本地原始证据：`results/ausc_policy/m2_native_sensors_v1`、`m2_native_sensors_v2`、`m2_native_sensors_v3`；相机纯USD检查 `camera_restore_cpu_receipt.json`；首轮重力证据 `geometry_5mm_fresh_expert_r3_gravity_v1`。未开始新全量训练。
+
+### 2026-09-30 — 完整重力补偿 v2 与接触间隙复核
+
+`geometry-5mm-fresh-expert-r3-gravity-20260930-v2` 在源码94efb49完成并释放GPU，实际任务失败。17,848物理步、74.366667秒，膜片与所有其他接触力为0，保持0。下一条未执行命令的DeviceEdge–shirt间隙299.802297微米低于原300微米门。此处是command拒绝，不能描述成已经发生的物理碰撞。743帧10fps真实视频使用恢复后的批准相机。trace SHA256：`26a15ceb0492bdfab5976bfbcf78752b0ad85b07708cab09e4075e6c790b7183`。原生G、acceleration驱动类型和外部施加读回通过；没有总电机力矩独立验收。
+
+最后实测膜片平面间距24.787157微米，已执行command为1.885949微米，二者差22.901208微米；工具轴偏差0.000417°。最后APPROACH静止记录的法向/切向跟踪误差约−8.758/10.364微米、轴偏0.001991°，比未补偿的约216微米切向/0.044°轴偏减小。native acceleration drive的USD Kp/Kd为1600/80，目前只给position target，速度目标为零；0.5mm/s × Kd/Kp =25微米，再扣一物理步2.083333微米，对应22.916667微米，接近实测post-step误差。该量级吻合支持检查速度目标契约，不等于精确离散PhysX因果证明。
+
+另外完成两项CPU复核，均未启动仿真、未修改模型：
+
+- 新人体R4细化实际3212方向（1260粗+1952细）均遭noncontact_obstruction。最佳拒绝attempt14的shell299.981064微米同时对应膜片138.538260微米，并非膜片已合格而只差19纳米。按原方向完整重放结果逐值一致，501个0–5mm轴向样本显示：膜片134.095微米时shell295.553微米；膜片14.141微米时shell175.993微米。只证明这一局部方向存在问题，不证明全部姿态不可行。证据：`results/ausc_policy/contact_geometry_profile_v1`。
+- 对原reset-only接触诊断补作actual-q几何审核，共1174行（包括全部>3.5N的892行），935行shell不满足300微米。再用原生记录的112个加载Carriage刚体位姿重算，112/112仍不满足，最低295.007327微米；actualTCP相对FK最大差0.536微米，相对记录的wrist-derived TCP最大差0.183微米。故原膜片承力3.72秒、零唇边力证据仍成立，但其完整几何资格不成立，原physical_validation字段仅反映旧局部受力诊断。原件不覆盖。证据：`results/ausc_policy/actual_carriage_clearance_v1`。
+
+原几何Diaphragm比DeviceEdge只领先0.30mm；5mm修正对整个听诊头同移−5.8mm，没有增加这项内部余量。当前R3十二个候选都在膜片20.000752微米间隙处对应shell320.000752微米，理想首次触面恰为300微米，零正裕量。不能只靠增加训练步数消除该问题。
+
+实际USD核对：patient contactOffset=1mm/restOffset=0；Diaphragm和DeviceEdge/DeviceCone/DeviceDial为contactOffset30微米/restOffset=0。正restOffset会改变有效静止接触距离，不能仅为过门引入空气间隙：[PhysX官方接触偏移说明](https://nvidia-omniverse.github.io/PhysX/physx/5.1.3/docs/AdvancedCollisionDetection.html)。64/128位置迭代配置已冻结但尚未启动，协议`results/ausc_policy/solver_convergence_protocol_v1.json`明确当前先审查速度目标；未放宽任何几何或力门，未开始新全量训练。
