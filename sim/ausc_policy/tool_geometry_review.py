@@ -13,7 +13,7 @@ def main():
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     c = json.loads(args.config.read_text())
-    if os.environ.get('AUSC_OWNED_RUN') != '1' or c['experiment'] not in ('tool_geometry_review', 'geometry_qualification'):
+    if os.environ.get('AUSC_OWNED_RUN') != '1' or c['experiment'] not in ('tool_geometry_review', 'geometry_qualification','m2_geometry_plan'):
         raise RuntimeError('Existing experiment owner required')
     args.output.mkdir(parents=True, exist_ok=False)
     from .isaac_case import approved_assets
@@ -24,8 +24,10 @@ def main():
         if subprocess.check_output(['nvidia-smi', '--query-compute-apps=pid', '--format=csv,noheader'], text=True).strip():
             raise RuntimeError('GPU already occupied')
         env = dict(os.environ, LD_LIBRARY_PATH=c['ld_library_path'], OMNI_KIT_ACCEPT_EULA='YES')
+        if c['experiment']=='m2_geometry_plan':env['CUDA_VISIBLE_DEVICES']=''
         with (args.output/'isaac.log').open('w') as log:
             worker = 'sim.ausc_policy.geometry_qualification' if c['experiment']=='geometry_qualification' else 'sim.ausc_policy.tool_geometry_render'
+            if c['experiment']=='m2_geometry_plan':worker='sim.ausc_policy.geometry_plan'
             child = subprocess.Popen([c['isaac_python'], '-u', '-B', '-m', worker,
                 '--config', str(args.config.resolve()), '--output', str(args.output/'review')],
                 stdout=log, stderr=subprocess.STDOUT, env=env)

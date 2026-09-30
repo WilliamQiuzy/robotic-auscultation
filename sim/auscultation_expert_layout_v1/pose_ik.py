@@ -86,8 +86,8 @@ def solve_posture_ik(kin,base,limits,position_base,rotation_base,seed,*,compress
             or np.any(lower<kin.lower_limits) or np.any(upper>kin.upper_limits)
             or not np.isfinite(limits.max_elbow_z_m) or not np.isfinite(contact_gap) or contact_gap<0):
         raise ValueError('invalid IK posture limits')
-    lower+=np.where(np.abs(lower)>1e-10,joint_margin_rad,0.)
-    upper-=np.where(np.abs(upper)>1e-10,joint_margin_rad,0.)
+    lower+=joint_margin_rad
+    upper-=joint_margin_rad
     if np.any(lower>=upper):raise ValueError('IK internal margin removes joint range')
     seed=np.asarray(seed,float)
     if seed.shape!=(7,) or not np.isfinite(seed).all():raise ValueError('invalid IK seed')

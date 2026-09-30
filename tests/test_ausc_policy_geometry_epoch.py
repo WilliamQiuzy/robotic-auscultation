@@ -111,3 +111,14 @@ def test_axis_cone_never_exceeds_original_five_degree_contact_tolerance():
     assert result['success'] and result['orientation_error_rad']<=np.deg2rad(5.)+1e-8
     with pytest.raises(ValueError):
         solve_axis(kin,np.eye(4),limits,pose[:3,3],normal_axis,q,axis_tolerance_deg=5.1)
+
+
+def test_full_pose_ik_margin_also_covers_zero_joint_limit():
+    from sim.auscultation_expert_layout_v1.pose_ik import solve_posture_ik
+    from sim.auscultation_expert_layout_v1.posture import PostureLimits
+    kin=OpenArmKinematics(contact_frame=frame)
+    lower=kin.lower_limits.copy();lower[3]=0.
+    limits=PostureLimits(10.,tuple(lower),tuple(kin.upper_limits))
+    q=np.zeros(7);pose=kin.tcp(q)
+    solved,_,_,_=solve_posture_ik(kin,np.eye(4),limits,pose[:3,3],pose[:3,:3],q)
+    assert solved[3]>=np.deg2rad(.2)-1e-12
