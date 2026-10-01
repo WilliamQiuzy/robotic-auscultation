@@ -10,6 +10,16 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/retainer-tenpoint-v10.mp4': 'results/ausc_policy/retainer_tenpoint_feedback_v10/actual_fresh_expert.mp4',
+    '/media/retainer-tenpoint-v10-force.png': 'results/ausc_policy/retainer_tenpoint_feedback_v10/tenpoint_force_comparison.png',
+    '/media/retainer-tenpoint-v10-r2.png': 'results/ausc_policy/retainer_tenpoint_feedback_v10/R2_hold.png',
+    '/media/retainer-tenpoint-v10-l4.png': 'results/ausc_policy/retainer_tenpoint_feedback_v10/L4_hold.png',
+    '/media/retainer-tenpoint-v10-l5.png': 'results/ausc_policy/retainer_tenpoint_feedback_v10/L5_hold.png',
+    '/evidence/retainer-tenpoint-v10': 'reports/ausc_policy/nominal_tenpoint_feedback_v10_20261001.md',
+    '/evidence/retainer-tenpoint-v10-audit': 'results/ausc_policy/retainer_tenpoint_feedback_v10/summary.json',
+    '/evidence/retainer-tenpoint-v10-sealed': 'results/ausc_policy/retainer_tenpoint_feedback_v10/sealed_physics_review.json',
+    '/evidence/retainer-tenpoint-v10-media': 'results/ausc_policy/retainer_tenpoint_feedback_v10/media_and_terminal_receipt.json',
+    '/evidence/r2-feedback-diagnosis': 'reports/ausc_policy/r2_feedback_diagnosis_20261001.md',
     '/media/retainer-tenpoint-v8.mp4': 'results/ausc_policy/retainer_tenpoint_retry_v8/actual_fresh_expert.mp4',
     '/evidence/retainer-tenpoint-v8': 'reports/ausc_policy/nominal_tenpoint_v8_20261001.md',
     '/evidence/m2-L2-command-complete': 'results/ausc_policy/observed_seated_v2_L2_command_reaudit_v1/summary.json',
