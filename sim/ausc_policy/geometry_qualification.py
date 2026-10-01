@@ -150,6 +150,10 @@ def main():
     parser.add_argument('--config',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
     args=parser.parse_args();config=json.loads(args.config.read_text());require_current(config)
     if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':raise RuntimeError('Owned Linux Isaac required')
+    settling_inputs=None
+    if 'm2_render_settling_probe' in config:
+        from .render_settling_probe import preflight
+        settling_inputs=preflight(config,args.config)
     args.output.mkdir(parents=True,exist_ok=False)
     source=Path(config['geometry_source'])
     if hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:raise ValueError('Geometry changed')
@@ -179,6 +183,10 @@ def main():
             write(args.output/'passive_preload_saved_usd_readback.json',
                 verify_preload_readback(saved,config['fresh_expert'],preload))
         entries=export_geometry(stage,args.output/'geometry')
+        if settling_inputs is not None:
+            from .render_settling_probe import run_probe
+            run_probe(app,stage,args.output,config,mass,checked_inputs=settling_inputs)
+            return
         if config.get('m2_sensor_probe'):
             from .m2_sensor_probe import run_probe
             result=run_probe(app,stage,args.output,config,mass)
