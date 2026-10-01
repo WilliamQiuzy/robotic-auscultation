@@ -10,6 +10,11 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/evidence/m2-all10-bounded-summary': 'results/ausc_policy/observed_yaw_seated_v2_all10_paths_v1/bounded_summary.json',
+    '/media/m2-all10-coverage-v2.png': 'results/ausc_policy/observed_yaw_seated_v2_all10_paths_v1/coverage_v2.png',
+    '/evidence/m2-all10-terminal-audit': 'results/ausc_policy/observed_yaw_seated_v2_all10_paths_v1/terminal_audit.json',
+    '/evidence/m2-yaw-seated-v2': 'results/ausc_policy/observed_yaw_seated_v2_v1/summary.json',
+    '/evidence/m2-yaw-seated-review': 'results/ausc_policy/observed_yaw_seated_v2_review_v2/summary.json',
     '/evidence/m2-yaw-static-surfaces': 'results/ausc_policy/observed_yaw_static_surface_diagnostic_v1/summary.json',
     '/evidence/m2-yaw-seat-faces': 'results/ausc_policy/observed_yaw_seat_faces_diagnostic_v1/summary.json',
     '/evidence/m2-l5-yaw-matrix': 'results/ausc_policy/observed_l5_yaw_matrix_v1/summary.json',
