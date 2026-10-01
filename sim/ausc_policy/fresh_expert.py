@@ -18,6 +18,7 @@ from .edge_timing import checked_edge_commands
 from .expert_capture import ExpertCapture, capture_settings, checked_render, controller_labels
 from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
                                  gravity_feedforward_settings, read_native_angular_drive_modes)
+from .force_feedback import hold_config, balance_receipt
 from .velocity_feedforward import NativeVelocityFeedforward, velocity_feedforward_settings
 from .retainer_contact import (CONTACT_SURFACE, RETAINER_PATHS, DIAPHRAGM_PATH, ALL_FORCE_GROUPS,
                                CONTACT_FORCE_GROUPS, is_retainer_patient_pair, audit_retainer_front)
@@ -106,6 +107,8 @@ def read_plans(config, geometry, kin):
     """
     require_current(config)
     requested = config['fresh_expert']
+    from sim.auscultation_expert_layout_v1.phase_manager import PhaseConfig
+    hold_config(PhaseConfig(), requested.get('force_feedback'))
     gravity_feedforward_settings(requested)
     velocity_feedforward_settings(requested)
     passive_effort(0, requested.get('passive_preload_N'))
@@ -262,9 +265,11 @@ class FreshExpert(SkillExpert):
     # checks below, while the true device ring contributes to contact evidence.
     front_contact_groups = CONTACT_FORCE_GROUPS
     total_contact_groups = ALL_FORCE_GROUPS
-    def __init__(self, *args, near_surface_motion=None, **kwargs):
+    def __init__(self, *args, near_surface_motion=None, force_feedback=None, **kwargs):
         super().__init__(*args, speed_scale=.7,
             executor_config=dict(joint_velocity_limit_rad_s=.175), **kwargs)
+        self.config=hold_config(self.config,force_feedback)
+        self.force_feedback=force_feedback
         # .25*.7 is mathematically .175 but retain the explicit contract value.
         self.joint_speed_limit=.175
         self.near_surface_motion=near_surface_settings(near_surface_motion,
@@ -499,6 +504,21 @@ class FreshContactEnv(IsaacContactEnv):
                 self.contact_points,world,self.last_contacts.get('retainer',0.))
             self.rows[-1]['retainer_front_audit']=deepcopy(self.retainer_front_audit)
             self.rows[-1]['contact_surface']=CONTACT_SURFACE
+            if getattr(self,'force_balance_enabled',False) and label in ('CONTACT','HOLD','RETRACT'):
+                from omni.physx import get_physx_simulation_interface
+                from pxr import PhysicsSchemaTools
+                from .retainer_contact import CONTACT_PATHS
+                report=get_physx_simulation_interface().get_full_contact_report()
+                receipt=balance_receipt(report,
+                    lambda value:str(PhysicsSchemaTools.intToSdfPath(value)),
+                    lambda a,b:((a in CONTACT_PATHS and b.startswith('/World/Patient/'))
+                                or (b in CONTACT_PATHS and a.startswith('/World/Patient/'))),
+                    lambda path:path in CONTACT_PATHS,state,
+                    float(self.robot.get_joint_velocities()[self.slider]),self.moving_mass_kg,DT)
+                expected=sum(self.last_contacts.get(group,0.) for group in CONTACT_FORCE_GROUPS)
+                if not np.isclose(receipt['normal_force_N'],expected,atol=1e-8,rtol=1e-8):
+                    raise ValueError('Full contact diagnostic differs from original contact ledger')
+                self.rows[-1]['force_balance']=receipt
         except BaseException:
             if capture is not None:
                 try:capture.after_physics(self,rows_before)
@@ -680,6 +700,7 @@ def run_probe(app,stage,output,config,mass):
                   Path(__file__).with_name('retainer_contact.py'),
                   Path(__file__).with_name('gravity_feedforward.py'),
                   Path(__file__).with_name('velocity_feedforward.py')]
+    source_paths.append(Path(__file__).with_name('force_feedback.py'))
     if preload_settings is not None:source_paths.append(Path(__file__).with_name('passive_preload.py'))
     import inspect
     from sim.auscultation_skill_v1 import curve,executor
@@ -707,6 +728,7 @@ def run_probe(app,stage,output,config,mass):
         env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
                             contact_offset_m=.132,moving_mass_kg=mass_kg)
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
+        env.force_balance_enabled=config['fresh_expert'].get('force_feedback') is not None
         if preload_settings is not None:
             preload_startup=verify_preload_readback(env.stage,config['fresh_expert'],preload_receipt,
                 robot=env.robot,slider=env.slider)
@@ -736,7 +758,8 @@ def run_probe(app,stage,output,config,mass):
             capture.start(env)
         controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
                                static_geometry_dir=output/'geometry',
-                               near_surface_motion=config['fresh_expert'].get('near_surface_motion'))
+                               near_surface_motion=config['fresh_expert'].get('near_surface_motion'),
+                               force_feedback=config['fresh_expert'].get('force_feedback'))
         controller_wall_started=time.monotonic()
         outcome=controller.run(points)
     except BaseException as error:
