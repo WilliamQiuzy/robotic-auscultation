@@ -10,6 +10,11 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/m2-source-seat-alignment.png': 'results/ausc_policy/observed_source_seat_pilot_v3/source_seat_alignment.png',
+    '/evidence/m2-source-seat-alignment': 'results/ausc_policy/observed_source_seat_pilot_v3/summary.json',
+    '/evidence/m2-source-seat-stereo': 'results/ausc_policy/source_seat_stereo_rim_v1/summary_complete.json',
+    '/evidence/m2-observed-selfpair': 'results/ausc_policy/observed_selfpair_diagnostic_v1/summary.json',
+    '/media/m2-observed-selfpair.png': 'results/ausc_policy/observed_selfpair_diagnostic_v1/local_triangle_diagnostic.png',
     '/media/m2-observed-seat-pilot.png': 'results/ausc_policy/observed_scene_pilot_v1/observed_scene_pilot.png',
     '/evidence/m2-observed-seat-pilot': 'results/ausc_policy/observed_scene_pilot_v1/summary.json',
     '/evidence/m2-observed-source-review': 'results/ausc_policy/observed_scene_pilot_v1/source_semantic_review.json',
