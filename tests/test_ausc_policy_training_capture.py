@@ -313,13 +313,14 @@ def adaptive_writer(tmp_path, **kwargs):
 def test_adaptive_episode_closes_shorter_than_bound_with_actual_native_endpoint(tmp_path):
     with adaptive_writer(tmp_path,max_frames=10) as w:
         w.append(**frame());w.append(**frame(1))
-        receipt=w.close(final_native_step_count=36,final_native_time_s=.15)
-    assert receipt['completed'] and receipt['frames']==2
+        w.append_terminal(**terminal_frame(2))
+        receipt=w.close(final_native_step_count=36,final_native_time_s=.15,terminal_ticks=[])
+    assert receipt['completed'] and receipt['frames']==3
     assert receipt['expected_frames'] is None and receipt['max_frames']==10
     assert receipt['duration_mode']=='adaptive'
     assert receipt['final_native_step_count']==36 and receipt['final_native_time_s']==.15
     assert not any(receipt[k] for k in ('training_eligible','physical_qualification','artifact_hashes_verified'))
-    assert len(list(module().iter_training_records(w.output)))==2
+    assert len(list(module().iter_training_records(w.output)))==3
 
 
 @pytest.mark.parametrize('closing',[
@@ -577,3 +578,355 @@ def test_failed_append_does_not_advance_temporal_depth_state(tmp_path):
     np.testing.assert_array_equal(w._previous_depth,previous)
     assert w._count==1
     with pytest.raises(RuntimeError,match='incomplete'):w.close()
+
+
+def terminal_frame(i=0):
+    row=frame(i);del row['action']
+    return row
+
+
+def terminal_ticks(n):
+    return [dict(episode_id='synthetic-r3',target_id='R3',step_count=step,
+                 physics_row=step-1,time_s=step/240.,phase='RETRACT',control_owner='L3',
+                 measured_q=Q.tolist(),q_command=(Q+.013).tolist(),
+                 command_issued_at_s=(step-1)/240.,command_readback_at_s=step/240.,
+                 command_source_id=f'native-command-{step}',observation_source_id=f'native-state-{step}')
+            for step in range(n//12*12+1,n+1)]
+
+
+@pytest.mark.parametrize('remainder',range(12))
+def test_adaptive_terminal_keeps_all_observations_and_exact_native_suffix(tmp_path,remainder):
+    w=adaptive_writer(tmp_path,max_frames=3)
+    w.append(**frame());w.append_terminal(**terminal_frame(1))
+    n=24+remainder
+    receipt=w.close(final_native_step_count=n,final_native_time_s=n/240.,terminal_ticks=terminal_ticks(n))
+    assert receipt['completed'] and receipt['frames']==2 and receipt['complete_pairs']==1
+    assert receipt['terminal_tick_count']==remainder and receipt['terminal_observations']==1
+    assert receipt['recording_scope']=='observations_with_terminal_native_suffix'
+    assert receipt['h20_eligible'] is False
+    assert receipt['total_bytes']==sum(p.stat().st_size for p in w.output.iterdir())
+    saved=list(module().iter_training_records(w.output))
+    assert [row['record_kind'].item() for row in saved]==['paired','terminal_observation']
+    assert 'q_command' in saved[0]
+    assert not any(key.startswith('action_') or key=='q_command' for key in saved[-1])
+    assert saved[-1]['hall_sample_time_s']==pytest.approx(.1)
+    evidence=module().read_terminal_evidence(w.output)
+    assert evidence['ticks']==terminal_ticks(n)
+    assert evidence['final_native_step_count']==n and evidence['terminal_tick_count']==remainder
+    assert evidence['last_observation_step_count']==24
+    assert evidence['last_observation_time_s']==.1
+
+
+@pytest.mark.parametrize('n',range(12))
+def test_native_episode_before_first_observation_has_no_fabricated_policy_records(tmp_path,n):
+    w=adaptive_writer(tmp_path)
+    receipt=w.close(final_native_step_count=n,final_native_time_s=n/240.,terminal_ticks=terminal_ticks(n))
+    assert receipt['completed'] and receipt['frames']==0 and receipt['complete_pairs']==0
+    assert receipt['terminal_observations']==0
+    assert receipt['recording_scope']=='native_ticks_only_no_policy_observations'
+    assert list(module().iter_training_records(w.output))==[]
+    assert module().read_terminal_evidence(w.output)['last_observation_time_s'] is None
+
+
+@pytest.mark.parametrize('problem',['missing','gap','duplicate','extra','time','row','target','q',
+                                  'readback','issue','source','owner','bool_count'])
+def test_terminal_suffix_requires_every_actual_tick_and_bound_readback(tmp_path,problem):
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    ticks=terminal_ticks(14)
+    if problem=='missing':ticks=ticks[:1]
+    elif problem=='gap':ticks[0]['step_count']=12
+    elif problem=='duplicate':ticks[1]=deepcopy(ticks[0])
+    elif problem=='extra':ticks.append(deepcopy(ticks[-1]))
+    elif problem=='time':ticks[-1]['time_s']+=.0001
+    elif problem=='row':ticks[-1]['physics_row']+=1
+    elif problem=='target':ticks[-1]['target_id']='R4'
+    elif problem=='q':ticks[-1]['q_command']=[0]*6
+    elif problem=='readback':ticks[-1]['command_readback_at_s']-=1/240.
+    elif problem=='issue':ticks[-1]['command_issued_at_s']=.2
+    elif problem=='source':ticks[-1]['command_source_id']=''
+    elif problem=='owner':ticks[-1]['control_owner']='invented'
+    else:ticks[-1]['step_count']=True
+    with pytest.raises(RuntimeError,match='incomplete'):
+        w.close(final_native_step_count=14,final_native_time_s=14/240.,terminal_ticks=ticks)
+    assert not json.loads((w.output/'receipt.json').read_text())['completed']
+
+
+@pytest.mark.parametrize('problem',['no_terminal','missing_observation','too_many_observations','missing_ticks'])
+def test_adaptive_close_cannot_hide_gap_or_final_unpaired_observation(tmp_path,problem):
+    w=adaptive_writer(tmp_path)
+    if problem=='no_terminal':w.append(**frame())
+    else:w.append_terminal(**terminal_frame())
+    n={'no_terminal':24,'missing_observation':24,'too_many_observations':11,'missing_ticks':13}[problem]
+    options={} if problem=='missing_ticks' else dict(terminal_ticks=terminal_ticks(n))
+    with pytest.raises(RuntimeError,match='incomplete'):
+        w.close(final_native_step_count=n,final_native_time_s=n/240.,**options)
+
+
+@pytest.mark.parametrize('method',['append','append_terminal'])
+def test_terminal_observation_is_last_and_cannot_have_action_label(tmp_path,method):
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    with pytest.raises((ValueError,RuntimeError),match='terminal'):
+        getattr(w,method)(**(frame(1) if method=='append' else terminal_frame(1)))
+    with pytest.raises(RuntimeError,match='incomplete'):
+        w.close(final_native_step_count=12,final_native_time_s=.05,terminal_ticks=[])
+    other=adaptive_writer(tmp_path/'other')
+    with pytest.raises(ValueError,match='action'):other.append_terminal(**frame())
+    other.abort('bad terminal action')
+
+
+def test_terminal_hall_cannot_use_packet_received_after_observation(tmp_path):
+    w=adaptive_writer(tmp_path);row=terminal_frame();row['hall_packets']=[packet(.05,.051)]
+    with pytest.raises(ValueError,match='Hall'):w.append_terminal(**row)
+    w.abort('late packet')
+
+
+@pytest.mark.parametrize('n',[0,1,11,12,13,24])
+def test_abort_retains_actual_native_clock_and_suffix_before_or_after_step(tmp_path,n):
+    w=adaptive_writer(tmp_path)
+    if n>=12:w.append_terminal(**terminal_frame())
+    receipt=w.abort('native step failure',final_native_step_count=n,
+                    final_native_time_s=n/240.,terminal_ticks=terminal_ticks(n))
+    assert not receipt['completed'] and receipt['final_native_step_count']==n
+    assert 'native step failure' in receipt['failure']
+    evidence=json.loads((w.output/'terminal.json').read_text())
+    assert evidence['ticks']==terminal_ticks(n)
+    assert evidence['last_observation_step_count']==(12 if n>=12 else None)
+    assert evidence['missing_observations']==max(n//12-1,0)
+    with pytest.raises(RuntimeError,match='incomplete'):list(module().iter_training_records(w.output))
+
+
+def rebind_artifacts(output,changed):
+    path=output/'receipt.json';receipt=json.loads(path.read_text())
+    for name in changed:
+        raw=(output/name).read_bytes()
+        receipt['artifacts'][name]=dict(bytes=len(raw),sha256=hashlib.sha256(raw).hexdigest())
+    base=sum(p.stat().st_size for p in output.iterdir() if p.name!='receipt.json')
+    encode=lambda:(json.dumps(receipt,sort_keys=True,separators=(',',':'))+'\n').encode()
+    while receipt['total_bytes']!=base+len(encode()):receipt['total_bytes']=base+len(encode())
+    path.write_bytes(encode())
+
+
+@pytest.mark.parametrize('problem',['count','time','row','extra_tick','missing_tick','readback','source',
+                                  'terminal_action','kind','future_hall','action_readback','extra_frame','extra_key'])
+def test_v4_reader_rejects_terminal_corruption_even_if_hashes_recomputed(tmp_path,problem):
+    w=adaptive_writer(tmp_path);w.append(**frame());w.append_terminal(**terminal_frame(1))
+    w.close(final_native_step_count=26,final_native_time_s=26/240.,terminal_ticks=terminal_ticks(26))
+    path=w.output/'terminal.json';evidence=json.loads(path.read_text())
+    if problem in ('terminal_action','kind','future_hall','action_readback','extra_frame'):
+        rows=list(numeric_records(w.output/'numeric.bin'))
+        if problem=='terminal_action':rows[-1]['q_command']=np.zeros(7)
+        elif problem=='kind':rows[-1]['record_kind']='paired'
+        elif problem=='future_hall':rows[-1]['hall_received_time_s']=np.float64(.101)
+        elif problem=='action_readback':rows[0]['action_readback_at_s']=np.float64(.101)
+        else:rows.append(rows[-1])
+        rewrite_numeric_records(w.output,rows)
+    else:
+        if problem=='count':evidence['terminal_tick_count']=1
+        elif problem=='time':evidence['final_native_time_s']+=1/240.
+        elif problem=='row':evidence['ticks'][-1]['physics_row']+=1
+        elif problem=='extra_tick':evidence['ticks'].append(deepcopy(evidence['ticks'][-1]))
+        elif problem=='missing_tick':evidence['ticks'].pop()
+        elif problem=='readback':evidence['ticks'][-1]['command_readback_at_s']=.2
+        elif problem=='source':evidence['ticks'][-1]['observation_source_id']=''
+        else:evidence['hidden_ticks']=[1,2]
+        path.write_text(json.dumps(evidence));rebind_artifacts(w.output,['terminal.json'])
+    with pytest.raises(ValueError,match='integrity'):list(module().iter_training_records(w.output))
+
+
+def test_terminal_payload_and_receipt_are_included_in_byte_cap(tmp_path):
+    w=adaptive_writer(tmp_path/'probe');w.append_terminal(**terminal_frame())
+    size=sum(p.stat().st_size for p in w.output.iterdir());w.abort('size probe')
+    w=adaptive_writer(tmp_path/'bounded',limit_bytes=size+module().RECEIPT_RESERVE+100)
+    w.append_terminal(**terminal_frame())
+    with pytest.raises(RuntimeError,match='incomplete'):
+        w.close(final_native_step_count=23,final_native_time_s=23/240.,terminal_ticks=terminal_ticks(23))
+    receipt=json.loads((w.output/'receipt.json').read_text())
+    assert not receipt['completed'] and 'budget' in receipt['failure']
+    assert receipt['total_bytes']<=receipt['limit_bytes']
+
+
+def test_fixed_v3_contract_still_requires_every_future_action(tmp_path):
+    w=writer(tmp_path,expected_frames=1)
+    with pytest.raises(ValueError,match='adaptive'):w.append_terminal(**terminal_frame())
+    w.abort('fixed mode needs action')
+
+
+@pytest.mark.parametrize('field,value',[
+    ('terminal_tick_count',False),('final_native_step_count',12.0),
+    ('last_observation_step_count',12.0),('training_eligible',0),('h20_eligible',0),
+])
+def test_v4_terminal_reader_requires_typed_counts_and_false_qualifications(tmp_path,field,value):
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    w.close(final_native_step_count=12,final_native_time_s=.05,terminal_ticks=[])
+    path=w.output/'terminal.json';evidence=json.loads(path.read_text());evidence[field]=value
+    path.write_text(json.dumps(evidence));rebind_artifacts(w.output,['terminal.json'])
+    with pytest.raises(ValueError,match='integrity'):module().read_terminal_evidence(w.output)
+
+
+@pytest.mark.parametrize('filename',['terminal.json','numeric.bin','rgb.mjpeg'])
+def test_v4_reader_rejects_trailing_bytes_and_truncated_payloads(tmp_path,filename):
+    for alteration in ('trailing','truncated'):
+        w=adaptive_writer(tmp_path/alteration);w.append_terminal(**terminal_frame())
+        w.close(final_native_step_count=13,final_native_time_s=13/240.,terminal_ticks=terminal_ticks(13))
+        path=w.output/filename;raw=path.read_bytes()
+        path.write_bytes(raw+b'extra' if alteration=='trailing' else raw[:-5])
+        rebind_artifacts(w.output,[filename])
+        with pytest.raises(ValueError):list(module().iter_training_records(w.output))
+
+
+def test_partial_terminal_write_keeps_incomplete_receipt_inside_budget(tmp_path):
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    underlying=w._terminal
+    class ShortTerminalWrite:
+        def write(self,payload):
+            underlying.write(payload[:10]);underlying.flush()
+            return 10
+        def close(self):underlying.close()
+    w._terminal=ShortTerminalWrite()
+    with pytest.raises(RuntimeError,match='incomplete'):
+        w.close(final_native_step_count=13,final_native_time_s=13/240.,terminal_ticks=terminal_ticks(13))
+    receipt=json.loads((w.output/'receipt.json').read_text())
+    assert not receipt['completed'] and 'Short terminal' in receipt['failure']
+    assert receipt['total_bytes']==sum(p.stat().st_size for p in w.output.iterdir())
+    assert receipt['total_bytes']<=receipt['limit_bytes']
+
+
+def test_abort_after_failed_observation_retains_native_clock_without_inventing_frame(tmp_path):
+    w=adaptive_writer(tmp_path);row=terminal_frame();row['state17']=np.zeros(17)
+    with pytest.raises(ValueError,match='state17'):w.append_terminal(**row)
+    receipt=w.abort('estimator failed after native step',final_native_step_count=13,
+                    final_native_time_s=13/240.,terminal_ticks=terminal_ticks(13))
+    evidence=json.loads((w.output/'terminal.json').read_text())
+    assert not receipt['completed'] and receipt['frames']==0 and receipt['complete_pairs']==0
+    assert receipt['final_native_step_count']==13
+    assert evidence['last_observation_step_count'] is None and evidence['missing_observations']==1
+
+
+@pytest.mark.parametrize('change',[dict(limit_bytes=99_999_999),dict(failure='unresolved acquisition failure')])
+def test_v4_reader_requires_receipt_to_match_predeclared_budget_and_success(tmp_path,change):
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    w.close(final_native_step_count=12,final_native_time_s=.05,terminal_ticks=[])
+    path=w.output/'receipt.json';receipt=json.loads(path.read_text());receipt.update(change)
+    path.write_text(json.dumps(receipt));rebind_artifacts(w.output,[])
+    with pytest.raises(ValueError,match='integrity'):list(module().iter_training_records(w.output))
+
+
+@pytest.mark.parametrize('key',[
+    'collision_geometry_sha256','collision_arrays_sha256','identity_split_sha256',
+    'source_kind','subject_id','split',
+])
+@pytest.mark.parametrize('change',['missing','invalid'])
+def test_v4_reader_requires_writer_provenance_after_hash_rebinding(tmp_path,key,change):
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    w.close(final_native_step_count=13,final_native_time_s=13/240.,terminal_ticks=terminal_ticks(13))
+    path=w.output/'manifest.json';manifest=json.loads(path.read_text())
+    if change=='missing':del manifest['metadata'][key]
+    else:manifest['metadata'][key]=''
+    path.write_text(json.dumps(manifest));rebind_artifacts(w.output,['manifest.json'])
+    with pytest.raises(ValueError,match='integrity'):module().read_terminal_evidence(w.output)
+
+
+@pytest.mark.parametrize('problem',['suffix_junk','prefix_junk','duplicate_member','member_trailing_bytes'])
+def test_numeric_container_rejects_hidden_bytes_and_duplicate_members(tmp_path,problem):
+    import io
+    import warnings
+    import zipfile
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    w.close(final_native_step_count=12,final_native_time_s=.05,terminal_ticks=[])
+    path=w.output/'numeric.bin';payload=path.read_bytes()[module().HEADER.size:]
+    if problem=='suffix_junk':payload+=b'EXTRA'
+    elif problem=='prefix_junk':payload=b'EXTRA'+payload
+    elif problem=='duplicate_member':
+        stream=io.BytesIO(payload)
+        with zipfile.ZipFile(stream,'a') as archive:
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore',UserWarning)
+                archive.writestr('state17.npy',archive.read('state17.npy'))
+        payload=stream.getvalue()
+    else:
+        stream=io.BytesIO()
+        with zipfile.ZipFile(io.BytesIO(payload)) as original,zipfile.ZipFile(stream,'w',compression=zipfile.ZIP_DEFLATED) as changed:
+            for info in original.infolist():
+                raw=original.read(info)
+                changed.writestr(info.filename,raw+b'EXTRA' if info.filename=='state17.npy' else raw)
+        payload=stream.getvalue()
+    path.write_bytes(module()._framed(payload));rebind_artifacts(w.output,['numeric.bin'])
+    with pytest.raises(ValueError,match='integrity'):list(module().iter_training_records(w.output))
+
+
+@pytest.mark.parametrize('problem',['png','suffix_junk','second_image'])
+def test_rgb_container_requires_exactly_one_jpeg_without_trailing_bytes(tmp_path,problem):
+    import io
+    import zlib
+    from PIL import Image
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    w.close(final_native_step_count=12,final_native_time_s=.05,terminal_ticks=[])
+    path=w.output/'rgb.mjpeg';payload=path.read_bytes()[module().HEADER.size:]
+    if problem=='png':
+        stream=io.BytesIO()
+        with Image.open(io.BytesIO(payload)) as original:original.save(stream,format='PNG')
+        payload=stream.getvalue()
+    elif problem=='suffix_junk':payload+=b'EXTRA'
+    else:payload+=payload
+    path.write_bytes(module()._framed(payload))
+    rows=list(numeric_records(w.output/'numeric.bin'))
+    rows[0]['rgb_bytes']=np.int64(len(payload));rows[0]['rgb_crc32']=np.int64(zlib.crc32(payload))
+    rewrite_numeric_records(w.output,rows);rebind_artifacts(w.output,['rgb.mjpeg'])
+    with pytest.raises(ValueError,match='integrity'):list(module().iter_training_records(w.output))
+
+
+@pytest.mark.parametrize('method',['close','abort'])
+def test_native_clock_survives_valid_terminal_ledger_budget_failure(tmp_path,method):
+    w=adaptive_writer(tmp_path/'probe');w.append_terminal(**terminal_frame())
+    size=sum(p.stat().st_size for p in w.output.iterdir());w.abort('size probe')
+    w=adaptive_writer(tmp_path/'bounded',limit_bytes=size+module().RECEIPT_RESERVE+100)
+    w.append_terminal(**terminal_frame())
+    kwargs=dict(final_native_step_count=23,final_native_time_s=23/240.,terminal_ticks=terminal_ticks(23))
+    if method=='abort':w.abort('native execution failure',**kwargs)
+    else:
+        with pytest.raises(RuntimeError,match='incomplete'):w.close(**kwargs)
+    receipt=json.loads((w.output/'receipt.json').read_text())
+    assert receipt['completed'] is False and 'budget' in receipt['failure']
+    assert receipt['final_native_step_count']==23 and receipt['final_native_time_s']==23/240.
+    assert receipt['terminal_tick_count']==11 and receipt['terminal_evidence_complete'] is False
+    assert (w.output/'terminal.json').stat().st_size==0
+    assert receipt['total_bytes']==sum(p.stat().st_size for p in w.output.iterdir())
+    assert receipt['total_bytes']<=receipt['limit_bytes']
+
+
+def test_failed_append_close_still_retains_supplied_valid_terminal_clock(tmp_path):
+    w=adaptive_writer(tmp_path);row=terminal_frame();row['state17']=np.zeros(17)
+    with pytest.raises(ValueError,match='state17'):w.append_terminal(**row)
+    with pytest.raises(RuntimeError,match='incomplete'):
+        w.close(final_native_step_count=13,final_native_time_s=13/240.,terminal_ticks=terminal_ticks(13))
+    receipt=json.loads((w.output/'receipt.json').read_text())
+    assert receipt['completed'] is False and 'state17' in receipt['failure']
+    assert receipt['final_native_step_count']==13 and receipt['final_native_time_s']==13/240.
+    assert receipt['terminal_evidence_complete'] is True
+
+
+def test_numeric_container_rejects_bytes_after_member_deflate_eof(tmp_path):
+    import io
+    import struct
+    import zipfile
+    import zlib
+    w=adaptive_writer(tmp_path);w.append_terminal(**terminal_frame())
+    w.close(final_native_step_count=12,final_native_time_s=.05,terminal_ticks=[])
+    path=w.output/'numeric.bin';original=path.read_bytes()[module().HEADER.size:]
+    body,directory=bytearray(),bytearray()
+    with zipfile.ZipFile(io.BytesIO(original)) as archive:
+        members=archive.infolist()
+        for index,member in enumerate(members):
+            name=member.filename.encode();raw=archive.read(member)
+            compressor=zlib.compressobj(wbits=-15)
+            compressed=compressor.compress(raw)+compressor.flush()
+            if index==0:compressed+=b'UNBOUND_BYTES_AFTER_DEFLATE_EOF'
+            crc,offset=zlib.crc32(raw),len(body)
+            body+=struct.pack('<4s5H3I2H',b'PK\x03\x04',20,0,8,0,0,crc,
+                              len(compressed),len(raw),len(name),0)+name+compressed
+            directory+=struct.pack('<4s6H3I5H2I',b'PK\x01\x02',20,20,0,8,0,0,crc,
+                                   len(compressed),len(raw),len(name),0,0,0,0,0,offset)+name
+    count=len(members)
+    payload=bytes(body+directory)+struct.pack('<4s4H2IH',b'PK\x05\x06',0,0,count,count,len(directory),len(body),0)
+    path.write_bytes(module()._framed(payload));rebind_artifacts(w.output,['numeric.bin'])
+    with pytest.raises(ValueError,match='integrity'):module().read_terminal_evidence(w.output)
