@@ -509,16 +509,16 @@ class FreshContactEnv(IsaacContactEnv):
                 from pxr import PhysicsSchemaTools
                 from .retainer_contact import CONTACT_PATHS
                 report=get_physx_simulation_interface().get_full_contact_report()
-                receipt=balance_receipt(report,
+                balance=balance_receipt(report,
                     lambda value:str(PhysicsSchemaTools.intToSdfPath(value)),
                     lambda a,b:((a in CONTACT_PATHS and b.startswith('/World/Patient/'))
                                 or (b in CONTACT_PATHS and a.startswith('/World/Patient/'))),
                     lambda path:path in CONTACT_PATHS,state,
                     float(self.robot.get_joint_velocities()[self.slider]),self.moving_mass_kg,DT)
                 expected=sum(self.last_contacts.get(group,0.) for group in CONTACT_FORCE_GROUPS)
-                if not np.isclose(receipt['normal_force_N'],expected,atol=1e-8,rtol=1e-8):
+                if not np.isclose(balance['normal_force_N'],expected,atol=1e-8,rtol=1e-8):
                     raise ValueError('Full contact diagnostic differs from original contact ledger')
-                self.rows[-1]['force_balance']=receipt
+                self.rows[-1]['force_balance']=balance
         except BaseException:
             if capture is not None:
                 try:capture.after_physics(self,rows_before)

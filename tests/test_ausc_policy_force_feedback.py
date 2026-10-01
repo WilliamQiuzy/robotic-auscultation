@@ -92,3 +92,27 @@ def test_incomplete_native_friction_report_is_not_silently_zero_filled():
          friction_anchors_offset=0,num_friction_anchors_data=1)
     with pytest.raises(ValueError):m.balance_receipt(([h],[],[]),lambda x:x,
         lambda a,b:True,lambda p:p=='ring',dict(axis_world=[0,0,-1],compression_m=0,hall_raw_N=0,hall_N=0),0,.067,1/240)
+
+
+def test_native_balance_does_not_replace_gravity_verification_receipt(monkeypatch):
+    import sys
+    from sim.ausc_policy import fresh_expert as f
+    monkeypatch.setitem(sys.modules,'isaacsim.core.utils.types',NS(ArticulationAction=NS))
+    monkeypatch.setitem(sys.modules,'omni.physx',NS(get_physx_simulation_interface=lambda:NS(get_full_contact_report=lambda:([],[],[]))))
+    monkeypatch.setitem(sys.modules,'pxr',NS(PhysicsSchemaTools=NS(intToSdfPath=lambda v:v)))
+    env=f.FreshContactEnv.__new__(f.FreshContactEnv)
+    env.rows=[];env.slider=1;env.passive_preload_N=1.5;env.moving_mass_kg=.067
+    env.force_balance_enabled=True;env.video_recorder=None;env.contact_points=[];env.last_contacts={}
+    env.bodies=[('/World/Stethoscope/Carriage',NS(get_world_pose=lambda:(np.zeros(3),np.array([1.,0.,0.,0.]))))]
+    env.robot=NS(apply_action=lambda action:None,get_joint_velocities=lambda:np.zeros(2))
+    gravity_receipt={'requested_efforts':[1.,-1.5]};verified=[]
+    def verify(receipt):
+        assert receipt is gravity_receipt
+        verified.append(True)
+    env.gravity_feedforward=NS(prepare=lambda q:(np.array([0,1]),np.array([1.,-1.5]),gravity_receipt),verify_applied=verify)
+    state=dict(axis_world=np.array([0.,0.,-1.]),compression_m=0.,hall_raw_N=0.,hall_N=0.)
+    def step(self,*args):self.rows.append({});return state
+    monkeypatch.setattr(f.IsaacContactEnv,'step',step)
+    assert env.step(np.zeros(7),'CONTACT','R2') is state
+    assert verified==[True]
+    assert env.rows[-1]['force_balance']['actor_input'] is False
