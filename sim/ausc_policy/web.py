@@ -10,6 +10,20 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/evidence/m2-yaw-static-surfaces': 'results/ausc_policy/observed_yaw_static_surface_diagnostic_v1/summary.json',
+    '/evidence/m2-yaw-seat-faces': 'results/ausc_policy/observed_yaw_seat_faces_diagnostic_v1/summary.json',
+    '/evidence/m2-l5-yaw-matrix': 'results/ausc_policy/observed_l5_yaw_matrix_v1/summary.json',
+    '/media/m2-l5-yaw-layout.png': 'results/ausc_policy/observed_l5_yaw_matrix_v1/yaw_layout_top_view.png',
+    '/evidence/m2-tracker-frame134': 'results/ausc_policy/bodytracker_frame134_diagnostic_v1/summary.json',
+    '/media/m2-tracker-frame134.png': 'results/ausc_policy/bodytracker_frame134_diagnostic_v1/diagnostic.png',
+    '/evidence/m2-tracker-frame60': 'results/ausc_policy/seeded_tracker_frame60_counterfactual_v1/summary.json',
+    '/media/m2-tracker-frame60.png': 'results/ausc_policy/seeded_tracker_frame60_counterfactual_v1/diagnostic.png',
+    '/evidence/retainer-tenpoint-interrupted-v7': 'results/ausc_policy/retainer_tenpoint_interrupted_v7/summary.json',
+    '/media/m2-target-reference-comparison.png': 'results/ausc_policy/perception_cpu_frame_v1/reference_comparison.png',
+    '/evidence/m2-target-reference-comparison': 'results/ausc_policy/perception_cpu_frame_v1/reference_comparison.json',
+    '/evidence/m2-target-detector-probe': 'results/ausc_policy/perception_cpu_frame_v1/summary.json',
+    '/evidence/m2-seeded-tracker-replay': 'results/ausc_policy/seeded_tracker_full_replay_v1/summary.json',
+    '/evidence/m2-l5-layout-matrix': 'results/ausc_policy/observed_l5_layout_matrix_v1/summary.json',
     '/media/retainer-tenpoint-interrupted-v6.mp4': 'results/ausc_policy/retainer_tenpoint_interrupted_v6/actual_fresh_expert.mp4',
     '/media/retainer-tenpoint-interrupted-review.png': 'results/ausc_policy/retainer_tenpoint_interrupted_v6/partial_sequence_review.png',
     '/evidence/retainer-tenpoint-interrupted-v6': 'results/ausc_policy/retainer_tenpoint_interrupted_v6/summary.json',
