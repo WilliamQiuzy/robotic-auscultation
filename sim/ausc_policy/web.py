@@ -10,6 +10,8 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/retainer-tenpoint-v8.mp4': 'results/ausc_policy/retainer_tenpoint_retry_v8/actual_fresh_expert.mp4',
+    '/evidence/retainer-tenpoint-v8': 'reports/ausc_policy/nominal_tenpoint_v8_20261001.md',
     '/evidence/m2-L2-command-complete': 'results/ausc_policy/observed_seated_v2_L2_command_reaudit_v1/summary.json',
     '/evidence/m2-L2-command-cost': 'results/ausc_policy/observed_seated_v2_L2_cost_retry_v1/summary.json',
     '/evidence/m2-all10-bounded-summary': 'results/ausc_policy/observed_yaw_seated_v2_all10_paths_v1/bounded_summary.json',
