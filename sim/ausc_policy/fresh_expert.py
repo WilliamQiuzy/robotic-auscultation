@@ -109,6 +109,7 @@ def read_plans(config, geometry, kin):
     requested = config['fresh_expert']
     from sim.auscultation_expert_layout_v1.phase_manager import PhaseConfig
     hold_config(PhaseConfig(), requested.get('force_feedback'))
+    inter_point_budget_settings(requested.get('inter_point_budget'))
     gravity_feedforward_settings(requested)
     velocity_feedforward_settings(requested)
     passive_effort(0, requested.get('passive_preload_N'))
@@ -188,6 +189,14 @@ def read_plans(config, geometry, kin):
     return points, dict(**geometry_meta,world_from_left_base=base.tolist(),plans=records)
 
 
+def inter_point_budget_settings(value):
+    if value is None:
+        return None
+    if type(value) is not dict or value != {'mode': 'separate_search_validation_v1'}:
+        raise ValueError('Explicit separate_search_validation_v1 inter-point budget required')
+    return dict(value)
+
+
 def near_surface_settings(value, inward_speed):
     """Optional slower inward motion, never an increased actuator/safety limit."""
     if value is None:
@@ -265,11 +274,13 @@ class FreshExpert(SkillExpert):
     # checks below, while the true device ring contributes to contact evidence.
     front_contact_groups = CONTACT_FORCE_GROUPS
     total_contact_groups = ALL_FORCE_GROUPS
-    def __init__(self, *args, near_surface_motion=None, force_feedback=None, **kwargs):
+    def __init__(self, *args, near_surface_motion=None, force_feedback=None,
+                 inter_point_budget=None, **kwargs):
         super().__init__(*args, speed_scale=.7,
             executor_config=dict(joint_velocity_limit_rad_s=.175), **kwargs)
         self.config=hold_config(self.config,force_feedback)
         self.force_feedback=force_feedback
+        self.inter_point_budget=inter_point_budget_settings(inter_point_budget)
         # .25*.7 is mathematically .175 but retain the explicit contract value.
         self.joint_speed_limit=.175
         self.near_surface_motion=near_surface_settings(near_surface_motion,
@@ -277,6 +288,15 @@ class FreshExpert(SkillExpert):
         self.contact_preflights=[]
         self.phase_failure_diagnostics=[]
         self.collision_failure_diagnostics=[]
+
+    def _inter_point_validation_deadline(self, search_deadline, record):
+        if inter_point_budget_settings(getattr(self,'inter_point_budget',None)) is None:
+            return super()._inter_point_validation_deadline(search_deadline,record)
+        now=time.monotonic()
+        record.update(search_wall_budget_s=30., search_wall_s=now-(search_deadline-30.),
+                      validation_wall_budget_s=30.,
+                      budget_scope='30 s bounded search then 30 s complete mesh/posture verification; no physics advance')
+        return now+30.
 
     def _tick(self, command, subphase, active=False, recovery=False):
         # The inherited tick performs exactly one command check, then one
@@ -445,6 +465,10 @@ class FreshExpert(SkillExpert):
             outcome['actual_contact_policy']['near_surface_motion']=self.near_surface_motion
             outcome['actual_contact_policy']['near_surface_rule']='reduce inward desired velocity within distance of fitted first-contact center; outward force correction and withdrawal unchanged'
             outcome['variation']['free_approach_near_speed_m_s']=self.near_surface_motion['inward_speed_m_s']
+        if getattr(self,'inter_point_budget',None) is not None:
+            outcome.update(inter_point_budget=self.inter_point_budget,
+                inter_point_planning_wall_budget_s=60., inter_point_search_wall_budget_s=30.,
+                inter_point_validation_wall_budget_s=30.)
         return outcome
 
 
@@ -759,7 +783,8 @@ def run_probe(app,stage,output,config,mass):
         controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
                                static_geometry_dir=output/'geometry',
                                near_surface_motion=config['fresh_expert'].get('near_surface_motion'),
-                               force_feedback=config['fresh_expert'].get('force_feedback'))
+                               force_feedback=config['fresh_expert'].get('force_feedback'),
+                               inter_point_budget=config['fresh_expert'].get('inter_point_budget'))
         controller_wall_started=time.monotonic()
         outcome=controller.run(points)
     except BaseException as error:

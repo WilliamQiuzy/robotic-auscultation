@@ -72,6 +72,11 @@ class CandidateController(LowElbowController):
             self._joint_segment(destination, "transfer" if initial else "inter_point_transfer")
         self._continuous_path(route[stage_index:], "lower_approach")
 
+    def _inter_point_validation_deadline(self, search_deadline, record):
+        # Preserve the historical shared budget unless an explicit subclass
+        # opts into a separately bounded verification stage.
+        return search_deadline
+
     def _move_to_prepose(self, row):
         canonical, canonical_stage_index = self._canonical(row)
         self.canonical_transfer = canonical.copy()
@@ -122,6 +127,7 @@ class CandidateController(LowElbowController):
                 raise EpisodeRejected("inter-point planner returned invalid route endpoints")
             route = np.vstack([bridge, canonical[canonical_stage_index+1:]])
             stage_index = len(bridge)-1
+            deadline = self._inter_point_validation_deadline(deadline, record)
             record["baseline_metrics"] = path_metrics(route)
             if self.policy == "checked_shortcut":
                 route, record["shortcut"] = checked_shortcut(route, self.checker, deadline)
