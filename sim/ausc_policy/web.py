@@ -10,6 +10,12 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/retainer-tenpoint-interrupted-v6.mp4': 'results/ausc_policy/retainer_tenpoint_interrupted_v6/actual_fresh_expert.mp4',
+    '/media/retainer-tenpoint-interrupted-review.png': 'results/ausc_policy/retainer_tenpoint_interrupted_v6/partial_sequence_review.png',
+    '/evidence/retainer-tenpoint-interrupted-v6': 'results/ausc_policy/retainer_tenpoint_interrupted_v6/summary.json',
+    '/evidence/m2-reference-height-paths': 'results/ausc_policy/observed_reference_height_paths_v1/summary.json',
+    '/evidence/m2-endpoint-ik': 'results/ausc_policy/observed_endpoint_ik_diagnostic_v1/summary.json',
+    '/evidence/m2-wrist-reach-bound': 'results/ausc_policy/observed_endpoint_ik_diagnostic_v1/wrist_reach_bound.json',
     '/media/m2-source-seat-alignment.png': 'results/ausc_policy/observed_source_seat_pilot_v3/source_seat_alignment.png',
     '/evidence/m2-source-seat-alignment': 'results/ausc_policy/observed_source_seat_pilot_v3/summary.json',
     '/evidence/m2-source-seat-stereo': 'results/ausc_policy/source_seat_stereo_rim_v1/summary_complete.json',
