@@ -10,6 +10,13 @@ from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[2]
 SOURCES = {
+    '/media/v10-flatness.png': 'results/ausc_policy/post_v10_flatness_v1/angles_and_gaps.png',
+    '/media/v10-footprint.png': 'results/ausc_policy/post_v10_flatness_v1/ring_footprint.png',
+    '/evidence/v10-flatness': 'reports/ausc_policy/v10_contact_flatness_20261001.md',
+    '/evidence/v10-flatness-angles': 'results/ausc_policy/post_v10_flatness_v1/flatness.json',
+    '/evidence/v10-flatness-gaps': 'results/ausc_policy/post_v10_flatness_v1/surface_gaps.json',
+    '/evidence/v10-flatness-refinement': 'results/ausc_policy/post_v10_flatness_v1/local_refinement.json',
+    '/evidence/v10-guard-probe': 'results/ausc_policy/post_v10_flatness_v1/guard_probe.json',
     '/media/retainer-tenpoint-v10.mp4': 'results/ausc_policy/retainer_tenpoint_feedback_v10/actual_fresh_expert.mp4',
     '/media/retainer-tenpoint-v10-force.png': 'results/ausc_policy/retainer_tenpoint_feedback_v10/tenpoint_force_comparison.png',
     '/media/retainer-tenpoint-v10-r2.png': 'results/ausc_policy/retainer_tenpoint_feedback_v10/R2_hold.png',
