@@ -220,15 +220,15 @@ def native_fixture(tmp_path):
     native = dict(geometry_artifacts=artifacts, plan_bindings=bindings, physics_steps=len(rows),
                   trace_sha256=sha(trace))
     (case / 'fresh_expert_result.json').write_text(json.dumps(native))
-    return run, case, native
+    return run, case, native, sha(replay / 'fresh_expert_replay.npz')
 
 
 def test_synthetic_full_audit_binds_sources_middle_pose_order_and_false_flags(audit_module, tmp_path, monkeypatch):
-    run, case, _ = native_fixture(tmp_path)
+    run, case, _, replay_sha = native_fixture(tmp_path)
     monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
     output = tmp_path / 'unique-audit'
-    report = audit_module.audit(run, output)
+    report = audit_module.audit(run, output, expected_replay_sha256=replay_sha)
     assert json.loads((output / 'summary.json').read_text())['schema'] == report['schema']
     assert [p['target'] for p in report['points']] == [s + str(i) for i in range(1, 6) for s in 'LR']
     assert report['points'][0]['native_middle_hold']['row'] == 367
@@ -236,15 +236,16 @@ def test_synthetic_full_audit_binds_sources_middle_pose_order_and_false_flags(au
     assert report['points'][0]['native_middle_hold']['circular_patch']['ray_count'] == 97
     assert report['points'][0]['native_middle_hold']['retainer_front']['ray_count'] == 96
     assert report['source_sha256_before'] == report['source_sha256_after']
+    assert report['expected_replay_sha256'] == replay_sha
     assert all(value is False for value in report['qualification'].values())
     assert len(report['plan_bindings']) == 10
     with pytest.raises(FileExistsError):
-        audit_module.audit(run, output)
+        audit_module.audit(run, output, expected_replay_sha256=replay_sha)
 
 
 @pytest.mark.parametrize('corruption', ['plan', 'geometry', 'trace', 'replay', 'order'])
 def test_source_binding_and_ledger_rejection(audit_module, tmp_path, monkeypatch, corruption):
-    run, case, native = native_fixture(tmp_path)
+    run, case, native, replay_sha = native_fixture(tmp_path)
     monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
     if corruption == 'plan':
@@ -260,27 +261,27 @@ def test_source_binding_and_ledger_rejection(audit_module, tmp_path, monkeypatch
         native['plan_bindings'].reverse()
         (case / 'fresh_expert_result.json').write_text(json.dumps(native))
     with pytest.raises(ValueError):
-        audit_module.audit(run, tmp_path / 'rejected')
+        audit_module.audit(run, tmp_path / 'rejected', expected_replay_sha256=replay_sha)
     assert not (tmp_path / 'rejected').exists()
 
 
 def test_raw_output_requires_linux_cpu_and_cannot_modify_source_run(audit_module, tmp_path, monkeypatch):
-    run, _, _ = native_fixture(tmp_path)
+    run, _, _, replay_sha = native_fixture(tmp_path)
     monkeypatch.setattr(audit_module.sys, 'platform', 'darwin')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
     with pytest.raises(ValueError, match='Linux CPU'):
-        audit_module.audit(run, tmp_path / 'mac-output')
+        audit_module.audit(run, tmp_path / 'mac-output', expected_replay_sha256=replay_sha)
     monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '0')
     with pytest.raises(ValueError, match='Linux CPU'):
-        audit_module.audit(run, tmp_path / 'gpu-output')
+        audit_module.audit(run, tmp_path / 'gpu-output', expected_replay_sha256=replay_sha)
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
     with pytest.raises(ValueError, match='outside'):
-        audit_module.audit(run, run / 'new-output')
+        audit_module.audit(run, run / 'new-output', expected_replay_sha256=replay_sha)
 
 
 def test_sources_changed_during_audit_rejected_without_output(audit_module, tmp_path, monkeypatch):
-    run, _, native = native_fixture(tmp_path)
+    run, _, native, replay_sha = native_fixture(tmp_path)
     monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
     original = audit_module.layer_rays
@@ -291,12 +292,12 @@ def test_sources_changed_during_audit_rejected_without_output(audit_module, tmp_
 
     monkeypatch.setattr(audit_module, 'layer_rays', change_plan)
     with pytest.raises(ValueError, match='Source files changed'):
-        audit_module.audit(run, tmp_path / 'mutated-output')
+        audit_module.audit(run, tmp_path / 'mutated-output', expected_replay_sha256=replay_sha)
     assert not (tmp_path / 'mutated-output').exists()
 
 
 def test_split_hold_sequence_rejected_even_with_rebound_trace_hash(audit_module, tmp_path, monkeypatch):
-    run, case, native = native_fixture(tmp_path)
+    run, case, native, replay_sha = native_fixture(tmp_path)
     monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
     monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
     trace = case / 'fresh_expert/fresh_expert_trace.jsonl'
@@ -306,4 +307,41 @@ def test_split_hold_sequence_rejected_even_with_rebound_trace_hash(audit_module,
     native['trace_sha256'] = sha(trace)
     (case / 'fresh_expert_result.json').write_text(json.dumps(native))
     with pytest.raises(ValueError, match='HOLD'):
-        audit_module.audit(run, tmp_path / 'split-output')
+        audit_module.audit(run, tmp_path / 'split-output', expected_replay_sha256=replay_sha)
+
+
+def test_replay_expectation_is_required(audit_module, tmp_path, monkeypatch):
+    run, _, _, _ = native_fixture(tmp_path)
+    monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
+    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
+    with pytest.raises(TypeError, match='expected_replay_sha256'):
+        audit_module.audit(run, tmp_path / 'no-expectation')
+
+
+@pytest.mark.parametrize('expected', ['', None, '0' * 63, 'z' * 64, '0' * 64])
+def test_invalid_or_wrong_replay_expectation_rejected(audit_module, tmp_path, monkeypatch, expected):
+    run, _, _, _ = native_fixture(tmp_path)
+    monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
+    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
+    with pytest.raises(ValueError, match='replay SHA'):
+        audit_module.audit(run, tmp_path / 'invalid-expectation', expected_replay_sha256=expected)
+    assert not (tmp_path / 'invalid-expectation').exists()
+
+
+def test_well_shaped_translated_replay_rejected_before_np_load(audit_module, tmp_path, monkeypatch):
+    run, case, _, replay_sha = native_fixture(tmp_path)
+    path = case / 'fresh_expert/fresh_expert_replay.npz'
+    with np.load(path, allow_pickle=False) as stored:
+        arrays = {name: stored[name].copy() for name in stored.files}
+    arrays['poses'][:, :, 0] += .01
+    np.savez(path, **arrays)
+    monkeypatch.setattr(audit_module.sys, 'platform', 'linux')
+    monkeypatch.setenv('CUDA_VISIBLE_DEVICES', '')
+
+    def forbidden_load(*args, **kwargs):
+        pytest.fail('Changed replay must be rejected before any native arrays are loaded')
+
+    monkeypatch.setattr(audit_module.np, 'load', forbidden_load)
+    with pytest.raises(ValueError, match='replay SHA'):
+        audit_module.audit(run, tmp_path / 'translated-replay', expected_replay_sha256=replay_sha)
+    assert not (tmp_path / 'translated-replay').exists()

@@ -268,8 +268,13 @@ def _middle_hold(case, native):
     return {name: rows[len(rows) // 2] for name, rows in buckets.items()}
 
 
-def audit(run, output, *, half_length_m=.05):
-    """Audit immutable native files; only a unique Linux CPU output is written."""
+def audit(run, output, *, expected_replay_sha256, half_length_m=.05):
+    """Audit native files against a replay SHA from prior immutable evidence.
+
+    The caller must supply the expected digest; hashing the current replay and
+    treating that value as an expectation would not establish source identity.
+    Only a unique Linux CPU output is written.
+    """
     started = time.monotonic()
     half = _half_length(half_length_m)
     run, output = Path(run).resolve(), Path(output).resolve()
@@ -279,14 +284,20 @@ def audit(run, output, *, half_length_m=.05):
         raise ValueError('Raw layer audit requires Linux CPU with CUDA_VISIBLE_DEVICES empty')
     if output.is_relative_to(run):
         raise ValueError('Diagnostic output must be outside immutable source run')
+    if (not isinstance(expected_replay_sha256, str) or len(expected_replay_sha256) != 64
+            or not set(expected_replay_sha256) <= set('0123456789abcdef')):
+        raise ValueError('Expected replay SHA-256 must be a lowercase 64-character hex digest')
     case, directory = run / 'output/review', run / 'output/review/geometry'
+    replay_path = case / 'fresh_expert/fresh_expert_replay.npz'
+    if sha(replay_path) != expected_replay_sha256:
+        raise ValueError('Native replay SHA differs from externally expected immutable binding')
     native_path = case / 'fresh_expert_result.json'
     native_before = sha(native_path)
     native = json.loads(native_path.read_text())
     verify_geometry_binding(directory, native)
     verify_point_coverage(dict.fromkeys(b['name'] for b in native['plan_bindings']), native)
     source_paths = [native_path, directory / 'collision_geometry.json', directory / 'collision_geometry.npz',
-                    case / 'fresh_expert/fresh_expert_trace.jsonl', case / 'fresh_expert/fresh_expert_replay.npz']
+                    case / 'fresh_expert/fresh_expert_trace.jsonl', replay_path]
     plans = []
     for binding in native['plan_bindings']:
         path = Path(binding['file']).resolve()
@@ -300,6 +311,8 @@ def audit(run, output, *, half_length_m=.05):
         _vector(plan['normal_world'], 'original normal', unit=True)
         plans.append(plan); source_paths.append(path)
     before = {str(path): sha(path) for path in source_paths}
+    if before[str(replay_path)] != expected_replay_sha256:
+        raise ValueError('Native replay SHA changed during source binding')
     if before[str(native_path)] != native_before:
         raise ValueError('Native result changed during source binding')
     # Recheck plan bytes against the hashes just read, closing pre-snapshot races.
@@ -346,6 +359,7 @@ def audit(run, output, *, half_length_m=.05):
     report = dict(schema='native_patient_contact_layer_audit_v1', run_id=run.name, source_run=str(run),
                   points=points, plan_bindings=native['plan_bindings'], geometry_artifacts=native['geometry_artifacts'],
                   source_sha256_before=before, source_sha256_after=after, source_sha256=sha(__file__),
+                  expected_replay_sha256=expected_replay_sha256,
                   contact_surface_gap_source_sha256=sha(Path(__file__).with_name('contact_surface_gap.py')),
                   colliders=[{k: c[k] for k in ('path', 'key', 'layer', 'world_from_body', 'topology')} for c in colliders],
                   ray_half_length_m=half, patch_radii_m=list(RADII_M), patch_angle_count=32,
@@ -369,6 +383,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('run', type=Path)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--expected-replay-sha256', required=True,
+                        help='Replay SHA-256 from prior immutable evidence, not the current file')
     parser.add_argument('--ray-half-length-m', type=float, default=.05)
     args = parser.parse_args()
-    audit(args.run, args.output, half_length_m=args.ray_half_length_m)
+    audit(args.run, args.output, expected_replay_sha256=args.expected_replay_sha256,
+          half_length_m=args.ray_half_length_m)
