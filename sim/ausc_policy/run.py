@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
 import os
 from pathlib import Path
@@ -12,7 +11,6 @@ import sys
 from types import SimpleNamespace
 
 
-GUARD_SHA = '48c47cf0d6d8f3d770028931a61d2882c5281684053a6149dacfcbe7b2483ff2'
 MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
            'retainer_geometry_review': 'sim.ausc_policy.tool_geometry_review',
            'm2_geometry_plan': 'sim.ausc_policy.tool_geometry_review',
@@ -56,12 +54,8 @@ def main():
         raise ValueError('Old-geometry training/planning retired by user; use the 5 mm M2 pipeline')
     module = MODULES[config['experiment']]
     base = Path(config['base'])
-    path = base / 'diagnostics/coverage_pilot_cloud_launcher/process_guard.py'
-    if hashlib.sha256(path.read_bytes()).hexdigest() != GUARD_SHA:
-        raise ValueError('Original process/resource guard changed')
-    spec = importlib.util.spec_from_file_location('_ausc_process_guard', path)
-    guard = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(guard)
+    from . import process_guard as guard
+    path = Path(guard.__file__).resolve()
     guard.STAGE_LIMIT_S = config.get('time_limit_seconds', 3600)
     guard.GUARD = dict(guard.GUARD, stage_timeout_s=guard.STAGE_LIMIT_S)
     folder = base / 'runs/ausc_policy' / args.run_id
@@ -85,6 +79,8 @@ def main():
     os.chdir(root)
     record = dict(run_id=args.run_id, code_commit=commit, config=config,
         config_sha256=hashlib.sha256(config_bytes).hexdigest(), command=command,
+        resource_guard=dict(path=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                            gpu_exit_grace_s=guard.EXIT_GPU_GRACE_S),
         started_utc=guard.now(), completed=False)
     guard.write_new(folder / 'run.json', record)
     try:
