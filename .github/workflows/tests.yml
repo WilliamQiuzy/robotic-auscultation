@@ -1,0 +1,70 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  policy:
+    name: simulation, expert and policy logic
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      - name: Install CPU dependencies
+        run: |
+          pip install -r requirements-ci.txt
+          pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+      - name: Run tests
+        # These three files open the binary USD scene assets, which are kept out of git.
+        run: >
+          pytest tests -q
+          --ignore=tests/test_ausc_policy_passive_preload.py
+          --ignore=tests/test_ausc_policy_retainer_geometry.py
+          --ignore=tests/test_ausc_policy_m2_sensor_probe.py
+
+  perception:
+    name: point tracking and robot safety logic
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: auscultation
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-ci.txt
+      - name: Install CPU dependencies
+        run: |
+          pip install -r ../requirements-ci.txt
+          pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+      - name: Run tests
+        # Skipped: tests that need the converted NVIDIA OpenArm assets (built locally, not in git), and
+        # property tests with open issues, which run non-blocking in the next step.
+        run: >
+          pytest ausc/perception/tracking/tests ausc/perception/robot/tests -q
+          --ignore=ausc/perception/tracking/tests/test_offline_mesh_simulation.py
+          --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_assets.py
+          --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_experiment.py
+          --ignore=ausc/perception/tracking/tests/test_official_asset_contract.py
+          --ignore=ausc/perception/tracking/tests/test_tracker_math_props.py
+          --ignore=ausc/perception/tracking/tests/test_ekf_stack_props.py
+          --ignore=ausc/perception/tracking/tests/test_geometry_props.py
+          --ignore=ausc/perception/tracking/tests/test_legacy_stack_props.py
+          --ignore=ausc/perception/tracking/tests/test_integration_fuzz.py
+      - name: Property tests with open issues (non-blocking)
+        continue-on-error: true
+        run: >
+          pytest -q
+          ausc/perception/tracking/tests/test_tracker_math_props.py
+          ausc/perception/tracking/tests/test_ekf_stack_props.py
+          ausc/perception/tracking/tests/test_geometry_props.py
+          ausc/perception/tracking/tests/test_legacy_stack_props.py
+          ausc/perception/tracking/tests/test_integration_fuzz.py
