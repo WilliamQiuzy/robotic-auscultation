@@ -87,8 +87,8 @@ python3.11 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-ci.txt
 pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
 
-pytest tests                                   # simulation, expert and policy logic
-cd auscultation && pytest ausc/perception/tracking/tests ausc/perception/robot/tests
+python -m pytest tests                         # simulation, expert and policy logic
+cd auscultation && python -m pytest ausc/perception/tracking/tests ausc/perception/robot/tests
 ```
 
 CI skips the few test files that need simulator assets kept out of git, and runs a handful of property

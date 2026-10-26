@@ -23,7 +23,7 @@ jobs:
       - name: Run tests
         # These three files open the binary USD scene assets, which are kept out of git.
         run: >
-          pytest tests -q
+          python -m pytest tests -q
           --ignore=tests/test_ausc_policy_passive_preload.py
           --ignore=tests/test_ausc_policy_retainer_geometry.py
           --ignore=tests/test_ausc_policy_m2_sensor_probe.py
@@ -49,7 +49,7 @@ jobs:
         # Skipped: tests that need the converted NVIDIA OpenArm assets (built locally, not in git), and
         # property tests with open issues, which run non-blocking in the next step.
         run: >
-          pytest ausc/perception/tracking/tests ausc/perception/robot/tests -q
+          python -m pytest ausc/perception/tracking/tests ausc/perception/robot/tests -q
           --ignore=ausc/perception/tracking/tests/test_offline_mesh_simulation.py
           --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_assets.py
           --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_experiment.py
@@ -62,7 +62,7 @@ jobs:
       - name: Property tests with open issues (non-blocking)
         continue-on-error: true
         run: >
-          pytest -q
+          python -m pytest -q
           ausc/perception/tracking/tests/test_tracker_math_props.py
           ausc/perception/tracking/tests/test_ekf_stack_props.py
           ausc/perception/tracking/tests/test_geometry_props.py
