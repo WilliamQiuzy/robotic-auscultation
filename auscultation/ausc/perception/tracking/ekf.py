@@ -41,10 +41,17 @@ class PointEKF:
         self.n_updates = 0
         self.n_rejected = 0
         self.misses = 0  # consecutive predict-only steps (no accepted measurement)
+        self.n_invalid_dt = 0  # predict calls with a non-finite dt (a corrupt clock upstream)
 
     # -- prediction -------------------------------------------------------
     def predict(self, dt: float) -> None:
-        dt = float(max(dt, 1e-3))
+        dt = float(dt)
+        # max(nan, 1e-3) is nan and would make x and P non-finite for good. Callers should reject a
+        # corrupt clock (the tracker does); this backstop takes the minimum step and counts it.
+        if not np.isfinite(dt):
+            self.n_invalid_dt += 1
+            dt = 1e-3
+        dt = max(dt, 1e-3)
         F = np.eye(6)
         F[0, 3] = F[1, 4] = F[2, 5] = dt
         self.x = F @ self.x

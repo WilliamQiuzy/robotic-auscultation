@@ -170,6 +170,9 @@ class StreamingAuscultationTracker:
                 t: Optional[float] = None, depth_scale: Optional[float] = None) -> TrackerOutput:
         if t is None:
             t = time.monotonic()
+        elif not np.isfinite(t):
+            # storing it would make every later dt non-finite and stop the drift audit for good
+            raise ValueError(f"frame timestamp must be finite, got {t!r}")
         self._set_depth_scale(depth_scale)
         self._frame += 1
         dt = 0.0 if self._last_t is None else max(t - self._last_t, 1e-3)

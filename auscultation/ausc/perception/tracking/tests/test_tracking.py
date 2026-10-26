@@ -109,6 +109,25 @@ def test_e2e_static_high_accuracy():
     assert m["frac_tracking"] > 0.8
 
 
+
+@pytest.mark.parametrize("bad_t", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_timestamp_is_rejected_without_corrupting_the_clock(bad_t):
+    """A corrupt frame timestamp must fail loudly and leave the tracker clock untouched; storing it
+    would make every later dt non-finite and stop the periodic detector drift audit for good."""
+    frames, intr = make_synthetic_sequence(n_frames=6, motion=False, breathing=False, seed=4)
+    det = SyntheticDetector(intr, noise_px=0.0)
+    tr = StreamingAuscultationTracker(det, intr, TrackerConfig(), addrs=ADDRS)
+    for fr in frames[:3]:
+        det.set_truth(fr.gt_pixels)
+        tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+    last_t = tr._last_t
+    with pytest.raises(ValueError, match="timestamp"):
+        tr.process(frames[3].rgb, frames[3].depth, t=bad_t, depth_scale=frames[3].depth_scale)
+    assert tr._last_t == last_t
+    det.set_truth(frames[4].gt_pixels)
+    out = tr.process(frames[4].rgb, frames[4].depth, t=frames[4].t, depth_scale=frames[4].depth_scale)
+    assert np.isfinite(out.t)
+
 def test_e2e_dynamic_tracks_through_motion_and_breathing():
     frames, intr = make_synthetic_sequence(n_frames=150, motion=True, breathing=True,
                                            depth_noise_mm=2.0, seed=3)
