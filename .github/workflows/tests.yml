@@ -46,28 +46,10 @@ jobs:
           pip install -r ../requirements-ci.txt
           pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
       - name: Run tests
-        # Skipped: tests that need the converted NVIDIA OpenArm assets (built locally, not in git), and
-        # tests with open issues (property tests, and a Linux-only socket test whose expected message is
-        # out of date), which run non-blocking in the next step.
+        # Skipped: tests that need the converted NVIDIA OpenArm assets (built locally, not in git).
         run: >
           python -m pytest ausc/perception/tracking/tests ausc/perception/robot/tests -q
           --ignore=ausc/perception/tracking/tests/test_offline_mesh_simulation.py
           --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_assets.py
           --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_experiment.py
           --ignore=ausc/perception/tracking/tests/test_official_asset_contract.py
-          --ignore=ausc/perception/tracking/tests/test_tracker_math_props.py
-          --ignore=ausc/perception/tracking/tests/test_ekf_stack_props.py
-          --ignore=ausc/perception/tracking/tests/test_geometry_props.py
-          --ignore=ausc/perception/tracking/tests/test_legacy_stack_props.py
-          --ignore=ausc/perception/tracking/tests/test_integration_fuzz.py
-          --deselect=ausc/perception/robot/tests/test_robot_socket_receiver.py::test_real_unix_datagram_checks_permissions_v2_credentials_and_preflight
-      - name: Tests with open issues (non-blocking)
-        continue-on-error: true
-        run: >
-          python -m pytest -q
-          ausc/perception/tracking/tests/test_tracker_math_props.py
-          ausc/perception/tracking/tests/test_ekf_stack_props.py
-          ausc/perception/tracking/tests/test_geometry_props.py
-          ausc/perception/tracking/tests/test_legacy_stack_props.py
-          ausc/perception/tracking/tests/test_integration_fuzz.py
-          ausc/perception/robot/tests/test_robot_socket_receiver.py::test_real_unix_datagram_checks_permissions_v2_credentials_and_preflight

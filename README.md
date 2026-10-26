@@ -91,8 +91,8 @@ python -m pytest tests                         # simulation, expert and policy l
 cd auscultation && python -m pytest ausc/perception/tracking/tests ausc/perception/robot/tests
 ```
 
-CI skips the few test files that need simulator assets kept out of git, and runs a handful of property
-tests with open issues as a non-blocking step; [the workflow](.github/workflows/tests.yml) lists them.
+CI skips the few test files that need simulator assets kept out of git;
+[the workflow](.github/workflows/tests.yml) lists them.
 Isaac Sim runs need Linux, an NVIDIA GPU and Isaac Sim 5.1.
 
 ## What is not included
