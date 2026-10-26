@@ -997,7 +997,7 @@ def test_real_unix_datagram_checks_permissions_v2_credentials_and_preflight(
         assert receiver.socket_flags["close_on_exec"]
         assert receiver.socket_flags["pass_credentials"]
 
-        with pytest.raises(RobotSocketPreflightError, match="no telemetry"):
+        with pytest.raises(RobotSocketPreflightError, match="no exact control telemetry"):
             receiver.require_start_preflight()
 
         base = time.monotonic_ns() - 30_000_000

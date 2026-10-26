@@ -164,6 +164,16 @@ def test_predict_inf_dt_does_not_blow_up():
     assert np.isfinite(ekf.P).all(), "predict(inf) blew up the covariance"
 
 
+
+def test_non_finite_dt_is_counted_not_silently_absorbed():
+    """The non-finite-dt guard is a backstop; each use is counted so a corrupt clock stays visible."""
+    ekf = PointEKF(TRUTH, EKFConfig())
+    ekf.predict(1.0 / 30)
+    assert ekf.n_invalid_dt == 0
+    ekf.predict(np.nan)
+    ekf.predict(np.inf)
+    assert ekf.n_invalid_dt == 2
+
 def test_predict_negative_dt_treated_sanely():
     """Negative dt is non-physical; it must be clamped (filter must stay finite/PD)."""
     ekf = PointEKF(TRUTH, EKFConfig())

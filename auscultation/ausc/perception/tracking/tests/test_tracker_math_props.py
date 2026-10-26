@@ -8,9 +8,10 @@ What these cover (per the tracker docstring contract):
   * _umeyama recovers a KNOWN (R,s,t) exactly from clean correspondences
   * _umeyama never returns a reflection (det(R)==+1) even when dst IS a reflection of src
   * _fit_pose IRLS hard-inlier refit: a few gross outliers must NOT corrupt the inlier pose
-  * _fit_pose returns None when < min_valid_pts finite correspondences
+  * _fit_pose returns None below the Sim(3) support floor of finite correspondences
   * all-coincident (zero-variance) src does not crash and stays finite/sane
-  * _build_canonical drops a mid-motion outlier init frame and still yields a clean template
+  * _build_canonical refuses a window holding a mid-motion frame, then builds a clean template once
+    the window has moved past it
   * _smooth_pose EMA stays a valid similarity (orthonormal R, bounded s/t) over many steps
 """
 import os, sys
@@ -19,7 +20,7 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 from ausc.perception.tracking.model_tracker import (  # noqa: E402
-    ModelBasedTracker, ModelConfig, _umeyama)
+    _MATHEMATICAL_SIM3_SUPPORT, ModelBasedTracker, ModelConfig, _umeyama)
 from ausc.perception.tracking.detector import DetectorResult, LUNG_ORDER  # noqa: E402
 from ausc.perception.tracking.geometry import Intrinsics, CropTransform  # noqa: E402
 
@@ -163,7 +164,7 @@ def test_fit_pose_rejects_gross_outliers_keeps_inliers():
     bad = [1, 7]
     obs[1] = clean[1] + np.array([0.5, -0.4, 0.3])          # asymmetric gross outliers
     obs[7] = clean[7] + np.array([-0.6, 0.5, 0.2])
-    R, s, t, measured, fit = tr._fit_pose(obs)
+    R, s, t, measured, fit, _geometry = tr._fit_pose(obs)
     recov = s * (R @ canon.T).T + t
     err = np.linalg.norm(recov - clean, axis=1)
     inl = [k for k in range(N) if k not in bad]
@@ -173,13 +174,17 @@ def test_fit_pose_rejects_gross_outliers_keeps_inliers():
 
 
 def test_fit_pose_returns_none_below_min_valid():
-    """< min_valid_pts (default 6) finite correspondences → _fit_pose returns None (can't fit)."""
+    """Fewer finite correspondences than the Sim(3) support floor → _fit_pose returns None (can't
+    fit); at the floor it fits. Geometry quality is gated separately from this count."""
     rng = np.random.default_rng(22)
     canon = rng.standard_normal((N, 3)) * 0.05
     tr = _tracker_with_canonical(canon)
+    k = _MATHEMATICAL_SIM3_SUPPORT
     obs = np.full((N, 3), np.nan)
-    obs[:5] = canon[:5] + np.array([0.0, 0.0, 1.0])         # only 5 finite < min_valid_pts(6)
+    obs[:k - 1] = canon[:k - 1] + np.array([0.0, 0.0, 1.0])
     assert tr._fit_pose(obs) is None
+    obs[:k] = canon[:k] + np.array([0.0, 0.0, 1.0])
+    assert tr._fit_pose(obs) is not None
 
 
 def test_fit_pose_ignores_nan_inf_rows():
@@ -194,7 +199,7 @@ def test_fit_pose_ignores_nan_inf_rows():
     obs[6] = np.inf
     res = tr._fit_pose(obs)
     assert res is not None
-    R, s, t, measured, fit = res
+    R, s, t, measured, fit, _geometry = res
     recov = s * (R @ canon.T).T + t
     inl = [k for k in range(N) if k not in (2, 6)]
     assert np.linalg.norm(recov[inl] - clean[inl], axis=1).max() < 1e-6
@@ -208,17 +213,18 @@ def test_fit_pose_all_inliers_clean_pose():
     tr = _tracker_with_canonical(canon)
     R0, s0, t0 = _rand_rot(rng), 1.2, np.array([0.1, 0.0, 1.3])
     obs = s0 * (R0 @ canon.T).T + t0
-    R, s, t, measured, fit = tr._fit_pose(obs)
+    R, s, t, measured, fit, _geometry = tr._fit_pose(obs)
     assert measured.all()
     assert fit < 1e-6
     assert abs(np.linalg.det(R) - 1.0) < 1e-9
 
 
 # ── _build_canonical: robust template ──────────────────────────────────────────
-def test_build_canonical_drops_midmotion_outlier_frame():
-    """An init frame captured mid-motion (gross per-point garbage) must be rejected by the MAD
-    gate so the canonical template stays clean. We compare the built template to the true template
-    (up to a global similarity) and require sub-mm agreement."""
+def test_build_canonical_never_blurs_template_with_midmotion_frame():
+    """An init frame captured mid-motion (gross per-point garbage) must never blur the template.
+    Every point must be stable across the whole init window, so a window holding that frame is
+    refused (fail closed); once the window has moved past it, the template is built and matches the
+    true template (up to a global similarity) to sub-mm."""
     rng = np.random.default_rng(31)
     canon_true = rng.standard_normal((N, 3)) * 0.05
     obs_list = []
@@ -228,9 +234,16 @@ def test_build_canonical_drops_midmotion_outlier_frame():
         if i == 6:
             frame = frame + rng.standard_normal((N, 3)) * 0.2    # mid-motion garbage frame
         obs_list.append(frame)
+    for i in range(12):                                          # the window then moves on
+        R, s, t = _rand_rot(rng), float(rng.uniform(0.9, 1.1)), rng.uniform(-0.3, 0.3, 3)
+        obs_list.append(s * (R @ canon_true.T).T + t + rng.standard_normal((N, 3)) * 1e-3)
     tr = ModelBasedTracker(detector=None, intrinsics=_intr(), config=ModelConfig(init_frames=12))
-    tr._init_obs = obs_list
-    tr._build_canonical()
+    all_points = np.ones(N, dtype=bool)
+    tr._init_obs = obs_list[:12]
+    assert not tr._build_canonical(all_points)
+    assert tr.canonical is None
+    tr._init_obs = obs_list[12:]
+    assert tr._build_canonical(all_points)
     assert tr.canonical is not None and np.isfinite(tr.canonical).all()
     R, s, t = _umeyama(tr.canonical, canon_true, np.ones(N))   # best similarity to truth
     aligned = s * (R @ tr.canonical.T).T + t

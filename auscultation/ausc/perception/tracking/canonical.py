@@ -32,6 +32,10 @@ except Exception:  # noqa: BLE001
 def voxel_downsample(pts: np.ndarray, nrm: np.ndarray, voxel: float
                      ) -> Tuple[np.ndarray, np.ndarray]:
     """Average points (and normals) within each ``voxel``-sized cell."""
+    # Drop rows with a non-finite point or normal: floor(nan) casts to a garbage voxel key, so the
+    # row would survive as a NaN surfel. valid_points already filters both upstream; this is a backstop.
+    ok = np.isfinite(pts).all(axis=1) & np.isfinite(nrm).all(axis=1)
+    pts, nrm = pts[ok], nrm[ok]
     if len(pts) == 0:
         return pts, nrm
     keys = np.floor(pts / voxel).astype(np.int64)

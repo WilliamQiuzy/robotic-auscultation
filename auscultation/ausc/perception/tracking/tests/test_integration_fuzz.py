@@ -8,6 +8,7 @@ genuinely valid target (measured + TRACKING + finite world frame + low uncertain
 tracker never emits a non-finite xyz_world, and never crashes on any injected event.
 """
 import os, sys
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -16,7 +17,12 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from ausc.perception.tracking.replay import make_synthetic_sequence, SyntheticDetector  # noqa: E402
 from ausc.perception.tracking.model_tracker import ModelBasedTracker, ModelConfig  # noqa: E402
 from ausc.perception.robot.controller import AuscultationController  # noqa: E402
-from ausc.perception.robot.safety import State  # noqa: E402
+from ausc.perception.robot.safety import SafetyConfig, State  # noqa: E402
+
+# The controller refuses to run without limits derived from a force calibration, and latches ESTOP
+# on a missing force reading, so the chain gets a calibrated config and a fresh no-contact reading.
+_FORCE_CALIBRATION = SimpleNamespace(calibrated=True, max_screened_force_n=4.6, hard_limit_force_n=5.5)
+_NO_CONTACT = SimpleNamespace(force_n=0.0, status="WARN", age_s=0.0, valid=True)
 
 
 class MockArm:
@@ -35,13 +41,20 @@ class MockArm:
     def hold(self):
         self.hold_calls += 1
 
+    def retract(self, direction_base, max_step_m):
+        d = np.asarray(direction_base, float)
+        self.p = self.p + d / np.linalg.norm(d) * max_step_m
+        return self.p.copy()
+
 
 def _run_chain(perturb, n_frames=120, target="R3"):
     frames, intr = make_synthetic_sequence(n_frames=n_frames, seed=1)
     det = SyntheticDetector(intr, noise_px=1.0)
     extr = np.eye(4)                                   # xyz_world = camera frame (finite stand-in)
     tr = ModelBasedTracker(det, intr, ModelConfig(init_frames=8), extrinsics=extr)
-    arm = MockArm(); ctrl = AuscultationController(arm); maxstd = ctrl.cfg.max_position_std_m
+    arm = MockArm()
+    ctrl = AuscultationController(arm, SafetyConfig.from_force_calibration(_FORCE_CALIBRATION))
+    maxstd = ctrl.cfg.max_position_std_m
     commanded = False
     violations = []
     for i, fr in enumerate(frames):
@@ -65,7 +78,7 @@ def _run_chain(perturb, n_frames=120, target="R3"):
         if not commanded:
             continue
         prev = arm.servo_calls
-        ctrl.tick(out.points, perception_t=out.t)
+        ctrl.tick(out.points, perception_t=out.t, force_sample=_NO_CONTACT)
         if arm.servo_calls > prev:                    # arm MOVED → commanded point must be valid
             p = next((q for q in out.points if q.name == target), None)
             ok = (p is not None and p.measured and p.status == "TRACKING"
