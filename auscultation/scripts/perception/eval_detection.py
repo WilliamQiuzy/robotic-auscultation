@@ -72,10 +72,10 @@ def main():
     det_off = NormalsDetector(CKPT, half=True, fill_holes=False)
     m = {
         "weight": os.path.basename(os.path.dirname(CKPT)),
-        "nominal": dict(zip(("pck5", "med_px"), pck(det))),
-        "occlusion_band": dict(zip(("pck5", "med_px"), pck(det, occ=True))),
-        "holes40_fill_off": dict(zip(("pck5", "med_px"), pck(det_off, hole=0.40))),
-        "holes40_fill_on": dict(zip(("pck5", "med_px"), pck(det, hole=0.40))),
+        "nominal": dict(zip(("pck5", "med_px_518crop"), pck(det))),
+        "occlusion_band": dict(zip(("pck5", "med_px_518crop"), pck(det, occ=True))),
+        "holes40_fill_off": dict(zip(("pck5", "med_px_518crop"), pck(det_off, hole=0.40))),
+        "holes40_fill_on": dict(zip(("pck5", "med_px_518crop"), pck(det, hole=0.40))),
         "detector_latency_p50_ms_fp16_1080p": latency_p50(det),
         "provenance": {**run_stamp(repo=ROOT, ckpt_sha=data_hash(CKPT), labels_sha=data_hash(LABELS)),
                        "note": "n=1 subject/2 garments — single-subject record, NOT population-validated"},

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
 import os
 import hashlib
 import json
+import re
 from pathlib import Path
 import sys
 
@@ -241,3 +243,32 @@ def test_teacher_labels_cannot_escape_the_completed_release() -> None:
     source = (HERE / "teacher_smpl_fit.py").read_text(encoding="utf-8")
     assert "--labels" not in source
     assert "args.labels" not in source
+
+
+def _stage1_checkpoint_dir():
+    """stage1_cotrain.py trains at import time, so pull out just its AUSC_OUT resolver."""
+    tree = ast.parse((HERE / "stage1_cotrain.py").read_text(encoding="utf-8"))
+    nodes = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "_checkpoint_dir"]
+    assert nodes, "stage1_cotrain.py lost its AUSC_OUT checkpoint resolver"
+    namespace = {"os": os, "re": re}
+    exec(compile(ast.Module(body=nodes, type_ignores=[]), "stage1_cotrain.py", "exec"), namespace)
+    return namespace["_checkpoint_dir"]
+
+
+def test_stage1_ausc_out_selects_the_checkpoint_directory_under_the_output_root() -> None:
+    checkpoint_dir = _stage1_checkpoint_dir()
+    assert checkpoint_dir("/out", {}) == "/out/perc_lmh_v7_adapt"
+    # the v9 occlusion recipe must not overwrite v7_adapt, which stage2 warm-starts from
+    assert checkpoint_dir("/out", {"AUSC_OUT": "perc_lmh_v9_occ"}) == "/out/perc_lmh_v9_occ"
+
+
+@pytest.mark.parametrize("bad", ["outputs/perc_lmh_v9_occ", "../escape", "/abs/path", "..", ".", "a b"])
+def test_stage1_ausc_out_must_stay_a_bare_name_under_the_validated_root(bad: str) -> None:
+    with pytest.raises(SystemExit, match="AUSC_OUT"):
+        _stage1_checkpoint_dir()("/out", {"AUSC_OUT": bad})
+
+
+def test_stage1_checkpoint_dir_is_resolved_before_training() -> None:
+    source = (HERE / "stage1_cotrain.py").read_text(encoding="utf-8")
+    assert source.index("OUT = _checkpoint_dir(OUTPUTS, os.environ)") < source.index("for ep in range(EP):")
+    assert 'os.path.join(OUT, "best.pt")' in source

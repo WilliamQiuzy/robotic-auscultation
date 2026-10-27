@@ -373,3 +373,278 @@ def test_hold_transport_failure_still_latches_estop_without_escaping():
 
     assert state.state == State.ESTOP
     assert "hold command failed" in state.fault
+
+
+# ── June audit regressions (28a6f30, d267326) adapted to the force-sample contract ────────────
+
+def test_nan_world_coord_never_moves():
+    """A NaN target coordinate must be rejected exactly like a missing one."""
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    _drive(c, lambda i: [P("R3", np.array([0., 0., np.nan]))], 10)
+    assert arm.servo_calls == 0 and c.state.state == State.ACQUIRING
+
+
+def test_inf_world_coord_never_moves():
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    _drive(c, lambda i: [P("R3", np.array([0., 0., np.inf]))], 10)
+    assert arm.servo_calls == 0 and c.state.state == State.ACQUIRING
+
+
+def test_empty_detector_output_never_moves():
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    _drive(c, lambda i: [], 10)
+    assert arm.servo_calls == 0 and c.state.state == State.ACQUIRING
+
+
+def test_commanded_landmark_absent_never_moves():
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    _drive(c, lambda i: [P("L2", np.array([0., 0., 0.10]))], 10)
+    assert arm.servo_calls == 0 and c.state.state == State.ACQUIRING
+
+
+def test_high_uncertainty_midapproach_halts_then_recovers():
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    good = [P("R3", np.array([0., 0., 0.10]))]
+    hi = [P("R3", np.array([0., 0., 0.10]), position_std=0.05)]   # 50 mm > 10 mm, still measured
+    c.tick(good, force_sample=_force()); c.tick(good, force_sample=_force())
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(hi, force_sample=_force()); assert c.state.state == State.HOLD
+    c.tick(hi, force_sample=_force()); assert arm.servo_calls == sc
+    c.tick(good, force_sample=_force()); assert c.state.state == State.APPROACH
+
+
+def test_frozen_pipeline_no_timestamp_halts():
+    """tick(points) with NO perception_t: identical points re-emitted by a frozen pipeline must still
+    go stale -> HOLD (the staleness guard must not be inert by default)."""
+    arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    c.tick(tgt, now=0.0, force_sample=_force()); c.tick(tgt, now=0.1, force_sample=_force())
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(tgt, now=10.0, force_sample=_force())        # 10 s of unchanged content => stale
+    assert c.state.state == State.HOLD and arm.servo_calls == sc
+
+
+def test_frozen_pipeline_with_nan_sibling_still_halts():
+    """A NaN coord on an unrelated (LOST) point must not defeat the content-fingerprint staleness
+    guard (nan != nan would make a frozen frame compare unequal to itself)."""
+    arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
+    def frame():
+        return [P("R3", np.array([0., 0., 0.10])),
+                P("L2", np.array([0., 0., np.nan]), measured=False, status="LOST")]
+    c.tick(frame(), now=0.0, force_sample=_force()); c.tick(frame(), now=0.1, force_sample=_force())
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(frame(), now=10.0, force_sample=_force())
+    assert c.state.state == State.HOLD and arm.servo_calls == sc
+
+
+def test_nan_perception_t_halts():
+    """A non-finite perception timestamp must never count as a fresh frame."""
+    arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    nan = float("nan")
+    c.tick(tgt, perception_t=nan, now=0.0, force_sample=_force())
+    c.tick(tgt, perception_t=nan, now=0.1, force_sample=_force())
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    c.tick(tgt, perception_t=nan, now=10.0, force_sample=_force())
+    assert c.state.state == State.HOLD and arm.servo_calls == sc
+
+
+def test_overforce_during_stale_latches_estop():
+    """Hard-limit force wins over staleness: freeze + over-force in one tick => latched ESTOP."""
+    arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    for i in range(3):
+        c.tick(tgt, perception_t=float(i), now=float(i), force_sample=_force())
+    assert c.state.state == State.APPROACH
+    s = c.tick(tgt, perception_t=2.0, now=10.0, force_sample=_force(5.5, "HARD_LIMIT"))
+    assert s.state == State.ESTOP
+    s2 = c.tick(tgt, perception_t=11.0, now=11.0, force_sample=_force())
+    assert s2.state == State.ESTOP
+
+
+def test_contact_degradation_holds_not_retracts():
+    """At CONTACT the probe occludes its own landmark (measured=False is expected): stay in CONTACT
+    with the arm positively held, no servo, no auto-retract."""
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    near = np.array([0., 0., 0.005])                    # within reach_tol (8 mm) after one step
+    c.tick([P("R3", near)], force_sample=_force()); c.tick([P("R3", near)], force_sample=_force())
+    assert c.state.state == State.CONTACT
+    sc, holds = arm.servo_calls, arm.hold_calls
+    c.tick([P("R3", near, measured=False, status="COASTING")], force_sample=_force())
+    assert c.state.state == State.CONTACT and arm.servo_calls == sc and arm.hold_calls == holds + 1
+
+
+def test_every_non_servo_tick_positively_holds():
+    """Exhaustive dispatch: a tick that cannot servo must still command hold(), never leave the arm
+    on its last motion command. Reachable with require_world_frame=False and no extrinsics."""
+    arm = MockArm(); c = _controller(arm, require_world_frame=False); c.command("R3")
+    holds = arm.hold_calls
+    for _ in range(3):
+        c.tick([P("R3", None)], force_sample=_force())
+    assert c.state.state == State.APPROACH and arm.servo_calls == 0
+    assert arm.hold_calls == holds + 3
+
+
+def _flicker_views():
+    from ausc.perception.robot.safety import TargetView
+    p = np.array([0., 0., 0.10])
+    return (TargetView("R3", p, measured=True, position_std_m=0.003, status="TRACKING"),
+            TargetView("R3", p, measured=False, position_std_m=0.003, status="COASTING"))
+
+
+def test_flickering_occlusion_eventually_retracts():
+    """A target that recovers for one frame per window must not defer RETRACT forever (leaky
+    degraded counter). State machine only: dist=1.0 => no CONTACT."""
+    from ausc.perception.robot.safety import command, step
+    cfg = _cfg(hold_grace_frames=4); good, occ = _flicker_views()
+    s = command(SafetyState(), "R3")
+    s = step(s, good, cfg, dist_to_target_m=1.0); s = step(s, good, cfg, dist_to_target_m=1.0)
+    assert s.state == State.APPROACH
+    states = []
+    for _ in range(20):
+        s = step(s, occ, cfg, dist_to_target_m=1.0); states.append(s.state)
+        s = step(s, occ, cfg, dist_to_target_m=1.0); states.append(s.state)
+        s = step(s, good, cfg, dist_to_target_m=1.0); states.append(s.state)   # 1 good frame per 3
+    assert State.RETRACT in states
+
+
+def test_one_to_one_flicker_does_not_retract():
+    """Documented boundary: an exact 1:1 occlusion/recovery alternation deliberately does not time
+    out (each good frame is genuinely measured, so servoing on it is safe)."""
+    from ausc.perception.robot.safety import command, step
+    cfg = _cfg(hold_grace_frames=4); good, occ = _flicker_views()
+    s = command(SafetyState(), "R3")
+    s = step(s, good, cfg, dist_to_target_m=1.0); s = step(s, good, cfg, dist_to_target_m=1.0)
+    states = set()
+    for _ in range(200):
+        s = step(s, occ, cfg, dist_to_target_m=1.0); states.add(s.state)
+        s = step(s, good, cfg, dist_to_target_m=1.0); states.add(s.state)
+    assert State.RETRACT not in states and states <= {State.APPROACH, State.HOLD}
+
+
+class _LegacyPoint:
+    """A legacy/foreign tracker point lacking the ``measured`` field the safety gate keys on."""
+    def __init__(self, name, xyz_world):
+        self.name = name; self.xyz_world = xyz_world
+        self.position_std = 0.003; self.status = "TRACKING"   # NO `measured` attribute
+
+
+def test_legacy_point_without_measured_never_moves():
+    """June expected a fail-safe ACQUIRING here; the current controller latches ESTOP on any
+    unreadable target view (see test_approach_target_view_exception_holds_and_estops). No motion."""
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    for _ in range(6):
+        c.tick([_LegacyPoint("R3", np.array([0., 0., 0.10]))], force_sample=_force())
+    assert arm.servo_calls == 0 and c.state.state == State.ESTOP
+
+
+class RetractFaultArm(MockArm):
+    def retract(self, direction_base, max_step_m):
+        self.retract_calls += 1
+        raise RuntimeError("retract servo failure")
+
+
+def test_retract_servo_failure_estops():
+    """A fault during RETRACT latches ESTOP (symmetric with APPROACH), never strands the machine."""
+    arm = RetractFaultArm(); c = _controller(arm, hold_grace_frames=2); c.command("R3")
+    near = np.array([0., 0., 0.12])
+    good = [P("R3", near)]; occ = [P("R3", near, measured=False, status="COASTING")]
+    for _ in range(3):
+        c.tick(good, force_sample=_force())
+    states = [c.tick(occ, force_sample=_force()).state for _ in range(12)]
+    assert State.ESTOP in states and arm.retract_calls >= 1
+    assert "retract command failed" in c.state.fault
+
+
+# ── kinematics / RealArm hardening (28a6f30, d267326); fake yourdfpy, no hardware ─────────────
+
+def _fake_kinematics(monkeypatch, gains=None, limit=(-2.0, 2.0), velocity=3.0):
+    """ArmKinematics over a stand-in URDF with linear FK p = gains @ q (analytically checkable)."""
+    from ausc.perception.robot.kinematics import ArmKinematics
+    A = np.eye(3, 7) * 0.5 if gains is None else np.asarray(gains, float)
+    lim = None if limit is None else SimpleNamespace(lower=limit[0], upper=limit[1], velocity=velocity)
+    names = [f"openarm_left_joint{i}" for i in range(1, 8)]
+
+    class Robot:
+        joint_map = {n: SimpleNamespace(type="revolute", limit=lim) for n in names}
+        q = np.zeros(7)
+
+        def update_cfg(self, cfg):
+            self.q = np.array([cfg[n] for n in names], float)
+
+        def get_transform(self, frame_to, frame_from):
+            T = np.eye(4); T[:3, 3] = A @ self.q
+            return T
+
+    monkeypatch.setitem(sys.modules, "yourdfpy",
+                        SimpleNamespace(URDF=SimpleNamespace(load=lambda path, **kw: Robot())))
+    return ArmKinematics("fake.urdf", "left")
+
+
+@pytest.mark.parametrize("q, target", [
+    (np.zeros(7), np.array([np.nan, 0.0, 0.0])),
+    (np.zeros(7), np.array([0.0, np.inf, 0.0])),
+    (np.full(7, np.nan), np.array([0.0, 0.0, 0.1])),
+], ids=["nan-target", "inf-target", "nan-joints"])
+def test_ik_step_refuses_non_finite_input(monkeypatch, q, target):
+    kin = _fake_kinematics(monkeypatch)
+    with pytest.raises(ValueError, match="non-finite"):
+        kin.ik_step(q, target)
+
+
+def test_ik_step_slew_bounded_by_urdf_velocity_at_30hz(monkeypatch):
+    kin = _fake_kinematics(monkeypatch, gains=np.eye(3, 7) * 0.05, velocity=0.3)
+    q0 = np.zeros(7); dx = np.array([0.02, -0.01, 0.005])
+    dq = kin.ik_step(q0, dx) - q0                       # unbounded DLS would slew ~0.38 rad here
+    assert np.all(np.abs(dq) <= 0.3 / 30.0 + 1e-12)     # default dt matches the ~30 Hz loop
+    moved = kin.tcp_pos(q0 + dq) - kin.tcp_pos(q0)
+    assert np.allclose(moved / np.linalg.norm(moved), dx / np.linalg.norm(dx))   # direction kept
+
+
+def test_ik_step_damps_near_singular_direction(monkeypatch):
+    gains = np.zeros((3, 7)); gains[0, 0] = gains[1, 1] = 0.5; gains[2, 2] = 0.005   # weak z axis
+    kin = _fake_kinematics(monkeypatch, gains=gains, velocity=1e4)   # slew cap out of the way
+    dq = kin.ik_step(np.zeros(7), np.array([0.0, 0.0, 0.02]))
+    assert abs(dq[2]) < 0.1                             # fixed lam=0.01 would whip it ~0.8 rad
+
+
+@pytest.mark.parametrize("limit", [None, (0.0, 0.0)], ids=["no-limit", "zero-range"])
+def test_kinematics_refuses_to_guess_joint_limits(monkeypatch, limit):
+    with pytest.raises(ValueError, match="no usable position limits"):
+        _fake_kinematics(monkeypatch, limit=limit)
+
+
+def test_vendored_urdf_has_usable_limits_for_every_arm_joint():
+    """The fail-loud limit check must not reject the URDF we actually ship."""
+    import xml.etree.ElementTree as ET
+    urdf = os.path.join(os.path.dirname(__file__), "..", "openarm_v10.urdf")
+    joints = {j.get("name"): j for j in ET.parse(urdf).getroot().findall("joint")}
+    for arm in ("left", "right"):
+        for i in range(1, 8):
+            j = joints[f"openarm_{arm}_joint{i}"]
+            lim = j.find("limit")
+            assert j.get("type") == "revolute" and lim is not None
+            lo, hi, vel = (float(lim.get(k)) for k in ("lower", "upper", "velocity"))
+            assert lo < hi and vel > 0
+
+
+def test_real_arm_refuses_non_finite_joint_command(monkeypatch):
+    from ausc.perception.robot.arm_interface import RealArm
+    sent = []
+    monkeypatch.setitem(sys.modules, "openarm_can",
+                        SimpleNamespace(PosVelParam=lambda pos, vel: (pos, vel)))
+    motors = [SimpleNamespace(get_position=lambda: 0.0) for _ in range(7)]
+    bus = SimpleNamespace(get_motors=lambda: motors,
+                          posvel_control_all=lambda params: sent.append(list(params)))
+    real = RealArm.__new__(RealArm)
+    real.kin = SimpleNamespace(ik_step=lambda q, t, m: np.full(7, np.nan), tcp_pos=lambda q: np.zeros(3))
+    real._arm = SimpleNamespace(refresh_all=lambda: None, recv_all=lambda: None, get_arm=lambda: bus)
+    real._enabled = True
+    with pytest.raises(RuntimeError, match="non-finite"):
+        real.servo_toward(np.array([0.0, 0.0, 0.1]), 0.02)
+    assert sent and all(np.isfinite(pos) for params in sent for pos, _ in params)
+    assert all(vel == 0.0 for _, vel in sent[-1])       # last command is a positive hold

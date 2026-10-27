@@ -433,6 +433,29 @@ def test_coasts_when_detection_missing():
     assert all(p.status in ("COASTING", "LOST", "TRACKING") for p in last.points)
 
 
+@pytest.mark.parametrize("bad_conf", [np.nan, np.inf])
+def test_nan_confidence_rejected_fail_closed(bad_conf):
+    """A detection whose confidence could not be computed (NaN/inf) must be REJECTED through the
+    public process() path, not admitted as if it passed the threshold (nan < min_conf and
+    inf < min_conf are both False in Python, so the gate must fail closed)."""
+    import dataclasses
+    frames, intr = make_synthetic_sequence(n_frames=20)
+    base = SyntheticDetector(intr, noise_px=0.0)
+
+    class _NanConfDetector:
+        def detect(self, rgb, depth=None, intr=None):
+            r = base.detect(rgb, depth, intr)
+            return None if r is None else dataclasses.replace(r, confidence=bad_conf)
+
+    tr = ModelBasedTracker(_NanConfDetector(), intr, ModelConfig(init_frames=8))
+    out = None
+    for fr in frames:
+        base.set_truth(fr.gt_pixels)
+        out = tr.process(fr.rgb, fr.depth, t=fr.t, depth_scale=fr.depth_scale)
+    assert out is not None and not out.initialized   # every non-finite-conf detection rejected
+    assert out.detector_confidence == 0.0 and not out.back_present
+
+
 class _FixedFullFrameDetector:
     """Detector with exact, caller-supplied full-frame pixels (no model/noise dependency)."""
 
