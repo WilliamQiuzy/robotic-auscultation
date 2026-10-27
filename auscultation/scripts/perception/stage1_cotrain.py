@@ -1,7 +1,7 @@
 """Stage-1 (H200): co-train v6_normals on synthetic(3628) + 16 real DARK normal-maps (garment-blind),
 test on 6 held-out real dark frames. Proves real-adapt reduces sim2real bias+scatter WITHOUT new labels.
 v6 baseline on the same 6 held-out is printed for comparison."""
-import json, os, random, sys
+import json, os, random, re, sys
 from runtime_paths import activate_runtime, require_h200_raw_release
 
 RUNTIME_ROLE = "h200_training"
@@ -10,6 +10,16 @@ ROOT, DATA, OUTPUTS = str(PATHS.repo_root), str(PATHS.data_root), str(PATHS.outp
 REAL_DATA = str(require_h200_raw_release(
     "AUSC_PERCEPTION_LABELED_RELEASE", required_files=("clothed_labels_a.json",),
 ))
+
+def _checkpoint_dir(outputs, environ):
+    """AUSC_OUT names the checkpoint directory under AUSC_OUTPUT (default perc_lmh_v7_adapt), so
+    AUSC_OCCLUSION=1 AUSC_OUT=perc_lmh_v9_occ writes v9 instead of overwriting v7_adapt, which
+    stage2 warm-starts from. Bare name only: the output root itself is validated by runtime_paths."""
+    name = environ.get("AUSC_OUT") or "perc_lmh_v7_adapt"
+    if name in (".", "..") or not re.fullmatch(r"[A-Za-z0-9._-]+", name):
+        raise SystemExit("AUSC_OUT must be a bare checkpoint directory name under AUSC_OUTPUT, got %r" % name)
+    return os.path.join(outputs, name)
+OUT = _checkpoint_dir(OUTPUTS, os.environ)   # resolved before training so a bad value fails fast
 
 import numpy as np, cv2, torch
 from torch.utils.data import Dataset,DataLoader
@@ -103,7 +113,7 @@ for ep in range(EP):
         _,_,hl=m.forward_with_landmarks(x,(HM,HM)); loss,_=weighted_hm_loss(hl,hm,mask); loss.backward(); opt.step(); run+=loss.item()
     p5,p10,md=evalr(m,te_real)
     print(f"[ep{ep}] loss {run/len(loader):.5f} | held-out dark PCK@5={p5:.0f} PCK@10={p10:.0f} med={md:.1f}",flush=True)
-OUT = os.path.join(OUTPUTS, "perc_lmh_v7_adapt"); os.makedirs(OUT, exist_ok=True)
+os.makedirs(OUT, exist_ok=True)
 torch.save({"kind":"lora","lora_rank":ck["lora_rank"],"lora_alpha":ck["lora_alpha"],
             "lora_head":{k:v.detach().cpu() for k,v in m.state_dict().items() if ".A." in k or ".B." in k or k.startswith("head.") or k.startswith("landmark_head.")},
             "order":ORDER,"note":"stage1 cotrain synthetic+16 real dark normals; occ=%s"%_OCC},
