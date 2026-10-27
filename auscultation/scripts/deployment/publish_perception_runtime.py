@@ -208,7 +208,7 @@ REQUIRED_RAW_COLLECTION_RUNTIME_SEMANTIC_CODE_SHA256 = {
     "auscultation/ausc/perception/tracking/experimental_visibility_geometry.py": "ebe51a692a2e871e47415cb6dbecbb96d14bb7f410deceb2d8b1e485c4d52e33",
     "auscultation/ausc/perception/tracking/geometry.py": "b5dd837df053bbe9be18d77f823ef5bac805faf7919b448825f923c46a8b2865",
     "auscultation/ausc/perception/tracking/geometry_channel_packet.py": "67f184e1bb3be1d8d7a7ef83e5a9b078745ddbe65d5432a2588b4d2b263695bc",
-    "auscultation/ausc/perception/tracking/model_tracker.py": "97f16be56a13a33c1e358cdfe1a1d5232e1ff4cbd518a031066a8460684a91a9",
+    "auscultation/ausc/perception/tracking/model_tracker.py": "49755d9ad565ef888103b1560bc162ef1e05abe9df35ae8578787e8ad136503e",
     "auscultation/ausc/perception/tracking/occlusion_runtime.py": "227a890cdf42fadd949110d3c10f5e74c379462c16507d25b843b6fc84e59539",
     "auscultation/ausc/perception/tracking/patient_frame_evidence.py": "c3958cf6a5aa5b8d6f856900598b2c402101c78be866e4393db75743fa0f7639",
     "auscultation/ausc/perception/tracking/patient_pose_provider.py": "a4c0da10e99b91c3e0ba414ab5eaf1469bc77becf167fe2c65f23fdcea8ff589",
