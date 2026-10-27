@@ -3,7 +3,8 @@
 camera_stream.py is the live RGB+depth ingest feeding the detector — bugs here mean garbage frames
 reach the pipeline. Previously untested. Covered here:
   - _ob_color_to_rgb: every supported color format + unknown/malformed (must fail to None, not crash)
-  - CameraStream._orbbec_frame: the per-frameset ingest logic (color/depth/scale/alignment/skip)
+  - CameraStream._run_orbbec: the per-frameset ingest logic (color/depth/scale/alignment/skip),
+    driven through a fake pipeline
   - latest_frame: the non-blocking freshness contract (NO_DATA / OK / STALE)
   - the threaded lifecycle via the built-in synthetic "fake" backend
 """
@@ -131,7 +132,7 @@ def test_color_missing_format_constant_tolerated():
     assert _ob_color_to_rgb(_color(buf, "YUYV", 10, 8), _ObPartial()) is None
 
 
-# ── CameraStream._orbbec_frame: ingest logic ──────────────────────────────────
+# ── CameraStream._run_orbbec: ingest logic ────────────────────────────────────
 def _stream(align=None):
     cam = CameraStream(backend="orbbec")
     cam._ob = _Ob()
@@ -139,14 +140,44 @@ def _stream(align=None):
     return cam
 
 
-def test_orbbec_frame_none_fs_is_skipped():
-    assert _stream()._orbbec_frame(None) is None
+def _ingest(cam, framesets):
+    """Feed ``framesets`` through the real capture loop; return what each decode published.
+
+    A None entry is an empty ``wait_for_frames`` poll. The loop stops once the list runs out.
+    """
+    pending = list(framesets)
+
+    class _Pipe:
+        def wait_for_frames(self, _timeout_ms):
+            if not pending:
+                cam._stop.set()
+                return None
+            return pending.pop(0)
+
+    published = []
+    complete = cam._complete_inflight
+
+    def _record(*args, **kwargs):
+        published.append(complete(*args, **kwargs))
+        return published[-1]
+
+    cam._pipe = _Pipe()
+    cam._complete_inflight = _record
+    cam._stop.clear()
+    cam._run_orbbec()
+    return published
+
+
+def test_orbbec_empty_wait_is_skipped():
+    cam = _stream()
+    assert _ingest(cam, [None]) == []                         # no frameset → no decode started
+    assert cam.latest_frame().status == STATUS_NO_DATA
 
 
 def test_orbbec_frame_color_only():
     cam = _stream()
     img = np.random.RandomState(3).randint(0, 256, (8, 10, 3), np.uint8)
-    cf = cam._orbbec_frame(_FS(color=_color(img, _Fmt.RGB, 10, 8)))
+    [cf] = _ingest(cam, [_FS(color=_color(img, _Fmt.RGB, 10, 8))])
     assert cf is not None and cf.depth is None
     assert np.array_equal(cf.frame, img) and cf.status == STATUS_OK
 
@@ -154,7 +185,7 @@ def test_orbbec_frame_color_only():
 def test_orbbec_frame_depth_only_keeps_scale():
     cam = _stream()
     d = np.arange(8 * 10).reshape(8, 10)
-    cf = cam._orbbec_frame(_FS(depth=_Depth(d, scale=0.25)))
+    [cf] = _ingest(cam, [_FS(depth=_Depth(d, scale=0.25))])
     assert cf.frame is None and cf.depth.shape == (8, 10)
     assert cf.depth.dtype == np.uint16 and np.array_equal(cf.depth, d.astype(np.uint16))
     assert cf.depth_scale == 0.25
@@ -162,7 +193,7 @@ def test_orbbec_frame_depth_only_keeps_scale():
 
 def test_orbbec_frame_depth_without_get_scale_defaults_to_one():
     cam = _stream()
-    cf = cam._orbbec_frame(_FS(depth=_DepthBare(np.ones((4, 4)))))
+    [cf] = _ingest(cam, [_FS(depth=_DepthBare(np.ones((4, 4))))])
     assert cf is not None and cf.depth_scale == 1.0
 
 
@@ -170,25 +201,27 @@ def test_orbbec_frame_color_and_depth():
     cam = _stream()
     img = np.random.RandomState(4).randint(0, 256, (6, 6, 3), np.uint8)
     d = (np.arange(36).reshape(6, 6) * 7)
-    cf = cam._orbbec_frame(_FS(color=_color(img, _Fmt.RGB, 6, 6), depth=_Depth(d, 1.0)))
+    [cf] = _ingest(cam, [_FS(color=_color(img, _Fmt.RGB, 6, 6), depth=_Depth(d, 1.0))])
     assert np.array_equal(cf.frame, img) and np.array_equal(cf.depth, d.astype(np.uint16))
 
 
 def test_orbbec_frame_unusable_is_skipped():
     # color present but unknown format → rgb None; no depth → nothing usable → skip
     cam = _stream()
-    cf = cam._orbbec_frame(_FS(color=_color(np.zeros(48, np.uint8), "WEIRD", 4, 4)))
-    assert cf is None
+    assert _ingest(cam, [_FS(color=_color(np.zeros(48, np.uint8), "WEIRD", 4, 4))]) == [None]
+    assert cam.latest_frame().status == STATUS_NO_DATA
 
 
 def test_orbbec_frame_index_increments_only_on_kept_frames():
     cam = _stream()
     img = np.random.RandomState(5).randint(0, 256, (4, 4, 3), np.uint8)
-    a = cam._orbbec_frame(_FS(color=_color(img, _Fmt.RGB, 4, 4)))
-    cam._orbbec_frame(None)                                   # skipped → no increment
-    cam._orbbec_frame(_FS(color=_color(np.zeros(48, np.uint8), "WEIRD", 4, 4)))  # skipped
-    b = cam._orbbec_frame(_FS(color=_color(img, _Fmt.RGB, 4, 4)))
-    assert a.index == 1 and b.index == 2
+    a, skipped, b = _ingest(cam, [
+        _FS(color=_color(img, _Fmt.RGB, 4, 4)),
+        None,                                                 # empty wait → no decode at all
+        _FS(color=_color(np.zeros(48, np.uint8), "WEIRD", 4, 4)),  # decoded, nothing usable
+        _FS(color=_color(img, _Fmt.RGB, 4, 4)),
+    ])
+    assert skipped is None and a.index == 1 and b.index == 2
 
 
 def test_orbbec_frame_alignment_is_applied():
@@ -200,20 +233,22 @@ def test_orbbec_frame_alignment_is_applied():
         def process(self, fs): self.called = True; return aligned
 
     cam = _stream(align=_Align())
-    cf = cam._orbbec_frame(_FS())                             # raw has nothing; align swaps in `aligned`
+    [cf] = _ingest(cam, [_FS()])                              # raw has nothing; align swaps in `aligned`
     assert cam._align.called and cf is not None and np.array_equal(cf.frame, img)
 
 
-def test_orbbec_frame_alignment_none_falls_back_to_raw():
+def test_orbbec_frame_failed_alignment_drops_the_frame():
+    # Unaligned depth would sit under the wrong colour pixels, so a failed align publishes
+    # nothing rather than falling back to the raw frameset.
     img = np.random.RandomState(7).randint(0, 256, (4, 4, 3), np.uint8)
-    raw = _FS(color=_color(img, _Fmt.RGB, 4, 4))
+    raw = _FS(color=_color(img, _Fmt.RGB, 4, 4), depth=_Depth(np.ones((4, 4)), 1.0))
 
     class _AlignNull:
-        def process(self, fs): return None                   # align failed → keep raw (the `or fs`)
+        def process(self, fs): return None
 
     cam = _stream(align=_AlignNull())
-    cf = cam._orbbec_frame(raw)
-    assert cf is not None and np.array_equal(cf.frame, img)
+    assert _ingest(cam, [raw]) == [None]
+    assert cam.latest_frame().status == STATUS_NO_DATA
 
 
 # ── latest_frame: freshness contract ──────────────────────────────────────────
