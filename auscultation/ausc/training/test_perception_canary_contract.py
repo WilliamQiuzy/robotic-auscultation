@@ -3152,7 +3152,8 @@ def test_seeds_are_exact_unique_integers(
         ("learning_rate", True),
         ("learning_rate", float("nan")),
         ("learning_rate", float("inf")),
-        ("learning_rate", 10**10000),
+        # explicit id: pytest would str() the value, which Python refuses past 4300 digits
+        pytest.param("learning_rate", 10**10000, id="learning_rate-10**10000"),
         ("learning_rate", 2e-5),
         ("extra", 1),
     ],
