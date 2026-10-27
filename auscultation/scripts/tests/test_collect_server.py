@@ -9957,3 +9957,36 @@ def test_unverified_audio_artifacts_are_quarantined(tmp_path):
     # Missing files and a None session dir are silently tolerated.
     assert server.Collector._preserve_unverified_audio_artifacts(session) == []
     assert server.Collector._preserve_unverified_audio_artifacts(None) == []
+
+
+def test_force_snapshot_flags_a_stuck_high_hall_reading(tmp_path):
+    # A stuck-high or saturated Hall output classifies as WARN ("no contact"). The capture
+    # stream knows it is physically implausible; the console must not show it as ready.
+    server = _load_collect_server()
+    c = server.Collector([server.SimpleNamespace(name="R1", uv=(0.2, 0.2))],
+                         fake=True, out_dir=tmp_path, start_thread=False)
+    c.require_force = True
+
+    class _StuckForce:
+        @staticmethod
+        def read():
+            return server.SimpleNamespace(
+                status="WARN", force_n=-14.7, age_s=0.0, displacement_mm=0.0,
+                raw=65535, hall_v=3.3, device_t_ms=None,
+            )
+
+        @staticmethod
+        def reading_is_plausible(sample):
+            return sample.raw < 46_000
+
+    try:
+        c._force = _StuckForce()
+        snap = c._force_snapshot()
+        assert snap["status"] == "ERROR" and snap["ready"] is False
+        assert "implausible" in snap["error"] and "stuck high" in snap["error"]
+        c._on_force_capture_fault(type("HallReadingFault", (RuntimeError,), {})("raw=65535"))
+        assert c._force_error.startswith("Hall-force reading implausible")
+        c._on_force_capture_fault(RuntimeError("serial dropout"))
+        assert c._force_error.startswith("Hall-force serial failed")
+    finally:
+        c.shutdown()

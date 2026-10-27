@@ -96,6 +96,32 @@ class ForceCaptureVerificationError(ForceCaptureError):
     """A published Hall-force sidecar failed its immutable contract."""
 
 
+class HallReadingFault(ForceCaptureError):
+    """The Hall output is outside anything the mechanism can produce (stuck high or saturated)."""
+
+
+IMPLAUSIBLE_READINGS_TO_FAULT = 3   # consecutive readings (~30 ms at 100 Hz) before a fault report
+
+
+def hall_reading_is_plausible(calibration: ForceCalibration, raw: int) -> bool:
+    """False when ``raw`` lies past the spring's REST end of the curve by more than one full
+    calibrated stroke. The carriage sits on a preloaded rest stop and cannot move further from the
+    sensor, so such a reading is a stuck-high, saturated or rail-high output. The calibration turns it
+    into a negative force (inverted mount) or clamps it to the preload (upright mount), and either
+    way it is classified as WARN "no contact". The stroke-wide margin leaves room for tare drift.
+    The over-force end needs no bound (it clamps to the hard-limit force). This is not full sensor
+    health: a lost magnet (Hall null), a floating input inside the band, or a sensor stuck at its
+    rest value all still read as plausible.
+
+    Kept here rather than in force_sensor.py, whose exact bytes the sim training data pins."""
+    if calibration.forces[0] <= calibration.forces[-1]:   # upright: rest is the low-volt end
+        v_rest, v_stop = calibration.volts[0], calibration.volts[-1]
+    else:                                                 # inverted (as built): high-volt end
+        v_rest, v_stop = calibration.volts[-1], calibration.volts[0]
+    away = 1.0 if v_rest > v_stop else -1.0               # direction past rest, away from the stop
+    return (calibration.raw_to_volts(raw) - v_rest) * away <= abs(v_rest - v_stop)
+
+
 @dataclass(frozen=True)
 class ForceCaptureSummary:
     path: str
@@ -1409,6 +1435,9 @@ class ForceCaptureStream:
         self._on_capture_fault = on_capture_fault
         self._recording: ForceCaptureRecorder | None = None
         self._prepared = False
+        self._calibration = calibration
+        self._implausible_run = 0                  # consecutive implausible readings (reader thread)
+        self._last_fault_report_t: float | None = None
         if on_safety_event is not None and on_hard_limit is not None:
             raise ValueError("provide only one Hall-force safety callback alias")
         safety_callback = (
@@ -1459,11 +1488,32 @@ class ForceCaptureStream:
     def read(self) -> ForceSample:
         return self._sensor.read()
 
+    def reading_is_plausible(self, sample: ForceSample) -> bool:
+        """For the live console: a stuck-high reading otherwise shows as a ready WARN."""
+        return hall_reading_is_plausible(self._calibration, int(sample.raw))
+
     def _on_sample(self, sample: ForceSample) -> None:
         with self._lock:
             recording = self._recording
         if recording is not None:
-            recording.submit(sample)
+            recording.submit(sample)      # recorded verbatim either way: it is the fault evidence
+        if hall_reading_is_plausible(self._calibration, sample.raw):
+            self._implausible_run = 0
+            return
+        # A stuck sensor reads as "no contact", so report it as a reader fault (advisory channel
+        # degraded). Debounced so a single ADC glitch cannot fail the whole session's sidecar (a
+        # real fault stays stuck), then repeated once per stale timeout while it lasts, so a
+        # recording that starts mid-fault still sees it.
+        self._implausible_run += 1
+        if self._implausible_run < IMPLAUSIBLE_READINGS_TO_FAULT:
+            return
+        last = self._last_fault_report_t
+        if last is None or (sample.t - last) * 1000.0 >= self._calibration.stale_timeout_ms:
+            self._last_fault_report_t = sample.t
+            self._on_reader_error(HallReadingFault(
+                f"Hall reading raw={sample.raw} ({sample.hall_v:.3f} V) is more than one "
+                "calibrated stroke past the rest stop: sensor stuck high or saturated"),
+                sample.t)
 
     def _on_reader_error(self, error: BaseException, observed_t: float) -> None:
         with self._lock:
