@@ -541,6 +541,7 @@ def test_source_binding_is_exact_complete_local_import_closure() -> None:
         "experimental_visibility_geometry",
         "flow",
         "geometry",
+        "geometry_channel_packet",
         "intrinsics",
         "model_tracker",
         "official_asset_contract",
@@ -548,12 +549,13 @@ def test_source_binding_is_exact_complete_local_import_closure() -> None:
         "offline_mesh_simulation",
         "offline_official_mesh_assets",
         "offline_official_mesh_experiment",
+        "production_geometry_gate",
         "rgbd_odometry",
         "runtime",
         "tracker",
     )
     manifest = study.bound_source_manifest()
-    assert len(manifest) == 19
+    assert len(manifest) == 21
     probe = subprocess.run(
         [
             sys.executable,
