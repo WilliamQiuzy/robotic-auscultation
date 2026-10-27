@@ -51,7 +51,8 @@ class PointEKF:
         if not np.isfinite(dt):
             self.n_invalid_dt += 1
             dt = 1e-3
-        dt = max(dt, 1e-3)
+        dt = min(max(dt, 1e-3), 1.0)   # a stall or clock jump must not extrapolate for the whole gap
+                                       # (and dt**2 in F P F^T overflows P to inf)
         F = np.eye(6)
         F[0, 3] = F[1, 4] = F[2, 5] = dt
         self.x = F @ self.x

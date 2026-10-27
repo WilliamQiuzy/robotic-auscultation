@@ -1,4 +1,9 @@
-"""StreamingAuscultationTracker — the production streaming pipeline (Approach B).
+"""StreamingAuscultationTracker: LEGACY / reference 4-channel EKF tracker (Approach B).
+
+NOT the deployment path. The supported production tracker is ``ModelBasedTracker`` (model_tracker.py)
+fed by ``NormalsDetector`` (v9); see __init__.py and docs §9.18. This EKF line is kept for the
+IUV-semantic channel and offline comparison only; it does NOT emit the ``measured`` safety field the
+robot controller requires, so it must never be wired into the controller.
 
 Per frame it fuses four independent evidence channels into a stable, drift-free, anatomically
 anchored 3D estimate of the 10 posterior-lung auscultation points:

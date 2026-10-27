@@ -174,6 +174,23 @@ def test_non_finite_dt_is_counted_not_silently_absorbed():
     ekf.predict(np.inf)
     assert ekf.n_invalid_dt == 2
 
+
+def test_predict_huge_finite_dt_is_clamped():
+    """A stalled stream or a clock jump gives a huge but finite dt. Extrapolating the velocity over
+    the whole gap throws the point metres away, and dt**2 in F P F^T overflows P to inf."""
+    cfg = EKFConfig(max_speed=0.5)
+    ekf = PointEKF(TRUTH, cfg)
+    ekf.x[3:] = np.array([cfg.max_speed, 0.0, 0.0])   # moving at the speed cap
+    ekf.predict(1e6)
+    assert np.isfinite(ekf.x).all() and _is_pd(ekf.P)
+    assert np.linalg.norm(ekf.position - TRUTH) <= cfg.max_speed * 1.0 + 1e-9, "dt not clamped to 1 s"
+    ekf = PointEKF(TRUTH, cfg)
+    ekf.predict(1e200)
+    assert np.isfinite(ekf.x).all(), "predict(1e200) blew up the state"
+    assert np.isfinite(ekf.P).all(), "predict(1e200) overflowed the covariance"
+    assert ekf.n_invalid_dt == 0                      # finite dt is clamped, not counted as corrupt
+
+
 def test_predict_negative_dt_treated_sanely():
     """Negative dt is non-physical; it must be clamped (filter must stay finite/PD)."""
     ekf = PointEKF(TRUTH, EKFConfig())
