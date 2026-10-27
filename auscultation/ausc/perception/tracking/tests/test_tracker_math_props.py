@@ -151,10 +151,9 @@ def test_fit_pose_rejects_gross_outliers_keeps_inliers():
     reprojects the INLIER canonical points back onto their clean observations to <2 mm, and the
     two outliers come back measured=False.
 
-    NOTE: seed 2 is one of ~13% of random canonical geometries for which the current 3-iter IRLS
-    + hard-inlier refit does NOT recover (scale collapses, inliers smear to ~8 cm). We assert the
-    CORRECT behavior (inliers must stay clean) — the whole point of _fit_pose is that a couple of
-    gross detector glitches cannot corrupt the rest of the constellation. See suspected_failures."""
+    Seed 2 is one of the ~13% of random canonical geometries on which 3-iter IRLS plus a single
+    hard-inlier refit did NOT recover (scale collapsed, inliers smeared to ~8 cm); the LTS
+    concentration refit fixed it. The scan below covers the other geometries."""
     rng = np.random.default_rng(2)
     canon = rng.standard_normal((N, 3)) * 0.05
     tr = _tracker_with_canonical(canon)
@@ -171,6 +170,39 @@ def test_fit_pose_rejects_gross_outliers_keeps_inliers():
     assert err[inl].max() < 2e-3, f"inliers corrupted by outliers: {err[inl].max()*1000:.1f} mm"
     assert not measured[1] and not measured[7]              # outliers flagged unmeasured
     assert all(measured[k] for k in inl)
+
+
+def test_fit_pose_asymmetric_outlier_scan_is_clean_or_fails_loud():
+    """The face27c finding as a scan, not one seed: over 200 random constellations and poses, 2 of
+    10 points get a gross ASYMMETRIC offset (0.1-0.6 m per axis). IRLS + a single hard-inlier refit
+    corrupts 15-30% of these (Umeyama scale collapse); the LTS-concentration refit must keep the 8
+    inliers within 2 mm, measured, with both outliers unmeasured.
+
+    LTS can still settle in a wrong local minimum from a bad IRLS seed (~0.05% of configs; trial 49
+    here, and the face27c June code behaves identically). Such a fit must fail LOUD: below the
+    Sim(3) support floor of measured points and never an outlier marked measured. Bound the rate."""
+    rng = np.random.default_rng(27)
+    loud = 0
+    for trial in range(200):
+        canon = rng.standard_normal((N, 3)) * 0.05
+        tr = _tracker_with_canonical(canon)
+        R0, s0 = _rand_rot(rng), float(rng.uniform(0.8, 1.2))
+        t0 = rng.uniform(-0.3, 0.3, 3) + np.array([0.0, 0.0, 1.2])
+        clean = s0 * (R0 @ canon.T).T + t0
+        obs = clean.copy()
+        bad = rng.choice(N, 2, replace=False)
+        obs[bad] += rng.uniform(0.1, 0.6, (2, 3)) * rng.choice([-1.0, 1.0], (2, 3))
+        R, s, t, measured, _fit, _geometry = tr._fit_pose(obs)
+        err = np.linalg.norm(s * (R @ canon.T).T + t - clean, axis=1)
+        inl = np.setdiff1d(np.arange(N), bad)
+        assert not measured[bad].any(), f"trial {trial}: outlier marked measured {measured}"
+        if err[inl].max() < 2e-3:
+            assert measured[inl].all(), f"trial {trial}: clean inlier unmeasured {measured}"
+        else:
+            loud += 1
+            assert measured.sum() < _MATHEMATICAL_SIM3_SUPPORT, (
+                f"trial {trial}: corrupted fit ({err[inl].max()*1000:.1f} mm) claims support")
+    assert loud <= 2, f"{loud}/200 corrupted fits (pre-LTS rate is 15-30%)"
 
 
 def test_fit_pose_returns_none_below_min_valid():
