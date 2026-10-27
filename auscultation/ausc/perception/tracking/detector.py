@@ -239,8 +239,9 @@ class NormalsDetector(DenseIUVDetector):
     drops the IUV/semantic channel (``part=uv=None``); the tracker then runs on D+F+G. Same DINOv2+
     LoRA architecture as the RGB detector, so model loading is inherited unchanged.
 
-    Defaults to fp16 inference: measured 51→35 ms/frame (19→29 Hz) at 1080p with IDENTICAL accuracy
-    (held-out PCK@5 100, median 9.0 px unchanged). Pass ``half=False`` to force fp32.
+    Defaults to fp16 inference: measured p50 47 ms (~21 Hz) at 1080p (perception_metrics.json,
+    perc_lmh_v9_occ) with IDENTICAL accuracy (held-out PCK@5 100, median 9.0 px unchanged); clears
+    the 20 Hz control rate. Pass ``half=False`` to force fp32.
     """
 
     def __init__(self, *args, half: bool = True, fill_holes: bool = True,
