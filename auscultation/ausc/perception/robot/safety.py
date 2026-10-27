@@ -41,18 +41,20 @@ class SafetyConfig:
     require_world_frame: bool = True    # require camera→base extrinsics (no extrinsics ⇒ never move)
     max_screened_force_n: Optional[float] = None  # operational ceiling -> bounded RETRACT
     hard_limit_force_n: Optional[float] = None    # mechanical ceiling -> latched ESTOP
-    max_step_m: float = 0.02            # max commanded Cartesian step per tick (servo speed clamp)
+    max_step_m: float = 0.02          # max commanded Cartesian step per tick (servo speed clamp)
     max_target_age_s: float = 0.25      # HALT if perception hasn't produced a fresh frame within this
     max_force_age_s: float = 0.20       # ESTOP if the explicit force sample is older than this
     max_retract_distance_m: float = 0.05  # bounded retreat travel before hold + IDLE
     #                                     (frozen camera/pipeline must not be acted on as live data)
+    min_plausible_force_n: Optional[float] = None  # below this the sensor is faulty -> latched ESTOP
 
     @classmethod
     def from_force_calibration(cls, calibration, **overrides) -> "SafetyConfig":  # noqa: ANN001
         """Build hardware safety limits from a bench-validated calibration object."""
         if not bool(getattr(calibration, "calibrated", False)):
             raise ValueError("force calibration must have calibrated=true before arm motion")
-        forbidden = {"max_screened_force_n", "hard_limit_force_n"}.intersection(overrides)
+        forbidden = {"max_screened_force_n", "hard_limit_force_n",
+                     "min_plausible_force_n"}.intersection(overrides)
         if forbidden:
             raise ValueError("force thresholds are derived from calibration and cannot be overridden")
         screened = float(getattr(calibration, "max_screened_force_n", float("nan")))
@@ -60,7 +62,14 @@ class SafetyConfig:
         if (not np.isfinite(screened) or screened <= 0 or not np.isfinite(hard)
                 or hard <= screened):
             raise ValueError("force calibration needs 0 < max_screened_force_n < hard_limit_force_n")
-        cfg = cls(max_screened_force_n=screened, hard_limit_force_n=hard, **overrides)
+        # The carriage sits on a preloaded rest stop, so a reading a full calibrated force range
+        # below the rest preload is a stuck-high or saturated Hall output (as built, a stuck-high
+        # sensor reads about -14.7 N with status WARN). Without a curve, use -hard. Never above
+        # 0 N, so a healthy light-contact reading can never trip it.
+        knots = getattr(calibration, "forces", None)
+        floor = min(0.0, (min(knots) - (max(knots) - min(knots))) if knots else -hard)
+        cfg = cls(max_screened_force_n=screened, hard_limit_force_n=hard,
+                  min_plausible_force_n=float(floor), **overrides)
         if not np.isfinite(cfg.max_retract_distance_m) or cfg.max_retract_distance_m <= 0:
             raise ValueError("max_retract_distance_m must be finite and positive")
         return cfg
