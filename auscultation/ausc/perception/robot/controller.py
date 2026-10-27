@@ -1,14 +1,22 @@
 """Auscultation arm controller: turns the perception stream into safe stethoscope placement.
 
 Each tick it reads the ModelBasedTracker output (10 points with ``xyz_world`` / ``measured`` /
-``position_std`` / ``status``), runs the safety state machine, and — only in APPROACH/CONTACT —
-commands a clamped Cartesian step toward the target via an injected ``ArmInterface``. The arm
-interface is a Protocol (real OpenArm, kinematic Sim, or a Mock for tests), so all control LOGIC is
-hardware-free testable; only IK/motors are hardware/box-specific.
+``position_std`` / ``status``), runs the safety state machine, and commands the arm via an injected
+``ArmInterface``. Per state: APPROACH -> one clamped Cartesian step toward the target; RETRACT -> a
+clamped step back along the recorded approach direction, bounded by ``max_retract_distance_m``;
+every other state (CONTACT / HOLD / ESTOP / IDLE / ACQUIRING) -> a positive ``hold()`` so the arm
+is never left on its last motion command.
+
+Frame contract: ``xyz_world`` (tracker), ``tcp_xyz()`` (arm) and the IK targets are ALL in the arm
+base frame (``openarm_{arm}_link0``); the hand-eye extrinsic is calibrated to that same link, so they
+are directly comparable (the field name "world" is historical: it is the arm-base frame).
+
+The arm interface is a Protocol (real OpenArm, kinematic Sim, or a Mock for tests), so all control
+LOGIC is hardware-free testable; only IK/motors are hardware/box-specific.
 """
 from __future__ import annotations
 
-from typing import List, Optional, Protocol
+from typing import List, Optional, Protocol, Tuple
 
 import numpy as np
 
@@ -38,6 +46,29 @@ def _view(points, name: str) -> Optional[sf.TargetView]:
     return None
 
 
+def _canon(v) -> object:
+    """Canonicalize a float for the freshness key. CRITICAL: non-finite values map to a fixed
+    sentinel; raw NaN would make a byte-identical frozen frame compare UNEQUAL to itself
+    (nan != nan), silently defeating the staleness guard whenever any landmark carries a NaN coord
+    (routine for LOST/INIT points)."""
+    v = float(v)
+    return "nonfinite" if not np.isfinite(v) else round(v, 9)
+
+
+def _fingerprint(points) -> Tuple:
+    """Content key of a tracker frame, used to detect a FROZEN pipeline when the caller does not
+    thread ``perception_t``. A hung detector re-emits byte-identical points, so an unchanging key
+    over > max_target_age_s of wall time is treated as stale (never act on frozen data)."""
+    key = []
+    for p in points:
+        xw = getattr(p, "xyz_world", None)
+        xw_t = None if xw is None else tuple(_canon(v) for v in np.asarray(xw, float).ravel())
+        key.append((getattr(p, "name", None), str(getattr(p, "status", "")),
+                    bool(getattr(p, "measured", False)),
+                    _canon(getattr(p, "position_std", 0.0)), xw_t))
+    return tuple(key)
+
+
 class AuscultationController:
     def __init__(self, arm: ArmInterface, cfg: Optional[sf.SafetyConfig] = None):
         if (cfg is None or cfg.max_screened_force_n is None or cfg.hard_limit_force_n is None
@@ -48,8 +79,9 @@ class AuscultationController:
         self.arm = arm
         self.cfg = cfg
         self.state = sf.SafetyState()
-        self._last_t = None              # last perception timestamp seen
-        self._last_advance_wall = None   # wall time the perception frame last advanced
+        self._last_t: Optional[float] = None             # last perception timestamp seen
+        self._last_key: Optional[Tuple] = None           # last content fingerprint (no perception_t)
+        self._last_advance_wall: Optional[float] = None  # wall time the perception frame last advanced
         self._last_approach_direction: Optional[np.ndarray] = None
         self._retract_origin: Optional[np.ndarray] = None
 
@@ -166,11 +198,14 @@ class AuscultationController:
              now: Optional[float] = None,
              force_sample: Optional[ForceSampleLike] = None) -> sf.SafetyState:
         """One control cycle. ``tracker_points`` = MTPoint-like list from ModelBasedTracker.process().
-        ``perception_t`` = the tracker output timestamp; ``now`` = wall clock. If the perception frame
-        stops advancing (frozen pipeline) for > max_target_age_s of wall time, the target is treated as
-        STALE → HOLD (never act on frozen data). ``force_sample`` must be an explicit fresh sensor
-        reading with a recognized status; missing/invalid/stale readings latch ESTOP. Perception times
-        default to the wall clock (live, never stale)."""
+        ``perception_t`` = the tracker output timestamp (PASS THIS in production: ``out.t``);
+        ``now`` = wall clock. If the perception frame stops advancing (frozen pipeline) for
+        > max_target_age_s of wall time, the target is treated as STALE → HOLD (never act on frozen
+        data). A frame is fresh only when ``perception_t`` strictly increases (a non-finite value never
+        does); if the caller omits ``perception_t`` a content fingerprint is the freshness signal, so
+        identical re-emitted points still go stale. We never assume "no timestamp ⇒ live".
+        ``force_sample`` must be an explicit fresh sensor reading with a recognized status;
+        missing/invalid/stale readings latch ESTOP."""
         import time
         force_n, force_fault = self._force_value(force_sample)
         if force_fault is not None:
@@ -178,17 +213,22 @@ class AuscultationController:
             return self.state
         assert force_n is not None
         now = time.monotonic() if now is None else now
-        pt = now if perception_t is None else perception_t
-        if self._last_t is None or pt > self._last_t + 1e-9:
-            self._last_advance_wall = now          # a fresh perception frame arrived
-        self._last_t = pt
-        stale = self._last_advance_wall is None or (now - self._last_advance_wall) > self.cfg.max_target_age_s
-
         try:
             tv = _view(tracker_points, self.state.target_name) if self.state.target_name else None
+            key = _fingerprint(tracker_points) if perception_t is None else None
         except Exception as exc:  # noqa: BLE001 - corrupt perception payloads must fail closed
             self._controller_estop(f"target view failed: {exc}")
             return self.state
+        if perception_t is None:                   # no timestamp: changed content is the only signal
+            if self._last_key is None or key != self._last_key:
+                self._last_advance_wall = now
+            self._last_key = key
+        else:
+            if self._last_t is None or perception_t > self._last_t + 1e-9:
+                self._last_advance_wall = now      # a fresh perception frame arrived
+            self._last_t = perception_t
+        stale = self._last_advance_wall is None or (now - self._last_advance_wall) > self.cfg.max_target_age_s
+
         if stale and tv is not None:               # frozen pipeline → force HOLD via a degraded view
             tv = sf.TargetView(tv.name, tv.xyz_world, measured=False,
                                position_std_m=tv.position_std_m, status="COASTING")
@@ -243,7 +283,6 @@ class AuscultationController:
                 return self.state
         elif self.state.state == sf.State.RETRACT:
             self._retract_tick()
-        elif self.state.state in (sf.State.HOLD, sf.State.ESTOP, sf.State.IDLE,
-                                  sf.State.ACQUIRING, sf.State.CONTACT):
+        else:   # CONTACT / HOLD / ESTOP / IDLE / ACQUIRING, or APPROACH without a finite target
             self._safe_hold()                                        # never drive on a degraded target
         return self.state
