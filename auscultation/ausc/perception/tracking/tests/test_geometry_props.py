@@ -1,6 +1,5 @@
 import os, sys
 import numpy as np
-import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", "..")))
 
 from ausc.perception.tracking.geometry import (  # noqa: E402
@@ -156,11 +155,6 @@ def test_normals_tilted_plane_tips_correctly():
     assert np.isclose(np.linalg.norm(c), 1.0, atol=1e-9)
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "Known bug: the central differences skip the pixel itself, so a depth hole gets its neighbours' "
-    "normal. Harmless today because both callers drop hole pixels through valid_points, but "
-    "geometry.py is pinned by the hardened production runtime manifest, so the fix ships with the "
-    "next runtime release."))
 def test_normals_holes_become_nan():
     """NaN neighbours (depth holes) must yield NaN normals, not bogus directions."""
     intr = Intrinsics(500, 500, 6.0, 5.0, 12, 11)

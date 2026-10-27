@@ -23,22 +23,33 @@ def _boot(vals: np.ndarray, stat, n_boot: int, alpha: float, rng) -> Tuple[float
     return float(stat(vals)), float(np.percentile(bs, 100 * alpha / 2)), float(np.percentile(bs, 100 * (1 - alpha / 2)))
 
 
+def _finite(err: np.ndarray) -> np.ndarray:
+    """Drop NaN/inf so one failed-detection record can't silently poison the whole aggregate."""
+    err = np.asarray(err, float)
+    return err[np.isfinite(err)]
+
+
 def pck_ci(err: np.ndarray, thresh: float, n_boot: int = 2000, alpha: float = 0.05, seed: int = 0):
-    """PCK@thresh (% within thresh) with a bootstrap CI."""
+    """PCK@thresh (% within thresh) with a bootstrap CI. A non-finite error (failed detection) is
+    correctly counted as a MISS (not within thresh) — NEVER dropped, so failures can't inflate PCK
+    (contrast median_ci, where a NaN must be dropped because it poisons the median)."""
     rng = np.random.default_rng(seed)
-    return _boot(np.asarray(err) < thresh, lambda v: v.mean() * 100.0, n_boot, alpha, rng)
+    return _boot(np.asarray(err, float) < thresh, lambda v: v.mean() * 100.0, n_boot, alpha, rng)
 
 
 def median_ci(err: np.ndarray, n_boot: int = 2000, alpha: float = 0.05, seed: int = 0):
     rng = np.random.default_rng(seed)
-    return _boot(err, np.median, n_boot, alpha, rng)
+    return _boot(_finite(err), np.median, n_boot, alpha, rng)
 
 
 def breakdown(records: List[Dict], key: str, thresh: float) -> Dict[str, Tuple]:
-    """PCK@thresh ± CI for each value of `key` (e.g. 'subject' → per-subject; 'garment' → LOGO)."""
+    """PCK@thresh ± CI for each value of `key` (e.g. 'subject' → per-subject; 'garment' → LOGO).
+    Records missing `key` are skipped (consistent with report()'s r.get header counts) rather than
+    raising mid-iteration on a partially-labeled record set."""
     out = {}
-    for v in sorted({r[key] for r in records}):
-        e = np.array([r["err"] for r in records if r[key] == v], float)
+    recs = [r for r in records if r.get(key) is not None]
+    for v in sorted({r[key] for r in recs}):
+        e = np.array([r["err"] for r in recs if r[key] == v], float)
         out[v] = pck_ci(e, thresh) + (len(e),)
     return out
 
