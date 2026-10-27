@@ -205,6 +205,40 @@ def test_fit_pose_asymmetric_outlier_scan_is_clean_or_fails_loud():
     assert loud <= 2, f"{loud}/200 corrupted fits (pre-LTS rate is 15-30%)"
 
 
+def test_underdetermined_fit_coasts_instead_of_publishing_a_wrong_pose():
+    """The one wrong-minimum case of the scan above (seed 27, trial 49), replayed through process().
+    Its fit marks only 1 point measured; applying it anyway published pose_valid=True with points
+    229 mm off (pose_snap_m snaps straight onto it). A fit below the Sim(3) floor must count as a
+    miss: hold the last pose, coast every point, and track again on the next clean frame."""
+    rng = np.random.default_rng(27)
+    for _trial in range(50):                     # same draws as the scan, stop at trial 49
+        canon = rng.standard_normal((N, 3)) * 0.05
+        R0, s0 = _rand_rot(rng), float(rng.uniform(0.8, 1.2))
+        t0 = rng.uniform(-0.3, 0.3, 3) + np.array([0.0, 0.0, 1.2])
+        clean = s0 * (R0 @ canon.T).T + t0
+        obs = clean.copy()
+        bad = rng.choice(N, 2, replace=False)
+        obs[bad] += rng.uniform(0.1, 0.6, (2, 3)) * rng.choice([-1.0, 1.0], (2, 3))
+    tr = _tracker_with_canonical(canon)
+    tr.R, tr.s, tr.t = R0.copy(), s0, t0.copy()
+    tr._have_pose = True; tr._initialized = True; tr._tracking_state = "ACTIVE"
+    frames = iter([clean, obs, clean])
+    tr._detect3d = lambda rgb, depth, robot_mask=None: next(frames)
+    img, dep = np.zeros((480, 640, 3), np.uint8), np.zeros((480, 640), np.uint16)
+
+    def err_mm(out):
+        return max(np.linalg.norm(p.xyz_camera - clean[k]) for k, p in enumerate(out.points)) * 1000
+
+    assert tr.process(img, dep, t=0.0).n_measured == N
+    out = tr.process(img, dep, t=0.033)
+    assert tr._fit_pose(obs)[3].sum() < _MATHEMATICAL_SIM3_SUPPORT    # the case still occurs
+    assert out.n_measured == 0 and not out.pose_measured_this_frame
+    assert all(p.status == "COASTING" for p in out.points)
+    assert err_mm(out) < 1.0, f"held pose moved {err_mm(out):.1f} mm on an underdetermined fit"
+    out = tr.process(img, dep, t=0.066)
+    assert out.n_measured == N and err_mm(out) < 1.0
+
+
 def test_fit_pose_returns_none_below_min_valid():
     """Fewer finite correspondences than the Sim(3) support floor → _fit_pose returns None (can't
     fit); at the floor it fits. Geometry quality is gated separately from this count."""

@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import ctypes
 import errno
+import functools
 import hashlib
 import io
 import json
@@ -72,6 +73,12 @@ HUMAN_ASSET_URL = (
 )
 ASSET_RELEASE_ID = "official_assets-05e66c94cd8b36ff79be"
 CONVERSION_RELEASE_ID = "official_meshes-b5e826af2539bceafea1"
+OFFICIAL_URDF_PATH = (
+    Path(__file__).resolve().parents[3]
+    / ".wam-build/offline-official-openarm-assets/releases"
+    / ASSET_RELEASE_ID
+    / "openarm_description/assets/robot/openarm_v1.0/urdf/example/v1.urdf"
+)
 
 POINT_NAMES = ("R1", "L1", "R2", "L2", "R3", "L3", "R4", "L4", "R5", "L5")
 WRIST_INDICES = (0, 1)
@@ -653,6 +660,21 @@ def _validate_manifest(root: Path) -> dict[str, Any]:
     return manifest
 
 
+@functools.lru_cache(maxsize=1)
+def official_motion_plan_sha256() -> str:
+    """The motion-plan identity the v2 core contract binds, recomputed the way the release builder
+    produces it: the pinned official URDF and anchor contract through the official IK planner
+    (about 10 s, once per process). Recomputed rather than read from the release, which would be
+    circular."""
+
+    urdf = _regular_bytes(OFFICIAL_URDF_PATH, maximum=16 * 1024 * 1024)
+    if hashlib.sha256(urdf).hexdigest() != OPENARM_URDF_SHA256:
+        raise OfflineReleaseError("pinned official OpenArm URDF identity changed")
+    anchors = core_experiment.load_official_anchor_contract()
+    plans = tuple(core_experiment.plan_official_ik_matrix(urdf, anchors))
+    return core_experiment.revalidate_official_motion_plans(urdf, anchors, plans)
+
+
 def _validate_input_contract(
     root: Path, manifest: Mapping[str, Any]
 ) -> tuple[dict[str, Any], str, str]:
@@ -689,9 +711,13 @@ def _validate_input_contract(
     (
         immutable_core,
         expected_core_sha256,
-    ) = core_experiment.build_experiment_input_contract()
-    expected_core = dict(immutable_core)
-    expected_core["decision_surface"] = dict(immutable_core["decision_surface"])
+    ) = core_experiment.build_experiment_input_contract(
+        motion_plan_sha256=official_motion_plan_sha256()
+    )
+    expected_core = {  # unwrap the read-only views (decision_surface, observation_sweeps)
+        key: dict(value) if isinstance(value, Mapping) else value
+        for key, value in immutable_core.items()
+    }
     try:
         expected_core = json.loads(core_canonical_json_bytes(expected_core))
     except (TypeError, ValueError) as exc:  # pragma: no cover - frozen core invariant

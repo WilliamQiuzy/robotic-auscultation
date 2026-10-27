@@ -441,16 +441,37 @@ def test_frozen_pipeline_with_nan_sibling_still_halts():
 
 
 def test_nan_perception_t_halts():
-    """A non-finite perception timestamp must never count as a fresh frame."""
+    """A non-finite perception timestamp must never count as a fresh frame, not even the first."""
     arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
     tgt = [P("R3", np.array([0., 0., 0.10]))]
-    nan = float("nan")
-    c.tick(tgt, perception_t=nan, now=0.0, force_sample=_force())
-    c.tick(tgt, perception_t=nan, now=0.1, force_sample=_force())
+    for bad, now in ((float("nan"), 0.0), (float("inf"), 0.1), (float("nan"), 10.0)):
+        c.tick(tgt, perception_t=bad, now=now, force_sample=_force())
+        assert c.state.state == State.ACQUIRING and arm.servo_calls == 0
+
+
+def test_controller_recovers_when_perception_t_is_finite_again():
+    """One corrupt timestamp halts motion while it lasts, but must not poison every later
+    comparison (nan < x is always False): finite, increasing timestamps resume the approach."""
+    arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    for i in range(3):
+        c.tick(tgt, perception_t=float(i), now=float(i), force_sample=_force())
     assert c.state.state == State.APPROACH
+    c.tick(tgt, perception_t=float("nan"), now=5.0, force_sample=_force())
+    assert c.state.state == State.HOLD
     sc = arm.servo_calls
-    c.tick(tgt, perception_t=nan, now=10.0, force_sample=_force())
-    assert c.state.state == State.HOLD and arm.servo_calls == sc
+    c.tick(tgt, perception_t=6.0, now=6.0, force_sample=_force())
+    assert c.state.state == State.APPROACH and arm.servo_calls == sc + 1
+
+
+def test_reset_starts_a_fresh_perception_history():
+    """After reset() a restarted tracker clock (smaller timestamps) counts as fresh at once."""
+    arm = MockArm(); c = _controller(arm, max_target_age_s=2.5); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    c.tick(tgt, perception_t=100.0, now=0.0, force_sample=_force())
+    c.reset(); c.command("R3")
+    c.tick(tgt, perception_t=1.0, now=5.0, force_sample=_force())
+    assert c.state.state == State.APPROACH
 
 
 def test_overforce_during_stale_latches_estop():
@@ -648,3 +669,43 @@ def test_real_arm_refuses_non_finite_joint_command(monkeypatch):
         real.servo_toward(np.array([0.0, 0.0, 0.1]), 0.02)
     assert sent and all(np.isfinite(pos) for params in sent for pos, _ in params)
     assert all(vel == 0.0 for _, vel in sent[-1])       # last command is a positive hold
+
+
+def test_impossible_force_floor_comes_from_the_calibration_curve():
+    """One full calibrated force range below the rest preload is unreachable: the carriage sits on
+    its preloaded rest stop. As built: 1.5 N - (8.75 - 1.5) N = -5.75 N."""
+    import sys
+    from pathlib import Path
+    ff = Path(__file__).resolve().parents[4] / "mechanical_sensor" / "force_feedback"
+    sys.path.insert(0, str(ff))
+    import force_sensor as fs
+    tared = fs.ForceCalibration.from_json(ff / "force_feedback_calibration_veo6_tared.json")
+    cfg = SafetyConfig.from_force_calibration(tared)
+    assert cfg.min_plausible_force_n == pytest.approx(1.5 - (8.75 - 1.5))
+    assert tared.sample_from_raw(65535, 0.0).force_n < cfg.min_plausible_force_n   # stuck high
+    assert _cfg().min_plausible_force_n == pytest.approx(-5.5)   # no curve: minus the hard limit
+    with pytest.raises(ValueError, match="derived from calibration"):
+        _cfg(min_plausible_force_n=-100.0)
+
+
+def test_physically_impossible_force_latches_estop():
+    """A stuck-high Hall sensor reads about -14.7 N with status WARN, which would otherwise look
+    like "no contact" while the arm keeps approaching."""
+    arm = MockArm(); c = _controller(arm); c.command("R3")
+    tgt = [P("R3", np.array([0., 0., 0.10]))]
+    c.tick(tgt, perception_t=0.0, now=0.0, force_sample=_force())
+    assert c.state.state == State.APPROACH
+    sc = arm.servo_calls
+    s = c.tick(tgt, perception_t=0.033, now=0.033, force_sample=_force(-14.7, "WARN"))
+    assert s.state == State.ESTOP and "physically impossible" in s.fault
+    assert arm.servo_calls == sc
+
+
+@pytest.mark.parametrize("floor", [None, float("nan"), 0.5])
+def test_controller_refuses_a_config_without_a_usable_force_floor(floor):
+    """A hand-built SafetyConfig must not silently skip the stuck-sensor check (a missing or NaN
+    floor would compare False and fail open; a positive one could trip on a light touch)."""
+    import dataclasses
+    cfg = dataclasses.replace(_cfg(), min_plausible_force_n=floor)
+    with pytest.raises(ValueError, match="force calibration"):
+        AuscultationController(MockArm(), cfg)

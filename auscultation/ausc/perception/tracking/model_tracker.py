@@ -1068,6 +1068,11 @@ class ModelBasedTracker:
             return self._emit(t, init_only=True)
 
         fitres = self._fit_pose(obs) if obs is not None else None
+        if fitres is not None and int(np.count_nonzero(fitres[3])) < _MATHEMATICAL_SIM3_SUPPORT:
+            # The robust fit explains fewer points than a Sim(3) needs: it settled in a wrong local
+            # minimum (rare, from a bad IRLS seed under gross outliers). Applying it would snap the
+            # held pose onto a confidently wrong one, so treat the frame as a detection miss.
+            fitres = None
         if fitres is None:
             for history in self._late_init_obs:
                 history.clear()

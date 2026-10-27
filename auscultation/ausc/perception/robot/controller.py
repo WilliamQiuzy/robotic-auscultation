@@ -74,7 +74,9 @@ class AuscultationController:
         if (cfg is None or cfg.max_screened_force_n is None or cfg.hard_limit_force_n is None
                 or not np.isfinite(cfg.max_screened_force_n)
                 or not np.isfinite(cfg.hard_limit_force_n)
-                or not np.isfinite(cfg.max_force_age_s) or cfg.max_force_age_s <= 0):
+                or not np.isfinite(cfg.max_force_age_s) or cfg.max_force_age_s <= 0
+                or cfg.min_plausible_force_n is None or not np.isfinite(cfg.min_plausible_force_n)
+                or cfg.min_plausible_force_n > 0):
             raise ValueError("controller requires SafetyConfig derived from force calibration")
         self.arm = arm
         self.cfg = cfg
@@ -97,6 +99,9 @@ class AuscultationController:
         self.state = sf.reset(self.state)
         self._last_approach_direction = None
         self._retract_origin = None
+        self._last_t = None                  # fresh perception history: a restarted tracker clock
+        self._last_key = None                # (smaller timestamps) must count as fresh again
+        self._last_advance_wall = None
 
     def _controller_estop(self, reason: str) -> None:
         self.state = sf.estop(self.state, reason)
@@ -130,6 +135,10 @@ class AuscultationController:
             return None, f"force sample invalid status {status!r}"
         if not np.isfinite(force_n):
             return None, "force sample force_n is not finite"
+        floor = self.cfg.min_plausible_force_n
+        if floor is not None and force_n < floor:
+            return None, (f"force sample {force_n:.2f} N is physically impossible (< {floor:.2f} N): "
+                          "Hall sensor stuck high or saturated")
         if not np.isfinite(age_s) or age_s < 0.0:
             return None, "force sample age_s is invalid"
         if age_s > self.cfg.max_force_age_s:
@@ -223,10 +232,12 @@ class AuscultationController:
             if self._last_key is None or key != self._last_key:
                 self._last_advance_wall = now
             self._last_key = key
-        else:
+        elif np.isfinite(float(perception_t)):
             if self._last_t is None or perception_t > self._last_t + 1e-9:
                 self._last_advance_wall = now      # a fresh perception frame arrived
-            self._last_t = perception_t
+            self._last_t = float(perception_t)
+        # else: a non-finite timestamp is never fresh and is not kept; storing it would make every
+        # later comparison False, so the controller could never recover without a rebuild
         stale = self._last_advance_wall is None or (now - self._last_advance_wall) > self.cfg.max_target_age_s
 
         if stale and tv is not None:               # frozen pipeline → force HOLD via a degraded view

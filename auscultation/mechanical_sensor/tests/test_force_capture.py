@@ -1040,3 +1040,80 @@ def test_force_sensor_reports_each_native_sample_and_serial_error(
     assert len(errors) == 1
     assert isinstance(errors[0][0], OSError)
     assert errors[0][1] > 0.0
+
+
+# -- physically impossible Hall readings (stuck / saturated / rail-high output) ----------------
+def _volts_raw(calibration: fs.ForceCalibration, volts: float) -> int:
+    return round(volts / calibration.supply_v * calibration.adc_full_scale)
+
+
+def test_as_built_reading_past_the_rest_stop_by_a_stroke_is_implausible() -> None:
+    """As built the mount is inverted (rest 1.5905 V, hard stop 0.8236 V). A stuck-high output
+    extrapolates to about -14.7 N and is otherwise classified as a plain WARN "no contact"."""
+    tared = fs.ForceCalibration.from_json(FF / "force_feedback_calibration_veo6_tared.json")
+    assert tared.sample_from_raw(65535, 0.0).status == fs.STATUS_WARN   # the gap being closed
+    for raw in (16355, 31577, 34720, 0):     # hard stop, tare rest, pre-tare rest drift, rail low
+        assert capture.hall_reading_is_plausible(tared, raw), raw
+    edge = 1.5905 + (1.5905 - 0.8236)                                   # one full stroke past rest
+    assert capture.hall_reading_is_plausible(tared, _volts_raw(tared, edge - 0.01))
+    for raw in (_volts_raw(tared, edge + 0.01), 59577, 65535):         # past it, saturated, rail
+        assert not capture.hall_reading_is_plausible(tared, raw), raw
+
+
+def test_upright_reading_past_the_rest_stop_by_a_stroke_is_implausible() -> None:
+    """Same bound on an upright mount, where rest is the LOW-volt end (1.7358 V, stop 2.0371 V)."""
+    upright = fs.ForceCalibration.from_json(FF / "force_feedback_calibration_veo6.json")
+    edge = 1.7358 - (2.0371 - 1.7358)
+    assert capture.hall_reading_is_plausible(upright, _volts_raw(upright, 3.3))
+    assert capture.hall_reading_is_plausible(upright, _volts_raw(upright, edge + 0.01))
+    assert not capture.hall_reading_is_plausible(upright, _volts_raw(upright, edge - 0.01))
+    assert not capture.hall_reading_is_plausible(upright, 0)
+
+
+def test_stream_reports_a_stuck_hall_reading_as_a_capture_fault(tmp_path: Path) -> None:
+    calibration_path = FF / "force_feedback_calibration_veo6_tared.json"
+    calibration = fs.ForceCalibration.from_json(calibration_path)
+    faults: list[tuple[BaseException, float]] = []
+
+    class FakeSensor:
+        def __init__(self, _port, _calibration, **kwargs):
+            self.on_sample = kwargs["on_sample"]
+            self.on_reader_error = kwargs["on_reader_error"]
+
+        def start(self):
+            return self
+
+        def stop(self):
+            pass
+
+    stream = capture.ForceCaptureStream(
+        "/dev/serial/by-id/usb-test-hall",
+        calibration_path,
+        device_identity=DEVICE,
+        sensor_factory=FakeSensor,
+        on_capture_fault=lambda error, at: faults.append((error, at)),
+    ).prepare()
+    stream.prepare_recording(tmp_path / "stuck-session")
+    stream.begin_recording(t0=10.0)
+
+    def feed(raw: int, t: float) -> None:
+        stream._sensor.on_sample(calibration.sample_from_raw(raw, t, device_t_ms=t * 1000.0))
+
+    feed(31577, 10.01)                                   # at rest: plausible, no fault
+    assert faults == []
+    assert stream.reading_is_plausible(calibration.sample_from_raw(31577, 0.0))
+    assert not stream.reading_is_plausible(calibration.sample_from_raw(65535, 0.0))
+    for k in range(capture.IMPLAUSIBLE_READINGS_TO_FAULT - 1):   # a short glitch, then recovery
+        feed(65535, 10.011 + 0.001 * k)
+    feed(31577, 10.015)
+    assert faults == []                                  # debounced: one glitch is not a fault
+    for k in range(5):                                   # stuck high for 40 ms
+        feed(65535, 10.02 + 0.01 * k)
+    assert len(faults) == 1                              # once per stale timeout, not per sample
+    assert isinstance(faults[0][0], capture.HallReadingFault) and "65535" in str(faults[0][0])
+    feed(65535, faults[0][1] + calibration.stale_timeout_ms / 1000.0 + 0.01)
+    assert len(faults) == 2                              # still stuck: reported again
+    assert stream._recording._written_samples or stream._recording._queue.qsize()  # still recorded
+    with pytest.raises(capture.ForceCaptureError, match="serial reader failed"):
+        stream.end_recording(t_end=10.5)                 # the advisory channel is marked failed
+    stream.stop()

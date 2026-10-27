@@ -7,7 +7,7 @@ import json
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import cv2
 import mujoco
@@ -261,9 +261,13 @@ def _input_contract(records: list[dict[str, Any]]) -> dict[str, Any]:
     (
         core_contract,
         core_contract_sha256,
-    ) = core_experiment.build_experiment_input_contract()
-    core_value = dict(core_contract)
-    core_value["decision_surface"] = dict(core_contract["decision_surface"])
+    ) = core_experiment.build_experiment_input_contract(
+        motion_plan_sha256=runner.official_motion_plan_sha256()
+    )
+    core_value = {
+        key: dict(value) if isinstance(value, Mapping) else value
+        for key, value in core_contract.items()
+    }
     core_value = json.loads(_core_canonical_bytes(core_value))
     assert hashlib.sha256(_core_canonical_bytes(core_value)).hexdigest() == (
         core_contract_sha256

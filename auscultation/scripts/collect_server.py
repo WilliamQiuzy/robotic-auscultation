@@ -7066,10 +7066,14 @@ class Collector:
         # aborts the session or touches the arm; every other modality keeps recording
         # and the force channel is honestly marked degraded.
         del observed_t
+        what = (
+            "Hall-force reading implausible"     # a stuck-high/saturated sensor, not the serial link
+            if type(error).__name__ == "HallReadingFault"
+            else "Hall-force serial failed"
+        )
         self._force_status = "ERROR"
         self._force_error = (
-            "Hall-force serial failed (advisory channel degraded): "
-            f"{type(error).__name__}: {error}"
+            f"{what} (advisory channel degraded): {type(error).__name__}: {error}"
         )
 
     def _force_snapshot(self):
@@ -7104,6 +7108,16 @@ class Collector:
         try:
             sample = self._force.read()
             status = str(sample.status)
+            implausible_error = None
+            plausible = getattr(self._force, "reading_is_plausible", None)
+            if plausible is not None and not plausible(sample):
+                # A stuck-high or saturated Hall output classifies as WARN ("no contact");
+                # never show it as a ready advisory reading.
+                status = "ERROR"
+                implausible_error = (
+                    "Hall-force reading implausible (advisory channel degraded): the sensor "
+                    "reads past its rest stop, stuck high or saturated"
+                )
             ready = status in {"OK", "WARN"}
             base.update({
                 "status": status,
@@ -7114,7 +7128,7 @@ class Collector:
                 "raw": int(getattr(sample, "raw", 0)),
                 "hall_v": float(getattr(sample, "hall_v", 0.0)),
                 "device_t_ms": getattr(sample, "device_t_ms", None),
-                "error": None if ready else self._force_error,
+                "error": None if ready else (implausible_error or self._force_error),
                 # Force is ADVISORY only: it must never assert or influence training
                 # eligibility. Only the finalizer promotes, and no producer surface may
                 # emit training_eligible=true. A valid over-threshold physician reading is
@@ -7132,7 +7146,9 @@ class Collector:
                 # recording updates the displayed status only -- it NEVER aborts
                 # recording and never touches the arm.
                 self._force_status = status
-                self._force_error = f"Hall-force {status} during recording (advisory)"
+                self._force_error = (
+                    implausible_error or f"Hall-force {status} during recording (advisory)"
+                )
         except Exception as exc:  # noqa: BLE001 - advisory health readout
             base.update({
                 "status": "ERROR", "ready": False,

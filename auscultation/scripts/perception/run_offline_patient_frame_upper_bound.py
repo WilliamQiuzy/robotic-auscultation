@@ -125,6 +125,9 @@ BOUND_SOURCE_FILES = {
     ),
     "flow": AUSCULTATION_ROOT / "ausc/perception/tracking/flow.py",
     "geometry": AUSCULTATION_ROOT / "ausc/perception/tracking/geometry.py",
+    "geometry_channel_packet": (
+        AUSCULTATION_ROOT / "ausc/perception/tracking/geometry_channel_packet.py"
+    ),
     "intrinsics": AUSCULTATION_ROOT / "ausc/perception/tracking/intrinsics.py",
     "model_tracker": AUSCULTATION_ROOT / "ausc/perception/tracking/model_tracker.py",
     "official_asset_contract": (
@@ -143,6 +146,9 @@ BOUND_SOURCE_FILES = {
     "offline_official_mesh_experiment": (
         AUSCULTATION_ROOT
         / "ausc/perception/tracking/offline_official_mesh_experiment.py"
+    ),
+    "production_geometry_gate": (
+        AUSCULTATION_ROOT / "ausc/perception/tracking/production_geometry_gate.py"
     ),
     "rgbd_odometry": AUSCULTATION_ROOT / "ausc/perception/tracking/rgbd_odometry.py",
     "runtime": AUSCULTATION_ROOT / "ausc/perception/tracking/runtime.py",
