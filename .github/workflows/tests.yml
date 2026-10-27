@@ -48,7 +48,8 @@ jobs:
       - name: Run tests
         # Skipped: tests that need the converted NVIDIA OpenArm assets (built locally, not in git).
         run: >
-          python -m pytest ausc/perception/tracking/tests ausc/perception/robot/tests -q
+          python -m pytest ausc/perception/tracking/tests ausc/perception/robot/tests
+          ausc/perception/eval/tests ausc/perception/tests ausc/perception/test_camera_stream.py -q
           --ignore=ausc/perception/tracking/tests/test_offline_mesh_simulation.py
           --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_assets.py
           --ignore=ausc/perception/tracking/tests/test_offline_official_mesh_experiment.py
