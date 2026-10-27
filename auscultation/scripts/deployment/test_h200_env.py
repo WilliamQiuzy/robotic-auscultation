@@ -512,6 +512,16 @@ def test_real_venv_uses_stable_name_for_the_held_base_interpreter(
         )
         env._run_command(command, pass_fds=(base_python_fd,))
         env._verify_bound_base_python(command[0], base_python_fd)
+        # Same order as build_environment: the held uv CPython is relocatable
+        # and finds its stdlib through pyvenv.cfg ``home``, which still names
+        # the ephemeral launcher directory until it is normalized.
+        config = candidate / "pyvenv.cfg"
+        config.write_text(
+            config.read_text(encoding="utf-8").replace(
+                str(launcher_home), str(base_python.parent)
+            ),
+            encoding="utf-8",
+        )
         candidate_python = candidate / "bin" / "python3.12"
         assert not (candidate / "bin" / "pip").exists()
         env._run_command([
