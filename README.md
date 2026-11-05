@@ -1,5 +1,36 @@
 # Robotic Auscultation
 
+**[Watch the interactive simulation demo](https://williamqiuzy.github.io/robotic-auscultation/)** · [中文](README.zh-CN.md) · [Train ACT](docs/TRAINING.md) · [Evaluation & benchmark](docs/BENCHMARK.md) · [Astra integration](docs/ASTRA.md)
+
+<p align="center"><a href="https://williamqiuzy.github.io/robotic-auscultation/"><img src="docs/assets/expert-poster.png" width="760" alt="Actual Isaac Sim analytic expert episode; this is not a learned-policy success"></a></p>
+
+### Simulation demo release · November 5, 2026
+
+This release makes the training task, actual simulator videos and evaluation evidence available together. **The analytic expert is qualified; the published ACT pilot is not yet usable.** The task has ten posterior targets, but this small release does not validate all ten with a learned model.
+
+| Published evidence | Result | Interpretation |
+|---|---|---|
+| Analytic expert, fixed eight-case physical qualification | **8/8** | Actual approach, contact, ≥3 s valid hold, unload and home |
+| Official state-only ACT, two 5,000-step trials | TRAIN/VAL MAE **7.396/126.991 mrad** for the selected augmentation-on model | Seven TRAIN bodies / one selection VAL body; offline action error is not task success |
+| Selected ACT weights driving Isaac | **0/2** | One TRAIN + one selection VAL scene; both stopped before contact |
+| Independent-body benchmark | **Not reported** | A protocol is published; no generalization score is inferred |
+| Astra + local skills | **Interface prototype** | Dry-run request and local validation code; no live API or Isaac result |
+
+These rows are different diagnostic cohorts, **not a controlled leaderboard**. [Original JSON evidence and media checksums](docs/data/assets_manifest.json) are included. Videos are actual simulation recordings, not real patients or generated motion. Evidence dates are October 28–29; publication date is November 5.
+
+```sh
+# Inspect results and verify all released summary/media hashes; no GPU needed.
+python -m demo.benchmark --verify-assets --output /tmp/ausc-results.json
+# Test the Astra request interface without an API call or robot motion.
+python -m demo.astra_policy --observation examples/astra_observation.json --output /tmp/astra-request.json
+```
+
+The [portable official-ACT training entry point](demo/train_act.py) uses state17/history2, H20/E10, identity-disjoint data, TRAIN-only normalization and full-validation selection. Install NumPy for CPU interface checks. Training also requires the pinned LeRobot/PyTorch environment and your qualified exported arrays. Licensed body assets, original raw arrays, checkpoints and the complete original native environment are not bundled; [reproduction boundaries](docs/TRAINING.md) are explicit.
+
+Astra is proposed as a supervisor above local skills. It consumes RGB (when supplied), depth-derived target geometry, joints and Hall voltage; it cannot change the local contact controller's thresholds. The [integration note](docs/ASTRA.md) separates this prototype from future direct-action and actual simulator evaluations.
+
+---
+
 [![tests](https://github.com/WilliamQiuzy/robotic-auscultation/actions/workflows/tests.yml/badge.svg)](https://github.com/WilliamQiuzy/robotic-auscultation/actions/workflows/tests.yml)
 ![Python 3.11](https://img.shields.io/badge/python-3.11-blue)
 ![Status: work in progress](https://img.shields.io/badge/status-work%20in%20progress-orange)
@@ -39,7 +70,7 @@ sound is clear. This project treats auscultation as a sensorimotor task with sou
 | Recording-quality model | AST embeddings with a gradient-boosted head flag unusable lung-sound clips. On SPRSound (4,960 clips, 382 patients) it reaches AUC 0.94 on a patient-grouped split, against 0.86 for WavLM. Training with hum and noise augmentation keeps AUC at 0.96 or higher under those corruptions. | [`auscultation/ausc/audio`](auscultation/ausc/audio), [results](auscultation/docs/sprsound_quality_loop_RESULTS.md) |
 | Force-sensing end effector | Parametric CadQuery models of a passive spring mount around a Thinklabs One digital stethoscope. A coaxial magnet and an SS49E Hall sensor measure spring compression, read by an Arduino. | [`auscultation/mechanical_sensor`](auscultation/mechanical_sensor) |
 | Real-arm data collection | Leader-follower teleoperation of an OpenArm at 1 kHz over CAN, a C++ telemetry publisher on a preallocated lock-free ring patched into `openarm_can`, hand-eye calibration, and a force-limited safety state machine. | [`auscultation/openarm_bridge`](auscultation/openarm_bridge), [`auscultation/scripts`](auscultation/scripts) |
-| Simulation and expert | NVIDIA Isaac Sim 5.1 digital twin of the seated-patient task: the OpenArm with its gripper replaced by a stethoscope on a preloaded prismatic spring joint, clearance, joint-limit and contact-force gates, and an analytic expert (collision-checked motion planning with Ruckig trajectories, plus force feedback) that labels demonstrations for imitation learning. | [`sim/ausc_policy`](sim/ausc_policy), [`configs/ausc_policy`](configs/ausc_policy) |
+| Simulation and expert | NVIDIA Isaac Sim digital twin (5.1 development; released qualification uses native 6.0) of the seated-patient task: the OpenArm with its gripper replaced by a stethoscope on a preloaded prismatic spring joint, clearance, joint-limit and contact-force gates, and an analytic expert (collision-checked motion planning with Ruckig trajectories, plus force feedback) that labels demonstrations for imitation learning. | [`sim/ausc_policy`](sim/ausc_policy), [`configs/ausc_policy`](configs/ausc_policy) |
 
 Earlier policy experiments (π0.5 fine-tuning, ACT and other baselines) live in the versioned
 `sim/auscultation_*` directories. They are kept read-only because the current code imports parts of
@@ -93,11 +124,11 @@ cd auscultation && python -m pytest ausc/perception/tracking/tests ausc/percepti
 
 CI skips the few test files that need simulator assets kept out of git;
 [the workflow](.github/workflows/tests.yml) lists them.
-Isaac Sim runs need Linux, an NVIDIA GPU and Isaac Sim 5.1.
+Isaac Sim runs need Linux, a compatible NVIDIA GPU and the simulator version matching the experiment. The new portable demo interfaces do not require Isaac for CPU checks.
 
 ## What is not included
 
-- No images, video or audio of people, no patient data and no model weights.
+- No real-person images, real-patient audio/data or model weights. The demo includes rendered Isaac simulation videos and small public result summaries.
 - Datasets (HuMMan, SMPL body models, SPRSound and others) must be obtained from their owners under
   their own licences; the scripts expect them under `auscultation/data/`.
 - Server and lab-network configuration.

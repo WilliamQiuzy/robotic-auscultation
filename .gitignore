@@ -80,3 +80,8 @@ lung_qa_*.json
 /sim/**/*.pkl
 /sim/**/*.pt
 /results/
+
+# Explicitly reviewed, small synthetic Isaac demo clips.
+!/docs/assets/expert-l5.mp4
+!/docs/assets/act-train-r3.mp4
+!/docs/assets/act-val-l3.mp4

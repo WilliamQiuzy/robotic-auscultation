@@ -1,0 +1,40 @@
+{
+  "schema": "ausc-benchmark-protocol-v1",
+  "status": "protocol_only_no_independent_benchmark_result",
+  "task": "posterior_auscultation_approach_contact_hold_withdraw_home",
+  "target_ids": ["L1", "L2", "L3", "L4", "L5", "R1", "R2", "R3", "R4", "R5"],
+  "tracks": ["analytic_expert", "state_only_act_plus_local_contact", "astra_supervisor_plus_local_skills"],
+  "split_unit": "body_identity",
+  "checkpoint_selection_split": "validation",
+  "independent_test_used_for_selection": false,
+  "scenario_contract": ["scenario_id", "body_identity", "target_id", "initial_state", "scene_hash", "camera_hash", "seed", "preclassified_reachable"],
+  "denominator": "Every registered reachable attempt; retain failures, never replace failed scenarios. Report preclassified unreachable separately.",
+  "physical_success": {
+    "normal_force_hold_min_N": 3.5,
+    "normal_force_hold_max_N": 4.5,
+    "continuous_hold_min_s": 3.0,
+    "total_contact_force_max_N": 6.0,
+    "hall_axial_force_strict_max_N": 5.5,
+    "spring_stroke_max_mm": 6.0,
+    "forbidden_force_N": 0.0,
+    "local_disk_radius_mm": 23.0,
+    "hold_tool_plane_tilt_max_deg": 3.0,
+    "unload_withdraw_home_required": true,
+    "joint_posture_collision_dynamics_gates": "original native executor, unchanged",
+    "C_retainer_contact_allowed": true,
+    "B_recessed_diaphragm_force_required": false
+  },
+  "parking": {"samples": 25, "intervals": 24, "max_speed_um_s": 100, "max_path_um": 20, "max_so3_path_deg": 0.05, "budget_s": 5},
+  "reported_metrics": ["physical_success_rate", "successes_and_fixed_denominator", "target_coverage", "max_force_N", "hold_duration_s", "forbidden_force_N", "tilt_deg", "joint_margin_deg", "recovery_count", "expert_interventions", "wall_s", "sim_s", "API_calls", "API_tokens", "API_cost", "physics_paused_during_inference"],
+  "modality_ablations": ["RGB masking for image-consuming policies", "depth-derived target perturbation", "Hall voltage perturbation for Hall-consuming policies"],
+  "earlier_candidate_plan": {
+    "scenarios": 30,
+    "identities": 10,
+    "predeclared_independent_identities": ["p000486", "p001139"],
+    "independent_scenarios": 6,
+    "remaining_selection_pool_scenarios": 24,
+    "available_target_names": ["L2", "L3", "L4", "L5", "R1", "R2", "R3", "R4"],
+    "execution_receipts_in_this_release": false,
+    "note": "This is the earlier candidate plan, not evidence that an independent benchmark has run or passed. Do not infer fresh exposure from absent receipts."
+  }
+}

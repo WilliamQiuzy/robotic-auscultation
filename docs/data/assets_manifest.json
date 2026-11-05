@@ -1,0 +1,43 @@
+{
+  "schema": "ausc-public-assets-v1",
+  "published_on": "2026-11-05",
+  "synthetic_isaac_media_only": true,
+  "files": [
+    {
+      "path": "assets/expert-l5.mp4",
+      "bytes": 790863,
+      "sha256": "8e5c74db9a95aa746cc75f539eb88ed5ef7bdae372a3e9a6e724d29cfc2de287",
+      "source_experiment": "eight_review_20261028_v5"
+    },
+    {
+      "path": "assets/act-val-l3.mp4",
+      "bytes": 237114,
+      "sha256": "d0e8883a9944075f7dbca950aef2bfbbc4b4bca9f3ff2097c3307057c345c005",
+      "source_experiment": "act_eight_task_first_20261029_v2"
+    },
+    {
+      "path": "data/expert_summary.json",
+      "bytes": 30862,
+      "sha256": "b15018442486eee6a7363d958908de4f631a5893fecd55ace94d592ced39022c",
+      "source_experiment": "eight_review_20261028_v5"
+    },
+    {
+      "path": "data/act_summary.json",
+      "bytes": 14570,
+      "sha256": "2823a36d20e35da31289a80cf63adabe1b9b16937f52843615ef436da1e8e5a5",
+      "source_experiment": "act_eight_task_first_20261029_v2"
+    },
+    {
+      "path": "assets/act-fit.png",
+      "bytes": 111887,
+      "sha256": "4d7302fea156436785cba15a798c4ff1e121a89f9f13a472384fe895e8a120a1",
+      "source_experiment": "act_eight_task_first_20261029_v2"
+    },
+    {
+      "path": "assets/expert-poster.png",
+      "bytes": 19006,
+      "sha256": "f4e736852070504a2d3d5988871255cd100ac943e6f242024defaebb6c733901",
+      "source_experiment": "thumbnail decoded from the verified actual expert clip"
+    }
+  ]
+}

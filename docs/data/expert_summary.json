@@ -1,0 +1,989 @@
+{
+  "ACT_formally_trained": false,
+  "STOP_internal_jerk": 1.49,
+  "aggregate_sim_s": 893.3583333333333,
+  "cases": [
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "given-p001005-l3",
+      "compression_peak_m": 0.0025315277744084597,
+      "contact_force_peak_N": 3.99449454690695,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 3.99449454690695
+      },
+      "hall_peak_N": 3.990320283241785,
+      "hold_max_local_plane_deg": 1.5004773407691565,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 25222,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2101,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 32.157740776524285,
+          "samples": 79,
+          "software_deg": 29.15774077652429
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 79,
+        "actual_parking_ticks": 78,
+        "after_stop_windows": 25,
+        "best_max_tcp_speed_m_s": 7.269238861752849e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 6834,
+          "first_time_s": 28.474999999998705,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 6858,
+          "last_time_s": 28.5749999999987,
+          "max_tcp_speed_m_s": 7.269238861752849e-05,
+          "passed": true,
+          "path_length_m": 4.048698062136313e-06,
+          "physics_rows": [
+            6834,
+            6835,
+            6836,
+            6837,
+            6838,
+            6839,
+            6840,
+            6841,
+            6842,
+            6843,
+            6844,
+            6845,
+            6846,
+            6847,
+            6848,
+            6849,
+            6850,
+            6851,
+            6852,
+            6853,
+            6854,
+            6855,
+            6856,
+            6857,
+            6858
+          ],
+          "rotation_path_rad": 1.1640838497603152e-05,
+          "samples": 25,
+          "samples_sha256": "44aa2111529e915866b9fdd83dd94c541dfeb3b60d218f3db080804f65b23ee7"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 1.0481084045371042e-14,
+        "minimum_path_m": 3.873849196060426e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 6810,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 55
+      },
+      "physics_steps": 25222,
+      "simulation_s": 105.09166666666667,
+      "split": "validation",
+      "subject": "p001005",
+      "target": "L3",
+      "wall_s": 1226.0542366349837,
+      "windows": 500
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "given-p000449-r3",
+      "compression_peak_m": 0.002415230730548501,
+      "contact_force_peak_N": 4.114094606424143,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 4.114094606424143
+      },
+      "hall_peak_N": 3.991565512894921,
+      "hold_max_local_plane_deg": 0.0038408751383895118,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 24162,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2013,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 20.635208231618194,
+          "samples": 49,
+          "software_deg": 17.63520823161819
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 49,
+        "actual_parking_ticks": 48,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 8.618174093834936e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 6276,
+          "first_time_s": 26.149999999998837,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 6300,
+          "last_time_s": 26.24999999999883,
+          "max_tcp_speed_m_s": 8.618174093834936e-05,
+          "passed": true,
+          "path_length_m": 4.050944729401034e-06,
+          "physics_rows": [
+            6276,
+            6277,
+            6278,
+            6279,
+            6280,
+            6281,
+            6282,
+            6283,
+            6284,
+            6285,
+            6286,
+            6287,
+            6288,
+            6289,
+            6290,
+            6291,
+            6292,
+            6293,
+            6294,
+            6295,
+            6296,
+            6297,
+            6298,
+            6299,
+            6300
+          ],
+          "rotation_path_rad": 9.658877379696263e-06,
+          "samples": 25,
+          "samples_sha256": "87a2d2c550e8b9b178fcf29733925ba6e556b739e62ac8b7db0a09919361a074"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 9.796600108826631e-15,
+        "minimum_path_m": 4.050944729401034e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 6276,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 25
+      },
+      "physics_steps": 24162,
+      "simulation_s": 100.675,
+      "split": "train",
+      "subject": "p000449",
+      "target": "R3",
+      "wall_s": 1323.1006437190808,
+      "windows": 456
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "given-p000465-r3",
+      "compression_peak_m": 0.0023706641513854265,
+      "contact_force_peak_N": 4.081382231922894,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 4.081382231922894
+      },
+      "hall_peak_N": 3.991014266113878,
+      "hold_max_local_plane_deg": 0.0032465900051650153,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 4.734856246712467,
+          "samples": 24993,
+          "software_deg": 1.7348562467124669
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 4.735123350946768,
+          "samples": 2082,
+          "software_deg": 1.735123350946768
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 13.353302366412532,
+          "samples": 48,
+          "software_deg": 10.353302366412532
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 48,
+        "actual_parking_ticks": 47,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 7.734903582913276e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 6563,
+          "first_time_s": 27.345833333332102,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 6587,
+          "last_time_s": 27.445833333332097,
+          "max_tcp_speed_m_s": 7.734903582913276e-05,
+          "passed": true,
+          "path_length_m": 3.993528697622102e-06,
+          "physics_rows": [
+            6563,
+            6564,
+            6565,
+            6566,
+            6567,
+            6568,
+            6569,
+            6570,
+            6571,
+            6572,
+            6573,
+            6574,
+            6575,
+            6576,
+            6577,
+            6578,
+            6579,
+            6580,
+            6581,
+            6582,
+            6583,
+            6584,
+            6585,
+            6586,
+            6587
+          ],
+          "rotation_path_rad": 9.38215484837201e-06,
+          "samples": 25,
+          "samples_sha256": "f42e248f2378ff84e9f3df03792e311b8f0ea69b3055f5996c239dd967fe51bb"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 7.102906587549973e-15,
+        "minimum_path_m": 3.993528697622102e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 6563,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 24
+      },
+      "physics_steps": 24993,
+      "simulation_s": 104.1375,
+      "split": "train",
+      "subject": "p000465",
+      "target": "R3",
+      "wall_s": 1452.182877950021,
+      "windows": 480
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "given-p000547-l4",
+      "compression_peak_m": 0.0026091160252690315,
+      "contact_force_peak_N": 4.031741284903536,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 4.031741284903536
+      },
+      "hall_peak_N": 3.989568950340562,
+      "hold_max_local_plane_deg": 0.0014647892164266763,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 25622,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2135,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 11.96837393671302,
+          "samples": 66,
+          "software_deg": 8.968373936713018
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 66,
+        "actual_parking_ticks": 65,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 7.220277799840509e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 6941,
+          "first_time_s": 28.920833333332013,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 6965,
+          "last_time_s": 29.020833333332007,
+          "max_tcp_speed_m_s": 7.220277799840509e-05,
+          "passed": true,
+          "path_length_m": 2.8364164145630644e-06,
+          "physics_rows": [
+            6941,
+            6942,
+            6943,
+            6944,
+            6945,
+            6946,
+            6947,
+            6948,
+            6949,
+            6950,
+            6951,
+            6952,
+            6953,
+            6954,
+            6955,
+            6956,
+            6957,
+            6958,
+            6959,
+            6960,
+            6961,
+            6962,
+            6963,
+            6964,
+            6965
+          ],
+          "rotation_path_rad": 8.00797971429735e-06,
+          "samples": 25,
+          "samples_sha256": "0b59d27863fbb2a38639038a58c4c15428b6137111e4e6d4bedf9546d4e3d27c"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 6.924484179408538e-15,
+        "minimum_path_m": 2.8364164145630644e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 6941,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 42
+      },
+      "physics_steps": 25622,
+      "simulation_s": 106.75833333333334,
+      "split": "train",
+      "subject": "p000547",
+      "target": "L4",
+      "wall_s": 1192.8827200989472,
+      "windows": 510
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "given-p000945-l5",
+      "compression_peak_m": 0.0025930763222277164,
+      "contact_force_peak_N": 4.010069401071131,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 4.010069401071131
+      },
+      "hall_peak_N": 3.9888330993732777,
+      "hold_max_local_plane_deg": 0.003792168644841046,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 24981,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2081,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 40.15412327561419,
+          "samples": 73,
+          "software_deg": 37.15412327561419
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 73,
+        "actual_parking_ticks": 72,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 8.573121238553038e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 6936,
+          "first_time_s": 28.89999999999868,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 6960,
+          "last_time_s": 28.999999999998675,
+          "max_tcp_speed_m_s": 8.573121238553038e-05,
+          "passed": true,
+          "path_length_m": 4.09058690510612e-06,
+          "physics_rows": [
+            6936,
+            6937,
+            6938,
+            6939,
+            6940,
+            6941,
+            6942,
+            6943,
+            6944,
+            6945,
+            6946,
+            6947,
+            6948,
+            6949,
+            6950,
+            6951,
+            6952,
+            6953,
+            6954,
+            6955,
+            6956,
+            6957,
+            6958,
+            6959,
+            6960
+          ],
+          "rotation_path_rad": 5.959886326139558e-06,
+          "samples": 25,
+          "samples_sha256": "0f732cb7748563680781e9f30059a9337ff7a0b84d49d17ef99b9c3f75d99623"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 3.5133591728183505e-14,
+        "minimum_path_m": 4.09058690510612e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 6936,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 49
+      },
+      "physics_steps": 24981,
+      "simulation_s": 104.0875,
+      "split": "train",
+      "subject": "p000945",
+      "target": "L5",
+      "wall_s": 1398.729939578101,
+      "windows": 509
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "reg001-p000829-r1",
+      "compression_peak_m": 0.002170216990634799,
+      "contact_force_peak_N": 4.021913911915642,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 4.021913911915642,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 0.0
+      },
+      "hall_peak_N": 3.988234494446698,
+      "hold_max_local_plane_deg": 1.990337839411941,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 35387,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2948,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 77.50838185632257,
+          "samples": 78,
+          "software_deg": 27.50839629453411
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 78,
+        "actual_parking_ticks": 77,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 7.600816331026112e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 10913,
+          "first_time_s": 45.470833333342554,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 10937,
+          "last_time_s": 45.570833333342634,
+          "max_tcp_speed_m_s": 7.600816331026112e-05,
+          "passed": true,
+          "path_length_m": 3.565113917073746e-06,
+          "physics_rows": [
+            10913,
+            10914,
+            10915,
+            10916,
+            10917,
+            10918,
+            10919,
+            10920,
+            10921,
+            10922,
+            10923,
+            10924,
+            10925,
+            10926,
+            10927,
+            10928,
+            10929,
+            10930,
+            10931,
+            10932,
+            10933,
+            10934,
+            10935,
+            10936,
+            10937
+          ],
+          "rotation_path_rad": 1.1307426956713338e-05,
+          "samples": 25,
+          "samples_sha256": "069c8d4559d51dcc1d2f61189afd8efb5be6416da915d12c940c30c9ce5419cf"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 1.6992266968496317e-14,
+        "minimum_path_m": 3.565113917073746e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 10913,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 54
+      },
+      "physics_steps": 35387,
+      "simulation_s": 147.44583333333333,
+      "split": "train",
+      "subject": "p000829",
+      "target": "R1",
+      "wall_s": 1593.2827808139846,
+      "windows": 840
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "reg004-p001197-l3",
+      "compression_peak_m": 0.0024721042718738317,
+      "contact_force_peak_N": 3.9636287174217295,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 3.9636287174217295
+      },
+      "hall_peak_N": 3.991028627337243,
+      "hold_max_local_plane_deg": 1.499975673460736,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 28218,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2351,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 22.586048569904527,
+          "samples": 53,
+          "software_deg": 19.586048569904527
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 53,
+        "actual_parking_ticks": 52,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 7.727676469014275e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 7888,
+          "first_time_s": 32.86666666666586,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 7912,
+          "last_time_s": 32.96666666666594,
+          "max_tcp_speed_m_s": 7.727676469014275e-05,
+          "passed": true,
+          "path_length_m": 3.5946435640015106e-06,
+          "physics_rows": [
+            7888,
+            7889,
+            7890,
+            7891,
+            7892,
+            7893,
+            7894,
+            7895,
+            7896,
+            7897,
+            7898,
+            7899,
+            7900,
+            7901,
+            7902,
+            7903,
+            7904,
+            7905,
+            7906,
+            7907,
+            7908,
+            7909,
+            7910,
+            7911,
+            7912
+          ],
+          "rotation_path_rad": 9.268173866231506e-06,
+          "samples": 25,
+          "samples_sha256": "b35c2773dab2eb37d06dd166e7b3bf4c94316e43a2249df798aa8cde4b27d860"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 5.176658797803602e-15,
+        "minimum_path_m": 3.5946435640015106e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 7888,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 29
+      },
+      "physics_steps": 28218,
+      "simulation_s": 117.575,
+      "split": "train",
+      "subject": "p001197",
+      "target": "L3",
+      "wall_s": 1265.0739481879864,
+      "windows": 590
+    },
+    {
+      "actual_measured_and_commanded_home": true,
+      "case": "reg022-p001191-l4",
+      "compression_peak_m": 0.00249215355142951,
+      "contact_force_peak_N": 4.020127987438982,
+      "continuous_HOLD_s": 3.0,
+      "continuous_release_s": 0.2,
+      "force_maxima_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "diaphragm": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0,
+        "retainer": 4.020127987438982
+      },
+      "hall_peak_N": 3.9886477118648673,
+      "hold_max_local_plane_deg": 0.0018121938447312775,
+      "independent_case_qualification_pass": true,
+      "independent_physical_pass": true,
+      "j2": {
+        "command_full_240hz": {
+          "mechanical_deg": 9.999970184268028,
+          "samples": 25821,
+          "software_deg": 6.999970184268028
+        },
+        "observed_all_available_20hz": {
+          "mechanical_deg": 9.999970193817223,
+          "samples": 2151,
+          "software_deg": 6.999970193817223
+        },
+        "observed_parking_240hz": {
+          "mechanical_deg": 34.391523408725696,
+          "samples": 54,
+          "software_deg": 31.391523408725696
+        },
+        "observed_whole_episode_240hz_recomputed": false,
+        "reason": "Compact native audit does not retain full-episode measured_q; original per-tick posture/collision counters and frozen physical checks remain authoritative"
+      },
+      "parking": {
+        "actual_parking_samples": 54,
+        "actual_parking_ticks": 53,
+        "after_stop_windows": 1,
+        "best_max_tcp_speed_m_s": 8.232235345545071e-05,
+        "first_pass": {
+          "after_verified_stop": true,
+          "bounds": {
+            "path_m": 2e-05,
+            "rotation_path_rad": 0.0008726646259971648,
+            "speed_m_s": 0.0001
+          },
+          "first_physics_row": 7085,
+          "first_time_s": 29.52083333333198,
+          "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+          "intervals": 24,
+          "last_physics_row": 7109,
+          "last_time_s": 29.620833333331973,
+          "max_tcp_speed_m_s": 8.232235345545071e-05,
+          "passed": true,
+          "path_length_m": 4.526312569591989e-06,
+          "physics_rows": [
+            7085,
+            7086,
+            7087,
+            7088,
+            7089,
+            7090,
+            7091,
+            7092,
+            7093,
+            7094,
+            7095,
+            7096,
+            7097,
+            7098,
+            7099,
+            7100,
+            7101,
+            7102,
+            7103,
+            7104,
+            7105,
+            7106,
+            7107,
+            7108,
+            7109
+          ],
+          "rotation_path_rad": 9.98638417184659e-06,
+          "samples": 25,
+          "samples_sha256": "97e0226b866c01709258903e9c468c12abeff2b367837bfa7f3b62a7942b28ba"
+        },
+        "max_speed_readout_vs_pose_difference_m_s": 4.104180916560812e-14,
+        "minimum_path_m": 4.526312569591989e-06,
+        "original_limits": {
+          "full_SO3_deg": 0.05,
+          "path_m": 2e-05,
+          "speed_m_s": 0.0001,
+          "total_budget_s": 5.0,
+          "window_intervals": 24,
+          "window_samples": 25
+        },
+        "parking_stop_complete_physics_row": 7085,
+        "passed_windows": 1,
+        "settled": true,
+        "windows": 30
+      },
+      "physics_steps": 25821,
+      "simulation_s": 107.5875,
+      "split": "train",
+      "subject": "p001191",
+      "target": "L4",
+      "wall_s": 1479.6493493070593,
+      "windows": 523
+    }
+  ],
+  "chart": {
+    "bytes": 139354,
+    "sha256": "3445a2eabf8e0da9f2df175ebe38f27d6f540d7626c1fcc882dd73f0ffde0314"
+  },
+  "created_utc": "2026-10-28T14:40:07.843799+00:00",
+  "formal_100MB_qualification_claimed": false,
+  "heldout_TEST_opened": false,
+  "original_parking_gates": {
+    "path_um": 20,
+    "peak_speed_um_s": 100,
+    "rotation_deg": 0.05,
+    "samples": 25,
+    "total_budget_s": 5
+  },
+  "owner_wall_s": 2934.803873,
+  "physical_successes": 8,
+  "physics_gates_changed": false,
+  "planned_denominator": 8,
+  "public_all_eight_qualified": true,
+  "qualified_cases": 8,
+  "schema": "given_eight_qualification_public_review_v1",
+  "scope": "Fixed eight-case analytic expert qualification; not ACT training, policy or heldout acceptance",
+  "selected_solver": {
+    "armature_kg_m2": 0.02,
+    "position_iterations": 64,
+    "velocity_iterations": 1
+  },
+  "videos": {
+    "given-p000945-l5": {
+      "artifact": {
+        "bytes": 790863,
+        "sha256": "8e5c74db9a95aa746cc75f539eb88ed5ef7bdae372a3e9a6e724d29cfc2de287"
+      },
+      "camera_counter_frames": 2081,
+      "capture_complete": true,
+      "first_timestamp_s": 0.049999999999999996,
+      "fps": 20,
+      "frames": 2081,
+      "height": 144,
+      "last_timestamp_s": 104.04999999998753,
+      "no_synthesized_frames": true,
+      "playback_s": 104.05,
+      "record_kinds": {
+        "paired": 2080,
+        "terminal_observation": 1
+      },
+      "width": 256
+    },
+    "reg022-p001191-l4": {
+      "artifact": {
+        "bytes": 939198,
+        "sha256": "4320f4d0bd339ee27bd5254eaa8b3a0e904f3d90e9eeab797720686cdf2dc696"
+      },
+      "camera_counter_frames": 2151,
+      "capture_complete": true,
+      "first_timestamp_s": 0.049999999999999996,
+      "fps": 20,
+      "frames": 2151,
+      "height": 144,
+      "last_timestamp_s": 107.54999999998435,
+      "no_synthesized_frames": true,
+      "playback_s": 107.55,
+      "record_kinds": {
+        "paired": 2150,
+        "terminal_observation": 1
+      },
+      "width": 256
+    }
+  },
+  "whole_owner_input_union_bytes": 3064714661
+}

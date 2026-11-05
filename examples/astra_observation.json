@@ -1,0 +1,13 @@
+{
+  "schema": "ausc-astra-observation-v1",
+  "simulation_only": true,
+  "observation_id": "synthetic-interface-example-001",
+  "phase": "FREE",
+  "q_rad": [0.0, -0.3, 0.0, 0.5, 0.0, 0.0, 0.0],
+  "hall_voltage_v": 2.51,
+  "depth_target_points_m": {"R3": [0.35, 0.10, 0.80]},
+  "completed_target_ids": [],
+  "pending_target_ids": ["R3"],
+  "camera": {"frame": "robot_base", "depth_units": "m"},
+  "example_note": "Synthetic API-interface example, not a measured observation or a robot command."
+}

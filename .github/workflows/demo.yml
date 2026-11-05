@@ -1,0 +1,19 @@
+name: demo evidence and interfaces
+on:
+  push:
+    branches: [main]
+    paths: ['demo/**', 'demo_tests/**', 'docs/**', 'benchmarks/**', 'examples/**', '.github/workflows/demo.yml']
+  pull_request:
+    paths: ['demo/**', 'demo_tests/**', 'docs/**', 'benchmarks/**', 'examples/**', '.github/workflows/demo.yml']
+jobs:
+  evidence-and-contracts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install numpy
+      - run: python -m unittest discover -s demo_tests -v
+      - run: python -m demo.benchmark --verify-assets --output /tmp/verified-results.json
+      - run: python -m demo.astra_policy --observation examples/astra_observation.json --output /tmp/astra-dry-run.json

@@ -1,0 +1,124 @@
+{
+  "schema": "ausc-public-results-v1",
+  "evidence_cutoff": "2026-10-29",
+  "expert_qualification": {
+    "successes": 8,
+    "episodes": 8,
+    "success_rate": 1.0,
+    "cohort": "fixed diagnostic expert eight"
+  },
+  "learned_closed_loop": {
+    "successes": 0,
+    "episodes": 2,
+    "success_rate": 0.0,
+    "cohort": "one optimizer TRAIN scene and one selection VAL scene",
+    "independent_heldout": false,
+    "cases": [
+      {
+        "case": "p000449-r3",
+        "success": false,
+        "failure_reason": "command posture rejected: posture_joint_envelope",
+        "bookkeeping_failure": "Entire compact job directory exceeds 100000000 bytes",
+        "queries": 53,
+        "actions": 521,
+        "physics_steps": 6509,
+        "sim_s": 27.120833333333334,
+        "handoff_successes": 0,
+        "contact_force_peak_N": 0.0,
+        "continuous_contact_hold_s": 0.0,
+        "cpu_normal_exit": true,
+        "native_result": {
+          "bytes": 1107864,
+          "sha256": "4f0df1c7b90abdeab89f52ddac12f0ad1ba6dd0e89c3dc21885d0e4c7e08e237"
+        },
+        "cpu_ipc": {
+          "bytes": 810609,
+          "sha256": "0a0dd5f1b8337a1194bdee622c8782c6eae9bbc6b9c76bbea05a551996ce8388"
+        },
+        "actual_video": {
+          "filename": "p000449-r3_actual_act.mp4",
+          "bytes": 244517,
+          "sha256": "a4804619770b894f238d3f8b7cb7184d4edd47a14a62ca569e9e663d3b1b30a5",
+          "width": 640,
+          "height": 360,
+          "avg_frame_rate": "10/1",
+          "duration": "27.100000",
+          "nb_read_frames": "271"
+        },
+        "video_camera": "/World/RobotCam",
+        "no_synthesized_frames": true,
+        "frame_first_s": 0.09999999999999999,
+        "frame_last_s": 27.099999999998783
+      },
+      {
+        "case": "p001005-l3",
+        "success": false,
+        "failure_reason": "command posture rejected: elbow_height",
+        "bookkeeping_failure": "Entire compact job directory exceeds 100000000 bytes",
+        "queries": 34,
+        "actions": 334,
+        "physics_steps": 4252,
+        "sim_s": 17.716666666666665,
+        "handoff_successes": 0,
+        "contact_force_peak_N": 0.0,
+        "continuous_contact_hold_s": 0.0,
+        "cpu_normal_exit": true,
+        "native_result": {
+          "bytes": 730850,
+          "sha256": "e1d919aa248ca3f321c0b8630ea0d505832e618d88221ef87923a4e5501b7752"
+        },
+        "cpu_ipc": {
+          "bytes": 517656,
+          "sha256": "57aff0ff576db2da227a541ef87aea8155079bd525f98be2b73c78c813fb6ee2"
+        },
+        "actual_video": {
+          "filename": "p001005-l3_actual_act.mp4",
+          "bytes": 237114,
+          "sha256": "d0e8883a9944075f7dbca950aef2bfbbc4b4bca9f3ff2097c3307057c345c005",
+          "width": 640,
+          "height": 360,
+          "avg_frame_rate": "10/1",
+          "duration": "17.700000",
+          "nb_read_frames": "177"
+        },
+        "video_camera": "/World/RobotCam",
+        "no_synthesized_frames": true,
+        "frame_first_s": 0.09999999999999999,
+        "frame_last_s": 17.699999999999317
+      }
+    ]
+  },
+  "offline_training": [
+    {
+      "run_id": "m2-given-eight-act-pilot-20261029-v1",
+      "completed_steps": 5000,
+      "selected_step": 5000,
+      "train_mae_rad": 0.007395818168258029,
+      "validation_mae_rad": 0.12699132334126007,
+      "elapsed_wall_s": 144.10683495702688
+    },
+    {
+      "run_id": "m2-given-eight-act-gpu-noaug-20261029-v1",
+      "completed_steps": 5000,
+      "selected_step": 1000,
+      "train_mae_rad": 0.00881223869609211,
+      "validation_mae_rad": 0.15533139070785787,
+      "elapsed_wall_s": 132.2682125250576
+    }
+  ],
+  "independent_heldout": {
+    "status": "not_reported",
+    "successes": null,
+    "episodes": null,
+    "success_rate": null
+  },
+  "astra": {
+    "status": "not_evaluated",
+    "successes": null,
+    "episodes": null,
+    "success_rate": null
+  },
+  "act_consumes_rgb_depth_hall": false,
+  "comparable_leaderboard": false,
+  "verified_assets": 6
+}

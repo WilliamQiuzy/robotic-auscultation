@@ -1,0 +1,480 @@
+{
+  "schema": "act_eight_task_first_public_review_v1",
+  "diagnostic_only": true,
+  "formal_acceptance": false,
+  "model_usable": false,
+  "state_only": true,
+  "rgb_depth_hall_policy_inputs": false,
+  "test_payloads_opened": false,
+  "training": [
+    {
+      "run_id": "m2-given-eight-act-pilot-20261029-v1",
+      "steps": 5000,
+      "selected_step": 5000,
+      "elapsed_wall_s": 144.10683495702688,
+      "schedule": {
+        "q_noise_std": 0.002,
+        "q_dropout": 0.05,
+        "seed": 20261026
+      },
+      "selected": {
+        "train": {
+          "act": 0.007395818168258029,
+          "hold": 0.12615426279655306,
+          "constant_velocity": 0.11317391768096684
+        },
+        "validation": {
+          "act": 0.12699132334126007,
+          "hold": 0.13915120856987132,
+          "constant_velocity": 0.12440114013912103
+        }
+      },
+      "evaluations": [
+        {
+          "step": 500,
+          "train": {
+            "act": 0.019388076764323258,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.14368748040970855,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 1000,
+          "train": {
+            "act": 0.010549552906690022,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.1367320917811546,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 1500,
+          "train": {
+            "act": 0.011349133978700823,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.13755528680110923,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 2000,
+          "train": {
+            "act": 0.009208944854112071,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.14023982227281276,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 2500,
+          "train": {
+            "act": 0.008161213459608274,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.13291049947694344,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 3000,
+          "train": {
+            "act": 0.010288038947990885,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.13287177166352418,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 3500,
+          "train": {
+            "act": 0.008521057513186154,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.1310557639114313,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 4000,
+          "train": {
+            "act": 0.007025004129855176,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.12773288191067184,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 4500,
+          "train": {
+            "act": 0.007523832306294032,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.12878216422557923,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 5000,
+          "train": {
+            "act": 0.007395818168258029,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.12699132334126007,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        }
+      ],
+      "scope": {
+        "train": {
+          "episode_count": 7,
+          "episode_ids": [
+            "m2-given-lossless-eight-20261028-v5-given-p000449-r3",
+            "m2-given-lossless-eight-20261028-v5-given-p000465-r3",
+            "m2-given-lossless-eight-20261028-v5-given-p000547-l4",
+            "m2-given-lossless-eight-20261028-v5-given-p000945-l5",
+            "m2-given-lossless-eight-20261028-v5-reg001-p000829-r1",
+            "m2-given-lossless-eight-20261028-v5-reg004-p001197-l3",
+            "m2-given-lossless-eight-20261028-v5-reg022-p001191-l4"
+          ],
+          "subject_ids": [
+            "p000449",
+            "p000465",
+            "p000547",
+            "p000829",
+            "p000945",
+            "p001191",
+            "p001197"
+          ],
+          "window_count": 3908
+        },
+        "validation": {
+          "episode_count": 1,
+          "episode_ids": [
+            "m2-given-lossless-eight-20261028-v5-given-p001005-l3"
+          ],
+          "subject_ids": [
+            "p001005"
+          ],
+          "window_count": 500
+        }
+      },
+      "complete": {
+        "bytes": 65795,
+        "sha256": "f9fcf50f42ff9a5f56f7553421189ce0d1f35d7e8472b6470ee5b51a65821f04"
+      },
+      "weights": {
+        "bytes": 10662401,
+        "sha256": "a8c62877ba00c5ff76934891cc7832249dd7244f8f0f2818932475933a64777a"
+      }
+    },
+    {
+      "run_id": "m2-given-eight-act-gpu-noaug-20261029-v1",
+      "steps": 5000,
+      "selected_step": 1000,
+      "elapsed_wall_s": 132.2682125250576,
+      "schedule": {
+        "q_noise_std": 0.0,
+        "q_dropout": 0.0,
+        "seed": 20261026
+      },
+      "selected": {
+        "train": {
+          "act": 0.00881223869609211,
+          "hold": 0.12615426279655306,
+          "constant_velocity": 0.11317391768096684
+        },
+        "validation": {
+          "act": 0.15533139070785787,
+          "hold": 0.13915120856987132,
+          "constant_velocity": 0.12440114013912103
+        }
+      },
+      "evaluations": [
+        {
+          "step": 500,
+          "train": {
+            "act": 0.019511690440838,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.15713277168265546,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 1000,
+          "train": {
+            "act": 0.00881223869609211,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.15533139070785787,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 1500,
+          "train": {
+            "act": 0.011287462723656985,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.1637818674276402,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 2000,
+          "train": {
+            "act": 0.008465005853056677,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.15749770981510844,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 2500,
+          "train": {
+            "act": 0.008152058507098155,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.16713507726905014,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 3000,
+          "train": {
+            "act": 0.01081779013748833,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.17666384361178047,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 3500,
+          "train": {
+            "act": 0.010111828485971202,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.177678072693217,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 4000,
+          "train": {
+            "act": 0.007667737150774122,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.17154850616873232,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 4500,
+          "train": {
+            "act": 0.007793193673297469,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.17553612587302533,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        },
+        {
+          "step": 5000,
+          "train": {
+            "act": 0.007801954240901754,
+            "hold": 0.12615426279655306,
+            "constant_velocity": 0.11317391768096684
+          },
+          "validation": {
+            "act": 0.17513402546782417,
+            "hold": 0.13915120856987132,
+            "constant_velocity": 0.12440114013912103
+          }
+        }
+      ],
+      "scope": {
+        "train": {
+          "episode_count": 7,
+          "episode_ids": [
+            "m2-given-lossless-eight-20261028-v5-given-p000449-r3",
+            "m2-given-lossless-eight-20261028-v5-given-p000465-r3",
+            "m2-given-lossless-eight-20261028-v5-given-p000547-l4",
+            "m2-given-lossless-eight-20261028-v5-given-p000945-l5",
+            "m2-given-lossless-eight-20261028-v5-reg001-p000829-r1",
+            "m2-given-lossless-eight-20261028-v5-reg004-p001197-l3",
+            "m2-given-lossless-eight-20261028-v5-reg022-p001191-l4"
+          ],
+          "subject_ids": [
+            "p000449",
+            "p000465",
+            "p000547",
+            "p000829",
+            "p000945",
+            "p001191",
+            "p001197"
+          ],
+          "window_count": 3908
+        },
+        "validation": {
+          "episode_count": 1,
+          "episode_ids": [
+            "m2-given-lossless-eight-20261028-v5-given-p001005-l3"
+          ],
+          "subject_ids": [
+            "p001005"
+          ],
+          "window_count": 500
+        }
+      },
+      "complete": {
+        "bytes": 65789,
+        "sha256": "6c71dc4ba00352c02cb76f3c8f6fbe04ae86a3ded45076d935c43a2bec11463c"
+      },
+      "weights": {
+        "bytes": 10662465,
+        "sha256": "4431f862d3975572a84a8a4359de1ca91977e79f92b1e2e0413dadd51eb1e4f4"
+      }
+    }
+  ],
+  "native_cases": [
+    {
+      "case": "p000449-r3",
+      "success": false,
+      "failure_reason": "command posture rejected: posture_joint_envelope",
+      "bookkeeping_failure": "Entire compact job directory exceeds 100000000 bytes",
+      "queries": 53,
+      "actions": 521,
+      "physics_steps": 6509,
+      "sim_s": 27.120833333333334,
+      "handoff_successes": 0,
+      "contact_force_peak_N": 0.0,
+      "continuous_contact_hold_s": 0.0,
+      "cpu_normal_exit": true,
+      "native_result": {
+        "bytes": 1107864,
+        "sha256": "4f0df1c7b90abdeab89f52ddac12f0ad1ba6dd0e89c3dc21885d0e4c7e08e237"
+      },
+      "cpu_ipc": {
+        "bytes": 810609,
+        "sha256": "0a0dd5f1b8337a1194bdee622c8782c6eae9bbc6b9c76bbea05a551996ce8388"
+      },
+      "actual_video": {
+        "filename": "p000449-r3_actual_act.mp4",
+        "bytes": 244517,
+        "sha256": "a4804619770b894f238d3f8b7cb7184d4edd47a14a62ca569e9e663d3b1b30a5",
+        "width": 640,
+        "height": 360,
+        "avg_frame_rate": "10/1",
+        "duration": "27.100000",
+        "nb_read_frames": "271"
+      },
+      "video_camera": "/World/RobotCam",
+      "no_synthesized_frames": true,
+      "frame_first_s": 0.09999999999999999,
+      "frame_last_s": 27.099999999998783
+    },
+    {
+      "case": "p001005-l3",
+      "success": false,
+      "failure_reason": "command posture rejected: elbow_height",
+      "bookkeeping_failure": "Entire compact job directory exceeds 100000000 bytes",
+      "queries": 34,
+      "actions": 334,
+      "physics_steps": 4252,
+      "sim_s": 17.716666666666665,
+      "handoff_successes": 0,
+      "contact_force_peak_N": 0.0,
+      "continuous_contact_hold_s": 0.0,
+      "cpu_normal_exit": true,
+      "native_result": {
+        "bytes": 730850,
+        "sha256": "e1d919aa248ca3f321c0b8630ea0d505832e618d88221ef87923a4e5501b7752"
+      },
+      "cpu_ipc": {
+        "bytes": 517656,
+        "sha256": "57aff0ff576db2da227a541ef87aea8155079bd525f98be2b73c78c813fb6ee2"
+      },
+      "actual_video": {
+        "filename": "p001005-l3_actual_act.mp4",
+        "bytes": 237114,
+        "sha256": "d0e8883a9944075f7dbca950aef2bfbbc4b4bca9f3ff2097c3307057c345c005",
+        "width": 640,
+        "height": 360,
+        "avg_frame_rate": "10/1",
+        "duration": "17.700000",
+        "nb_read_frames": "177"
+      },
+      "video_camera": "/World/RobotCam",
+      "no_synthesized_frames": true,
+      "frame_first_s": 0.09999999999999999,
+      "frame_last_s": 17.699999999999317
+    }
+  ],
+  "raw_data_downloaded": false
+}
