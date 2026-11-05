@@ -21,9 +21,9 @@ const zh = {
   gateNote:'允许 C 外圈承载接触；凹入的 B 膜片不要求受力。物理、停车、关节与碰撞门持续生效。',protocolLink:'完整评测协议、范围与测量定义 ↗',resultsLink:'下载机器可读结果 ↗',
   failureNote:'为什么公开失败？验证场景的首个动作块就有较大误差；训练场景则在偏离专家状态后逐渐失控。人体多样性与恢复示范分别针对这两种问题。',
   astraTitle:'Astra 做推理。<br>本地控制器执行。',astraLead:'第一步让 Astra 根据观测选择技能：下一个目标、继续控制或撤离恢复。原生执行器继续管理运动与接触力。',
-  astraScope:'原型状态：请求构造与本地决策校验已测试。尚无实时 API 或 Isaac 执行结果。实际试验还需要 API 密钥和仿真技能执行桥。',
+  astraScope:'原型状态：请求构造与本地决策校验已测试。尚无实时 API 或 Isaac 执行结果。已公开的 Codex CLI 桥负责推理；有许可证要求的资产和原生仿真环境需要另行准备。',
   astraQuestion:'推理能否提升完成率与恢复能力？',astraCompare:'在相同场景、目标、执行器与物理门下比较：解析专家、ACT + 接触控制器、Astra + 本地技能。同时报告调用次数、干预、墙钟耗时和 API 成本。',
-  astraLatency:'云端推理不进入力控环。Astranomy 的操作实验显示推理延迟不可忽略；两次决策之间，接触控制器仍需在本地运行。',astraGuide:'接入设计与可运行的 dry run ↗',
+  astraLatency:'云端推理不进入力控环。Astranomy 的操作实验显示推理延迟不可忽略；两次决策之间，接触控制器仍需在本地运行。',astraGuide:'实际推理桥与接入契约 ↗',
   closingTitle:'检查场景。<br>复核证据。<br>改进策略。',openRepo:'打开 GitHub 项目 ↗',footerNote:'仿真研究预览 · 发布于 2026-11-05 · 证据来自 10 月 28–29 日'
 };
 Object.assign(zh, {
