@@ -1,96 +1,118 @@
-<!doctype html>
+<!DOCTYPE html>
+
 <html lang="en">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Robotic Auscultation — Learning contact in simulation</title>
-  <meta name="description" content="OpenArm robotic auscultation in Isaac Sim: expert demonstrations, ACT training, actual closed-loop videos, and an evidence-backed evaluation protocol.">
-  <meta name="theme-color" content="#184d43">
-  <link rel="icon" href="assets/mark.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="style.css">
-  <script defer src="app.js"></script>
+<meta charset="utf-8"/><meta content="width=device-width,initial-scale=1" name="viewport"/>
+<title>Robotic Auscultation — Learning contact in simulation</title>
+<meta content="OpenArm robotic auscultation in Isaac Sim: expert demonstrations, ACT training, actual closed-loop videos, and an evidence-backed evaluation protocol." name="description"/>
+<meta content="#f5f4ee" name="theme-color"/>
+<link href="assets/mark.svg" rel="icon" type="image/svg+xml"/>
+<link href="style.css" rel="stylesheet"/>
+<script defer="" src="app.js"></script>
+<link href="https://williamqiuzy.github.io/robotic-auscultation/" rel="canonical"/>
+<meta content="website" property="og:type"/>
+<meta content="Robotic Auscultation · Learning contact in simulation" property="og:title"/>
+<meta content="Inspect actual Isaac Sim recordings, an 8/8 expert qualification and a 0/2 ACT pilot. Open research with explicit evidence boundaries." property="og:description"/>
+<meta content="https://williamqiuzy.github.io/robotic-auscultation/" property="og:url"/>
+<meta content="https://williamqiuzy.github.io/robotic-auscultation/assets/expert-poster.png" property="og:image"/>
+<meta content="Actual OpenArm auscultation scene recorded in Isaac Sim" property="og:image:alt"/>
+<meta content="summary_large_image" name="twitter:card"/>
+<link as="font" crossorigin="" href="assets/fonts/Manrope-Variable.ttf" rel="preload" type="font/ttf"/>
 </head>
-<body>
-  <a class="skip" href="#main">Skip to content</a>
-  <header class="topbar wrap">
-    <a class="brand" href="#"><img src="assets/mark.svg" width="27" height="27" alt=""><span>Robotic<br><strong>Auscultation</strong></span></a>
-    <nav aria-label="Main navigation"><a href="#demo">Demo</a><a href="#training" data-i18n="navTraining">Training</a><a href="#benchmark">Benchmark</a><a href="#astra">Astra</a></nav>
-    <div class="top-actions"><button id="language" type="button" aria-label="Switch language">中文</button><a class="source-link" href="https://github.com/WilliamQiuzy/robotic-auscultation">GitHub ↗</a></div>
-  </header>
-  <main id="main">
-    <section class="hero wrap">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="dot"></span> OPENARM × ISAAC SIM</p>
-        <h1 data-i18n="heroTitle">Learning the<br>care in contact.</h1>
-        <p class="hero-lead" data-i18n="heroLead">A simulation testbed for teaching a robot to approach, place, hold and withdraw a stethoscope at ten points on the back.</p>
-        <p class="hero-note" data-i18n="heroNote">From a qualified analytic expert to a learned policy—with actual motion, force measurements and failures available for inspection.</p>
-        <div class="hero-links"><a class="button" href="#demo" data-i18n="watch">Watch the simulation <span>↓</span></a><a class="text-link" href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/TRAINING.md" data-i18n="recipe">Training recipe ↗</a></div>
-        <div class="research-note"><span class="small-label">RESEARCH PREVIEW</span><p data-i18n="previewNote">Expert contact works. The released ACT pilot still fails closed-loop testing. This page shows both.</p></div>
-      </div>
-      <div class="hero-demo" id="demo">
-        <div class="video-top"><span id="video-kind">ANALYTIC EXPERT</span><span>RECORDED IN ISAAC SIM</span></div>
-        <div class="video-box"><video id="main-video" controls playsinline preload="metadata" poster="assets/expert-poster.png" aria-label="Actual Isaac Sim analytic expert episode"><source src="assets/expert-l5.mp4" type="video/mp4"><a href="assets/expert-l5.mp4">Download the simulation video</a></video></div>
-        <div class="video-tabs" role="group" aria-label="Select an actual experiment video">
-          <button data-video="expert" class="active" aria-pressed="true">01 <span data-i18n="expertTab">Expert · L5</span></button>
-          <button data-video="act" aria-pressed="false">02 <span data-i18n="actTab">ACT · validation L3</span></button>
-        </div>
-        <p id="video-caption" class="video-caption">A full single-point expert episode: approach → stop → contact → 3 s hold → unload → home. Actual RobotCam recording; 104.05 s playback.</p>
-        <div class="video-footer"><span id="video-result" class="pass">EXPERT QUALIFIED</span><a id="video-evidence" href="data/expert_summary.json">Evidence JSON ↗</a></div>
-      </div>
-    </section>
-
-    <section class="metric-strip wrap" aria-label="Released evidence at a glance">
-      <div><span class="metric-label" data-i18n="expertMetric">EXPERT QUALIFICATION</span><strong>8<span>/8</span></strong><p data-i18n="expertMetricNote">Fixed diagnostic episodes</p></div>
-      <div><span class="metric-label" data-i18n="actMetric">ACT CLOSED LOOP</span><strong class="rust">0<span>/2</span></strong><p data-i18n="actMetricNote">1 TRAIN + 1 selection VAL scene</p></div>
-      <div><span class="metric-label" data-i18n="holdMetric">REQUIRED CONTACT HOLD</span><strong>3<span>s</span></strong><p data-i18n="holdMetricNote">Continuous normal force, 3.5–4.5 N</p></div>
-      <div><span class="metric-label" data-i18n="targetMetric">TASK TARGETS</span><strong>10</strong><p data-i18n="targetMetricNote">L1–L5 and R1–R5; not all tested here</p></div>
-    </section>
-
-    <section id="training" class="section wrap">
-      <div class="section-heading"><div><p class="eyebrow">01 / THE LEARNING LOOP</p><h2 data-i18n="trainingTitle">Teach the approach.<br>Measure the contact.</h2></div><p data-i18n="trainingLead">The current baseline learns collision-checked approach trajectories. A local controller handles force, dwell time and release. Every completed episode must return home.</p></div>
-      <ol class="pipeline">
-        <li><span>01</span><h3 data-i18n="p1">Build the scene</h3><p data-i18n="p1d">OpenArm, spring-loaded stethoscope, seated body and the approved RGB-D view.</p></li>
-        <li><span>02</span><h3 data-i18n="p2">Query the expert</h3><p data-i18n="p2d">Plan from the current state; retain actual commands, measured motion and contact.</p></li>
-        <li><span>03</span><h3 data-i18n="p3">Export valid windows</h3><p data-i18n="p3d">Filter by phase and ownership. Split by body identity before fitting normalization.</p></li>
-        <li><span>04</span><h3 data-i18n="p4">Train official ACT</h3><p data-i18n="p4d">Predict 20 actions. Execute the first 10, observe again, then replan.</p></li>
-        <li><span>05</span><h3 data-i18n="p5">Run closed loop</h3><p data-i18n="p5d">Score the actual approach, contact, hold, withdrawal and return—not just action error.</p></li>
-      </ol>
-      <div class="contract-grid">
-        <div class="contract-text"><span class="small-label">RELEASED ACT BASELINE</span><h3 data-i18n="contractTitle">A small, explicit control baseline.</h3><p data-i18n="contractText">Official LeRobot ACT, 2.66M parameters, no VAE. Two frames of state17 become 34 input features; raw joint targets use one fixed origin per action block.</p><div class="chips"><span>state17 × 2</span><span>H20 / E10</span><span>FP32</span><span>TRAIN-only normalization</span></div><p class="scope-note" data-i18n="modalityNote">The published ACT uses state and target geometry. RGB-D and Hall are recorded; Hall drives the analytic contact controller. This ACT is not a multimodal VLA, and simulated audio is not used.</p></div>
-        <div class="code-panel"><div class="code-head"><span>LINUX · YOUR QUALIFIED DATA</span><button class="copy" data-copy="train-command" type="button">Copy</button></div><pre id="train-command">python -m demo.train_act \
+<body class="body-3">
+<a class="skip button-sm" href="#main">Skip to content</a>
+<header aria-label="Site header" class="topbar">
+<a aria-label="Robotic Auscultation, back to top" class="brand title-4" href="#main"><img alt="" height="27" src="assets/mark.svg" width="27"/><span>Robotic<br/><strong>Auscultation</strong></span></a>
+<nav aria-label="Main navigation" class="desktop-nav"><a aria-current="location" class="title-4" data-i18n="navDemo" href="#demo">Demo</a><a class="title-4" data-i18n="navTraining" href="#training">Training</a><a class="title-4" data-i18n="navBenchmark" href="#benchmark">Benchmark</a><a class="title-4" data-i18n="navAstra" href="#astra">Astra</a><a class="title-4" data-i18n="navQuestions" href="#questions">FAQ</a></nav>
+<div class="top-actions"><button aria-label="Read this page in Chinese" class="button-sm" id="language" type="button">中文</button><button aria-controls="mobile-menu" aria-expanded="false" aria-label="Open navigation" class="menu-toggle button-sm" id="menu-toggle" type="button"><span></span><span></span></button></div>
+</header>
+<dialog aria-labelledby="menu-title" class="mobile-menu" id="mobile-menu">
+<div class="menu-toolbar"><span class="title-3" id="menu-title">Robotic Auscultation</span><button aria-label="Close navigation" class="menu-toggle is-open button-sm" id="menu-close" type="button"><span></span><span></span></button></div>
+<nav aria-label="Mobile navigation"><a aria-current="location" class="heading-3" data-i18n="navDemo" href="#demo">Demo</a><a class="heading-3" data-i18n="navTraining" href="#training">Training</a><a class="heading-3" data-i18n="navBenchmark" href="#benchmark">Benchmark</a><a class="heading-3" data-i18n="navAstra" href="#astra">Astra</a><a class="heading-3" data-i18n="navQuestions" href="#questions">FAQ</a></nav>
+<p class="body-6" data-i18n="menuNote">A simulation research preview. Inspect the recordings and the evidence behind them.</p>
+<a class="title-4" href="https://github.com/WilliamQiuzy/robotic-auscultation">GitHub ↗</a>
+</dialog>
+<main id="main">
+<section class="hero wrap">
+<div class="hero-copy">
+<p class="eyebrow caption-3"><span aria-hidden="true" class="dot"></span> OpenArm × Isaac Sim</p>
+<h1 class="heading-1" data-i18n="heroTitle">Learning the<br/>care in contact.</h1>
+<p class="hero-lead body-3" data-i18n="heroLead">A simulation testbed for teaching a robot to approach, place, hold and withdraw a stethoscope at ten points on the back.</p>
+<p class="hero-note body-6" data-i18n="heroNote">From a qualified analytic expert to a learned policy. Inspect the actual motion, force measurements and failures.</p>
+<div class="hero-links"><a class="button button-md" data-i18n="watch" href="#demo">Watch the recordings <span aria-hidden="true">↗</span></a></div>
+<div class="research-note"><span class="small-label caption-3" data-i18n="previewLabel">Research preview</span><p class="body-6" data-i18n="previewNote">Expert contact works. The released ACT pilot still fails closed loop testing. This page shows both.</p></div>
+</div>
+<figure aria-labelledby="video-kind" class="hero-demo" id="demo" tabindex="-1">
+<div class="video-top caption-4"><span id="video-kind">Analytic expert</span><span data-i18n="recordedLabel">Actual simulation recording</span></div>
+<div aria-busy="true" class="video-box" data-state="loading"><video aria-describedby="video-caption" aria-label="Actual Isaac Sim analytic expert episode" controls="" id="main-video" playsinline="" poster="assets/expert-poster.png" preload="metadata" src="assets/expert-l5.mp4"><a href="assets/expert-l5.mp4">Download the simulation video</a></video><div aria-live="polite" class="video-state" id="video-state" role="status"><div aria-hidden="true" class="video-skeleton"><span></span><span></span></div><span class="caption-2" data-i18n="videoLoading" id="video-state-message">Loading the actual recording…</span><button class="button-sm" data-i18n="videoRetry" hidden="" id="video-retry" type="button">Try loading again</button></div></div>
+<div aria-label="Select an actual experiment video" class="video-tabs" role="group">
+<button aria-pressed="true" class="active button-sm" data-video="expert">01 <span data-i18n="expertTab">Expert · L5</span></button>
+<button aria-pressed="false" class="button-sm" data-video="act">02 <span data-i18n="actTab">ACT · validation L3</span></button>
+</div>
+<figcaption class="video-caption body-6" id="video-caption">A full single point expert episode: approach → stop → contact → 3 s hold → unload → home. Actual RobotCam recording; 104.05 s playback.</figcaption>
+<div class="video-footer caption-3"><span class="pass" id="video-result">Expert qualified</span><a data-i18n="evidenceLink" href="data/expert_summary.json" id="video-evidence">Evidence JSON ↗</a></div>
+</figure>
+</section>
+<p class="wrap evidence-kicker caption-3" data-i18n="metricsContext">Released evidence · distinct diagnostic cohorts</p><section aria-label="Released evidence at a glance, distinct diagnostic cohorts" class="metric-strip wrap">
+<div><span class="metric-label caption-3" data-i18n="expertMetric">EXPERT QUALIFICATION</span><strong class="heading-2">8<span class="heading-5">/8</span></strong><p class="body-6" data-i18n="expertMetricNote">Fixed diagnostic episodes</p></div>
+<div><span class="metric-label caption-3" data-i18n="actMetric">ACT CLOSED LOOP</span><strong class="rust heading-2">0<span class="heading-5">/2</span></strong><p class="body-6" data-i18n="actMetricNote">1 TRAIN + 1 selection VAL scene</p></div>
+<div><span class="metric-label caption-3" data-i18n="holdMetric">REQUIRED CONTACT HOLD</span><strong class="heading-2">3<span class="heading-5">s</span></strong><p class="body-6" data-i18n="holdMetricNote">Continuous normal force, 3.5–4.5 N</p></div>
+<div><span class="metric-label caption-3" data-i18n="targetMetric">TASK TARGETS</span><strong class="heading-2">10</strong><p class="body-6" data-i18n="targetMetricNote">L1–L5 and R1–R5; not all tested here</p></div>
+</section>
+<section class="section wrap" id="training">
+<div class="section-heading reveal"><div><p class="eyebrow caption-3">01 / The learning loop</p><h2 class="heading-2" data-i18n="trainingTitle">Teach the approach.<br/>Measure the contact.</h2></div><p class="body-6" data-i18n="trainingLead">The current baseline learns collision checked approach trajectories. A local controller handles force, dwell time and release. Every completed episode must return home.</p></div>
+<ol class="pipeline">
+<li class="reveal"><span class="title-3">01</span><h3 class="heading-5" data-i18n="p1">Build the scene</h3><p class="body-6" data-i18n="p1d">OpenArm, spring loaded stethoscope, seated body and the approved RGB + depth view.</p></li>
+<li class="reveal"><span class="title-3">02</span><h3 class="heading-5" data-i18n="p2">Query the expert</h3><p class="body-6" data-i18n="p2d">Plan from the current state; retain actual commands, measured motion and contact.</p></li>
+<li class="reveal"><span class="title-3">03</span><h3 class="heading-5" data-i18n="p3">Export valid windows</h3><p class="body-6" data-i18n="p3d">Filter by phase and ownership. Split by body identity before fitting normalization.</p></li>
+<li class="reveal"><span class="title-3">04</span><h3 class="heading-5" data-i18n="p4">Train official ACT</h3><p class="body-6" data-i18n="p4d">Predict 20 actions. Execute the first 10, observe again, then replan.</p></li>
+<li class="reveal"><span class="title-3">05</span><h3 class="heading-5" data-i18n="p5">Run closed loop</h3><p class="body-6" data-i18n="p5d">Score the actual approach, contact, hold, withdrawal and return, beyond action error.</p></li>
+</ol>
+<div class="contract-grid reveal">
+<div class="contract-text"><span class="small-label caption-3" data-i18n="baselineLabel">Released ACT baseline</span><h3 class="heading-5" data-i18n="contractTitle">A small, explicit control baseline.</h3><p class="body-6" data-i18n="contractText">Official LeRobot ACT, 2.66M parameters, no VAE. Two frames of state17 become 34 input features; raw joint targets use one fixed origin per action block.</p><div class="chips"><span class="caption-4">state17 × 2</span><span class="caption-4">H20 / E10</span><span class="caption-4">FP32</span><span class="caption-4">TRAIN only normalization</span></div><p class="scope-note body-6" data-i18n="modalityNote">The published ACT uses state and target geometry. RGB + depth and Hall are recorded; Hall drives the analytic contact controller. This ACT is not a multimodal VLA, and simulated audio is not used.</p></div>
+<div class="code-panel"><div class="code-head caption-4"><span data-i18n="codeLabel">Linux · your qualified data</span><button aria-label="Copy the ACT training command" class="copy button-sm" data-copy="train-command" data-i18n="copyLabel" type="button">Copy</button></div><pre class="caption-2" id="train-command">python -m demo.train_act \
   --manifest /data/arrays.json \
   --output /data/runs/act-v1 \
   --steps 5000 --device cuda \
-  --gpu-lock /data/locks/gpu.lock</pre><p data-i18n="recipeNote">Dataset arrays and licensed scene assets are obtained separately. The portable runner is provided; the original run's full asset bundle is not distributed.</p><a href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/TRAINING.md" data-i18n="fullRecipe">Read the array contract and reproduction limits ↗</a></div>
-      </div>
-    </section>
-
-    <section id="benchmark" class="benchmark-section">
-      <div class="wrap section">
-        <div class="section-heading"><div><p class="eyebrow">02 / EVIDENCE, WITH DENOMINATORS</p><h2 data-i18n="benchmarkTitle">A result you can inspect.</h2></div><p data-i18n="benchmarkLead">These are different diagnostic cohorts, not a head-to-head leaderboard. The independent held-out benchmark has no reported result in this release.</p></div>
-        <div class="table-scroll"><table><caption data-i18n="closedCaption">Actual Isaac closed-loop evidence · retained experiments from October 28–29, 2026</caption><thead><tr><th data-i18n="method">Method</th><th data-i18n="cohort">Cohort</th><th data-i18n="success">Success</th><th data-i18n="meaning">What it establishes</th></tr></thead><tbody>
-          <tr><td><strong data-i18n="expertName">Analytic expert</strong><small>2026-10-28</small></td><td data-i18n="expertCohort">Fixed 8 qualification episodes</td><td><span class="result pass">8 / 8</span></td><td data-i18n="expertMeaning">Approach, contact, ≥3 s hold, unload and home</td></tr>
-          <tr><td><strong>ACT · state-only</strong><small>2026-10-29</small></td><td data-i18n="actCohort">1 TRAIN + 1 selection VAL scene</td><td><span class="result fail">0 / 2</span></td><td data-i18n="actMeaning">Both stopped before contact by posture checks</td></tr>
-          <tr><td><strong data-i18n="heldoutName">Independent held-out bodies</strong></td><td data-i18n="heldoutCohort">Separate identity-stratified protocol</td><td><span class="pending" data-i18n="unreported">Not reported</span></td><td data-i18n="heldoutMeaning">No generalization success claim</td></tr>
-          <tr><td><strong>Astra + local skills</strong></td><td data-i18n="astraCohort">Interface prototype</td><td><span class="pending" data-i18n="notEvaluated">Not evaluated</span></td><td data-i18n="astraMeaning">API request/validation code; no Isaac score yet</td></tr>
-        </tbody></table></div>
-        <div class="evidence-grid">
-          <article><span class="small-label">OFFLINE ACTION ERROR ≠ TASK SUCCESS</span><h3 data-i18n="fitTitle">Fitting improved; execution did not.</h3><img class="plot" src="assets/act-fit.png" width="1760" height="672" loading="lazy" alt="Actual training and validation action error curves for two 5,000-step ACT pilots"><table class="small-table"><thead><tr><th>H20 MAE · mrad ↓</th><th>TRAIN</th><th>VAL</th></tr></thead><tbody><tr><td>ACT · augmentation on</td><td>7.396</td><td>126.991</td></tr><tr><td>ACT · augmentation off</td><td>8.812</td><td>155.331</td></tr><tr><td>Hold current state</td><td>126.154</td><td>139.151</td></tr><tr><td>Constant velocity</td><td>113.174</td><td>124.401</td></tr></tbody></table><p data-i18n="fitNote">Both ACT runs completed 5,000 updates. Checkpoints were selected on the full validation set. Only the augmentation-on model has the two published Isaac tests.</p></article>
-          <article class="gate-panel"><span class="small-label">PHYSICAL EPISODE SUCCESS</span><h3 data-i18n="gateTitle">Contact has a precise definition.</h3><dl><div><dt data-i18n="force">Normal force during hold</dt><dd>3.5–4.5 N</dd></div><div><dt data-i18n="hold">Continuous valid hold</dt><dd>≥ 3 s</dd></div><div><dt data-i18n="forbidden">Forbidden-part contact force</dt><dd>0 N</dd></div><div><dt data-i18n="tilt">Tool vs local 23 mm disk plane</dt><dd>≤ 3°</dd></div><div><dt data-i18n="return">Unload, withdraw, return home</dt><dd data-i18n="required">Required</dd></div></dl><p data-i18n="gateNote">The allowed C retainer contacts the surface. The recessed B diaphragm is not required to carry force. Physics, parking, joint and collision gates remain active.</p><a href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/BENCHMARK.md" data-i18n="protocolLink">Full benchmark protocol, scope and measurements ↗</a><a href="data/results.json" data-i18n="resultsLink">Download machine-readable results ↗</a></article>
-        </div>
-        <div class="failure-note"><span>↳</span><p data-i18n="failureNote">Why publish a failure? The validation model was wrong from its first action block; the training scene drifted away from expert states. Diversity and recovery demonstrations target these two different problems.</p></div>
-      </div>
-    </section>
-
-    <section id="astra" class="section wrap">
-      <div class="section-heading"><div><p class="eyebrow">03 / THE NEXT POLICY TRACK</p><h2 data-i18n="astraTitle">Astra reasons.<br>The local controller acts.</h2></div><p data-i18n="astraLead">A practical first integration is an observation-grounded skill supervisor. It chooses the next target or requests a recovery; the native executor keeps ownership of motion and force.</p></div>
-      <div class="astra-grid"><div>
-        <div class="agent-path"><div><span>OBSERVATION</span><strong>RGB + depth-derived geometry<br>joints + Hall voltage + phase</strong></div><b aria-hidden="true">↓</b><div class="agent-node"><span>GPT-6 ASTRA</span><strong>approach · continue · retract · abort</strong></div><b aria-hidden="true">↓</b><div><span>LOCAL EXECUTOR</span><strong>ACT / analytic planner → force controller</strong></div></div>
-        <p class="scope-note" data-i18n="astraScope">Prototype status: request construction and local decision validation are tested. No live API or Isaac execution result is claimed. An API key and the simulator skill bridge are needed for a live trial.</p>
-      </div><div class="astra-detail"><span class="small-label">A COMPARISON WORTH RUNNING</span><h3 data-i18n="astraQuestion">Does reasoning improve completion and recovery?</h3><p data-i18n="astraCompare">Compare the same scenes, targets, local executor and physical gates: analytic expert, ACT + contact controller, then Astra + local skills. Report model calls, interventions, wall time and API cost alongside success.</p><p data-i18n="astraLatency">Cloud reasoning is outside the force loop. Astranomy reports substantial inference latency in manipulation; our contact controller must keep running locally between decisions.</p><div class="inline-links"><a href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/ASTRA.md" data-i18n="astraGuide">Integration design + runnable dry run ↗</a><a href="https://research.nvidia.com/labs/srl/projects/astranomy/">NVIDIA Astranomy ↗</a><a href="https://developers.openai.com/api/docs/models/gpt-6-astra">Official model documentation ↗</a></div></div></div>
-    </section>
-    <section class="closing wrap"><p class="eyebrow">OPEN RESEARCH, IN PROGRESS</p><h2 data-i18n="closingTitle">Inspect the scene.<br>Reproduce the evidence.<br>Improve the policy.</h2><a class="button" href="https://github.com/WilliamQiuzy/robotic-auscultation" data-i18n="openRepo">Explore the GitHub project ↗</a></section>
-  </main>
-  <footer class="wrap"><span>Robotic Auscultation · Ziyue (William) Qiu</span><span data-i18n="footerNote">Simulation research preview · published Nov 5, 2026 · evidence Oct 28–29</span><a href="data/assets_manifest.json">Asset checksums ↗</a></footer>
-  <noscript><p class="wrap">The expert video and evidence links work without JavaScript. JavaScript enables video switching and the Chinese translation.</p></noscript>
+  --gpu-lock /data/locks/gpu.lock</pre><p class="body-6" data-i18n="recipeNote">Dataset arrays and licensed scene assets are obtained separately. The portable runner is provided; the original run's full asset bundle is not distributed.</p><a class="caption-1" data-i18n="fullRecipe" href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/TRAINING.md">Read the array contract and reproduction limits ↗</a></div>
+</div>
+</section>
+<section aria-labelledby="tagline" class="tagline-section wrap"><p class="eyebrow caption-3" data-i18n="taglineLabel">The research principle</p><h2 class="heading-2 tagline" data-i18n="taglineText" id="tagline">Learn the motion.<br/>Test the whole task.</h2><p class="body-3" data-i18n="taglineNote">A lower action error is a useful signal. Success still requires contact, a valid hold, withdrawal and a return home.</p></section><section class="benchmark-section" id="benchmark">
+<div class="wrap section">
+<div class="section-heading reveal"><div><p class="eyebrow caption-3">02 / Evidence, with denominators</p><h2 class="heading-2" data-i18n="benchmarkTitle">A result you can inspect.</h2></div><p class="body-6" data-i18n="benchmarkLead">These are different diagnostic cohorts, not a direct leaderboard. The independent held out benchmark has no reported result in this release.</p></div>
+<p class="table-hint caption-2" data-i18n="tableHint">On a small screen, scroll the table to inspect every column. <span aria-hidden="true">↔</span></p><div aria-label="Closed loop evidence table, scroll horizontally on small screens" class="table-scroll" role="region" tabindex="0"><table><caption class="caption-2" data-i18n="closedCaption">Actual Isaac closed loop evidence · retained experiments from October 28–29, 2026</caption><thead><tr><th class="caption-3" data-i18n="method">Method</th><th class="caption-3" data-i18n="cohort">Cohort</th><th class="caption-3" data-i18n="success">Success</th><th class="caption-3" data-i18n="meaning">What it establishes</th></tr></thead><tbody>
+<tr><td class="body-6"><strong data-i18n="expertName">Analytic expert</strong><small class="caption-5">Oct 28, 2026</small></td><td class="body-6" data-i18n="expertCohort">Fixed 8 qualification episodes</td><td class="body-6"><span class="result pass heading-5">8 / 8</span></td><td class="body-6" data-i18n="expertMeaning">Approach, contact, ≥3 s hold, unload and home</td></tr>
+<tr><td class="body-6"><strong>ACT · state only</strong><small class="caption-5">Oct 29, 2026</small></td><td class="body-6" data-i18n="actCohort">1 TRAIN + 1 selection VAL scene</td><td class="body-6"><span class="result fail heading-5">0 / 2</span></td><td class="body-6" data-i18n="actMeaning">Both stopped before contact by posture checks</td></tr>
+<tr><td class="body-6"><strong data-i18n="heldoutName">Independent held out bodies</strong></td><td class="body-6" data-i18n="heldoutCohort">Separate identity stratified protocol</td><td class="body-6"><span class="pending caption-4" data-i18n="unreported">Not reported</span></td><td class="body-6" data-i18n="heldoutMeaning">No generalization success claim</td></tr>
+<tr><td class="body-6"><strong>Astra + local skills</strong></td><td class="body-6" data-i18n="astraCohort">Interface prototype</td><td class="body-6"><span class="pending caption-4" data-i18n="notEvaluated">Not evaluated</span></td><td class="body-6" data-i18n="astraMeaning">API request/validation code; no Isaac score yet</td></tr>
+</tbody></table></div>
+<div class="evidence-grid">
+<article class="reveal"><span class="small-label caption-3" data-i18n="fitLabel">Action error ≠ task success</span><h3 class="heading-5" data-i18n="fitTitle">Fitting improved; execution did not.</h3><img alt="Actual training and validation action error curves for two 5,000-step ACT pilots" class="plot" height="672" loading="lazy" src="assets/act-fit.png" width="1760"/><table class="small-table"><thead><tr><th class="caption-3">H20 MAE · mrad ↓</th><th class="caption-3">TRAIN</th><th class="caption-3">VAL</th></tr></thead><tbody><tr><td class="body-6">ACT · augmentation on</td><td class="body-6">7.396</td><td class="body-6">126.991</td></tr><tr><td class="body-6">ACT · augmentation off</td><td class="body-6">8.812</td><td class="body-6">155.331</td></tr><tr><td class="body-6">Hold current state</td><td class="body-6">126.154</td><td class="body-6">139.151</td></tr><tr><td class="body-6">Constant velocity</td><td class="body-6">113.174</td><td class="body-6">124.401</td></tr></tbody></table><p class="body-6" data-i18n="fitNote">Both ACT runs completed 5,000 updates. Checkpoints were selected on the full validation set. Only the augmentation on model has the two published Isaac tests.</p></article>
+<article class="gate-panel reveal"><span class="small-label caption-3" data-i18n="gateLabel">Physical episode success</span><h3 class="heading-5" data-i18n="gateTitle">Contact has a precise definition.</h3><dl><div><dt class="body-6" data-i18n="force">Normal force during hold</dt><dd class="title-4">3.5–4.5 N</dd></div><div><dt class="body-6" data-i18n="hold">Continuous valid hold</dt><dd class="title-4">≥ 3 s</dd></div><div><dt class="body-6" data-i18n="forbidden">Forbidden-part contact force</dt><dd class="title-4">0 N</dd></div><div><dt class="body-6" data-i18n="tilt">Tool vs local 23 mm disk plane</dt><dd class="title-4">≤ 3°</dd></div><div><dt class="body-6" data-i18n="return">Unload, withdraw, return home</dt><dd class="title-4" data-i18n="required">Required</dd></div></dl><p class="body-6" data-i18n="gateNote">The allowed C retainer contacts the surface. The recessed B diaphragm is not required to carry force. Physics, parking, joint and collision gates remain active.</p><a class="title-4" data-i18n="protocolLink" href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/BENCHMARK.md">Full benchmark protocol, scope and measurements ↗</a><a class="title-4" data-i18n="resultsLink" href="data/results.json">Download machine readable results ↗</a></article>
+</div>
+<div class="failure-note reveal"><span>↳</span><p class="body-6" data-i18n="failureNote">Why publish a failure? The validation model was wrong from its first action block; the training scene drifted away from expert states. Diversity and recovery demonstrations target these two different problems.</p></div>
+</div>
+</section>
+<section class="section wrap" id="astra">
+<div class="section-heading reveal"><div><p class="eyebrow caption-3">03 / The next policy track</p><h2 class="heading-2" data-i18n="astraTitle">Astra reasons.<br/>The local controller acts.</h2></div><p class="body-6" data-i18n="astraLead">A practical first integration is an observation grounded skill supervisor. It chooses the next target or requests a recovery; the native executor keeps ownership of motion and force.</p></div>
+<div class="astra-grid reveal"><div>
+<div class="agent-path"><div><span class="caption-3">OBSERVATION</span><strong class="title-3">RGB + depth derived geometry<br/>joints + Hall voltage + phase</strong></div><b aria-hidden="true" class="title-2">↓</b><div class="agent-node"><span class="caption-3">GPT-6 ASTRA</span><strong class="title-3">approach · continue · retract · abort</strong></div><b aria-hidden="true" class="title-2">↓</b><div><span class="caption-3">LOCAL EXECUTOR</span><strong class="title-3">ACT / analytic planner → force controller</strong></div></div>
+<p class="scope-note body-6" data-i18n="astraScope">Prototype status: request construction and local decision validation are tested. No live API or Isaac execution result is claimed. An API key and the simulator skill bridge are needed for a live trial.</p>
+</div><div class="astra-detail"><span class="small-label caption-3" data-i18n="astraCompareLabel">A comparison worth running</span><h3 class="heading-5" data-i18n="astraQuestion">Does reasoning improve completion and recovery?</h3><p class="body-6" data-i18n="astraCompare">Compare the same scenes, targets, local executor and physical gates: analytic expert, ACT + contact controller, then Astra + local skills. Report model calls, interventions, wall time and API cost alongside success.</p><p class="body-6" data-i18n="astraLatency">Cloud reasoning is outside the force loop. Astranomy reports substantial inference latency in manipulation; our contact controller must keep running locally between decisions.</p><div class="inline-links"><a class="title-4" data-i18n="astraGuide" href="https://github.com/WilliamQiuzy/robotic-auscultation/blob/main/docs/ASTRA.md">Integration design + runnable dry run ↗</a><a class="title-4" href="https://research.nvidia.com/labs/srl/projects/astranomy/">NVIDIA Astranomy ↗</a><a class="title-4" href="https://developers.openai.com/api/docs/models/gpt-6-astra">Official model documentation ↗</a></div></div></div>
+</section>
+<section aria-labelledby="questions-title" class="section wrap questions" id="questions">
+<div class="section-heading reveal"><div><p class="eyebrow caption-3" data-i18n="faqLabel">04 / Research questions</p><h2 class="heading-2" data-i18n="faqTitle" id="questions-title">What does this<br/>preview establish?</h2></div><p class="body-3" data-i18n="faqLead">The scope matters as much as the score. These answers describe the released evidence and the work that remains.</p></div>
+<div class="faq-grid">
+<article class="reveal"><h3 class="title-2" data-i18n="faqQ1">Is this a clinical or physical robot result?</h3><p class="body-6" data-i18n="faqA1">This page reports Isaac Sim experiments. It does not establish clinical performance or a completed physical robot validation.</p></article>
+<article class="reveal"><h3 class="title-2" data-i18n="faqQ2">Do 8/8 and 0/2 compare the same cohort?</h3><p class="body-6" data-i18n="faqA2">No. The expert passed eight fixed qualification episodes. The ACT pilot was tested on one TRAIN scene and one selection VAL scene. These are separate diagnostic cohorts, not a leaderboard.</p></article>
+<article class="reveal"><h3 class="title-2" data-i18n="faqQ3">What does the ACT policy observe?</h3><p class="body-6" data-i18n="faqA3">Two state17 frames give 34 input features, including state and target geometry. This release does not feed RGB, depth or Hall measurements into ACT. Hall is used by the analytic contact controller.</p></article>
+<article class="reveal"><h3 class="title-2" data-i18n="faqQ4">Why can lower action error still fail?</h3><p class="body-6" data-i18n="faqA4">Offline prediction error does not measure a completed contact task. Both published ACT closed loop cases stopped before contact at posture checks. The full physical gates remain required.</p></article>
+<article class="reveal"><h3 class="title-2" data-i18n="faqQ5">Has Astra executed a simulator episode?</h3><p class="body-6" data-i18n="faqA5">No result is reported. The released prototype constructs a skill request and validates the proposed decision locally. A request is not simulator acceptance or physical success.</p></article>
+<article class="reveal"><h3 class="title-2" data-i18n="faqQ6">What can I reproduce from this release?</h3><p class="body-6" data-i18n="faqA6">The repository includes a reference training runner, array contract, benchmark protocol, evidence summaries and two actual recordings. Training arrays and licensed scene assets must be prepared separately.</p></article>
+</div>
+</section><section class="closing wrap reveal"><p class="eyebrow caption-3" data-i18n="closingLabel">Open research, in progress</p><h2 class="heading-2" data-i18n="closingTitle">Inspect the scene.<br/>Reproduce the evidence.<br/>Improve the policy.</h2><a class="button button-md" data-i18n="watch" href="#demo">Watch the recordings <span aria-hidden="true">↗</span></a></section>
+</main>
+<footer class="wrap"><div><a class="title-4 footer-brand" href="#main">Robotic Auscultation</a><p class="caption-2">Ziyue (William) Qiu</p></div><p class="caption-2" data-i18n="footerNote">Simulation research preview · published Nov 5, 2026 · evidence Oct 28–29</p><nav aria-label="Project resources"><a class="caption-1" href="https://github.com/WilliamQiuzy/robotic-auscultation">GitHub ↗</a><a class="caption-1" data-i18n="checksumsLink" href="data/assets_manifest.json">Asset checksums ↗</a><a class="caption-1" data-i18n="siteNotesLink" href="site-notes.html">About this preview ↗</a></nav></footer>
+<noscript><p class="wrap body-6">The expert video and evidence links work without JavaScript. JavaScript enables video switching and the Chinese translation.</p></noscript>
 </body>
 </html>
