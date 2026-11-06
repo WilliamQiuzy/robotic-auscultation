@@ -65,12 +65,13 @@ def filter_recovery_samples(samples,audit,metadata,sidecar):
     by_row=validate_sidecar(sidecar,audit,metadata);keep=[]
     for i,window in enumerate(samples['derived_index']['windows']):
         first=window['inclusive_native_ticks'][0]+1
-        entries=[by_row.get(first+k*12) for k in range(20)]
+        entries=[by_row.get(first+k*12) for k in range(window.get('valid_future_cells',20))]
         if any(e is None or not e['completed'] or e['kind'] not in ('nominal_teacher','recovery_teacher') for e in entries):continue
         if not any(e['kind']=='recovery_teacher' for e in entries):continue
         keep.append(i)
     result=deepcopy(samples)
-    for key in runtime.shared.ARRAY_KEYS:result[key]=samples[key][keep].copy()
+    keys=runtime.shared.ARRAY_KEYS+(('action_is_pad',) if 'action_is_pad' in samples else ())
+    for key in keys:result[key]=samples[key][keep].copy()
     result['derived_index']['windows']=[deepcopy(samples['derived_index']['windows'][i]) for i in keep]
     result.update(recovery_supervision=True,training_eligible=False,physical_qualification=False)
     for window in result['derived_index']['windows']:
@@ -83,7 +84,12 @@ def assemble_recovery_samples(records,audit,metadata,sidecar):
     return filter_recovery_samples(act.assemble_samples(records,audit,metadata),audit,metadata,sidecar)
 
 
-def read_episode(row,base):
+def require_sidecar_location(ref,output):
+    need(Path(ref['path'])==Path(output)/'fresh_expert/given_recovery.json',
+         'Recovery sidecar must be the actual native fresh_expert output')
+
+
+def read_episode(row,base, *, allow_truncated=False):
     """New explicit class admission; original full physical decoder stays intact."""
     need(row.get('split')=='train','Recovery export is TRAIN only')
     data._declarations([row],base);context=data._metadata(row,base)
@@ -96,14 +102,15 @@ def read_episode(row,base):
          'Complete physically passing current recovery teacher required')
     ref=run.get('recovery_collection');sidecar=runtime.read_bound(ref)
     output=data._ref_path(row['run_result'],base).parent
-    need(Path(ref['path'])==output/'given_recovery.json' and sidecar.get('config_sha256')==runtime.digest(config) and
+    require_sidecar_location(ref,output)
+    need(sidecar.get('config_sha256')==runtime.digest(config) and
          sidecar.get('declaration')==binding['settings'], 'Recovery sidecar/config binding differs')
     # This invokes the original per-tick physical, parking, ALIGN, HOLD, release,
     # source-freeze, full capture fidelity and final-home checks without edits.
-    samples,receipt,metadata=data._decode_capture(row,base,context,run,config,freeze)
+    samples,receipt,metadata=data._decode_capture(row,base,context,run,config,freeze,allow_truncated=allow_truncated)
     with gzip.open(context[0]/'native_audit.jsonl.gz','rt') as stream:audit=[json.loads(line) for line in stream]
     result=filter_recovery_samples(samples,audit,metadata,sidecar)
-    need(len(result['states'])>0,'No complete clean H20 recovery windows')
+    need(len(result['states'])>0,'No complete clean teacher recovery prefix windows')
     receipt.update(windows=len(result['states']),recovery_collection=ref)
     return result,receipt,metadata
 

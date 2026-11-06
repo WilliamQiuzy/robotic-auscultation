@@ -115,7 +115,7 @@ def preflight(config,*,output=None):
     need(meta.get('handoff_policy_id')==runtime.handoff.POLICY_ID,'Original physical handoff required')
     preparation=runtime.read_bound(complete['inputs']['dataset'])
     matches=[r for r in preparation.get('episodes',[]) if r.get('episode_id')==dep['source_episode_id']]
-    need(preparation.get('schema')==pilot.PREPARATION_SCHEMA and len(matches)==1 and
+    need(preparation.get('schema') in pilot.PREPARATION_SCHEMAS and len(matches)==1 and
         matches[0].get('config')==dep['source_config'] and matches[0].get('subject_id')==subject and
         matches[0].get('split')==split and matches[0].get('target_id')==meta.get('target_id'),
         'Expanded actual trained successful expert case/config differs')
@@ -137,7 +137,7 @@ def prepare(complete_file,manifest_file,output,*,attempts=None,run_id=DEFAULT_RU
     model,complete=model_binding(runtime.reference(complete_file));manifest_ref=runtime.reference(manifest_file)
     need(manifest_ref==complete['inputs']['dataset'],'Expanded preparation manifest must be the actual trained dataset COMPLETE')
     manifest=runtime.read_bound(manifest_ref);rows=manifest.get('episodes',[])
-    need(manifest.get('schema')==pilot.PREPARATION_SCHEMA and rows and
+    need(manifest.get('schema') in pilot.PREPARATION_SCHEMAS and rows and
         all(row.get('split') in ('train','validation') for row in rows),'Expanded successful TRAIN/VAL cases required')
     selected=[(row['subject_id'],row['target_id']) for row in rows] if attempts is None else list(attempts)
     need(selected and len(selected)==len(set(selected)),'Finite unique expanded attempts required')

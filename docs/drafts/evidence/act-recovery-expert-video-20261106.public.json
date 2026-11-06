@@ -1,0 +1,40 @@
+{
+  "schema": "ausc_actual_capture_video_v1",
+  "frames": 2283,
+  "width": 256,
+  "height": 144,
+  "fps": 20,
+  "duration_s": 114.15,
+  "native_steps": 27400,
+  "native_simulation_s": 114.16666666666667,
+  "terminal_unrendered_native_ticks": 4,
+  "source_frame_kind": "Actual live Isaac camera RGB observations; no replay or new native/model run",
+  "learned_policy": false,
+  "purpose": "TRAIN expert recovery illustration, not held-out model evidence",
+  "source_refs": {
+    "source": {
+      "bytes": 9453622,
+      "sha256": "17d82885d651d9354c3e8fbdb0e9ea55ba01d3871baab165e7689bb5c12b12f4"
+    },
+    "capture_receipt": {
+      "bytes": 1303,
+      "sha256": "5edf47b7b3c7b52d207e621bc405ee8c06071ff0e8ed268b570aba7cf0ee4524"
+    },
+    "native_result": {
+      "bytes": 594426,
+      "sha256": "8eec5343081079dafc87ce7ced8713df0dbdd316789a33e4460ad4d357d93d0e"
+    }
+  },
+  "media": {
+    "video": {
+      "file": "assets/act-recovery-expert-r3-20261106.mp4",
+      "bytes": 779606,
+      "sha256": "3428f91ee68be2955dc9aba3da8e636827c145b83d027c58ecb931712bad98a7"
+    },
+    "poster": {
+      "file": "assets/act-recovery-expert-r3-20261106-poster.png",
+      "bytes": 22317,
+      "sha256": "ea59d8b65925468546efde0a56842055397bca8b9dd0cdb7081de6d866d0536b"
+    }
+  }
+}

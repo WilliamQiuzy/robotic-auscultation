@@ -23,6 +23,8 @@ need=runtime.need
 EXPERIMENT='m2_given_contact_expanded_pilot_train'
 MODULE='sim.ausc_policy.'+EXPERIMENT
 PREPARATION_SCHEMA='m2_given_diverse_pilot_preparation_v1'
+MASKED_PREPARATION_SCHEMA='m2_given_contact_masked_preparation_v1'
+PREPARATION_SCHEMAS=(PREPARATION_SCHEMA,MASKED_PREPARATION_SCHEMA)
 PILOT_SCHEMA='m2_given_contact_expanded_act_pilot_v1'
 SELECTION_SCHEMA='m2_given_contact_expanded_act_selection_v1'
 CPU_SCHEMA='m2_given_contact_expanded_act_cpu_equivalence_v1'
@@ -37,7 +39,7 @@ save_checkpoint=original.save_checkpoint
 
 def validate_config(config):
     variable={'steps','batch_size','eval_every','seed','time_limit_seconds'}
-    optional={'replacement_pod_gpu_binding'} if isinstance(config,dict) and 'replacement_pod_gpu_binding' in config else set()
+    optional={k for k in ('replacement_pod_gpu_binding','evaluation_cohort') if isinstance(config,dict) and k in config}
     need(isinstance(config,dict) and set(config)==set(SCHEDULE)|{'base','dataset'}|optional and
         all(config.get(k)==v for k,v in SCHEDULE.items() if k not in variable) and
         Path(str(config.get('base',''))).is_absolute(), 'Explicit expanded diagnostic schedule required; no resume')
@@ -46,10 +48,19 @@ def validate_config(config):
         need(type(config.get(key)) is int and low<=config[key]<=high,'Finite integer schedule required: '+key)
     need(config['eval_every']<=config['steps'],'At least one full validation evaluation required')
     full_reference(config['dataset'])
-    if optional:
+    if 'replacement_pod_gpu_binding' in optional:
         from . import rebuild_gpu_binding
         rebuild_gpu_binding.validate(config['replacement_pod_gpu_binding'],base=config['base'])
-        rebuild_gpu_binding.validate_dataset(runtime.read_bound(config['dataset']),schema=PREPARATION_SCHEMA,task_contract=runtime.task_contract())
+        dataset=runtime.read_bound(config['dataset'])
+        need(dataset.get('schema') in PREPARATION_SCHEMAS,'Explicit approved dataset version required')
+        rebuild_gpu_binding.validate_dataset(dataset,schema=dataset['schema'],task_contract=runtime.task_contract())
+    if 'evaluation_cohort' in optional:
+        from . import m2_act_recovery_scope
+        cohorts=m2_act_recovery_scope.validate(config['evaluation_cohort'])
+        dataset=runtime.read_bound(config['dataset'])
+        need(dataset.get('schema')==MASKED_PREPARATION_SCHEMA and
+             dataset.get('split_subject_ids')==dict(train=sorted(cohorts['train']),validation=sorted(cohorts['selection_validation'])),
+             'Pretraining evaluation freeze must remain separate from exact TRAIN/selection data')
     return config
 
 
@@ -60,19 +71,34 @@ def evaluation_steps(config):
 
 
 def training_protocol(config):
-    return dict(schema='m2_given_contact_expanded_act_protocol_v1',schedule=deepcopy(config),
+    masked=runtime.read_bound(config['dataset']).get('schema')==MASKED_PREPARATION_SCHEMA
+    result=dict(schema='m2_given_contact_expanded_act_protocol_v2' if masked else 'm2_given_contact_expanded_act_protocol_v1',schedule=deepcopy(config),
         model=runtime.shared.native_spec(),parameter_count=2658823,state_only=True,
         observation_dimensions={'state':7,'environment':27,'total':34},
         raw_state_dimensions=17,history_frames=2,action_horizon=20,execution_prefix=10,
         selection='earliest minimum full validation act.full_chunk_mae_rad',
         evaluation_steps=evaluation_steps(config),augmentation={'q_noise_std':0.,'q_dropout':0.},
         model_dropout=.1,task_contract=runtime.task_contract(),**FLAGS)
+    if masked:result.update(label_protocol=runtime.shared.MASKED_LABEL_PROTOCOL,
+        masked_suffix_is_supervision=False,normalization_and_metrics='real future cells only',
+        training_sampling='half uniform real TRAIN origins, half real TRAIN origins within 60mm of prescribed pose; no state or action noise')
+    return result
+
+
+def training_indices(rng,samples,size):
+    if samples.get('label_protocol')!=runtime.shared.MASKED_LABEL_PROTOCOL:
+        return rng.integers(len(samples['states']),size=size)
+    near=np.flatnonzero(np.linalg.norm(samples['states'][:,7:10],axis=1)<=.060)
+    need(len(near)>0,'Real near-goal TRAIN coverage required before masked training')
+    n=size//2
+    return np.r_[near[rng.integers(len(near),size=n)],rng.integers(len(samples['states']),size=size-n)]
 
 
 def code_binding():
     root=Path(__file__).resolve().parents[2]
     modules=(Path(__file__).name,'m2_given_contact_pilot_train.py','m2_given_contact_runtime.py',
-        'm2_act.py','m2_given_contact_act.py','m2_given_contact_pose.py','m2_given_contact_handoff.py','rebuild_gpu_binding.py')
+        'm2_act.py','m2_given_contact_act.py','m2_given_contact_pose.py','m2_given_contact_handoff.py','rebuild_gpu_binding.py',
+        'm2_act_recovery_scope.py')
     commit_file=root/'CODE_COMMIT'
     commit=commit_file.read_text().strip() if commit_file.exists() else subprocess.check_output(
         ['git','-C',str(root),'rev-parse','HEAD'],text=True).strip()
@@ -88,7 +114,7 @@ def validate_code(binding):
 
 def load_dataset(ref):
     full_reference(ref);complete=runtime.read_bound(ref)
-    need(complete.get('schema')==PREPARATION_SCHEMA and complete.get('complete') is True and
+    need(complete.get('schema') in PREPARATION_SCHEMAS and complete.get('complete') is True and
         complete.get('diagnostic_only') is True and complete.get('formal_acceptance') is False and
         complete.get('training_eligible') is False and complete.get('test_payloads_opened') is False and
         complete.get('task_contract')==runtime.task_contract(), 'Explicit complete expanded diagnostic preparation required')
@@ -125,6 +151,8 @@ def load_dataset(ref):
     for row in rows:
         episode=episode_map.get(row.get('episode_id'))
         need(episode is not None and row.get('split')==episode['split'], 'Expanded window/episode TRAIN/VAL scope differs')
+    masked=complete['schema']==MASKED_PREPARATION_SCHEMA
+    array_keys=runtime.shared.ARRAY_KEYS+(('action_is_pad',) if masked else ())
     prepared={};shapes={'states':(17,),'histories':(2,17),'actions':(20,7),'origins':(7,),
         'velocities':(7,),'observation_times':()}
     for split,count in counts.items():
@@ -135,17 +163,19 @@ def load_dataset(ref):
             need(all(row['episode_id']==episode['episode_id'] for row in selected[start:end]),
                 'Expanded window/episode sample range differs')
         with np.load(runtime.bound_path(refs[split]),allow_pickle=False) as arrays:
-            need(set(arrays.files)==set(runtime.shared.ARRAY_KEYS),'Exactly the six approved numerical arrays required')
-            samples={key:arrays[key] for key in runtime.shared.ARRAY_KEYS}
+            need(set(arrays.files)==set(array_keys),'Exact versioned numerical array inventory required')
+            samples={key:arrays[key] for key in array_keys}
         for key,tail in shapes.items():
             value=samples[key]
             need(value.shape==(count,)+tail and value.dtype.kind in 'fiu' and np.isfinite(value).all(),
                 'Finite approved expanded shape required: '+split+'/'+key)
         need(np.array_equal(samples['histories'][:,1],samples['states']) and
             np.array_equal(samples['origins'],samples['states'][:,:7]),'Raw causal state/history/fixed origins differ')
-        samples.update(schema=runtime.given.DATASET_SCHEMA,task_id=runtime.pose.TASK_ID,
+        samples.update(schema=runtime.given.MASKED_DATASET_SCHEMA if masked else runtime.given.DATASET_SCHEMA,task_id=runtime.pose.TASK_ID,
             action_semantics_id=runtime.given.ACTION_SEMANTICS_ID,observation_contract=runtime.pose.observation_contract(),
             handoff_policy_id=runtime.handoff.POLICY_ID)
+        if masked:samples['label_protocol']=runtime.shared.MASKED_LABEL_PROTOCOL
+        runtime.given.require_samples(samples)
         prepared[split]=samples
     stats=runtime.validate_normalization(runtime.read_bound(complete['normalization']))
     need(runtime.given.fit_normalization(prepared['train'],split='train')==stats,
@@ -223,7 +253,7 @@ def fit(config_ref,output):
             with (output/'metrics.jsonl').open('x',buffering=1) as log:
                 for step in range(1,config['steps']+1):
                     need(time.monotonic()-started<config['time_limit_seconds'],'Finite expanded training deadline reached')
-                    policy.train();ids=rng.integers(len(prepared['train']['states']),size=config['batch_size'])
+                    policy.train();ids=training_indices(rng,prepared['train'],config['batch_size'])
                     batch=runtime.given.pack_batch(prepared['train'],prepared['normalization'],ids,training=True,
                         rng=rng,q_noise_std=0.,q_dropout=0.)
                     tensors={key:torch.from_numpy(value).to('cuda') for key,value in batch.items()}

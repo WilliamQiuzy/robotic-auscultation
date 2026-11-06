@@ -1,0 +1,494 @@
+{
+  "schema": "ausc_act_recovery_data_public_v1",
+  "as_of_utc": "2026-11-06T18:52:11.988482+00:00",
+  "source_refs": {
+    "COMPLETE.json": {
+      "bytes": 141066,
+      "sha256": "fa19f47986de35928ffd02e86401baad36568c3b7a2753e13f9cd93e0cb624fb"
+    },
+    "outcomes.json": {
+      "bytes": 58469,
+      "sha256": "d4b0a104ce5d2b2dba156b089b31c5dcc1c75dd52fdd4d3380e7d9d1b176ece9"
+    },
+    "COVERAGE.json": {
+      "bytes": 2479,
+      "sha256": "e21f22c2c9f84b7ec4844fb5f29b028843e6d56321987ce7fb25811e07a01f24"
+    }
+  },
+  "fixed_planned_data_denominator": 28,
+  "actual_imported_captures": 26,
+  "positive_episodes": 25,
+  "qualified_recovery_episodes": 7,
+  "recovery_attempts": 8,
+  "recovery_windows": 152,
+  "counts": {
+    "train": 8242,
+    "validation": 2345
+  },
+  "identity_scope": {
+    "train": [
+      "p000758",
+      "p000833",
+      "p001031",
+      "p001120"
+    ],
+    "validation": [
+      "p000923"
+    ]
+  },
+  "coverage": {
+    "train": {
+      "distance_bands": {
+        "10": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "100": {
+          "axis_error_max_deg": 7.3013304478219165,
+          "windows": 5335
+        },
+        "20": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "35": {
+          "axis_error_max_deg": 1.5935517590481187,
+          "windows": 1613
+        },
+        "60": {
+          "axis_error_max_deg": 2.0364138904188698,
+          "windows": 4283
+        }
+      },
+      "future_length_histogram": {
+        "1": 28,
+        "10": 28,
+        "11": 28,
+        "12": 28,
+        "13": 28,
+        "14": 28,
+        "15": 28,
+        "16": 28,
+        "17": 28,
+        "18": 28,
+        "19": 28,
+        "2": 28,
+        "20": 7710,
+        "3": 28,
+        "4": 28,
+        "5": 28,
+        "6": 28,
+        "7": 28,
+        "8": 28,
+        "9": 28
+      },
+      "goal_distance_minimum_m": 0.025392978084746574,
+      "interpretation": "Encoded uncompressed TCP vs prescribed reference, not measured contact-plane flatness. Origins inside the instantaneous handoff trigger are not required; policy is never queried there.",
+      "tangent_minimum_m": 0.0019096493642175771,
+      "tangent_within_2mm": 7,
+      "valid_future_cells": 159520,
+      "windows": 8242
+    },
+    "validation": {
+      "distance_bands": {
+        "10": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "100": {
+          "axis_error_max_deg": 6.952818224361526,
+          "windows": 1508
+        },
+        "20": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "35": {
+          "axis_error_max_deg": 0.04818322155590708,
+          "windows": 455
+        },
+        "60": {
+          "axis_error_max_deg": 0.04818322155590708,
+          "windows": 1209
+        }
+      },
+      "future_length_histogram": {
+        "1": 8,
+        "10": 8,
+        "11": 8,
+        "12": 8,
+        "13": 8,
+        "14": 8,
+        "15": 8,
+        "16": 8,
+        "17": 8,
+        "18": 8,
+        "19": 8,
+        "2": 8,
+        "20": 2193,
+        "3": 8,
+        "4": 8,
+        "5": 8,
+        "6": 8,
+        "7": 8,
+        "8": 8,
+        "9": 8
+      },
+      "goal_distance_minimum_m": 0.025406314394519472,
+      "interpretation": "Encoded uncompressed TCP vs prescribed reference, not measured contact-plane flatness. Origins inside the instantaneous handoff trigger are not required; policy is never queried there.",
+      "tangent_minimum_m": 0.001987581622423722,
+      "tangent_within_2mm": 1,
+      "valid_future_cells": 45380,
+      "windows": 2345
+    }
+  },
+  "cases": [
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000474_a001230_f0000-r3",
+      "subject_id": "p001120",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 590,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000474_a001230_f0000-l3",
+      "subject_id": "p001120",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 543,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000476_a001231_f0023-r3",
+      "subject_id": "p001120",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 570,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000476_a001231_f0023-l3",
+      "subject_id": "p001120",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 594,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000758-p000474_a001230_f0000-r3",
+      "subject_id": "p000758",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 582,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000758-p000474_a001230_f0000-l3",
+      "subject_id": "p000758",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "unavailable",
+      "positive_data": false,
+      "windows": 0,
+      "reason": "geometry_path_not_found"
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000758-p000476_a001231_f0023-r3",
+      "subject_id": "p000758",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 564,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000758-p000476_a001231_f0023-l3",
+      "subject_id": "p000758",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 588,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001031-p000474_a001230_f0000-r3",
+      "subject_id": "p001031",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 637,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001031-p000474_a001230_f0000-l3",
+      "subject_id": "p001031",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "unavailable",
+      "positive_data": false,
+      "windows": 0,
+      "reason": "geometry_path_not_found"
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001031-p000476_a001231_f0023-r3",
+      "subject_id": "p001031",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 586,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p001031-p000476_a001231_f0023-l3",
+      "subject_id": "p001031",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 666,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000833-p000474_a001230_f0000-r3",
+      "subject_id": "p000833",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 565,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000833-p000474_a001230_f0000-l3",
+      "subject_id": "p000833",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 488,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000833-p000476_a001231_f0023-r3",
+      "subject_id": "p000833",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 548,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000833-p000476_a001231_f0023-l3",
+      "subject_id": "p000833",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "train",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 569,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000923-p000474_a001230_f0000-r3",
+      "subject_id": "p000923",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "validation",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 586,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000923-p000474_a001230_f0000-l3",
+      "subject_id": "p000923",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "validation",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 566,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000923-p000476_a001231_f0023-r3",
+      "subject_id": "p000923",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "validation",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 569,
+      "reason": null
+    },
+    {
+      "kind": "nominal",
+      "episode_id": "rebuilt-expert-capture-20261105-v2-p000923-p000476_a001231_f0023-l3",
+      "subject_id": "p000923",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "validation",
+      "cpu_status": "runnable",
+      "positive_data": true,
+      "windows": 624,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p001120-p000474_a001230_f0000-r3",
+      "subject_id": "p001120",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 32,
+      "physics_steps": 27400,
+      "simulation_seconds": 114.16666666666667,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p001120-p000474_a001230_f0000-l3",
+      "subject_id": "p001120",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 20,
+      "physics_steps": 25825,
+      "simulation_seconds": 107.60416666666667,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p001120-p000476_a001231_f0023-r3",
+      "subject_id": "p001120",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 21,
+      "physics_steps": 26580,
+      "simulation_seconds": 110.75,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p001120-p000476_a001231_f0023-l3",
+      "subject_id": "p001120",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 20,
+      "physics_steps": 27300,
+      "simulation_seconds": 113.75,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p000833-p000474_a001230_f0000-r3",
+      "subject_id": "p000833",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "split": "train",
+      "positive_data": false,
+      "windows": 0,
+      "physics_steps": 5844,
+      "simulation_seconds": 24.35,
+      "reason": "R3: Recovery teacher abstained: ValueError: Every recovery numerical proposal was rejected"
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p000833-p000474_a001230_f0000-l3",
+      "subject_id": "p000833",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 19,
+      "physics_steps": 24257,
+      "simulation_seconds": 101.07083333333334,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p000833-p000476_a001231_f0023-r3",
+      "subject_id": "p000833",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 20,
+      "physics_steps": 25806,
+      "simulation_seconds": 107.525,
+      "reason": null
+    },
+    {
+      "kind": "actual_late_recovery",
+      "episode_id": "act-late-recovery-20261106-v4-p000833-p000476_a001231_f0023-l3",
+      "subject_id": "p000833",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "split": "train",
+      "positive_data": true,
+      "windows": 20,
+      "physics_steps": 26739,
+      "simulation_seconds": 111.4125,
+      "reason": null
+    }
+  ],
+  "formal_population_qualified": false,
+  "learned_policy_verdict": null,
+  "physical_gates_changed": false
+}

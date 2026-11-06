@@ -50,6 +50,47 @@ def test_derive_is_exact_runtime_projection_and_original_is_unchanged(tmp_path):
     with pytest.raises(ValueError,match='projection'):m.preflight(cfg)
 
 
+def test_late_dart_is_a_distinct_exact_setting_and_keeps_original_physics(tmp_path):
+    m=module();s=source(tmp_path)
+    cfg=m.derive_config(s,episode_id='recovery-near',seed=20261106,amplitude_rad=.03,
+        trigger_distance_m=.035)
+    binding=m.preflight(cfg)
+    assert binding['settings']['schema']==m.LATE_SCHEMA
+    assert binding['settings']['trigger_distance_m']==.035
+    assert cfg['physics']==dict(position_iterations=64,velocity_iterations=1,armature_kg_m2=.02)
+    cfg[m.ROUTE_KEY]['trigger_distance_m']=.0001
+    with pytest.raises(ValueError):m.preflight(cfg)
+
+
+def test_late_dart_trigger_uses_measured_goal_distance_and_does_not_move_handoff_gate():
+    m=module()
+    settings=dict(schema=m.LATE_SCHEMA,trigger_distance_m=.035)
+    assert not m.recovery_trigger(settings,phase='FREE',approach_cells=99,distance_m=.02)
+    assert not m.recovery_trigger(settings,phase='APPROACH',approach_cells=99,distance_m=.036)
+    assert m.recovery_trigger(settings,phase='APPROACH',approach_cells=1,distance_m=.034)
+    assert m.recovery_trigger(dict(schema=m.SCHEMA),phase='APPROACH',approach_cells=4,distance_m=1.)
+
+
+def test_late_numeric_candidates_preserve_measured_plan_and_retained_command_without_stop_at_sensor():
+    m=module();retained=np.full(7,.1);measured=retained+.00001;goal=np.full(7,.2)
+    route=np.asarray([measured,goal]);before=route.copy()
+    candidates=m.recovery_route_candidates(retained,route)
+    assert len(candidates)==5
+    assert all(np.array_equal(r[0],retained) and np.array_equal(r[-1],goal) for r in candidates)
+    np.testing.assert_array_equal(route,before)
+    assert len(candidates[0])==2
+    assert candidates[1][1,4]==pytest.approx(measured[4]+.001)
+    assert candidates[2][1,4]==pytest.approx(measured[4]-.001)
+
+
+def test_incomplete_dart_does_not_erase_underlying_motion_failure():
+    m=module()
+    result=dict(success=False,failure_reason='original motion failure')
+    m.record_incomplete_recovery(result)
+    assert result['failure_reason']=='original motion failure'
+    assert result['recovery_qualification_failure']=='No complete actual DART perturbation/recovery pair'
+
+
 @pytest.mark.parametrize('fault',['validation','test','physics','physics_type','native','geometry','extra','amplitude','seed','mixed'])
 def test_preflight_rejects_changed_scope_physics_or_runtime(tmp_path,fault):
     m=module();s=source(tmp_path);cfg=m.derive_config(s,episode_id='recovery-a030',seed=17,amplitude_rad=.03)
@@ -279,8 +320,26 @@ def test_sidecar_ends_last_stop_at_actual_raw_evidence_not_later_align_ticks(tmp
     assert roles[end-12]['physics_row_end_exclusive']==end
 
 
+def test_writer_records_constant_stop_tail_even_when_base_advance_tick_bypasses_override(monkeypatch):
+    m=module();c=m.GivenContactRecoveryExpert.__new__(m.GivenContactRecoveryExpert)
+    c.env=SimpleNamespace(rows=[{}]*38)
+    entry=dict(intent_id=3,setter_sha256='a'*64,physics_row_start=0,
+        physics_row_end_exclusive=38,kind='excluded',completed=False)
+    c._recovery_events=[entry]
+    c._current_intent_audit=dict(setter=dict(intent_id=3,setter_sha256='a'*64,physics_row_start=0))
+    monkeypatch.setattr(m.GivenContactExpert,'_tick',lambda self,*a,**k:self.env.rows.append({}))
+    # The shared constant-tail path calls the base _advance_tick explicitly,
+    # but dynamic _tick dispatch must still see all24 retained STOP samples.
+    for _ in range(24):c._tick(np.zeros(7),'given_l2_park')
+    assert entry['physics_row_end_exclusive']==62
+    c._current_intent_audit=None
+    c._tick(np.zeros(7),'given_l3_align')
+    assert len(c.env.rows)==63 and entry['physics_row_end_exclusive']==62
+
+
 @pytest.mark.parametrize('amplitude',[.015,.03])
-def test_real_ruckig_dart_controller_executes_noise_then_replans_without_reset(tmp_path,amplitude):
+@pytest.mark.parametrize('collection',['legacy','late'])
+def test_real_ruckig_dart_controller_executes_noise_then_replans_without_reset(tmp_path,amplitude,collection):
     """Synthetic measured feedback: no FCL, contacts, or native acceptance."""
     ruckig=pytest.importorskip('ruckig');assert ruckig.__version__=='0.15.3'
     from sim.auscultation_pi05_v6.execution import JointTrajectory
@@ -290,7 +349,8 @@ def test_real_ruckig_dart_controller_executes_noise_then_replans_without_reset(t
     c.reference=ref;c.metadata=meta;c.episode_id=meta['episode_id'];c.control_owner='TEACHER_L2'
     c._recovery_events=[];c._recovery_queries=[];c._data_kind='nominal_teacher'
     c._attempted=False;c._perturbations=0;c._recovery_completed=False;c._intent_dispatcher=None
-    c.recovery_binding=dict(settings=dict(seed=17,amplitude_rad=amplitude))
+    c.recovery_binding=dict(settings=dict(schema=m.SCHEMA if collection=='legacy' else m.LATE_SCHEMA,
+        seed=17,amplitude_rad=amplitude))
     c.trajectory=JointTrajectory(np.zeros(7),dt=h.DT,**h.PLANNING_LIMITS)
     c.trajectory.set_target(np.full(7,.02));live=c.trajectory
     c.q=np.zeros(7);c.env=SimpleNamespace(rows=[dict(q_command=[0.]*7)]*252,last_contacts=dict(diaphragm=0.,retainer=0.))

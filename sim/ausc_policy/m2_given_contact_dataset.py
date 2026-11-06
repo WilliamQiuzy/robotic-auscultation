@@ -296,7 +296,8 @@ def _native_evidence(row, base, meta, *, physical=True):
     return run,config,freeze
 
 
-def _decode_capture(row, base, context, run, config, freeze):
+def _decode_capture(row, base, context, run, config, freeze, *, allow_truncated=False):
+    need(type(allow_truncated) is bool,'Explicit label-only truncation switch required')
     root,manifest,meta=context
     _scene_integrity(row,base,run,config,meta)
     total=shared._verify_inventory(root,row.get('artifacts'))
@@ -346,7 +347,8 @@ def _decode_capture(row, base, context, run, config, freeze):
         # Exhaust the fidelity reader, retaining no image/Hall encoder inputs.
         records.append({key:item for key,item in value.items() if key not in ('rgb','depth_q','depth_code','depth_valid')})
     need(len(records)==compact['frames'], 'Decoded real observation frame count differs')
-    data=given.assemble_samples(records,audit,meta)
+    data=(given.assemble_samples(records,audit,meta,allow_truncated=True) if allow_truncated else
+          given.assemble_samples(records,audit,meta))
     need(records and np.max(np.abs(records[-1]['measured_q']))<=.03 and
          np.max(np.abs(audit[-1]['q_command']))<=.03, 'Final measured/commanded native home missing')
     data['derived_index'].update(source_observation_count=len(records),source_row_range=[0,len(records)])
@@ -712,16 +714,19 @@ def _physical(run, audit, meta):
          'Actual release confirmation and final home settle required')
 
 
-def _read_payload(row, base, context):
+def _read_payload(row, base, context, *, allow_truncated=False):
     run,config,freeze=_native_evidence(row,base,context[2])
-    return _decode_capture(row,base,context,run,config,freeze)
+    return _decode_capture(row,base,context,run,config,freeze,allow_truncated=allow_truncated)
 
 
-def read_episode(row, base):
+def read_episode(row, base, *, allow_truncated=False):
     """Reconstruct one independently qualified native episode; never pad."""
+    need(type(allow_truncated) is bool,'Explicit label-only truncation switch required')
     base=Path(base).resolve()
     _declarations([row],base)
-    return _read_payload(row,base,_metadata(row,base))
+    context=_metadata(row,base)
+    if allow_truncated:return _read_payload(row,base,context,allow_truncated=True)
+    return _read_payload(row,base,context)
 
 
 def prepare_dataset(manifest, expected_sha256, qualification=None):

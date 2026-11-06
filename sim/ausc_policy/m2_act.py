@@ -55,6 +55,7 @@ from . import m2_contract as contract, m2_stage as stage
 UPSTREAM_COMMIT = 'eb7a54c6ff4983fc86075442bf4fa61503e7b5d1'
 SCHEMA = 'm2_act_state17_history2_h20_e10_v2'
 ARRAY_KEYS = ('states', 'histories', 'actions', 'origins', 'velocities', 'observation_times')
+MASKED_LABEL_PROTOCOL = 'real_teacher_prefix_h20_masked_suffix_v1'
 
 
 def need(condition, message):
@@ -125,7 +126,8 @@ def _context_matches(event, record, meta, actor, execution_role):
     return True
 
 
-def assemble_samples(records, native_audit, metadata, *, phase_source=stage.NATIVE_SOURCE, route=None):
+def assemble_samples(records, native_audit, metadata, *, phase_source=stage.NATIVE_SOURCE, route=None,
+                     allow_truncated=False):
     """Numerical assembly, never qualification. Labels are actual future commands.
 
     Every H20 sample uses 241 inclusive native ticks and both before/after contexts.
@@ -134,6 +136,8 @@ def assemble_samples(records, native_audit, metadata, *, phase_source=stage.NATI
     """
     contract.require_metadata(metadata)
     given = metadata.get('target_source') == 'given_contact_pose'
+    need(type(allow_truncated) is bool and (not allow_truncated or given),
+         'Truncated futures require explicit given-contact route')
     if given:
         from .m2_given_contact_pose import TASK_ID, NATIVE_SOURCE, L2_ROLES, require_route
         require_route(metadata)
@@ -200,11 +204,12 @@ def assemble_samples(records, native_audit, metadata, *, phase_source=stage.NATI
                  'Explicit actual command source required')
             commands.append(command)
     output = {key: [] for key in ARRAY_KEYS}
+    masks = []
     index=dict(schema='m2_causal_window_index_v2',observation_contract=contract.observation_contract(metadata),
                phase_source=source,recorded_actor_phase=not historical,training_eligible=False,
                raw_data_modified=False,episode_id=metadata['episode_id'],windows=[])
     for start, row in enumerate(records):
-        if start<1 or start+20 >= len(records):
+        if start<1 or start+(1 if allow_truncated else 20) >= len(records):
             continue  # Two real observations and twenty real future endpoints; no padding.
         if _scalar(row['phase']) not in contract.L2_PHASES or _scalar(row['control_owner']) != 'L2':
             continue
@@ -213,17 +218,29 @@ def assemble_samples(records, native_audit, metadata, *, phase_source=stage.NATI
         actor=origin['actor']; role=origin['subphase']
         if actor['owner']!='L2' or role not in roles:
             continue
-        span = native_audit[origin_tick:origin_tick+241]
+        horizon=min(20,len(records)-start-1) if allow_truncated else 20
         # The preceding 13 native ticks prove both history frames share context.
         history_span=native_audit[origin_tick-12:origin_tick+1]
-        if (len(span)!=241 or len(history_span)!=13 or
-                not all(_context_matches(event,row,metadata,actor,role) for event in [*history_span,*span])):
+        if (len(history_span)!=13 or
+                not all(_context_matches(event,row,metadata,actor,role) for event in history_span) or
+                any(_scalar(value['phase'])!=_scalar(row['phase']) or _scalar(value['control_owner'])!='L2'
+                    for value in records[start-1:start+1])):
             continue
-        future = records[start-1:start+21]
-        if any(_scalar(value['phase']) != _scalar(row['phase']) or _scalar(value['control_owner']) != 'L2'
-               for value in future):
-            continue
-        block = contract.encode_joint_chunk(np.asarray(commands[start:start+20]), states[start][:7],
+        valid=0
+        for k in range(horizon):
+            span=native_audit[origin_tick+12*k+(1 if k else 0):origin_tick+12*(k+1)+1]
+            future=records[start+k:start+k+2]
+            if (len(span)!=(13 if k==0 else 12) or
+                    not all(_context_matches(event,row,metadata,actor,role) for event in span) or
+                    any(_scalar(value['phase'])!=_scalar(row['phase']) or _scalar(value['control_owner'])!='L2'
+                        for value in future)):
+                break
+            valid+=1
+        if valid==0 or (not allow_truncated and valid!=20):continue
+        horizon=valid
+        labels=np.repeat(states[start][:7][None,:],20,axis=0)
+        labels[:horizon]=np.asarray(commands[start:start+horizon])
+        block = contract.encode_joint_chunk(labels, states[start][:7],
                                             arm='block_relative_joint', metadata=metadata)
         history=np.asarray(states[start-1:start+1])
         velocity=(history[1,:7]-history[0,:7])/.05
@@ -232,14 +249,19 @@ def assemble_samples(records, native_audit, metadata, *, phase_source=stage.NATI
                           ('observation_times',_scalar(row['observed_at_s']))]:
             output[key].append(value)
         index['windows'].append(dict(observation_indices=[start-1,start],
-            action_record_indices=list(range(start,start+20)),
-            inclusive_native_ticks=[origin_tick,origin_tick+240],history_native_ticks=[origin_tick-12,origin_tick],
+            action_record_indices=list(range(start,start+horizon)),
+            inclusive_native_ticks=[origin_tick,origin_tick+12*horizon],history_native_ticks=[origin_tick-12,origin_tick],
             phase=actor['phase'],execution_role=role,phase_source=source))
+        if allow_truncated:
+            masks.append(np.arange(20)>=horizon)
+            index['windows'][-1].update(valid_future_cells=horizon,label_protocol=MASKED_LABEL_PROTOCOL)
     for key,shape in [('states',(-1,17)),('histories',(-1,2,17)),('actions',(-1,20,7)),('origins',(-1,7)),
                        ('velocities',(-1,7)),('observation_times',(-1,))]:
         output[key] = np.asarray(output[key], dtype=np.float64).reshape(shape)
     output.update(training_eligible=False, physical_qualification=False, action_representation='block_relative_joint',
                   derived_index=index)
+    if allow_truncated:output.update(action_is_pad=np.asarray(masks,dtype=bool).reshape(-1,20),
+        label_protocol=MASKED_LABEL_PROTOCOL)
     return output
 
 
@@ -472,6 +494,20 @@ def prepare_dataset(manifest_path, expected_sha256, *, qualification=None, phase
     return output
 
 
+def valid_action_mask(samples):
+    """Explicit real-prefix contract; absent future values are never supervision."""
+    if 'action_is_pad' not in samples:
+        need('label_protocol' not in samples,'Masked protocol requires actual mask')
+        return np.ones(np.asarray(samples['actions']).shape[:2],bool)
+    mask=np.asarray(samples['action_is_pad'])
+    actions=np.asarray(samples['actions'])
+    need(samples.get('label_protocol')==MASKED_LABEL_PROTOCOL and mask.dtype==np.dtype(bool) and
+         mask.shape==actions.shape[:2] and mask.ndim==2 and mask.shape[1]==20 and
+         np.all(~mask[:,0]) and np.all(np.diff(mask.astype(int),axis=1)>=0) and
+         np.all(actions[mask]==0),'Explicit finite nonempty real-prefix mask required')
+    return ~mask
+
+
 def fit_normalization(samples, *, split, observation_schema=None):
     need(split == 'train', 'Normalization is TRAIN-only')
     state = np.asarray(samples['states'],float)
@@ -480,9 +516,12 @@ def fit_normalization(samples, *, split, observation_schema=None):
          and np.isfinite(state).all() and np.isfinite(actions).all(), 'Finite nonempty H20 TRAIN samples required')
     history=_vector(samples['histories'],(len(state),2,17),'causal history')
     need(np.array_equal(history[:,1],state),'History current state mismatch')
+    valid=valid_action_mask(samples)
+    action_values=actions[valid] if 'action_is_pad' in samples else actions
     return dict(fitted_split='train',observation_contract=observation_schema or contract.observation_contract(),
                 state_mean=history.mean((0,1)).tolist(),state_std=np.maximum(history.std((0,1)),1e-6).tolist(),
-                action_mean=actions.mean((0,1)).tolist(),action_std=np.maximum(actions.std((0,1)),1e-6).tolist())
+                action_mean=action_values.mean(0 if 'action_is_pad' in samples else (0,1)).tolist(),
+                action_std=np.maximum(action_values.std(0 if 'action_is_pad' in samples else (0,1)),1e-6).tolist())
 
 
 def pack_batch(samples, stats, indices, *, training, rng=None, q_noise_std=0., q_dropout=0., observation_schema=None):
@@ -492,6 +531,7 @@ def pack_batch(samples, stats, indices, *, training, rng=None, q_noise_std=0., q
     history=np.array(samples['histories'][indices],copy=True)
     need(np.array_equal(history[:,1],samples['states'][indices]),'History/current state mismatch')
     actions = np.asarray(samples['actions'][indices])
+    valid=valid_action_mask(samples)
     if training:
         need(rng is not None, 'Seeded augmentation RNG required')
         history[:,:,:7] += rng.normal(0,q_noise_std,size=history[:,:,:7].shape)
@@ -502,7 +542,7 @@ def pack_batch(samples, stats, indices, *, training, rng=None, q_noise_std=0., q
     action = (actions-np.asarray(stats['action_mean']))/np.asarray(stats['action_std'])
     return {'observation.state':state[:,:7].astype(np.float32),
             'observation.environment_state':np.concatenate([state[:,7:],history[:,0]],axis=1).astype(np.float32),
-            'action':action.astype(np.float32),'action_is_pad':np.zeros((len(state),20),bool)}
+            'action':action.astype(np.float32),'action_is_pad':(~valid[indices]).copy()}
 
 
 def evaluate_predictions(predicted_relative, samples):
@@ -510,12 +550,18 @@ def evaluate_predictions(predicted_relative, samples):
     predicted = _vector(predicted_relative,truth.shape,'predicted H20 actions')
     need(len(truth)>0 and truth.shape[1:] == (20,7), 'All twenty horizons required')
     baseline = np.asarray(samples['velocities'])[:,None,:]*(np.arange(1,21)*.05)[None,:,None]
+    valid=valid_action_mask(samples);counts=valid.sum(0)
+    need(np.all(counts>0),'Every evaluated horizon requires real labels')
     result = {}
     for name,value in [('act',predicted),('hold',np.zeros_like(truth)),('constant_velocity',baseline)]:
         error = abs(value-truth)
-        result[name] = dict(full_chunk_mae_rad=float(error.mean()),per_horizon_mae_rad=error.mean((0,2)).tolist())
+        result[name] = (dict(full_chunk_mae_rad=float(error[valid].mean()),
+            per_horizon_mae_rad=((error*valid[:,:,None]).sum((0,2))/(counts*7)).tolist()) if 'action_is_pad' in samples else
+            dict(full_chunk_mae_rad=float(error.mean()),per_horizon_mae_rad=error.mean((0,2)).tolist()))
     result.update(sample_count=len(truth),horizon=20,selection_metric='act.full_chunk_mae_rad',
                   evaluated_in='absolute radians (fixed block origin cancels in error)')
+    if 'action_is_pad' in samples:result.update(label_protocol=MASKED_LABEL_PROTOCOL,
+        valid_future_cells=int(valid.sum()),per_horizon_valid_cells=counts.tolist())
     return result
 
 
