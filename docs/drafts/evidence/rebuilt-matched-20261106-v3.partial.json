@@ -1,0 +1,2051 @@
+{
+  "schema": "ausc-matched-closed-arm-extract-v1",
+  "publication_status": "draft",
+  "as_of_utc": "2026-11-06T05:41:49.238766+00:00",
+  "reconstruction_epoch": "observed-reconstruction-20261105-v1",
+  "comparison_scope": "frozen_two_id_two_pose_two_target_diagnostic",
+  "case_manifest": {
+    "logical_name": "rebuilt-frozen-sources-20261105-v3/CASES.json",
+    "sha256": "5f9c24bc2c10e6a1cb27d859c81a3bc3c80327c63e5331fe11aaa773b72352f9",
+    "bytes": 6482,
+    "public_path": null
+  },
+  "reconstruction_source_sha256": "9ea6c6f71342c20e4ef92a6219ef55e5370342d7a854a5b177c2465ddffb3fa0",
+  "model_outcomes_consulted_before_freeze": false,
+  "expected_scenario_slots": 8,
+  "methods": [
+    "expert",
+    "act",
+    "astra"
+  ],
+  "scenarios": [
+    {
+      "scenario_id": "p001030-p000474_a001230_f0000-r3",
+      "subject_id": "p001030",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p001030-p000474_a001230_f0000-r3.json",
+        "sha256": "ad5cd811bd41e588479a76e73e9b2305deac71d27552481a191573ca6b9b4ec3",
+        "bytes": 108882,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p001030-p000474_a001230_f0000-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000474_a001230_f0000-r3-expert.json",
+            "bytes": 101522,
+            "sha256": "ceb6f7ac271396db128b1210b14f23702d0785a52248ccfaa423867c91a3fcae",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000474_a001230_f0000-r3/given_control_native.jsonl.xz",
+            "bytes": 52934468,
+            "sha256": "1f2519e55e6a434cbb5478fab8b9a26e1806fc31ada1484287518ad53cfd44f6",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000474_a001230_f0000-r3.result.json",
+            "bytes": 703,
+            "sha256": "1ea1fa4278ee155e0cb37e21c952b2f57e68f0c82ac1721d13351891583ac441",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000474_a001230_f0000-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3386,
+            "sha256": "c732b90e460bfc93fd5f3ac09b0d8b38c689db3db32a199ccd3bcbfe25c329bf",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 4.0315910102218675,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.0025611950550228357,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 115.8875,
+            "worker_wall_s": 1747.1381102430023,
+            "physics_steps": 27813
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p001030-p000474_a001230_f0000-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000474_a001230_f0000-r3-act.json",
+            "bytes": 109789,
+            "sha256": "fc092ffe4de13b84f1643c22be7384d158c8b7777b783273aa27efc559df8a5d",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-r3/given_control_native.jsonl.xz",
+            "bytes": 4485568,
+            "sha256": "41f36c54d4be0deced9fe9da5185eae3a5a03b87e896dbbc788bc078a1b143d1",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 22,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-r3.result.json",
+            "bytes": 700,
+            "sha256": "c589d86aa038c752988dcfe2c0de8ba7d0b90d793acfdd6e9365fd8acad2495c",
+            "public_path": null
+          },
+          "physical_category": "mesh_clearance",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1815,
+            "sha256": "67e942cd88bad2a4f6f51ea463ccfcbcee42eb544a61ac2fb501c96c26179ab6",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 8.416261465526986e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 11.620833333333334,
+            "worker_wall_s": 283.1024323429883,
+            "physics_steps": 2789
+          },
+          "original_tick_integrity": {
+            "case": "p001030-p000474_a001230_f0000-r3",
+            "source_run": {
+              "bytes": 513451,
+              "sha256": "1ec96995a5e87f608eef4f01df396345905719beeaced2bf2029113fa14670e3",
+              "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-r3/fresh_expert_result.json"
+            },
+            "original_reader_integrity_passed": true,
+            "native_rows": 2789,
+            "terminal_guard_stage": "original_tick",
+            "terminal_error_physics_row": 2788,
+            "last_event_row": 2788,
+            "last_event_tick_error": "EpisodeRejected(\"command/observation mesh collision rejected: {'clear': False, 'minimum_distance_m': 0.00299919451301417, 'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_28', '/World/Patient/SMPLSurface'], 'general_clearance_m': 0.003, 'violations': [{'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_28', '/World/Patient/SMPLSurface'], 'distance_m': 0.00299919451301417, 'required_m': 0.003}]}\")",
+            "original_reported_failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+            "physical_qualified": false,
+            "expected_guard_failure_not_recording_corruption": true
+          },
+          "model_execution": {
+            "requests": 22,
+            "responses": 22,
+            "accepted_responses": 22,
+            "actions_attempted": 212,
+            "actions_completed": 211,
+            "executed_prefix_physics_ticks": 2537,
+            "inference_wall_s": {
+              "count": 22,
+              "minimum": 0.014796959003433585,
+              "maximum": 0.03092442599881906,
+              "total": 0.4893779690028168
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p001030-p000474_a001230_f0000-l3",
+      "subject_id": "p001030",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p001030-p000474_a001230_f0000-l3.json",
+        "sha256": "920bbd787468622e39cfff99777adcdce4e556544a49fe92023b01d9e437e7a4",
+        "bytes": 108867,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p001030-p000474_a001230_f0000-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000474_a001230_f0000-l3-expert.json",
+            "bytes": 101518,
+            "sha256": "89d7e29f48b875a5c483e15bfd9b947c3156da2cbc6be1acb89ea516588b563f",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000474_a001230_f0000-l3/given_control_native.jsonl.xz",
+            "bytes": 49055184,
+            "sha256": "e6faf7d6f53befedc59fca9e1276300cbad1466f21a1122c9feec9db9d2f599f",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000474_a001230_f0000-l3.result.json",
+            "bytes": 703,
+            "sha256": "4f2c3eaacf9d41ab29cec888cc66c0b695583d5a449bc788b1a798bbe6ea8221",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000474_a001230_f0000-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3390,
+            "sha256": "16b7c3290e57136aab31d4cdbc958650536136adda9ee1a9d5bc962176504619",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 3.9981409495830347,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.002506607212126255,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 108.14583333333333,
+            "worker_wall_s": 1700.0934925420006,
+            "physics_steps": 25955
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "L3: command posture rejected: posture_joint_envelope",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p001030-p000474_a001230_f0000-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000474_a001230_f0000-l3-act.json",
+            "bytes": 109785,
+            "sha256": "6e5e509c7d6ad540a01397a5e7b08453b1b20b9e90416a28e470fe3294e064cd",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-l3/given_control_native.jsonl.xz",
+            "bytes": 13252320,
+            "sha256": "f053e36d2f6ef7d4a8118b227f5fb04625d9d6de0e84c929ed4c699e0dec0ae1",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 56,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-l3.result.json",
+            "bytes": 700,
+            "sha256": "b3b518f3d642992cd8486c0380431238677bf3fd18e39d9acf141c770ac58d58",
+            "public_path": null
+          },
+          "physical_category": "posture_joint_envelope",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000474_a001230_f0000-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1817,
+            "sha256": "ff6123c17381bdf1a638b4309de5afeb3e397d1da1e3729f106576dc8a5ef4a8",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 8.430436082562665e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 28.8125,
+            "worker_wall_s": 545.7749940329959,
+            "physics_steps": 6915
+          },
+          "model_execution": {
+            "requests": 56,
+            "responses": 56,
+            "accepted_responses": 56,
+            "actions_attempted": 555,
+            "actions_completed": 554,
+            "executed_prefix_physics_ticks": 6651,
+            "inference_wall_s": {
+              "count": 56,
+              "minimum": 0.014142084008199163,
+              "maximum": 0.03268347399716731,
+              "total": 1.4220547329750843
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p001030-p000476_a001231_f0023-r3",
+      "subject_id": "p001030",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p001030-p000476_a001231_f0023-r3.json",
+        "sha256": "063e297f470c851bf76a7e8130ff4964f65a33d854cf2f96fe1de7d21a46b204",
+        "bytes": 108886,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p001030-p000476_a001231_f0023-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000476_a001231_f0023-r3-expert.json",
+            "bytes": 101520,
+            "sha256": "894e83fc26eebf16028f4a88cdea07c2e444cfd776f831610019290cafa34562",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-r3/given_control_native.jsonl.xz",
+            "bytes": 52736268,
+            "sha256": "af98882da35da83280f6e1f5c757623f020af39035492fcf6eebb78e045e1401",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "available",
+            "reason": null,
+            "artifact": {
+              "logical_name": "matched-v3-expert.mp4",
+              "bytes": 699630,
+              "sha256": "61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc",
+              "public_path": "drafts/assets/matched-v3-expert.mp4"
+            },
+            "recording_receipt": {
+              "logical_name": "matched-v3-expert-recording.public.json",
+              "bytes": 2747,
+              "sha256": "d21f1a4c273f5fff342ac1d95ca39ab18129539d64eb415143f90b0863f863fc",
+              "public_path": "drafts/evidence/matched-v3-expert-recording.public.json"
+            },
+            "duration_s": 112.2,
+            "width": 640,
+            "height": 360,
+            "fps": 10,
+            "frames": 1122,
+            "camera_path": null,
+            "media_kind": "actual_isaac_recording",
+            "synthesized_frames": false,
+            "time_basis": "simulation_time"
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-r3.result.json",
+            "bytes": 703,
+            "sha256": "87862f1370fe9147c32cc192bb195103c664e88b6800a302bf34550ded771f47",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3399,
+            "sha256": "bd877a2aa32906ae48fe46d2a13c90b5f67967ae26b4e7356bab2a4aa0ae5693",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 4.08541568969585,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.0024745259433984756,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 112.2625,
+            "worker_wall_s": 1615.5410326840065,
+            "physics_steps": 26943
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "R3: command posture rejected: posture_joint_envelope",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p001030-p000476_a001231_f0023-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000476_a001231_f0023-r3-act.json",
+            "bytes": 109787,
+            "sha256": "5d83146056c89c21941f73772a9084527a463f85c4cb69c47d1becf8895d77ba",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3/given_control_native.jsonl.xz",
+            "bytes": 12273664,
+            "sha256": "fc434e354243d7abc7d7b2ee478a8bb872decdd0fc6f62ad096cb4152cee7415",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 54,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "available",
+            "reason": null,
+            "artifact": {
+              "logical_name": "matched-v3-act.mp4",
+              "bytes": 188523,
+              "sha256": "35afae55627a6c51e81184442d377a326bd779f954e4276a23eb4aa571ae49f8",
+              "public_path": "drafts/assets/matched-v3-act.mp4"
+            },
+            "recording_receipt": {
+              "logical_name": "matched-v3-act-recording.public.json",
+              "bytes": 2996,
+              "sha256": "47d5edc7675655e05c8001ef7c16e29efee82d2b104a93068110c1bb750d5c1d",
+              "public_path": "drafts/evidence/matched-v3-act-recording.public.json"
+            },
+            "duration_s": 27.5,
+            "width": 640,
+            "height": 360,
+            "fps": 10,
+            "frames": 275,
+            "camera_path": null,
+            "media_kind": "actual_isaac_recording",
+            "synthesized_frames": false,
+            "time_basis": "simulation_time"
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3.result.json",
+            "bytes": 701,
+            "sha256": "e0da9c1d619f1db28ecf8b47b1cee4b4c5e5b9c94607f806a47f1afd9acc6274",
+            "public_path": null
+          },
+          "physical_category": "posture_joint_envelope",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1817,
+            "sha256": "138aa25ba3dd655423e5b7fcbd82eb7ba6659c80d56f1f3523003fbcc0dbd187",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 8.313930521808288e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 27.570833333333333,
+            "worker_wall_s": 473.20242782899004,
+            "physics_steps": 6617
+          },
+          "model_execution": {
+            "requests": 54,
+            "responses": 54,
+            "accepted_responses": 54,
+            "actions_attempted": 530,
+            "actions_completed": 529,
+            "executed_prefix_physics_ticks": 6353,
+            "inference_wall_s": {
+              "count": 54,
+              "minimum": 0.015615758005878888,
+              "maximum": 0.03217951999977231,
+              "total": 1.3213750820141286
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p001030-p000476_a001231_f0023-l3",
+      "subject_id": "p001030",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p001030-p000476_a001231_f0023-l3.json",
+        "sha256": "017e5f39e25f058f8715a1f592107cb8d862058bdaadb8d3af1ae87efa5d8c36",
+        "bytes": 108881,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p001030-p000476_a001231_f0023-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000476_a001231_f0023-l3-expert.json",
+            "bytes": 101522,
+            "sha256": "0fe24009179103cf6bc61b8e81698d7238675dff5099f0f2cd32c603b8795c90",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-l3/given_control_native.jsonl.xz",
+            "bytes": 56953372,
+            "sha256": "1f4cac2d94f0f69c7f525c946b38774a27e9e84686c069b4009582564b3d2473",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-l3.result.json",
+            "bytes": 703,
+            "sha256": "12507b03e879eab2e18a95b0685a27561e4c24d1a5b3348b3265d6b212cd87c2",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3389,
+            "sha256": "52cdada0cd5ae19a8bb7697d1e1da72e2299b4dc201f878cd281fe1985173af5",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 4.04926143022183,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.0025367855560034513,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 123.38333333333334,
+            "worker_wall_s": 2120.3135497679905,
+            "physics_steps": 29612
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p001030-p000476_a001231_f0023-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p001030-p000476_a001231_f0023-l3-act.json",
+            "bytes": 109789,
+            "sha256": "a99018d3c659145d857106fe96a93f433925538b2af4bdf41917bb7911eb5ed8",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-l3/given_control_native.jsonl.xz",
+            "bytes": 4815444,
+            "sha256": "f37d362559fb4042c5ccba9029f46b7ab1ecaa591753e819995c9c50df7b035e",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 23,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-l3.result.json",
+            "bytes": 700,
+            "sha256": "86213840e9b12a85bad04506901306ba027c1445c693f101d264b56ba6c0e307",
+            "public_path": null
+          },
+          "physical_category": "mesh_clearance",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1815,
+            "sha256": "af7f717767d1bd21fa683cda0a4355392b662f508284eeb767107d47edd5134d",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 8.387802097331587e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 12.145833333333334,
+            "worker_wall_s": 297.6940027429955,
+            "physics_steps": 2915
+          },
+          "original_tick_integrity": {
+            "case": "p001030-p000476_a001231_f0023-l3",
+            "source_run": {
+              "bytes": 530952,
+              "sha256": "4c85060dc3a9ff5c141d939917a6c946950b361523f7e15d8d33f2201bf3a36c",
+              "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-l3/fresh_expert_result.json"
+            },
+            "original_reader_integrity_passed": true,
+            "native_rows": 2915,
+            "terminal_guard_stage": "original_tick",
+            "terminal_error_physics_row": 2914,
+            "last_event_row": 2914,
+            "last_event_tick_error": "EpisodeRejected(\"command/observation mesh collision rejected: {'clear': False, 'minimum_distance_m': 0.002998632910291487, 'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_00', '/World/Patient/SMPLSurface'], 'general_clearance_m': 0.003, 'violations': [{'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_00', '/World/Patient/SMPLSurface'], 'distance_m': 0.002998632910291487, 'required_m': 0.003}]}\")",
+            "original_reported_failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+            "physical_qualified": false,
+            "expected_guard_failure_not_recording_corruption": true
+          },
+          "model_execution": {
+            "requests": 23,
+            "responses": 23,
+            "accepted_responses": 23,
+            "actions_attempted": 221,
+            "actions_completed": 220,
+            "executed_prefix_physics_ticks": 2651,
+            "inference_wall_s": {
+              "count": 23,
+              "minimum": 0.01494399800139945,
+              "maximum": 0.029846314995666035,
+              "total": 0.49604632894624956
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p000956-p000474_a001230_f0000-r3",
+      "subject_id": "p000956",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p000956-p000474_a001230_f0000-r3.json",
+        "sha256": "4afef4b615792cb03b876ad1d15c3f984cd63c03b54982703c87ea5d2fa9efe0",
+        "bytes": 108875,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p000956-p000474_a001230_f0000-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000474_a001230_f0000-r3-expert.json",
+            "bytes": 101520,
+            "sha256": "4210a306bde10a3e4ebf6913be827b8847431a6d092929a504f307221a87d583",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000474_a001230_f0000-r3/given_control_native.jsonl.xz",
+            "bytes": 52163508,
+            "sha256": "5f53a022634e53d5827cf02288a007cbf4a2455b6e9206d1d2289445d7cb7d3e",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000474_a001230_f0000-r3.result.json",
+            "bytes": 702,
+            "sha256": "0919d4b705e65076ef1ed6338a06d787700c182203f047fc7d6464bf6ed0c624",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000474_a001230_f0000-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3387,
+            "sha256": "dbea90b4d02c2bc37022e40c39eb046e617dd05429642e14623fbe257687a3ac",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 4.005514945027907,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.002562212524935603,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 113.79166666666667,
+            "worker_wall_s": 1591.071235290001,
+            "physics_steps": 27310
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "R3: command posture rejected: posture_joint_envelope",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p000956-p000474_a001230_f0000-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000474_a001230_f0000-r3-act.json",
+            "bytes": 109787,
+            "sha256": "dd0c57f02a92db4d5bb2dcb2b412b496ada3df5c577583fabdaa08b951620e22",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000474_a001230_f0000-r3/given_control_native.jsonl.xz",
+            "bytes": 22912784,
+            "sha256": "4981ff030f4727e355dea34b5fb1b3428f79fdb4114fcaca189d6524c9d1acee",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 97,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000474_a001230_f0000-r3.result.json",
+            "bytes": 700,
+            "sha256": "883a0998faa12bf9dffc2eae315853e53b3529a35706dd18f6dd80096da8d6b5",
+            "public_path": null
+          },
+          "physical_category": "posture_joint_envelope",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000474_a001230_f0000-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1817,
+            "sha256": "c4e3bfd495b10053342d0169b374590f118b7fca471b4bff6cade3e33994e97e",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 9.24408283253797e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 48.9375,
+            "worker_wall_s": 768.9415972429997,
+            "physics_steps": 11745
+          },
+          "model_execution": {
+            "requests": 97,
+            "responses": 97,
+            "accepted_responses": 97,
+            "actions_attempted": 957,
+            "actions_completed": 956,
+            "executed_prefix_physics_ticks": 11481,
+            "inference_wall_s": {
+              "count": 97,
+              "minimum": 0.01418290298897773,
+              "maximum": 0.03734475599776488,
+              "total": 2.564044626938994
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p000956-p000474_a001230_f0000-l3",
+      "subject_id": "p000956",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p000956-p000474_a001230_f0000-l3.json",
+        "sha256": "9212342b9c3b185be3bb3a9a9021848a15e478ac4c626589a7c321eeb58cc1f7",
+        "bytes": 108868,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p000956-p000474_a001230_f0000-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000474_a001230_f0000-l3-expert.json",
+            "bytes": 101518,
+            "sha256": "7d1e881e8647d14ff4ad54f8f81e440d2998059278cf79a3c755026131805514",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000474_a001230_f0000-l3/given_control_native.jsonl.xz",
+            "bytes": 48631172,
+            "sha256": "c287124b5710ddfbbdb9af4f5b8291735b4f2dc2dfd17f0127441fdcbeb123c1",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000474_a001230_f0000-l3.result.json",
+            "bytes": 703,
+            "sha256": "41bb48c596704353e4501b3e027d859d8cf5d2cd6935ca3a56146b76eb836842",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000474_a001230_f0000-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3388,
+            "sha256": "49e357ce4d26d966563c6736444717392a2444219704f2f2f1fbbdcdb8790432",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 4.00802367870465,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.0025026835501194,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 106.925,
+            "worker_wall_s": 1706.6006947050046,
+            "physics_steps": 25662
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "L3: command posture rejected: posture_joint_envelope",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p000956-p000474_a001230_f0000-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000474_a001230_f0000-l3-act.json",
+            "bytes": 109785,
+            "sha256": "dfa56c1316704a68374b5195818fcfe5bdcf33ce5d53ba757d292b0e92cf7f8e",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000474_a001230_f0000-l3/given_control_native.jsonl.xz",
+            "bytes": 10953808,
+            "sha256": "2108f6d59318c0d8e12dba3783aeff89825d03356a69208be6306325da3b46af",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 48,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000474_a001230_f0000-l3.result.json",
+            "bytes": 700,
+            "sha256": "8393f032674ca82368f59ca82dbc43997174a161ff259ed230156a2da7fe7212",
+            "public_path": null
+          },
+          "physical_category": "posture_joint_envelope",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000474_a001230_f0000-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1817,
+            "sha256": "685f8c051ebb02b784eed3699452f88d566c2e0c543d46a3e0c0cde2c003ecdf",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 7.714380245715802e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 24.308333333333334,
+            "worker_wall_s": 475.6867653239897,
+            "physics_steps": 5834
+          },
+          "model_execution": {
+            "requests": 48,
+            "responses": 48,
+            "accepted_responses": 48,
+            "actions_attempted": 465,
+            "actions_completed": 464,
+            "executed_prefix_physics_ticks": 5570,
+            "inference_wall_s": {
+              "count": 48,
+              "minimum": 0.01610493600310292,
+              "maximum": 0.03063304199895356,
+              "total": 1.2005086560966447
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p000956-p000476_a001231_f0023-r3",
+      "subject_id": "p000956",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "R3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p000956-p000476_a001231_f0023-r3.json",
+        "sha256": "9cae7581bc89da3054aa5f07624f81f47dd7ec06d050ba3e998eaa2721a855f4",
+        "bytes": 108869,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p000956-p000476_a001231_f0023-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000476_a001231_f0023-r3-expert.json",
+            "bytes": 101513,
+            "sha256": "613b94ea04532d2d3f52a305051c0dcac2e317d9c825ed320bf9744499999b89",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000476_a001231_f0023-r3/given_control_native.jsonl.xz",
+            "bytes": 53578200,
+            "sha256": "6ea2c2c6caa48ef0915b4208e4a89589eef9e57c3be4c496e3cccbd6bed75489",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000476_a001231_f0023-r3.result.json",
+            "bytes": 703,
+            "sha256": "e72a9022e627f155d745bbf9fddc03dc8ae879e41db0273742f2bb9a4dcc0f2e",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3393,
+            "sha256": "870306ef2392c7aaf64d597cd9aafd78906bb6a4a449e9751663ef32e5e38f2f",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 4.092069991718068,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.0024726511910557747,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 111.37083333333334,
+            "worker_wall_s": 1590.5434356889891,
+            "physics_steps": 26729
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "R3: command posture rejected: posture_joint_envelope",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p000956-p000476_a001231_f0023-r3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000476_a001231_f0023-r3-act.json",
+            "bytes": 109780,
+            "sha256": "79cb27a73806fe841d080cce8ed23efea8c267f21d77630b7d038d36c45d6ffd",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000476_a001231_f0023-r3/given_control_native.jsonl.xz",
+            "bytes": 13438712,
+            "sha256": "8c4fd0dd111a3fa60ae98b9d2baad86a2581e219706dafb4da2ad36adf7e260b",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 58,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000476_a001231_f0023-r3.result.json",
+            "bytes": 701,
+            "sha256": "2fc528f212697838128d84b030aafaade4e39133d33965716829a2a4649b8679",
+            "public_path": null
+          },
+          "physical_category": "posture_joint_envelope",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1817,
+            "sha256": "7d315b1ac01ea5ec5c81e0469bd2490133a6b59293f5196164621d9ed11c3fb6",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 8.41653573502299e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 29.775,
+            "worker_wall_s": 488.22683854099887,
+            "physics_steps": 7146
+          },
+          "model_execution": {
+            "requests": 58,
+            "responses": 58,
+            "accepted_responses": 58,
+            "actions_attempted": 574,
+            "actions_completed": 573,
+            "executed_prefix_physics_ticks": 6882,
+            "inference_wall_s": {
+              "count": 58,
+              "minimum": 0.014882218005368486,
+              "maximum": 0.0439184179995209,
+              "total": 1.5167673520481912
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    },
+    {
+      "scenario_id": "p000956-p000476_a001231_f0023-l3",
+      "subject_id": "p000956",
+      "pose_id": "p000476_a001231_f0023",
+      "target_id": "L3",
+      "seed": 0,
+      "preparation_status": "prepared",
+      "source_config": {
+        "logical_name": "p000956-p000476_a001231_f0023-l3.json",
+        "sha256": "2dd162614aa79cf1a25de9e1b2319178f2c37fe1a54c626c600c6b934d6122f3",
+        "bytes": 108880,
+        "public_path": null
+      },
+      "arms": {
+        "expert": {
+          "method": "expert",
+          "motor_actor": "analytic_GivenContactExpert",
+          "model_id": null,
+          "execution_status": "completed",
+          "physical_success": true,
+          "failure_reason": null,
+          "run_id": "rebuilt-frozen-eval-20261106-v3-expert:p000956-p000476_a001231_f0023-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000476_a001231_f0023-l3-expert.json",
+            "bytes": 101522,
+            "sha256": "fdc555d45b092adb06b8c5eda5a0b6813aa2eacc29f6eeb1460d8ea8ac8aa24c",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/result.json",
+            "bytes": 5558,
+            "sha256": "3e2f1d4eabd3921899cef3aebacc3a6b7a48e703bab9cf0ee6b8c29f92d05093",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000476_a001231_f0023-l3/given_control_native.jsonl.xz",
+            "bytes": 54903708,
+            "sha256": "541f8e2f1479b287aa9953f4bf391d0a8dc735a8d1c379f670bfd616413fd714",
+            "public_path": null
+          },
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": false,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000476_a001231_f0023-l3.result.json",
+            "bytes": 703,
+            "sha256": "f96d31e7c6a0b7af6558b01ce83374476ca326581d99e22e52fd792bacfabd08",
+            "public_path": null
+          },
+          "physical_category": null,
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p000956-p000476_a001231_f0023-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 3386,
+            "sha256": "f0d0fd475c5f8d7d04fe085a4ecd31e6e03f67d0141ae922cb624f4c5a8d406f",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 3.977083574705055,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 0.002510253805667162,
+            "verified_front_contact_hold_s": 3.000000000000044,
+            "reported_native_simulation_s": 119.00416666666666,
+            "worker_wall_s": 1910.1307391530136,
+            "physics_steps": 28561
+          }
+        },
+        "act": {
+          "method": "act",
+          "motor_actor": "learned_ACT_L2_with_analytic_contact",
+          "model_id": "official_lerobot_act",
+          "execution_status": "failed",
+          "physical_success": false,
+          "failure_reason": "L3: command posture rejected: posture_joint_envelope",
+          "run_id": "rebuilt-frozen-eval-20261106-v3-act:p000956-p000476_a001231_f0023-l3",
+          "run_config": {
+            "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/p000956-p000476_a001231_f0023-l3-act.json",
+            "bytes": 109789,
+            "sha256": "dba9a00de21f5be60c4eee20b61c3c57d84f70f894af9a6bf9bf59d71d574cfa",
+            "public_path": null
+          },
+          "source_inventory": null,
+          "owner_terminal": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/result.json",
+            "bytes": 5673,
+            "sha256": "f05c3bf3ba5251a8132491b7b4e95b343a645bf0dfcd2165ae837251f9bfb84c",
+            "public_path": null
+          },
+          "native_audit": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000476_a001231_f0023-l3/given_control_native.jsonl.xz",
+            "bytes": 12341772,
+            "sha256": "777bc2dc7364ff50aee102330315543c173d5bb4ebda03134de505aaa4cec468",
+            "public_path": null
+          },
+          "model_checkpoint": {
+            "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt",
+            "bytes": 10667201,
+            "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+            "public_path": null
+          },
+          "model_calls": 54,
+          "interventions": null,
+          "expert_fallbacks": 0,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": true,
+          "model_invoked": true,
+          "native_execution_receipt": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000476_a001231_f0023-l3.result.json",
+            "bytes": 700,
+            "sha256": "15e09dadaa23e2b7d46a4b47c013579bc1cda0d588ea287435b2814b6cf5bfc0",
+            "public_path": null
+          },
+          "physical_category": "posture_joint_envelope",
+          "qualification": {
+            "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p000956-p000476_a001231_f0023-l3/MATCHED_NATIVE_QUALIFICATION.json",
+            "bytes": 1817,
+            "sha256": "80b4a3742aa67c0db259178c2de5a9a16ca1315dc5aa122a6a9d03555b514097",
+            "public_path": null
+          },
+          "source_inventory_digest": "5749215f19b9d669d3a328120ece56a7e4748640671f79cd26217b65b4c1dea7",
+          "available_scalars": {
+            "normal_hold_min_N": null,
+            "normal_hold_max_N": null,
+            "contact_force_peak_N": 0.0,
+            "forbidden_contact_peak_N": 0.0,
+            "spring_stroke_peak_m": 8.315634403288641e-08,
+            "verified_front_contact_hold_s": 0.0,
+            "reported_native_simulation_s": 27.545833333333334,
+            "worker_wall_s": 563.3212168460013,
+            "physics_steps": 6611
+          },
+          "model_execution": {
+            "requests": 54,
+            "responses": 54,
+            "accepted_responses": 54,
+            "actions_attempted": 529,
+            "actions_completed": 528,
+            "executed_prefix_physics_ticks": 6347,
+            "inference_wall_s": {
+              "count": 54,
+              "minimum": 0.015054404007969424,
+              "maximum": 0.03358019400911871,
+              "total": 1.3837104770937003
+            },
+            "checkpoint_binding_matches": true
+          }
+        },
+        "astra": {
+          "method": "astra",
+          "motor_actor": "analytic_GivenContactExpert_with_Astra_supervision",
+          "model_id": "gpt-6-astra",
+          "execution_status": "pending",
+          "physical_success": null,
+          "failure_reason": null,
+          "run_id": null,
+          "run_config": null,
+          "source_inventory": null,
+          "owner_terminal": null,
+          "native_audit": null,
+          "model_checkpoint": null,
+          "model_calls": null,
+          "interventions": null,
+          "expert_fallbacks": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "inference_wall_s": null,
+          "api_cost_usd": null,
+          "physics_paused_during_inference": null,
+          "metrics": null,
+          "recording": {
+            "status": "pending",
+            "reason": null,
+            "artifact": null,
+            "recording_receipt": null,
+            "duration_s": null,
+            "width": null,
+            "height": null,
+            "fps": null,
+            "frames": null,
+            "camera_path": null,
+            "media_kind": null,
+            "synthesized_frames": null,
+            "time_basis": null
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Partial closed-arm presentation extract, not the final canonical benchmark artifact. Expert and ACT original qualifications are closed; all eight Astra verdicts remain pending/null.",
+    "All eight frozen slots per system remain. Original native qualification records supply the physical verdicts; software completion alone is not physical success.",
+    "Available scalars are selected from the existing closed reports. Unreported hold-force min/max stay null; qualification thresholds are not substituted as measured values.",
+    "Two ACT wrapper failures are original_tick mesh-clearance stops, with original full-reader integrity passed; no recording-corruption explanation is inferred.",
+    "Whole-comparison completion and publication review remain pending until the original Astra owner and its qualification report close."
+  ],
+  "execution_context": {
+    "planned_parallel_workers": {
+      "expert": 3,
+      "act": 3,
+      "astra": 1
+    },
+    "frozen_protocol": {
+      "logical_name": "benchmarks/rebuilt-frozen-eval-20261106-v3/PROTOCOL.json",
+      "bytes": 16409,
+      "sha256": "0975c97a87211bb0342b24e4f09c95537968b040f9751d86a2b73e45ac1d667b",
+      "public_path": null
+    },
+    "observed_resources": null,
+    "owner_closure": {
+      "expert": {
+        "drained_released": true,
+        "software_normal": true,
+        "started_utc": "2026-11-06T03:39:55.350527+00:00",
+        "ended_utc": "2026-11-06T05:09:23.538531+00:00",
+        "wall_s": 5368.188004
+      },
+      "act": {
+        "drained_released": true,
+        "software_normal": true,
+        "started_utc": "2026-11-06T05:14:43.045552+00:00",
+        "ended_utc": "2026-11-06T05:41:11.952271+00:00",
+        "wall_s": 1588.906719
+      }
+    }
+  },
+  "whole_comparison_complete": false,
+  "reported_methods": [
+    "expert",
+    "act"
+  ],
+  "original_reports": {
+    "expert": {
+      "logical_name": "rebuilt-comparison-reporting-20261106-v1/EXPERT-REPORT.json",
+      "bytes": 125878,
+      "sha256": "699d8144cada5e6d4064cae71f83b35308465fe230caf9f24a812caae909e454",
+      "public_path": null
+    },
+    "act": {
+      "logical_name": "rebuilt-comparison-reporting-20261106-v1/ACT-REPORT.json",
+      "bytes": 154633,
+      "sha256": "f8f9b9434a87030b82b09f51ce1bf5b66fa4a35005b8fa49a7526a8af0a01a58",
+      "public_path": null
+    }
+  },
+  "original_qualifications": {
+    "expert": {
+      "logical_name": "diagnostics/rebuilt-eval-chain-20261106-v3/expert-QUALIFICATIONS.json",
+      "bytes": 9762,
+      "sha256": "11864c83e2e8ffee3828936d488439c194e9cf4fc497f503a9d23c69e70f9e69",
+      "public_path": null
+    },
+    "act": {
+      "logical_name": "diagnostics/rebuilt-eval-chain-20261106-v3/act-QUALIFICATIONS.json",
+      "bytes": 10446,
+      "sha256": "5375ca3c3286a8fe145e91cd05bca5bcb94d2524d37b57fc7d00a0c9d67d9f3a",
+      "public_path": null
+    }
+  },
+  "additional_records": {
+    "act_terminal_tick_integrity": {
+      "logical_name": "rebuilt-act-terminal-ticks-20261106-v1/SUMMARY.json",
+      "bytes": 3128,
+      "sha256": "944c798dcc39fd3875c583d369282964fd67e41511dde8474def2828415b21ab",
+      "public_path": null
+    }
+  }
+}

@@ -14,26 +14,27 @@ menu.addEventListener('keydown',event=>{
  else if(!event.shiftKey&&document.activeElement===items.at(-1)){event.preventDefault();items[0].focus();}
 });
 window.matchMedia('(min-width:801px)').addEventListener('change',event=>{if(event.matches&&menu.open)closeMenu();});
-const video=document.getElementById('native-video');
-const box=video.closest('.video-box');
-const message=document.getElementById('recording-message');
-const retry=document.getElementById('recording-retry');
-let loadingTimer;
-function state(value){
- box.dataset.state=value;box.setAttribute('aria-busy',String(value==='loading'));
- retry.hidden=value!=='error';
- message.textContent=value==='error'?'The recording could not load. Try again, or open the actual file below.':'Loading the actual recording…';
- if(value==='ready'||value==='error')clearTimeout(loadingTimer);
+document.documentElement.classList.add('js-video');
+for(const video of document.querySelectorAll('.exp-recording video')){
+ const box=video.closest('.video-box');
+ const message=box.querySelector('#recording-message,[data-recording-message]');
+ const retry=box.querySelector('#recording-retry,[data-recording-retry]');
+ let loadingTimer;
+ function state(value){
+  box.dataset.state=value;box.setAttribute('aria-busy',String(value==='loading'));
+  retry.hidden=value!=='error';
+  message.textContent=value==='error'?'The recording could not load. Try again, or open the actual file below.':'Loading the actual recording…';
+  if(value==='ready'||value==='error')clearTimeout(loadingTimer);
+ }
+ function load(){clearTimeout(loadingTimer);state('loading');loadingTimer=setTimeout(()=>{if(video.readyState===0)state('error');},15000);}
+ video.addEventListener('loadedmetadata',()=>state('ready'));
+ video.addEventListener('canplay',()=>state('ready'));
+ video.addEventListener('playing',()=>state('ready'));
+ video.addEventListener('waiting',()=>state('loading'));
+ video.addEventListener('error',()=>state('error'));
+ retry.addEventListener('click',()=>{load();video.load();});
+ load();if(video.error)state('error');else if(video.readyState>=1)state('ready');
 }
-function load(){clearTimeout(loadingTimer);state('loading');loadingTimer=setTimeout(()=>{if(video.readyState===0)state('error');},15000);}
-video.addEventListener('loadedmetadata',()=>state('ready'));
-video.addEventListener('canplay',()=>state('ready'));
-video.addEventListener('playing',()=>state('ready'));
-video.addEventListener('waiting',()=>state('loading'));
-video.addEventListener('error',()=>state('error'));
-retry.addEventListener('click',()=>{load();video.load();});
-document.documentElement.classList.add('js-video');load();
-if(video.error)state('error');else if(video.readyState>=1)state('ready');
 const reduced=window.matchMedia('(prefers-reduced-motion:reduce)');
 const principle=document.querySelector('[data-word-reveal]');
 const walker=document.createTreeWalker(principle,NodeFilter.SHOW_TEXT);const nodes=[];

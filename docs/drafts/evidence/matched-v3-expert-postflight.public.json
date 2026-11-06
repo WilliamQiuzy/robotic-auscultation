@@ -1,0 +1,32 @@
+{
+  "schema": "wam_matched_recording_postflight_binding_v1",
+  "arm": "expert",
+  "scenario_id": "p001030-p000476_a001231_f0023-r3",
+  "source_video": {
+    "bytes": 699630,
+    "sha256": "61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-r3/actual_fresh_expert.mp4"
+  },
+  "staged_video": {
+    "bytes": 699630,
+    "sha256": "61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc",
+    "logical_name": "deliverables/rebuilt-matched-videos-20261106-v1/expert.mp4"
+  },
+  "earlier_recording_receipt": {
+    "bytes": 1839,
+    "sha256": "2e4498fe8dc74067ed512b588cbf43a179d4dd9e72d3ae2b0c8faab4e70d436e",
+    "logical_name": "deliverables/rebuilt-matched-videos-20261106-v1/expert-VIDEO.json"
+  },
+  "qualification": {
+    "bytes": 3399,
+    "sha256": "bd877a2aa32906ae48fe46d2a13c90b5f67967ae26b4e7356bab2a4aa0ae5693",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-expert/output/p001030-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json"
+  },
+  "physical_qualified": true,
+  "whole_benchmark_pending": true,
+  "source_record": {
+    "logical_name": "rebuilt-matched-videos-20261106-v1/expert-QUALIFIED-VIDEO.json",
+    "bytes": 1255,
+    "sha256": "5a6312eebdd5145a8ff1fa762c07f1488cf9b0b1b8226513a36a9005307b5682"
+  }
+}

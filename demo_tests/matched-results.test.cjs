@@ -30,3 +30,10 @@ test('ACT or Astra qualification cannot imply an uninvoked model was tested',()=
 test('UI labels keep observed negatives, missing audits and pending distinct',()=>{
  assert.equal(verdict({physical_success:false}),'Physical rejection');assert.equal(verdict({physical_success:null,execution_status:'pending'}),'Pending');assert.equal(verdict({physical_success:null,execution_status:'missing_receipt'}),'Missing audit · physical unknown');
 });
+
+const actualPartial=require('../docs/drafts/evidence/rebuilt-matched-20261106-v3.partial.json');
+test('closed expert/ACT partial extract reports observed counts without completing Astra',()=>{
+ const r=summarize(actualPartial);assert.equal(r.reviewed,false);assert.equal(r.methods.expert.qualified,8);assert.equal(r.methods.act.qualified,0);assert.equal(r.methods.act.physicalRejected,8);assert.equal(r.methods.act.modelInvoked,8);assert.equal(r.methods.expert.reportable,true);assert.equal(r.methods.act.reportable,true);assert.equal(r.methods.astra.reportable,false);assert.equal(r.methods.astra.physicalUnknown,8);assert.equal(r.methods.astra.pending,8);
+});
+test('a pending Astra arm cannot be declared a closed-arm result',()=>{const d=structuredClone(actualPartial);d.reported_methods.push('astra');assert.throws(()=>summarize(d),/unresolved slots/);});
+test('a partial extract cannot claim whole-comparison completion or publication review',()=>{for(const change of [{whole_comparison_complete:true},{publication_status:'reviewed_for_append'}]){const d=structuredClone(actualPartial);Object.assign(d,change);assert.throws(()=>summarize(d),/partial extract/);}});

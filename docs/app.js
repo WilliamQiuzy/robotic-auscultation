@@ -29,7 +29,7 @@ const zh = {
 Object.assign(zh, {
   navDemo:'演示',navBenchmark:'评测证据',navAstra:'Astra',navQuestions:'常见问题',
   previewLabel:'研究预览',recordedLabel:'实际仿真录像',evidenceLink:'证据 JSON ↗',
-  metricsContext:'已发布证据 · 来自不同诊断批次',baselineLabel:'已发布 ACT 基线',codeLabel:'Linux · 使用合格数据',copyLabel:'复制',
+  metricsContext:'历史发布 · 10 月 28–29 日证据 · 来自不同诊断批次',baselineLabel:'已发布 ACT 基线',codeLabel:'Linux · 使用合格数据',copyLabel:'复制',
   menuNote:'仿真研究预览。检查实际录像，以及录像背后的证据。',
   videoLoading:'正在加载实际录像…',videoRetry:'重新加载录像',
   taglineLabel:'研究原则',taglineText:'学习动作。<br>检验完整任务。',taglineNote:'更低的动作误差是有用信号。任务成功仍要求接触、有效保持、撤离，并回到 home。',
@@ -43,6 +43,20 @@ Object.assign(zh, {
   faqQ5:'Astra 执行过仿真回合吗？',faqA5:'尚无结果报告。已发布原型构造技能请求，并在本地校验所提议的决策。请求不等于仿真器接受，也不等于物理成功。',
   faqQ6:'用本次发布可以复现什么？',faqA6:'仓库包含参考训练入口、数组契约、评测协议、证据摘要和两段实际录像。训练数组和有许可证要求的场景资产需要另行准备。',
   closingLabel:'开放研究，持续进行',checksumsLink:'资产校验和 ↗',siteNotesLink:'关于本预览 ↗'
+});
+Object.assign(zh, {
+ rebuiltLabel:'新批次 · 2026 年 11 月 6 日 · 三系统比较尚未完成',
+ rebuiltTitle:'专家 8/8。<br>ACT 0/8。<br>Astra 待完成。',
+ rebuiltScope:'2 个留出身份 × 2 个已见坐姿 × R3/L3。每个系统 8 个独立 home-start 场景；使用给定 3D 目标，并非训练出的 RGB-D 定位。Astra 的 8 个物理结论仍待完成。',
+ rebuiltCaption:'专家和 ACT 的原始独立资格已关闭。这是部分比较，尚无 Astra 或完整三系统结论。',
+ rebuiltExpert:'8 个实际原生回合全部独立通过资格。',
+ rebuiltAct:'6 例姿态包络停止，2 例原始 mesh-clearance 门停止；8 例均实际调用选定模型。',
+ rebuiltPending:'待完成',
+ rebuiltAstra:'技能边界监督，解析执行器负责局部运动与接触。8 个物理结论全部未知。',
+ rebuiltFit:'新 ACT 训练完成 20,000 次更新，选中第 4,500 步；TRAIN/选模 VAL 的 H20 目标误差为 5.664018/26.522571 mrad。20 个计划数据槽含 18 个实际合格专家回合；离线误差不是实测跟踪或接触成功。',
+ rebuiltArticle:'同场景专家/ACT 录像、训练曲线与有范围的诊断 ↗',
+ rebuiltEvidence:'部分闭合结果证据 ↗',
+ rebuiltLimits:'ACT 模型没有 RGB、深度或 Hall 输入，接触由解析技能负责。Astra 在三个固定边界做继续/中止决策；传感器因果作用尚未验证。并行资源 3/3/1 不是受控速度比较；不代表临床、声学、衣物或动态患者验证。'
 });
 const videos = {
   expert:{src:'assets/expert-l5.mp4',evidence:'data/expert_summary.json',tone:'pass',
