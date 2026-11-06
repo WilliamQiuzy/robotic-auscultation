@@ -4,7 +4,7 @@
   "inspected_root_code_commit": "cf551566c0285a086d197553cee3299f4444f464",
   "companion_semantics_note_commit": "4c381a6",
   "public_base_commit": "270cbc84dad8be94113ed4dea09b4c49dc21ac57",
-  "static_dependency_method": "AST import closure (including imports inside functions) from 14 named runtime/rebuild/diagnostic entry modules; 178 local Python modules reached, of which 71 differ from the public base. Conservative closure is not a runtime qualification or final import-completeness certificate. Follow-up AST import/dynamic literal audit of all 66 initially selected test files and fixture-body execution removed the private eval-operator-only test and added two exact frozen library dependencies plus one static SDK recipe fixture. Parameterized renderer import fixtures were also exercised; their two frozen scene-reference replay updates are explicitly selected. No remaining selected test references an excluded private operator.",
+  "static_dependency_method": "AST import closure (including imports inside functions) from 14 named runtime/rebuild/diagnostic entry modules; 178 local Python modules reached, of which 71 differ from the public base. Conservative closure is not a runtime qualification or final import-completeness certificate. Follow-up AST import/dynamic literal audit of all 66 initially selected test files and fixture-body execution removed the private eval-operator-only test and added two exact frozen library dependencies plus one static SDK recipe fixture. Parameterized renderer import fixtures were also exercised; their two frozen scene-reference replay updates are explicitly selected. No remaining selected test references an excluded private operator. Full cloud CI identified an omitted generic sealed formal template and an omitted updated fresh-expert companion test; these and the pre-existing gravity test baseline are now explicitly selected. Test/template adaptations are bound separately in the preparation inventory.",
   "source_candidates": [
     {
       "path": "scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
@@ -262,11 +262,15 @@
     {
       "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
       "change": "new",
-      "root_blob": "54c0fc31f79b5035251d020d2a60fc8ac1401885",
+      "root_blob": "efd74a46448b73b85c471588e81c52464beab07c",
       "public_blob": null,
       "imported_by": "sim/ausc_policy/geometry_qualification.py",
       "docstring": "Finite once-only paired given-pose simulation evaluation.",
-      "status": "prepared_on_isolated_branch_not_published"
+      "status": "prepared_on_isolated_branch_not_published",
+      "source8_baseline_git_blob": "54c0fc31f79b5035251d020d2a60fc8ac1401885",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d"
     },
     {
       "path": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
@@ -334,11 +338,15 @@
     {
       "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
       "change": "new",
-      "root_blob": "fd891b50f11d4bc12cbc9f935cf15cb28b283994",
+      "root_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
       "public_blob": null,
       "imported_by": "sim/ausc_policy/fresh_expert.py",
       "docstring": "Buffered full neutral native evidence for diagnostic learned-pilot routes.",
-      "status": "prepared_on_isolated_branch_not_published"
+      "status": "prepared_on_isolated_branch_not_published",
+      "source8_baseline_git_blob": "fd891b50f11d4bc12cbc9f935cf15cb28b283994",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8"
     },
     {
       "path": "sim/ausc_policy/m2_given_contact_pilot_train.py",
@@ -415,12 +423,16 @@
     {
       "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
       "change": "new",
-      "root_blob": "fcc0794bbac096178714bf9e3e3fc3f8a97f299d",
+      "root_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
       "public_blob": null,
       "imported_by": "explicit entry point",
       "docstring": "Opt-in rebuilt matched-scene ACT/expert/Astra diagnostic, never a native owner.",
       "status": "prepared_on_isolated_branch_not_published",
-      "publication_note": "Contains loopback service defaults and an error phrase naming reference/home/physics; no actual server endpoint is selected by these defaults."
+      "publication_note": "Contains loopback service defaults and an error phrase naming reference/home/physics; no actual server endpoint is selected by these defaults.",
+      "source8_baseline_git_blob": "fcc0794bbac096178714bf9e3e3fc3f8a97f299d",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda"
     },
     {
       "path": "sim/ausc_policy/m2_retarget.py",
@@ -1168,10 +1180,14 @@
     {
       "path": "tests/test_ausc_rebuild_paired_eval.py",
       "change": "new",
-      "root_git_blob": "1a9f01f3f34072ca1330d9542b0c1eb572ed005b",
+      "root_git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
       "public_git_blob": null,
       "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
-      "status": "prepared_on_isolated_branch_not_published"
+      "status": "prepared_on_isolated_branch_not_published",
+      "source8_baseline_git_blob": "1a9f01f3f34072ca1330d9542b0c1eb572ed005b",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58"
     },
     {
       "path": "tests/test_ausc_rebuild_scene_prepare.py",
@@ -1204,6 +1220,33 @@
       "public_git_blob": null,
       "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
       "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_fresh_expert.py",
+      "change": "modified",
+      "root_git_blob": "c90045946ae797f7a19b9d0a098d2d58be42d4ca",
+      "public_git_blob": "7ffa4dd8cf6dbeada6b0248ead988bfdf7b3903b",
+      "reason": "Exact frozen fresh-expert companion tests: valid JSON geometry fixture, current profile/observed-query interfaces, and strict original local-plane/compact capture regressions omitted from the prior public selection.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_gravity_feedforward.py",
+      "change": "modified",
+      "root_git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "public_git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "reason": "Existing public/frozen gravity test baseline explicitly recorded for the current collision-profile fixture adaptation; original prestep-failure persistence and safety assertions remain unchanged.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "change": "new",
+      "public_git_blob": null,
+      "reason": "Explicit root-reviewed CODE10 lossless native-audit transport companion; no private operator dependency.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "root_git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0"
     }
   ],
   "configuration_candidates": [
@@ -1213,6 +1256,14 @@
       "root_git_blob": "51310bde17209817d500baa7a9055962aff675c9",
       "public_git_blob": null,
       "reason": "Generic loopback endpoint and token environment variable name only; no token bytes or per-run config",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+      "change": "new",
+      "root_git_blob": "7c1eb385782b7abd7e1f6500ae4a3f3359b3394f",
+      "public_git_blob": null,
+      "reason": "Generic formal training template read by the distributed schedule/seal test. All actual seals/input bindings remain null. Two stale handoff labels are separately adapted to the current v3 runtime contract; numerical schedule and admission remain unchanged.",
       "status": "prepared_on_isolated_branch_not_published"
     }
   ],
@@ -1288,6 +1339,17 @@
       "public_git_blob": null,
       "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
       "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "change": "new",
+      "public_git_blob": null,
+      "reason": "Explicit root-reviewed CODE10 lossless native-audit transport companion; no private operator dependency.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "root_git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2"
     }
   ],
   "cpu_bootstrap_candidate": [
@@ -1325,13 +1387,13 @@
     "human raw data, body meshes, raw RGB/depth/physics arrays and weights",
     "unrelated website/backend changes and any untracked private files"
   ],
-  "final_gate": "The explicit frozen selection is locally prepared on an isolated branch, with one separately recorded test-fixture adaptation and the private operator test excluded. Verify actual runtime/data/model identities and terminal native receipts separately, append true matched results, then integrate through the already authorized publication workflow. This preparation does not push or establish native model acceptance.",
+  "final_gate": "The explicit frozen selection is locally prepared on an isolated branch, with individually hash-bound test/template adaptations and the private operator test excluded. Verify actual runtime/data/model identities and terminal native receipts separately, append true matched results, then integrate through the already authorized publication workflow. This preparation does not merge the branch or establish native model acceptance.",
   "source_freeze": {
     "code_commit": "cf551566c0285a086d197553cee3299f4444f464",
     "files": 1597,
     "archive_sha256": "ee2a0b69c322b09ac5f7c89ec0210db491deedf53fb973aedca57646bd1e5c96",
     "owner_reported_critical_cpu_tests_passed": 67,
-    "verification_scope": "Frozen source provenance and owner-reported CPU checks; selected libraries are locally prepared but not published. No new native model result is inferred."
+    "verification_scope": "Source8 baseline provenance and owner-reported CPU checks; explicit CODE10 transport overrides apply to the current selected files. No new native model result is inferred."
   },
   "excluded_operator_tests": [
     {
@@ -1355,13 +1417,70 @@
   ],
   "selection_counts": {
     "source_candidates": 75,
-    "test_candidates": 65,
-    "configuration_candidates": 1,
-    "documentation_candidates": 9,
+    "test_candidates": 68,
+    "configuration_candidates": 2,
+    "documentation_candidates": 10,
     "cpu_bootstrap_candidate": 1,
     "test_support_candidates": 1,
-    "total_files": 152,
-    "frozen_reference_bytes": 3300450,
-    "prepared_bytes": 3300512
-  }
+    "total_files": 157,
+    "frozen_reference_bytes": 3386086,
+    "prepared_bytes": 3390889
+  },
+  "source_overrides": [
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 15662,
+      "git_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 186738,
+      "git_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 44698,
+      "git_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 5726,
+      "git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 17759,
+      "git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 4573,
+      "git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "scope": "Exact reviewed CODE10 bytes; public documentation adaptation is separately hash-bound."
+    }
+  ],
+  "inspected_root_code_commit_scope": "Source8 baseline; inspect source_overrides for current CODE10 file pins."
 }

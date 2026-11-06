@@ -1,0 +1,360 @@
+{
+  "dataset": {
+    "manifest": null,
+    "plan": null,
+    "qualification": null,
+    "reconstruction": null,
+    "seal": null
+  },
+  "device": "cuda",
+  "fixture_spec": {
+    "actions": ".02 * noise + .005 * (k+1) * [1,-1,1,-1,1,-1,1]",
+    "batches": [
+      64,
+      1
+    ],
+    "count": 65,
+    "draw_order": [
+      [
+        "uniform",
+        -0.8,
+        0.8,
+        [
+          65,
+          7
+        ]
+      ],
+      [
+        "normal",
+        0,
+        0.01,
+        [
+          65,
+          7
+        ]
+      ],
+      [
+        "uniform",
+        -0.06,
+        0.06,
+        [
+          65,
+          3
+        ]
+      ],
+      [
+        "normal",
+        0,
+        0.002,
+        [
+          65,
+          3
+        ]
+      ],
+      [
+        "uniform",
+        -0.4,
+        0.4,
+        [
+          65,
+          3
+        ]
+      ],
+      [
+        "normal",
+        0,
+        0.01,
+        [
+          65,
+          3
+        ]
+      ],
+      [
+        "standard_normal",
+        [
+          65,
+          20,
+          7
+        ]
+      ]
+    ],
+    "generator": "numpy.Generator(PCG64)",
+    "model": {
+      "chunk_size": 20,
+      "dim_feedforward": 1024,
+      "dim_model": 256,
+      "dropout": 0.1,
+      "n_action_steps": 10,
+      "n_decoder_layers": 1,
+      "n_encoder_layers": 2,
+      "n_heads": 4,
+      "n_obs_steps": 1,
+      "pretrained_backbone_weights": null,
+      "temporal_ensemble_coeff": null,
+      "use_vae": false,
+      "vision_backbone": "resnet18"
+    },
+    "model_seed": 20261026,
+    "normalization": "shared TRAIN mean/std axes (0,1), floor 1e-6",
+    "numerics": {
+      "amp": false,
+      "augmentation_seed": 20261027,
+      "automatic_resume": false,
+      "batch_size": 64,
+      "betas": [
+        0.9,
+        0.999
+      ],
+      "cpu_prediction_identity": "C-order little-endian float64 bytes",
+      "cublas_workspace_config": ":4096:8",
+      "deterministic_algorithms": true,
+      "dtype": "float32",
+      "eps": 1e-08,
+      "evaluation_steps": [
+        500,
+        1000,
+        1500,
+        2000,
+        2500,
+        3000,
+        3500,
+        4000,
+        4500,
+        5000,
+        5500,
+        6000,
+        6500,
+        7000,
+        7500,
+        8000,
+        8500,
+        9000,
+        9500,
+        10000,
+        10500,
+        11000,
+        11500,
+        12000,
+        12500,
+        13000,
+        13500,
+        14000,
+        14500,
+        15000,
+        15500,
+        16000,
+        16500,
+        17000,
+        17500,
+        18000,
+        18500,
+        19000,
+        19500,
+        20000
+      ],
+      "float32_matmul_precision": "highest",
+      "grad_norm": 1.0,
+      "interop_threads": 1,
+      "intraop_threads": 2,
+      "learning_rate": 0.0001,
+      "metric_atol": 1e-07,
+      "metric_rtol": 1e-05,
+      "minibatch_seed": 20261026,
+      "model_seed": 20261026,
+      "prediction_atol": 1e-06,
+      "prediction_rtol": 1e-05,
+      "q_dropout": 0.05,
+      "q_noise_std": 0.002,
+      "selection": "earliest exact full-VAL H20 MAE argmin",
+      "steps": 20000,
+      "tf32": false,
+      "train_gate": "ACT <= .8 HOLD AND ACT <= .8 CV; no tolerance",
+      "wall_timeout_s": 21600,
+      "weight_decay": 0.0001
+    },
+    "rotation": "Rz(z) @ Ry(y) @ Rx(x)",
+    "runtime_only": true,
+    "schema": "m2_given_contact_numeric_runtime_fixture_v1",
+    "seed": 20261028,
+    "state": "[q7,p3,Rcol0,Rcol1,1]",
+    "synthetic": true,
+    "task_contract": {
+      "action_representation": "block_relative_joint",
+      "action_semantics_id": "m2_given_raw_target_fixed_origin_cell_end_h20_e10_v2",
+      "contract_id": "m2_given_contact_state17_raw_target_h20_e10_v2",
+      "control_hz": 20,
+      "execution_prefix": 10,
+      "geometry_id": "stethoscope_retainer_contact_5mm_recess1mm_v2",
+      "geometry_source_sha256": "d4ef5726096055c5cdbbb409825d853d610ec865a7bd32e7135c39ec7653a571",
+      "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+      "history_steps": 2,
+      "horizon": 20,
+      "identity_split_sha256": "0e50ebce15f6e2816a914494cdf721acc6029db7d59cd0c9caeab0685a523699",
+      "observation_contract": {
+        "confidence_semantics": "available prescribed reference; not visual accuracy",
+        "environment_order": [
+          "current_state17[7:]",
+          "previous_state17"
+        ],
+        "history_steps": 2,
+        "offsets_s": [
+          -0.05,
+          0.0
+        ],
+        "policy_environment_dim": 27,
+        "policy_state_dim": 7,
+        "route": "m2_given_contact_state17_history2_v1",
+        "schema": "m2_given_contact_state17_history2_v1",
+        "stage_and_target_are_numeric_features": false,
+        "stage_rule_id": "m2_given_reference_tcp_distance_latch_9cm_v1",
+        "state_dim": 17,
+        "target_source": "given_contact_pose",
+        "task_id": "m2_given_contact_pose_control_v1",
+        "upstream_n_obs_steps": 1
+      },
+      "physics_hz": 240,
+      "state_dim": 17,
+      "target_source": "given_contact_pose",
+      "task_id": "m2_given_contact_pose_control_v1"
+    },
+    "training_eligible": false,
+    "velocity": "(q_current-q_previous)/.05"
+  },
+  "lerobot_root": "/opt/wam-runtime/vendor/lerobot-eb7a54c",
+  "model": {
+    "chunk_size": 20,
+    "dim_feedforward": 1024,
+    "dim_model": 256,
+    "dropout": 0.1,
+    "n_action_steps": 10,
+    "n_decoder_layers": 1,
+    "n_encoder_layers": 2,
+    "n_heads": 4,
+    "n_obs_steps": 1,
+    "pretrained_backbone_weights": null,
+    "temporal_ensemble_coeff": null,
+    "use_vae": false,
+    "vision_backbone": "resnet18"
+  },
+  "numerics": {
+    "amp": false,
+    "augmentation_seed": 20261027,
+    "automatic_resume": false,
+    "batch_size": 64,
+    "betas": [
+      0.9,
+      0.999
+    ],
+    "cpu_prediction_identity": "C-order little-endian float64 bytes",
+    "cublas_workspace_config": ":4096:8",
+    "deterministic_algorithms": true,
+    "dtype": "float32",
+    "eps": 1e-08,
+    "evaluation_steps": [
+      500,
+      1000,
+      1500,
+      2000,
+      2500,
+      3000,
+      3500,
+      4000,
+      4500,
+      5000,
+      5500,
+      6000,
+      6500,
+      7000,
+      7500,
+      8000,
+      8500,
+      9000,
+      9500,
+      10000,
+      10500,
+      11000,
+      11500,
+      12000,
+      12500,
+      13000,
+      13500,
+      14000,
+      14500,
+      15000,
+      15500,
+      16000,
+      16500,
+      17000,
+      17500,
+      18000,
+      18500,
+      19000,
+      19500,
+      20000
+    ],
+    "float32_matmul_precision": "highest",
+    "grad_norm": 1.0,
+    "interop_threads": 1,
+    "intraop_threads": 2,
+    "learning_rate": 0.0001,
+    "metric_atol": 1e-07,
+    "metric_rtol": 1e-05,
+    "minibatch_seed": 20261026,
+    "model_seed": 20261026,
+    "prediction_atol": 1e-06,
+    "prediction_rtol": 1e-05,
+    "q_dropout": 0.05,
+    "q_noise_std": 0.002,
+    "selection": "earliest exact full-VAL H20 MAE argmin",
+    "steps": 20000,
+    "tf32": false,
+    "train_gate": "ACT <= .8 HOLD AND ACT <= .8 CV; no tolerance",
+    "wall_timeout_s": 21600,
+    "weight_decay": 0.0001
+  },
+  "processing": {
+    "plan": null,
+    "processing_freeze": null
+  },
+  "runtime_qualification": null,
+  "schema": "m2_given_contact_formal_act_config_v1",
+  "task_contract": {
+    "action_representation": "block_relative_joint",
+    "action_semantics_id": "m2_given_raw_target_fixed_origin_cell_end_h20_e10_v2",
+    "contract_id": "m2_given_contact_state17_raw_target_h20_e10_v2",
+    "control_hz": 20,
+    "execution_prefix": 10,
+    "geometry_id": "stethoscope_retainer_contact_5mm_recess1mm_v2",
+    "geometry_source_sha256": "d4ef5726096055c5cdbbb409825d853d610ec865a7bd32e7135c39ec7653a571",
+    "handoff_policy_id": "m2_given_interior_parking_handoff_v3",
+    "history_steps": 2,
+    "horizon": 20,
+    "identity_split_sha256": "0e50ebce15f6e2816a914494cdf721acc6029db7d59cd0c9caeab0685a523699",
+    "observation_contract": {
+      "confidence_semantics": "available prescribed reference; not visual accuracy",
+      "environment_order": [
+        "current_state17[7:]",
+        "previous_state17"
+      ],
+      "history_steps": 2,
+      "offsets_s": [
+        -0.05,
+        0.0
+      ],
+      "policy_environment_dim": 27,
+      "policy_state_dim": 7,
+      "route": "m2_given_contact_state17_history2_v1",
+      "schema": "m2_given_contact_state17_history2_v1",
+      "stage_and_target_are_numeric_features": false,
+      "stage_rule_id": "m2_given_reference_tcp_distance_latch_9cm_v1",
+      "state_dim": 17,
+      "target_source": "given_contact_pose",
+      "task_id": "m2_given_contact_pose_control_v1",
+      "upstream_n_obs_steps": 1
+    },
+    "physics_hz": 240,
+    "state_dim": 17,
+    "target_source": "given_contact_pose",
+    "task_id": "m2_given_contact_pose_control_v1"
+  }
+}

@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import gzip
 import json
+import lzma
 import os
 from pathlib import Path
 import re
@@ -1495,7 +1496,9 @@ def _read_native_events(receipt,metadata):
     need(index=={k:v for k,v in receipt.items() if k!='index'} and index.get('schema')=='m2_given_contact_neutral_native_audit_v1' and
          index.get('metadata')==metadata and type(index.get('complete')) is bool and isinstance(index.get('errors'),list) and
          index['complete']==(not index['errors']), 'Actual closed native audit/index binding differs')
-    path=runtime.bound_path(index['trace']);opener=gzip.open if path.suffix=='.gz' else open
+    path=runtime.bound_path(index['trace'])
+    need(path.suffix in ('.gz','.xz','.jsonl'),'Explicit native trace transport required')
+    opener=(lambda path,mode:lzma.open(path,mode,format=lzma.FORMAT_XZ)) if path.suffix=='.xz' else (gzip.open if path.suffix=='.gz' else open)
     with opener(path,'rt') as stream:events=[deployment.wire_decode(line) for line in stream]
     need(type(index.get('rows')) is int and len(events)==index['rows'], 'Missing/extra actual native audit rows')
     previous=None

@@ -40,6 +40,7 @@ QUALIFICATION_SCHEMA='m2_rebuild_paired_eval_native_qualification_v1'
 CPU_EXIT_SCHEMA='m2_rebuild_paired_eval_cpu_exit_v1'
 NATIVE_PYTHON=expanded.NATIVE_PYTHON
 MAX_CASE_SECONDS=9000  # Preserve the original prepared source budget in every arm.
+NATIVE_TRACE_FILENAME='given_control_native.jsonl.xz'  # Exact full JSON, inside the unchanged 100 MB job cap.
 ARMS=('expert','act','astra')
 COHORTS=dict(train=('p001120','p000758','p001031','p000833'),selection_validation=('p000923',),
     frozen_evaluation=('p001030','p000956'))
@@ -357,7 +358,7 @@ def attach_analytic(controller,config,output):
     expected=AstraGivenContactExpert if arm=='astra' else GivenContactExpert
     need(arm in ('expert','astra') and type(controller) is expected and controller.metadata==binding['metadata'] and
         not hasattr(controller,'_neutral_native_audit'),'Exact honest analytic controller and one neutral observer required')
-    observer=MatchedAnalyticAudit(Path(output)/'given_control_native.jsonl.gz',controller,config,binding);original=controller._tick
+    observer=MatchedAnalyticAudit(Path(output)/NATIVE_TRACE_FILENAME,controller,config,binding);original=controller._tick
     def tick(self,command,subphase,*args,**kwargs):
         return observer.tick(self,command,subphase,lambda:original(command,subphase,*args,**kwargs))
     controller._neutral_native_audit=observer;controller._pilot_light_native_audit=observer

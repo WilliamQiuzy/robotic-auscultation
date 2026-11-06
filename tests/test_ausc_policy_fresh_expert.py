@@ -10,6 +10,49 @@ from sim.ausc_policy import fresh_expert as f
 from sim.ausc_policy.geometry_epoch import GEOMETRY_ID, GEOMETRY_SOURCE_SHA256
 
 
+def test_local_plane_contract_keeps_radius_threshold_and_actual_orientation():
+    contract=dict(contact_plane_normal_world=[0.,0.,1.],contact_plane_radius_m=.023,
+                  plane_tilt_limit_deg=3.,tilt_relaxed=False)
+    row=dict(selected_fit=dict(first_contact=contract))
+    assert f.contact_plane_contract(row)==contract
+    for angle,good in [(2.9,True),(3.1,False)]:
+        axis=np.array([np.sin(np.deg2rad(angle)),0.,-np.cos(np.deg2rad(angle))])
+        report=f.contact_plane_observation(contract,axis)
+        assert report['passed'] is good
+        assert report['tilt_deg']==pytest.approx(angle)
+    for key,value in [('plane_tilt_limit_deg',11.),('tilt_relaxed',True),('contact_plane_radius_m',.024)]:
+        bad=deepcopy(row);bad['selected_fit']['first_contact'][key]=value
+        with pytest.raises(ValueError,match='plane'):f.contact_plane_contract(bad)
+
+
+def test_varied_patient_cannot_omit_plane_gate():
+    assert f.contact_plane_contract({}) is None
+    with pytest.raises(ValueError,match='plane'):
+        f.contact_plane_contract({'patient_provenance':{'identity':'p000001'}})
+
+
+def test_runtime_patient_asset_cannot_be_disguised_as_nominal_plan(tmp_path):
+    row,config,geometry,kin=fixture_plan(tmp_path)
+    config['patient_asset']={'directory':'missing-varied-body','file':'body.npz'}
+    with pytest.raises((KeyError,ValueError,FileNotFoundError)):
+        f.read_plans(config,geometry,kin)
+
+
+def test_plane_gate_uses_actual_axis_during_contact(monkeypatch):
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.env=SimpleNamespace(last_contacts={},retainer_front_audit=None,rows=[{}])
+    controller._contact_active=True
+    controller._point_plan=dict(selected_fit=dict(first_contact=dict(
+        contact_plane_normal_world=[0.,0.,1.],contact_plane_radius_m=.023,
+        plane_tilt_limit_deg=3.,tilt_relaxed=False)))
+    monkeypatch.setattr(f.SkillExpert,'_violations',lambda *args:([],0.))
+    violations,_=controller._violations({'axis_world':[1.,0.,0.]})
+    assert 'local contact plane tilt' in violations
+    assert controller.env.rows[-1]['contact_plane_audit']['passed'] is False
+    controller._contact_active=False
+    assert not controller._violations({'axis_world':[1.,0.,0.]})[0]
+
+
 @pytest.mark.parametrize('fault',['none','parent_after_row','gravity','prestep'])
 def test_raw_hall_hook_follows_actual_row_before_readback_and_video(monkeypatch,fault):
     import sys
@@ -93,6 +136,44 @@ def test_raw_cleanup_precedes_trace_video_and_world_even_if_it_fails(tmp_path):
     assert any(error['stage']=='raw_capture_finalize' for error in errors)
 
 
+@pytest.mark.parametrize('contact,recovery,owner',[(False,False,'L2'),(True,False,'L3'),(False,True,'L3')])
+def test_compact_native_hook_uses_command_and_prestep_time(monkeypatch,contact,recovery,owner):
+    controller=f.FreshExpert.__new__(f.FreshExpert)
+    controller.manager=SimpleNamespace(state=SimpleNamespace(phase=SimpleNamespace(value='APPROACH')))
+    controller.target=SimpleNamespace(name='R3'); controller._contact_active=contact
+    command=np.arange(7)/100.; received=[]
+    env=SimpleNamespace(rows=[],state=lambda:dict(time_s=2.+len(env.rows)/240.,q=np.ones(7)))
+    env.raw_capture=SimpleNamespace(binding={'profile':'compact'},finish_tick=lambda *a,**kw:received.append(kw))
+    controller.env=env
+    def parent(self,*args,**kwargs):
+        self.env.rows.append(dict(time_s=2.+1/240.,q_command=command.tolist()))
+        return self.env.state()
+    monkeypatch.setattr(f.SkillExpert,'_tick',parent)
+    controller._tick(command,'approach',recovery=recovery)
+    receipt=received[0]
+    assert receipt['control_owner']==owner
+    assert receipt['clean_command']['q_command']==command.tolist()
+    assert receipt['clean_command']['issued_at_s']==2.
+    assert receipt['clean_command']['endpoint_at_s']==2.+1/240.
+    assert receipt['clean_command']['readback_at_s']==2.+1/240.
+
+
+def test_compact_finalization_does_not_duplicate_raw_trace_or_control(tmp_path):
+    output=tmp_path/'compact';output.mkdir()
+    events=[]
+    row=dict(time_s=1/240.,q_command=[0.]*7,q=[.01]*7,retainer_N=4.,physical_violations=[])
+    env=SimpleNamespace(rows=[row],video_recorder=None,
+        save=lambda _:pytest.fail('compact must not write raw trace/replay'),
+        world=SimpleNamespace(stop=lambda:events.append('stop')))
+    capture=SimpleNamespace(binding={'profile':'compact'},output=output,close=lambda _:None)
+    controller=SimpleNamespace(control_rows=[dict(q_command=[0.]*7)])
+    _,errors=f.finalize_probe(env,controller,None,tmp_path,capture=capture)
+    assert not errors and events==['stop']
+    assert not (output/'physics_trace.jsonl.gz').exists()
+    assert not (output/'controller_trace.jsonl.gz').exists()
+    assert not (tmp_path/'fresh_expert_control.jsonl').exists()
+
+
 def test_default_off_cleanup_preserves_existing_interrupt_semantics(tmp_path):
     def interrupted(_):raise KeyboardInterrupt('stop')
     env=SimpleNamespace(rows=[],video_recorder=None,save=interrupted)
@@ -134,7 +215,8 @@ def fixture_plan(tmp_path):
     hashes = {}
     for name, key in [('collision_geometry.json', 'collision_geometry_sha256'),
                       ('collision_geometry.npz', 'collision_arrays_sha256')]:
-        data = ('current '+name).encode(); (geometry/name).write_bytes(data)
+        data = b'{"colliders":[]}' if name.endswith('.json') else ('current '+name).encode()
+        (geometry/name).write_bytes(data)
         hashes[key] = hashlib.sha256(data).hexdigest()
     row = dict(geometry_id=GEOMETRY_ID, geometry_source_sha256=GEOMETRY_SOURCE_SHA256,
                freshly_generated=True, geometry_artifacts=hashes, name='R3', success=True,
@@ -257,6 +339,24 @@ def test_physical_audit_is_per_point_and_never_training_acceptance():
     assert not result['training_accepted']
 
 
+@pytest.mark.parametrize('fault',['none','tilt','gap','missing'])
+def test_plane_audit_recomputes_actual_axis_and_requires_continuous_loaded_hold(fault):
+    rows=[dict(target='R3',phase='HOLD',diaphragm_N=4.,retainer_N=0.,lip_N=0.,contact_rim_N=0.,
+        carriage_other_N=0.,frame_N=0.,forbidden_N=0.,compression_m=.0025,hall_N=4.,
+        axis_world=[0.,0.,-1.],contact_plane_audit={'passed':True}) for _ in range(720)]
+    if fault=='tilt':rows[360]['axis_world']=[1.,0.,0.]
+    if fault=='gap':rows[360]['phase']='CONTACT'
+    if fault=='missing':del rows[360]['axis_world']
+    contract=dict(contact_plane_normal_world=[0.,0.,1.],contact_plane_radius_m=.023,
+        plane_tilt_limit_deg=3.,tilt_relaxed=False)
+    outcome=dict(success=True,contact_plane_contracts={'R3':contract},points=[
+        dict(target='R3',success=True,start_physics_row=0,end_physics_row=720)])
+    result=f.audit_physics(outcome,rows)
+    assert result['points'][0]['force_audit']['passed']
+    assert result['physical_validation'] is (fault=='none')
+    assert result['points'][0]['contact_plane_audit']['passed'] is (fault=='none')
+
+
 def test_any_nonmembrane_contact_immediately_rejects(monkeypatch):
     monkeypatch.setattr(f.SkillExpert,'_violations',lambda self,state:([],4.))
     controller=f.FreshExpert.__new__(f.FreshExpert)
@@ -345,7 +445,8 @@ def test_run_probe_revokes_a_passing_physics_result_on_trace_save_failure(tmp_pa
         freshly_generated=True,geometry_artifacts={},world_from_left_base=np.eye(4).tolist(),plans=[])
     monkeypatch.setattr(sys,'platform','linux');monkeypatch.setenv('AUSC_OWNED_RUN','1')
     monkeypatch.setattr(f,'read_plans',lambda *args:([object()],metadata))
-    monkeypatch.setattr(contact_collision,'ContactCollisionChecker',lambda *args:SimpleNamespace(static_bundle={}))
+    monkeypatch.setattr(contact_collision,'ContactCollisionChecker',
+        lambda *args,**kwargs:SimpleNamespace(static_bundle={},profile=kwargs['profile']))
     monkeypatch.setattr(f,'FreshContactEnv',Env);monkeypatch.setattr(f,'FreshExpert',Controller)
     monkeypatch.setattr(f,'_VideoRecorder',Recorder)
     monkeypatch.setattr(f,'require_geometry_artifacts',lambda *args:{})
@@ -618,7 +719,9 @@ def test_collision_failure_records_query_stage_without_changing_parent_checks(mo
         queried.append((q.copy(),kwargs))
         clear=stage=='clear' or (stage=='observation' and len(queried)==1)
         return dict(clear=clear,minimum_distance_m=.00031 if clear else .000298591)
-    controller.checker=SimpleNamespace(check=check)
+    controller.checker=SimpleNamespace(check=check,
+        check_observed=lambda q,contact,**kwargs:check(q,**kwargs))
+    controller.manager=SimpleNamespace(state=SimpleNamespace(phase=SimpleNamespace(value='CONTACT')))
     def parent_tick(self,q,subphase,**kwargs):
         self.env.rows.append(dict(q_command=q.tolist(),q=actual.tolist()))
         return state

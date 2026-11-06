@@ -3,7 +3,7 @@
   "publication_status": "isolated_branch_not_published",
   "source_commit": "cf551566c0285a086d197553cee3299f4444f464",
   "source_archive_sha256": "ee2a0b69c322b09ac5f7c89ec0210db491deedf53fb973aedca57646bd1e5c96",
-  "selection": "Explicit source8 allowlist from f4119a9 plus five individually reviewed test dependencies recorded below; excludes the private eval-operator-only test and all finite per-run operators, private launch configs, source archives, raw data, weights and credentials.",
+  "selection": "Explicit source8 selection and reviewed fixture dependencies plus six CODE10 transport overrides. No finite per-run/private recording retry operator or operator-only tests, private launch configs, source archives, raw data, weights or credentials.",
   "qualification_scope": "Local source preparation only. No new native model verification is inferred; collection/training/evaluation outcomes remain separate.",
   "files": [
     {
@@ -205,9 +205,16 @@
     {
       "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
       "category": "source_candidates",
-      "bytes": 186540,
-      "git_blob": "54c0fc31f79b5035251d020d2a60fc8ac1401885",
-      "sha256": "039e58a879837dcc57d714feed2b93b9796ef5d1bdbe1a93fe5a12eac86e7d96"
+      "bytes": 186738,
+      "git_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d",
+      "superseded_source8_baseline": {
+        "bytes": 186540,
+        "git_blob": "54c0fc31f79b5035251d020d2a60fc8ac1401885",
+        "sha256": "039e58a879837dcc57d714feed2b93b9796ef5d1bdbe1a93fe5a12eac86e7d96"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
     },
     {
       "path": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
@@ -261,9 +268,16 @@
     {
       "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
       "category": "source_candidates",
-      "bytes": 15059,
-      "git_blob": "fd891b50f11d4bc12cbc9f935cf15cb28b283994",
-      "sha256": "ee846dc254495b59e3d7ce2efd9031fdc376a1fbaa57502ec0be10df855b21db"
+      "bytes": 15662,
+      "git_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8",
+      "superseded_source8_baseline": {
+        "bytes": 15059,
+        "git_blob": "fd891b50f11d4bc12cbc9f935cf15cb28b283994",
+        "sha256": "ee846dc254495b59e3d7ce2efd9031fdc376a1fbaa57502ec0be10df855b21db"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
     },
     {
       "path": "sim/ausc_policy/m2_given_contact_pilot_train.py",
@@ -324,9 +338,16 @@
     {
       "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
       "category": "source_candidates",
-      "bytes": 44597,
-      "git_blob": "fcc0794bbac096178714bf9e3e3fc3f8a97f299d",
-      "sha256": "cf149a7c3e38635c9c193421edb6a8defa2f7a431d4ccbc56f26b6d08d38b73f"
+      "bytes": 44698,
+      "git_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda",
+      "superseded_source8_baseline": {
+        "bytes": 44597,
+        "git_blob": "fcc0794bbac096178714bf9e3e3fc3f8a97f299d",
+        "sha256": "cf149a7c3e38635c9c193421edb6a8defa2f7a431d4ccbc56f26b6d08d38b73f"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
     },
     {
       "path": "sim/ausc_policy/m2_retarget.py",
@@ -926,9 +947,16 @@
     {
       "path": "tests/test_ausc_rebuild_paired_eval.py",
       "category": "test_candidates",
-      "bytes": 17671,
-      "git_blob": "1a9f01f3f34072ca1330d9542b0c1eb572ed005b",
-      "sha256": "ddb9dca6d533f0314be8361149d0324473bb26721057574232ddf83dc0bfe7fe"
+      "bytes": 17759,
+      "git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58",
+      "superseded_source8_baseline": {
+        "bytes": 17671,
+        "git_blob": "1a9f01f3f34072ca1330d9542b0c1eb572ed005b",
+        "sha256": "ddb9dca6d533f0314be8361149d0324473bb26721057574232ddf83dc0bfe7fe"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
     },
     {
       "path": "tests/test_ausc_rebuild_scene_prepare.py",
@@ -1069,11 +1097,50 @@
       "bytes": 36671,
       "git_blob": "fb435b831ba43fc84d1a92176c2f80ba9d8a597d",
       "sha256": "e8839e3075dfc0f885c84470211112ee83e2b3680e89eca7112cd40f1c357190"
+    },
+    {
+      "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+      "category": "configuration_candidates",
+      "bytes": 8775,
+      "git_blob": "7c1eb385782b7abd7e1f6500ae4a3f3359b3394f",
+      "sha256": "a74ea62512b714a02fb9ceba7ba6dfdc961c7a728abb1095ed0d5ffe0dd0637c"
+    },
+    {
+      "path": "tests/test_ausc_policy_fresh_expert.py",
+      "category": "test_candidates",
+      "bytes": 43294,
+      "git_blob": "c90045946ae797f7a19b9d0a098d2d58be42d4ca",
+      "sha256": "6ba71261fb3902828fe45c649679e84c4075bf66f55ac2907c0c625a9f0487c2"
+    },
+    {
+      "path": "tests/test_ausc_policy_gravity_feedforward.py",
+      "category": "test_candidates",
+      "bytes": 22278,
+      "git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "sha256": "a56409927f464ac3acb5ce1502f8faf44be15aa1c3eca9fab92f7e30952616fe"
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "category": "test_candidates",
+      "bytes": 5726,
+      "git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "category": "documentation_candidates",
+      "bytes": 4573,
+      "git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
     }
   ],
-  "frozen_runtime_source_byte_identity": true,
+  "frozen_runtime_source_byte_identity": false,
   "initial_allowlist_export_commit": "f0daec01b272b4af070b869fcfff01810013d4fe",
-  "files_identity_scope": "Current selected files record their exact frozen source8 bytes. All original 71 runtime/source selections and four added reusable source dependencies remain unchanged. The single approved test adaptation below is the only selected-file byte difference. The initial 148-file export excluded a private operator test in follow-up and added five explicitly reviewed dependencies, yielding 152 selected files.",
+  "files_identity_scope": "The current157-file selection has75 production/source files:72 exact source8 baselines and3 exact explicitly pinned CODE10 transport overrides. Five test-only, one sealed-template and one public-document adaptation are separately hash-bound; no unrecorded production edits or physical acceptance changes.",
   "test_adaptations": [
     {
       "path": "tests/test_ausc_given_contact_evaluation.py",
@@ -1082,6 +1149,42 @@
       "prepared_sha256": "e48a7ea5cb425eeeae44822aa92dfc483f9346064a3ab9bd755dc10934bda61d",
       "commit": "5e26ad61e0ce4aeeb1198a0402ddf21437c7586e",
       "reason": "Neutral L2 observer fixture now uses current handoff.PLANNING_LIMITS instead of hardcoded old jerk 1.5. No implementation, physical gate or qualifier change."
+    },
+    {
+      "path": "tests/test_ausc_policy_gravity_feedforward.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "base_sha256": "a56409927f464ac3acb5ce1502f8faf44be15aa1c3eca9fab92f7e30952616fe",
+      "prepared_sha256": "812d90ccba7d7560470a25c49a75a4fd8f7678e0fcc4433f03420cadc5244165",
+      "reason": "The stub now accepts the actual required collision profile keyword, asserts full profile, and exposes it for source metadata; failure persistence assertions are unchanged."
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_deployment_integration.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "d5f12ffdfc0d15d76148cbb38a6836130b0a2fdb",
+      "base_sha256": "bf04b2c15ccb2f32d63686653f1f28f6f6d742be3f8889ca94779549e11e5680",
+      "prepared_sha256": "af2125d1fcea511b0ab61605d262ccbc3173e479efe94faf7b066f13a26f5beb",
+      "reason": "The physics-audit stub accepts the current retainer_witness_contract keyword and asserts None for this non-retainer fixture. Preloads the real subclass hierarchy before the expert-branch sentinel so the fixture works in isolation. Expected outcome/source/label/cleanup assertions remain unchanged; unexpected errors now print in the assertion."
+    },
+    {
+      "path": "tests/test_ausc_layered_runtime_equivalence_probe.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "c08b6ca8b901c9677fa5f213c018432775ba2fd9",
+      "base_sha256": "d01052635c38cf0bed79f33c8bf3c2e9656dabc62134b353ed9ba75e3b9fe670",
+      "prepared_sha256": "e736b66fb251707579a4716ce2a5d61cb0ff7a7ceb00f7ace483e97db3e24d32",
+      "reason": "Checks that metadata admission attempts no USD import, even when cached by earlier tests, and that it leaves the prior pxr module mapping unchanged. Replaces the incorrect full-suite global-empty-cache assumption without changing original owned-process/native-source admission."
+    },
+    {
+      "path": "tests/test_ausc_given_contact_velocity_reserve.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "e90a57f8e4184701faa9a661da94c5ff1b99c595",
+      "base_sha256": "e9a80d32db2f8e2ffdb80eb4ea4eb5c257154597726636818ef8021c43598c66",
+      "prepared_sha256": "b1fb9d03357e3734f8180c1747fe257771188b0b64b4d6c58f819a0e955c1773",
+      "reason": "Positive velocity regression now declares the actual current v3 handoff policy and full synthetic CPU feedback contract; original joint route, instantaneous q feedback,1/240 dt, coarse row901 and strict .175 velocity assertions are retained. A separate exact metadata-None archival fixture requires the real typed64ULP stationary rejection, legal derivative endpoint and no continuation. No production, bound, clipping, skip or physical qualification changes."
     }
   ],
   "verification": {
@@ -1121,6 +1224,114 @@
       "portable_demo_tests_passed": 25,
       "historical_asset_recheck": "python -B -m demo.benchmark --verify-assets passed; original evidence/media and historical visible claims unchanged.",
       "static_checks": "All selected file identities, approved test adaptation, static article/schema/resources/links, 24 pending slots and historical-file preservation checked; git diff --check clean."
+    },
+    "full_policy_cloud_ci_ae4b195": {
+      "run_id": 42155499520,
+      "policy_job_id": 127688549947,
+      "failed": 17,
+      "passed": 4196,
+      "skipped": 10,
+      "passed_subtests": 72,
+      "wall_s": 853.4,
+      "perception_passed": 1363,
+      "demo_workflow": "success",
+      "scope": "Actual full cloud outcome before the current distribution/fixture repairs. The two velocity-reserve positives were subsequently diagnosed as archival metadata-None fixtures and adapted to the current v3 unit contract while retaining the exact archival guard-negative. No new full-suite pass is claimed."
+    },
+    "policy_distribution_fixture_repairs": {
+      "scope": "Seventeen cloud failures diagnosed as distribution/fixture mismatches; no production/native gate changes.",
+      "passed": 145,
+      "wall_s": 1.62,
+      "interpreter": "Anaconda Python3.9 -B",
+      "files": [
+        "tests/test_ausc_policy_fresh_expert.py",
+        "tests/test_ausc_policy_gravity_feedforward.py",
+        "tests/test_ausc_policy_m2_deployment_integration.py"
+      ],
+      "additional_nodes": [
+        "tests/test_ausc_given_contact_train.py::test_committed_template_locks_schedule_and_cannot_run_without_actual_seal",
+        "tests/test_ausc_layered_runtime_equivalence_probe.py::test_admission_reads_all_headers_then_full_preflights_without_usd_import"
+      ],
+      "prior_pxr_cache_check": {
+        "passed": 1,
+        "wall_s": 0.06,
+        "interpreter": "Python3.11 -B",
+        "method": "Seed a pre-existing pxr module entry and run the metadata-import contract test in isolation; the call must attempt no USD import and preserve prior module mapping."
+      },
+      "isolated_learned_runtime_file": {
+        "passed": 12,
+        "wall_s": 0.63,
+        "reason": "Cold module-import order works before the expert-branch sentinel is installed."
+      },
+      "real_ruckig_velocity_fixture_repair": {
+        "passed": 4,
+        "wall_s": 10.65,
+        "ruckig": "0.15.3",
+        "interpreter": "Anaconda Python3.9 -B with existing real cp39 Ruckig target",
+        "scope": "Current v3 teacher/student positives retain original route/q/DT/coarse901 and strict velocity assertions. Exact archival stationary64ULP rejection and original captured strictvelocity negative are separate passing negative tests; not physics acceptance.",
+        "paired_diagnostic": {
+          "name": "FINAL_CURRENT_CONTRACT.json",
+          "bytes": 2509,
+          "sha256": "7bccdae9d9806ec27cb382883aa0424175c44d2fd6b9273249957fdb8101b3b5"
+        },
+        "cloud_retest": "pending"
+      },
+      "combined_after_code10": {
+        "passed": 149,
+        "wall_s": 20.34,
+        "ruckig": "0.15.3",
+        "scope": "All fresh-expert/gravity/learned-runtime fixture files, formal schedule/seal and metadata admission, plus current-v3 velocity teacher/student and preserved negative cases. Public production modules include the exact CODE10 transport overrides."
+      }
+    },
+    "code10_transport": {
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "identical_production_files_to_commit": "3d2376b",
+      "production_files": 3,
+      "physical_function_ast_check": {
+        "sim/ausc_policy/m2_given_contact_pilot_native_audit.py": {
+          "changed_function_ast": [
+            "BufferedGzipText.__init__",
+            "attach"
+          ],
+          "unchanged_function_asts": 17
+        },
+        "sim/ausc_policy/m2_given_contact_evaluation.py": {
+          "changed_function_ast": [
+            "_read_native_events"
+          ],
+          "unchanged_function_asts": 109
+        },
+        "sim/ausc_policy/m2_rebuild_paired_eval.py": {
+          "changed_function_ast": [
+            "attach_analytic"
+          ],
+          "unchanged_function_asts": 33
+        }
+      },
+      "protected_neutral_functions_unchanged": [
+        "NativeAudit._append",
+        "_physical_native",
+        "_command_gates"
+      ],
+      "owner_reported_linux_raw_byte_equivalence": {
+        "rows": 26943,
+        "decoded_bytes": 1183032328,
+        "sha256": "b6fcd058a14284af08cecbbd7eb547b61b6c0e5a9a3f5ebd8da2bf1608778ea8",
+        "scope": "Original Linux transport-only fixture; no raw file download or physical/model qualification."
+      },
+      "whole_job_cap_bytes": 100000000,
+      "all24_frozen_slots": "pending",
+      "public_focused_tests": {
+        "passed": 47,
+        "wall_s": 5.95,
+        "interpreter": "Python3.11 -B",
+        "files": [
+          "tests/test_ausc_native_audit_transport.py",
+          "tests/test_ausc_given_contact_pilot_native_audit.py",
+          "tests/test_ausc_rebuild_paired_eval.py"
+        ],
+        "private_operator_tests_distributed": false,
+        "full_cloud_retest": "pending"
+      }
     }
   },
   "excluded_operator_tests": [
@@ -1135,7 +1346,7 @@
   ],
   "dependency_audit": {
     "initial_selected_test_files": 66,
-    "remaining_selected_test_files": 65,
+    "remaining_selected_test_files": 67,
     "method": "AST Import/ImportFrom and dynamic import/path string scan, including function bodies; resolved the parameterized renderer imports; directly executed missing fixtures rather than relying on collection.",
     "excluded_private_operator_tests": [
       "tests/test_ausc_rebuild_eval_chain.py"
@@ -1160,6 +1371,18 @@
       {
         "path": "sim/auscultation_training/render_expert.py",
         "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions."
+      },
+      {
+        "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+        "reason": "Generic formal training template read by the distributed schedule/seal test. All actual seals/input bindings remain null. Two stale handoff labels are separately adapted to the current v3 runtime contract; numerical schedule and admission remain unchanged."
+      },
+      {
+        "path": "tests/test_ausc_policy_fresh_expert.py",
+        "reason": "Exact frozen fresh-expert companion tests: valid JSON geometry fixture, current profile/observed-query interfaces, and strict original local-plane/compact capture regressions omitted from the prior public selection."
+      },
+      {
+        "path": "tests/test_ausc_policy_gravity_feedforward.py",
+        "reason": "Existing public/frozen gravity test baseline explicitly recorded for the current collision-profile fixture adaptation; original prestep-failure persistence and safety assertions remain unchanged."
       }
     ],
     "other_private_operator_references_in_remaining_selected_tests": [],
@@ -1197,13 +1420,99 @@
   },
   "selection_counts": {
     "source_candidates": 75,
-    "test_candidates": 65,
-    "configuration_candidates": 1,
-    "documentation_candidates": 9,
+    "test_candidates": 68,
+    "configuration_candidates": 2,
+    "documentation_candidates": 10,
     "cpu_bootstrap_candidate": 1,
     "test_support_candidates": 1,
-    "total_files": 152,
-    "frozen_reference_bytes": 3300450,
-    "prepared_bytes": 3300512
+    "total_files": 157,
+    "frozen_reference_bytes": 3386086,
+    "prepared_bytes": 3390889
+  },
+  "configuration_adaptations": [
+    {
+      "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "base_git_blob": "7c1eb385782b7abd7e1f6500ae4a3f3359b3394f",
+      "base_sha256": "a74ea62512b714a02fb9ceba7ba6dfdc961c7a728abb1095ed0d5ffe0dd0637c",
+      "prepared_sha256": "83721b0027aca2dd409c4ab7cf1b40577e7dcf9be240015450ae31b7b128e29b",
+      "reason": "Only task_contract.handoff_policy_id and fixture_spec.task_contract.handoff_policy_id update from archival v2 to the current required v3. Numerical schedule, null seals/bindings and original runtime/physical gates remain unchanged; this template cannot train without actual admission."
+    }
+  ],
+  "documentation_adaptations": [
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "base_source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "base_git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "base_sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "prepared_sha256": "d6daf986b017ecaf4f7568a69de43c602974811a29cec37cd9edd10c216073bd",
+      "reason": "Public title and logical evidence names; marks original private operator validation as non-distributed and supplies the distributed three-file test/parameterized helper commands. All original experimental transport sizes, hashes and acceptance-boundary statements retained."
+    }
+  ],
+  "source_overrides": [
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 15662,
+      "git_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 186738,
+      "git_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 44698,
+      "git_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 5726,
+      "git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 17759,
+      "git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 4573,
+      "git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "scope": "Exact reviewed CODE10 bytes; public documentation adaptation is separately hash-bound."
+    }
+  ],
+  "source_commit_scope": "Source8 baseline. The six per-file CODE10 transport overrides below are pinned to ad8707e; three are production files. Source8 archive SHA applies only to the baseline, not the mixed current selection.",
+  "current_production_source_pins_match": true,
+  "production_source_identity": {
+    "total": 75,
+    "source8_exact": 72,
+    "code10_exact": 3,
+    "code10_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+    "local_production_edits": false,
+    "selected_model_numerical_source_overrides": []
   }
 }

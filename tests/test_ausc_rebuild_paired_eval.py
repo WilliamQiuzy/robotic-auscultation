@@ -160,6 +160,7 @@ def test_neutral_analytic_observer_keeps_full_actual_ticks_without_forging_act(t
     binding=dict(arm=arm,metadata=deepcopy(c.metadata),case={'config':rt.reference(source),'scenario_id':'analytic-test'})
     monkeypatch.setattr(m,'preflight_arm',lambda *a,**k:deepcopy(binding));monkeypatch.setattr(m,'sources',lambda:inventory)
     observer=m.attach_analytic(c,config,tmp_path)
+    assert observer.path.name==m.NATIVE_TRACE_FILENAME=='given_control_native.jsonl.xz'
     for _ in range(241):c._tick([0.]*7,'staging')
     receipt=neutral.close_native_audit(c)
     assert receipt['complete'] is True and observer.stream.batch_flushes==2 and audit.installed(c)

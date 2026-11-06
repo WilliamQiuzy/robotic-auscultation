@@ -8,6 +8,7 @@ from copy import deepcopy
 import gzip
 import inspect
 import json
+import lzma
 from pathlib import Path
 from types import MethodType
 
@@ -21,9 +22,15 @@ FLAGS=dict(diagnostic_only=True,formal_acceptance=False,test_payloads_opened=Fal
 
 
 class BufferedGzipText:
-    """NativeAudit flushes each row; only drain complete 240-row batches."""
+    """Exact JSON transport: legacy gzip6 or explicit matched-case XZ3.
+
+    NativeAudit flushes each row; only drain complete 240-row batches. The
+    original strings, float representations and every evidence field survive.
+    """
     def __init__(self,path):
-        self.raw=gzip.open(path,'xt',compresslevel=6)
+        need(Path(path).suffix in ('.gz','.xz'),'Explicit gzip or XZ native audit transport required')
+        self.raw=(lzma.open(path,'xt',format=lzma.FORMAT_XZ,check=lzma.CHECK_CRC64,preset=3)
+                  if Path(path).suffix=='.xz' else gzip.open(path,'xt',compresslevel=6))
         self.pending=[];self.batch_flushes=0;self.written_rows=0;self.failed=False;self.closed=False
 
     @property
@@ -124,7 +131,9 @@ def attach(controller,config,output,*,adapter=None):
     need(controller.metadata==dep['metadata'] and controller.episode_id==dep['episode_id'] and
         controller.policy_receipt['model']==dep['model'],'Pilot native controller differs from authenticated deployment')
     original=controller._tick
-    audit=BufferedNativeAudit(Path(output)/'given_control_native.jsonl.gz',controller,adapter,config)
+    filename=getattr(adapter,'NATIVE_TRACE_FILENAME','given_control_native.jsonl.gz')
+    need(filename in ('given_control_native.jsonl.gz','given_control_native.jsonl.xz'),'Explicit native audit transport filename required')
+    audit=BufferedNativeAudit(Path(output)/filename,controller,adapter,config)
     def tick(self,command,subphase,*args,**kwargs):
         return audit.tick(self,command,subphase,lambda:original(command,subphase,*args,**kwargs))
     controller._neutral_native_audit=audit;controller._neutral_original_tick=original

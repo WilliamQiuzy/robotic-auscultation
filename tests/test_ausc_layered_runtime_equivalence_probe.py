@@ -132,11 +132,20 @@ def test_raw_config_json_and_canonical_single_file_paths(tmp_path,monkeypatch,fa
     with pytest.raises(ValueError):m.load_inputs(path)
 
 
-def test_admission_reads_all_headers_then_full_preflights_with_clean_parent(tmp_path,monkeypatch):
+def test_admission_reads_all_headers_then_full_preflights_without_usd_import(tmp_path,monkeypatch):
+    import builtins
     m,pre,store,c,path,seen=fixture(tmp_path,monkeypatch)
+    # Other tests may already have imported USD in the shared pytest process.
+    # Check this metadata call's imports directly, even if pxr is cached.
+    prior={name:module for name,module in sys.modules.items() if name=='pxr' or name.startswith('pxr.')}
+    original_import=builtins.__import__
+    def metadata_import(name,*args,**kwargs):
+        assert name!='pxr' and not name.startswith('pxr.'),'USD import during metadata admission'
+        return original_import(name,*args,**kwargs)
+    monkeypatch.setattr(builtins,'__import__',metadata_import)
     value=m.load_inputs(path)
     assert len(seen)==8 and len(value['cases'])==8
-    assert not any(name.startswith('pxr') for name in sys.modules)
+    assert {name:module for name,module in sys.modules.items() if name=='pxr' or name.startswith('pxr.')}==prior
     assert value['config_ref']==pre.file_ref(path)
 
 

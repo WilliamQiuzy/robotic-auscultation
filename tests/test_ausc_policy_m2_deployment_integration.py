@@ -12,6 +12,9 @@ from test_ausc_policy_expert_capture import binding
 
 
 def setup_runtime(tmp_path,monkeypatch,fault='none'):
+    # Finalization imports this real class hierarchy; load it before replacing
+    # FreshExpert with the sentinel that forbids the expert execution branch.
+    from sim.ausc_policy import m2_given_contact_controller
     provider,meta,patient,*_=sources(tmp_path)
     checkpoint=tmp_path/'checkpoint.pt';checkpoint.write_bytes(b'CPU stub; never loaded or qualified')
     deployment=dict(schema=adapter.DEPLOYMENT_SCHEMA,checkpoint=str(checkpoint),
@@ -62,7 +65,10 @@ def setup_runtime(tmp_path,monkeypatch,fault='none'):
     monkeypatch.setattr(adapter,'make_controller',factory)
     monkeypatch.setattr(fresh,'FreshExpert',lambda *a,**kw:pytest.fail('Expert branch used for learned rollout'))
     monkeypatch.setattr(fresh,'create_expert_capture',lambda *a,**kw:pytest.fail('Expert capture attached to learned rollout'))
-    monkeypatch.setattr(fresh,'audit_physics',lambda outcome,rows:dict(outcome,physical_validation=bool(outcome.get('success'))))
+    def audit_physics(outcome,rows,*,retainer_witness_contract):
+        assert retainer_witness_contract is None
+        return dict(outcome,physical_validation=bool(outcome.get('success')))
+    monkeypatch.setattr(fresh,'audit_physics',audit_physics)
     monkeypatch.setattr(fresh,'require_geometry_artifacts',lambda *a:{})
     return config,events,created
 
@@ -73,7 +79,7 @@ def test_optional_branch_preserves_learned_labels_sources_and_cleanup(tmp_path,m
     result=fresh.run_probe(None,None,tmp_path,config,dict(mass_kg=.067))
     assert result['learned_policy'] is True and result['expert_demonstration'] is False
     assert result['training_eligible'] is False and result['training_accepted'] is False
-    assert result['success'] is (fault=='none')
+    assert result['success'] is (fault=='none'), result.get('errors')
     assert events[-3:]==['trace','video_close','stop']
     assert result['video']==dict(file='CPU-stub-video') and not result['raw_capture_complete']
     assert result['l2_handoff_attempt_count']==1
