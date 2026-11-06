@@ -95,6 +95,11 @@ class PostureChecker:
         result = self.checker.check(q, **kwargs)
         return {**result, **{k: v for k, v in posture.items() if k != "clear"}}
 
+    def check_observed(self, q, *, contact=False, **kwargs):
+        """Explicit measured-state query; the geometry checker repeats this gate."""
+        return self.checker.check_observed(q, posture_limits=self.limits,
+                                            contact=contact, **kwargs)
+
     def edge(self, start, end, **kwargs):
         start, end = np.asarray(start, float), np.asarray(end, float)
         count = max(1, int(np.ceil(np.max(np.abs(end-start)) / .015)))

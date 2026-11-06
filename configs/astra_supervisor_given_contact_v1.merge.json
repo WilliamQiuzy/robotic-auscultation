@@ -1,0 +1,9 @@
+{
+  "astra_supervisor": {
+    "schema": "ausc_astra_given_contact_supervisor_v1",
+    "model": "gpt-6-astra",
+    "endpoint": "http://127.0.0.1:8123/decision",
+    "token_env": "AUSC_ASTRA_RUN_TOKEN",
+    "timeout_s": 150.0
+  }
+}

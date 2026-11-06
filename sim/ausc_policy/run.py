@@ -11,7 +11,16 @@ import sys
 from types import SimpleNamespace
 
 
-MODULES = {'seed_probe': 'sim.ausc_policy.seed_probe',
+MODULES = {'m2_given_contact_numeric_fixture': 'sim.ausc_policy.m2_given_contact_runtime',
+           'rebuild_scene_prepare': 'sim.ausc_policy.rebuild_scene_prepare',
+           'm2_given_contact_train': 'sim.ausc_policy.m2_given_contact_train',
+           'm2_given_contact_pilot_train': 'sim.ausc_policy.m2_given_contact_pilot_train',
+           'm2_given_contact_expanded_pilot_train': 'sim.ausc_policy.m2_given_contact_expanded_pilot_train',
+           'isaac_batch': 'sim.ausc_policy.isaac_batch',
+           'camera_lifecycle_probe': 'sim.ausc_policy.tool_geometry_review',
+           'layered_runtime_equivalence_probe': 'sim.ausc_policy.layered_runtime_equivalence_probe',
+           'contact_semantics_oracle': 'sim.ausc_policy.tool_geometry_review',
+           'seed_probe': 'sim.ausc_policy.seed_probe',
            'retainer_geometry_review': 'sim.ausc_policy.tool_geometry_review',
            'm2_geometry_plan': 'sim.ausc_policy.tool_geometry_review',
            'geometry_qualification': 'sim.ausc_policy.tool_geometry_review',
@@ -74,7 +83,7 @@ def main():
         HF_HUB_DISABLE_IMPLICIT_TOKEN='1', TOKENIZERS_PARALLELISM='false')
     for key in ['PYTHONPATH', 'HF_TOKEN', 'JAX_PLATFORMS']:
         env.pop(key, None)
-    if config['experiment'] in {'executor_probe','motion_preview_probe','path_probe','feedback_probe','recovery_sensor_audit','moving_brake_probe','oracle_timing_probe','contact_geometry_audit','capture_probe','history_prepare','history_runtime_prepare','history_runtime','history_path_probe'}:
+    if config['experiment'] in {'rebuild_scene_prepare','executor_probe','motion_preview_probe','path_probe','feedback_probe','recovery_sensor_audit','moving_brake_probe','oracle_timing_probe','contact_geometry_audit','capture_probe','history_prepare','history_runtime_prepare','history_runtime','history_path_probe'}:
         env['CUDA_VISIBLE_DEVICES'] = ''
     os.chdir(root)
     record = dict(run_id=args.run_id, code_commit=commit, config=config,

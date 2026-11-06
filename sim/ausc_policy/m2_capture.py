@@ -28,8 +28,18 @@ CAMERA_PATH = '/World/RobotCam'
 APPROVED_CAMERA_SHA256 = 'aeac00eb5a963520e869c60efff52a300484bd1c4a49232067a669c525ad07f0'
 CALIBRATION_PATH = Path(__file__).resolve().parents[1]/'auscultation_vla_v2/calibration/veo6_tared_snapshot.json'
 WIDTH, HEIGHT = 640, 360
+COMPACT_IMAGE_SIZE = (256, 144)
 ANNOTATORS = ('rgb', 'distance_to_image_plane')
 TARGETS = frozenset(side+str(i) for side in ('L','R') for i in range(1,6))
+
+
+def image_size(value):
+    """Only approved same-FOV full/raw and compact render product dimensions."""
+    if (not isinstance(value,(tuple,list)) or len(value)!=2 or
+            any(type(v) is not int for v in value) or
+            tuple(value) not in ((WIDTH,HEIGHT),COMPACT_IMAGE_SIZE)):
+        raise ValueError('Native image size must be explicit 640x360 or 256x144 integers')
+    return tuple(value)
 
 
 def _sha256(path):
@@ -90,7 +100,8 @@ class _NativeBackend:
     detach(name), destroy_product. Native construction owns no resources;
     setup registers each resource before the next operation can fail.
     """
-    def __init__(self, env):
+    def __init__(self, env, *, native_image_size=(WIDTH, HEIGHT)):
+        self.native_image_size=image_size(native_image_size)
         if sys.platform != 'linux' or os.environ.get('AUSC_OWNED_RUN') != '1':
             raise RuntimeError('Native M2 capture requires an owned Linux AUSC_OWNED_RUN=1 process')
         from pxr import UsdGeom
@@ -100,6 +111,7 @@ class _NativeBackend:
         self.annotators = {}
 
     def snapshot_camera(self):
+        width,height=self.native_image_size
         geom = self.UsdGeom
         prim = self.env.stage.GetPrimAtPath(CAMERA_PATH)
         if not prim or not prim.IsA(geom.Camera): raise ValueError('Approved camera is missing')
@@ -122,15 +134,15 @@ class _NativeBackend:
         # USD matrices use row-vector convention; evidence uses column vectors.
         transform = np.asarray(geom.XformCache().GetLocalToWorldTransform(prim)).T
         return dict(camera_path=str(prim.GetPath()), world_from_camera_usd=transform.tolist(),
-            intrinsics=dict(fx=f/ha*WIDTH, fy=f/va*HEIGHT,
-                            cx=WIDTH/2-ho/ha*WIDTH, cy=HEIGHT/2+vo/va*HEIGHT),
-            width=WIDTH, height=HEIGHT, meters_per_unit=float(geom.GetStageMetersPerUnit(self.env.stage)),
+            intrinsics=dict(fx=f/ha*width, fy=f/va*height,
+                            cx=width/2-ho/ha*width, cy=height/2+vo/va*height),
+            width=width, height=height, meters_per_unit=float(geom.GetStageMetersPerUnit(self.env.stage)),
             projection=str(camera.GetProjectionAttr().Get()), time_varying=bool(time_varying))
 
     def setup(self):
         # A video recorder may already use this camera and resolution. Never
         # reuse its product: finalization destroys only this capture's product.
-        self.product = self.rep.create.render_product(CAMERA_PATH, (WIDTH,HEIGHT), force_new=True)
+        self.product = self.rep.create.render_product(CAMERA_PATH, self.native_image_size, force_new=True)
         for name in ANNOTATORS:
             self.annotators[name] = self.rep.AnnotatorRegistry.get_annotator(name)
             self.annotators[name].attach([self.product])
@@ -244,12 +256,13 @@ class M2RGBDCapture:
         self._failures.append(dict(stage=stage,error=type(error).__name__+': '+str(error)))
 
     def _verify_camera(self):
+        width,height=getattr(self,'native_image_size',(WIDTH,HEIGHT))
         actual = self._backend.snapshot_camera()
         pose = np.asarray(actual['world_from_camera_usd'],dtype=float)
         expected = np.asarray(self._camera['world_from_camera_usd'],dtype=float)
         if (actual.get('camera_path') != CAMERA_PATH or pose.shape != (4,4) or
                 not np.allclose(pose,expected,atol=1e-7,rtol=0) or
-                actual.get('width') != WIDTH or actual.get('height') != HEIGHT or
+                actual.get('width') != width or actual.get('height') != height or
                 actual.get('meters_per_unit') != 1. or actual.get('projection') != 'perspective' or
                 actual.get('time_varying',False)):
             raise ValueError('Approved camera transform, projection or metric units changed')
@@ -416,3 +429,83 @@ class M2RGBDCapture:
             receipt.update(completed=False,receipt_written=False,failures=deepcopy(self._failures))
         self._receipt = receipt
         return deepcopy(receipt)
+
+
+class M2CameraSampler:
+    """Same approved native camera and zero-step guards, without raw files.
+
+    Compact acquisition owns this sampler and streams the returned arrays to
+    its bounded codec. It never constructs a raw RGB-D or Hall disk recorder.
+    """
+    _verify_camera = M2RGBDCapture._verify_camera
+
+    def __init__(self, env, *, camera_bytes, backend_factory=None,
+                 native_image_size=COMPACT_IMAGE_SIZE):
+        if (not isinstance(camera_bytes, bytes) or
+                hashlib.sha256(camera_bytes).hexdigest() != APPROVED_CAMERA_SHA256):
+            raise ValueError('Exact approved camera bytes required')
+        self.env = env
+        self.native_image_size=image_size(native_image_size)
+        self.actual_camera_at_setup=None
+        self._camera = json.loads(camera_bytes)
+        self._backend = None
+        self._closed = False
+        self._failures = []
+        self._count = 0
+        try:
+            self._backend = (backend_factory(env) if backend_factory is not None else
+                             _NativeBackend(env,native_image_size=self.native_image_size))
+            self.actual_camera_at_setup=self._verify_camera()
+            before = _state(env.state())
+            clock = _scalar(env.world.current_time, 'world clock')
+            self._backend.setup()
+            self._unchanged(before, clock, 'camera setup')
+        except BaseException:
+            self.finalize('camera setup failed')
+            raise
+
+    def _unchanged(self, before, clock, label):
+        _same_state(before, _state(self.env.state()), label)
+        if abs(_scalar(self.env.world.current_time, 'world clock')-clock) > 1e-8:
+            raise ValueError(label+' advanced world physics clock')
+        self._verify_camera()
+
+    def capture(self, state):
+        if self._closed: raise RuntimeError('Camera sampler is closed')
+        try:return self._capture(state)
+        except BaseException as error:
+            self._failures.append(repr(error)[:1024])
+            raise
+
+    def _capture(self, state):
+        width,height=self.native_image_size
+        before = _state(state)
+        _same_state(before, _state(self.env.state()), 'caller state')
+        clock = _scalar(self.env.world.current_time, 'world clock')
+        self._verify_camera()
+        self._backend.render()
+        self._unchanged(before, clock, 'render')
+        rgb, depth = (np.asarray(value).copy() for value in self._backend.read())
+        self._unchanged(before, clock, 'RGB-D read')
+        if rgb.dtype != np.uint8 or rgb.shape not in ((height,width,3),(height,width,4)):
+            raise ValueError('RGB must match declared native size and uint8 RGB/RGBA')
+        if depth.shape != (height,width) or depth.dtype.kind != 'f':
+            raise ValueError('Depth must match declared native size and floating metric optical Z')
+        self._count += 1
+        return rgb, depth, np.isfinite(depth)&(depth > 0)
+
+    def finalize(self, error=None):
+        if not self._closed:
+            if error is not None: self._failures.append(str(error))
+            if self._backend is not None:
+                for name in ANNOTATORS:
+                    try: self._backend.detach(name)
+                    except BaseException as caught: self._failures.append(repr(caught))
+                try: self._backend.destroy_product()
+                except BaseException as caught: self._failures.append(repr(caught))
+            self.env = None
+            self._backend = None
+            self._closed = True
+        return dict(completed=not self._failures, frames=self._count,
+                    failures=list(self._failures),native_image_size=list(self.native_image_size),
+                    actual_camera_at_setup=deepcopy(self.actual_camera_at_setup),training_eligible=False)

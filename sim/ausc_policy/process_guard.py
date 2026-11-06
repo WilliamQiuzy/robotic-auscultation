@@ -125,6 +125,50 @@ def classify_gpu_ownership(identity, pids, sampled_monotonic):
     return result
 
 
+def cgroup_memory_available(host_available, *, root=Path('/sys/fs/cgroup'), cgroup_path=None, mount_root='/'):
+    """Conservatively include visible cgroup-v2 limits, including ancestors.
+
+    A namespaced mount may expose the pod as its root and hide the host path.
+    Host MemAvailable must never substitute for a smaller pod memory budget.
+    Missing controllers are normal on v1/non-container hosts; incomplete or
+    malformed visible memory measurements propagate as a sampling failure.
+    """
+    root=Path(root).resolve()
+    if cgroup_path is None:
+        rows=Path('/proc/self/cgroup').read_text().splitlines()
+        cgroup_path=next((line[3:] for line in rows if line.startswith('0::')), '/')
+        mounts=[line.split(' - ',1)[0].split() for line in Path('/proc/self/mountinfo').read_text().splitlines()
+                if ' - cgroup2 ' in line]
+        matched=[parts for parts in mounts if Path(parts[4]).resolve()==root]
+        if any(line.startswith('0::') for line in rows) and len(matched)!=1:
+            raise ValueError('Unified cgroup memory mount could not be mapped')
+        if matched:mount_root=matched[0][3]
+    member=Path(cgroup_path);mount=Path(mount_root)
+    if not member.is_absolute() or '..' in member.parts:raise ValueError('Unmapped cgroup membership')
+    if member==Path('/'):
+        relative=Path('.')
+    else:
+        try:relative=member.relative_to(mount)
+        except ValueError:raise ValueError('Cgroup membership is outside visible mount root')
+    candidate=(root/relative).resolve()
+    if candidate!=root and root not in candidate.parents:
+        raise ValueError('Cgroup path escaped visible mount')
+    candidates=[root]
+    while candidate!=root:
+        candidates.append(candidate);candidate=candidate.parent
+    available=int(host_available);constraints=[]
+    for folder in candidates:
+        limit_file=folder/'memory.max';usage_file=folder/'memory.current'
+        if not limit_file.exists() and not usage_file.exists():continue
+        value=limit_file.read_text().strip();current=int(usage_file.read_text())
+        limit=None if value=='max' else int(value)
+        if current<0 or (limit is not None and limit<0):raise ValueError('Invalid cgroup memory counter')
+        remaining=None if limit is None else max(0,limit-current)
+        if remaining is not None:available=min(available,remaining)
+        constraints.append(dict(path=str(folder),limit_bytes=limit,current_bytes=current,remaining_bytes=remaining))
+    return dict(available_bytes=available,host_available_bytes=int(host_available),constraints=constraints)
+
+
 def sample_resources(output, identity):
     result = dict(sampled_utc=now(), sampling_error=None)
     try:
@@ -149,6 +193,8 @@ def sample_resources(output, identity):
         result['gpu_free_bytes'] = int(free[0])*2**20
         result['ram_available_bytes'] = next(int(line.split()[1])*1024 for line in
             Path('/proc/meminfo').read_text().splitlines() if line.startswith('MemAvailable:'))
+        result['memory_budget']=cgroup_memory_available(result['ram_available_bytes'])
+        result['ram_available_bytes']=result['memory_budget']['available_bytes']
         result['disk_free_bytes'] = shutil.disk_usage(Path(output).parent).free
     except Exception as exc:
         result['sampling_error'] = type(exc).__name__+': '+str(exc)

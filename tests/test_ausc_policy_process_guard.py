@@ -23,6 +23,54 @@ def sample(ownership):
                 disk_free_bytes=3*G.GIB, gpu_free_bytes=2*G.GIB)
 
 
+def test_container_memory_respects_parent_and_leaf_limits(tmp_path):
+    for relative,limit,used in [('',100,25),('pod',50,40),('pod/worker',80,60)]:
+        folder=tmp_path/relative;folder.mkdir(exist_ok=True,parents=True)
+        (folder/'memory.max').write_text(str(limit*G.GIB))
+        (folder/'memory.current').write_text(str(used*G.GIB))
+    record=G.cgroup_memory_available(1000*G.GIB,root=tmp_path,cgroup_path='/pod/worker')
+    assert record['available_bytes']==10*G.GIB
+    assert len(record['constraints'])==3
+    assert G.cgroup_memory_available(2*G.GIB,root=tmp_path,cgroup_path='/pod/worker')['available_bytes']==2*G.GIB
+
+
+def test_container_root_namespace_and_unlimited_memory(tmp_path):
+    (tmp_path/'memory.max').write_text('max');(tmp_path/'memory.current').write_text('500')
+    assert G.cgroup_memory_available(1234,root=tmp_path,cgroup_path='/not-visible/child')['available_bytes']==1234
+    (tmp_path/'memory.max').write_text('1000')
+    assert G.cgroup_memory_available(1234,root=tmp_path,cgroup_path='/not-visible/child')['available_bytes']==500
+    (tmp_path/'memory.current').write_text('1001')
+    assert G.cgroup_memory_available(1234,root=tmp_path,cgroup_path='/')['available_bytes']==0
+
+
+def test_container_memory_incomplete_or_corrupt_measurement_fails(tmp_path):
+    (tmp_path/'memory.max').write_text('1000')
+    with pytest.raises(FileNotFoundError):G.cgroup_memory_available(5000,root=tmp_path,cgroup_path='/')
+    (tmp_path/'memory.current').write_text('-1')
+    with pytest.raises(ValueError):G.cgroup_memory_available(5000,root=tmp_path,cgroup_path='/')
+
+
+def test_missing_leaf_still_applies_visible_ancestor_and_subtree_mapping(tmp_path):
+    folder=tmp_path/'pod';folder.mkdir()
+    (folder/'memory.max').write_text('1000');(folder/'memory.current').write_text('950')
+    assert G.cgroup_memory_available(100000,root=tmp_path,cgroup_path='/pod/missing')['available_bytes']==50
+    assert G.cgroup_memory_available(100000,root=tmp_path,cgroup_path='/host/pod',mount_root='/host')['available_bytes']==50
+    with pytest.raises(ValueError,match='outside visible'):
+        G.cgroup_memory_available(100000,root=tmp_path,cgroup_path='/other/pod',mount_root='/host')
+
+
+def test_auto_membership_requires_matching_cgroup_mount(tmp_path,monkeypatch):
+    from pathlib import Path
+    original=Path.read_text
+    def read(path,*args,**kwargs):
+        if str(path)=='/proc/self/cgroup':return '0::/pod\n'
+        if str(path)=='/proc/self/mountinfo':return f'1 2 0:30 / {tmp_path}/unified rw - cgroup2 cgroup rw\n'
+        return original(path,*args,**kwargs)
+    monkeypatch.setattr(Path,'read_text',read)
+    with pytest.raises(ValueError,match='could not be mapped'):
+        G.cgroup_memory_available(100000,root=tmp_path)
+
+
 def test_exited_known_gpu_pid_gets_bounded_grace_without_signal(monkeypatch):
     monkeypatch.setattr(G, 'process_identity', missing)
     owner=identity()

@@ -482,6 +482,7 @@ def test_native_setup_owns_new_product_when_video_uses_same_camera_and_resolutio
     # without constructing USD/Kit or bypassing guards for a real renderer.
     backend = module()._NativeBackend.__new__(module()._NativeBackend)
     backend.product, backend.annotators = None, {}
+    backend.native_image_size=(640,360)
     backend.rep = SimpleNamespace(create=SimpleNamespace(render_product=render_product),
         AnnotatorRegistry=SimpleNamespace(get_annotator=get_annotator),
         orchestrator=SimpleNamespace(set_capture_on_play=set_capture_on_play))

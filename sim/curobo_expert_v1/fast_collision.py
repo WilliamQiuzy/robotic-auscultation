@@ -30,8 +30,12 @@ class FastCollisionChecker(CollisionChecker):
         self.last_near_pair_count = 0
 
     def _update_bounds(self, q, compression=0.):
+        self._update_bounds_from_link_transforms(self.kinematics.link_transforms(q), compression)
+
+    def _update_bounds_from_link_transforms(self, link_transforms, compression=0.):
+        """Shared bound update after the caller validates its FK input domain."""
         frames = {ROBOT+"/"+name:self.base@transform
-                  for name,transform in self.kinematics.link_transforms(q).items()}
+                  for name,transform in link_transforms.items()}
         adapter = np.diag([1., -1., -1., 1.]); adapter[2, 3] = .085
         frames[FIXED] = frames[WRIST]@adapter
         slider = np.eye(4); slider[2, 3] = compression

@@ -3,6 +3,7 @@ import json
 from collections import defaultdict
 from pathlib import Path
 import numpy as np
+from sim.ausc_policy.native_contact_evidence import contact_point_record,contact_header_record
 from .scene import ROOT, ROBOT, WRIST, FIXED, MOVING, prepare_stage
 
 DT=1/240
@@ -24,7 +25,7 @@ class IsaacContactEnv:
         return None
 
     def __init__(self, output_dir=None, *, stage_factory=None,
-                 contact_offset_m=.1262, moving_mass_kg=.067155):
+                 contact_offset_m=.1262, moving_mass_kg=.067155,scene_reference=None):
         import carb, omni.usd
         from pxr import UsdGeom, UsdPhysics, PhysicsSchemaTools
         from omni.physx import get_physx_simulation_interface
@@ -34,7 +35,14 @@ class IsaacContactEnv:
         self.contact_offset_m=float(contact_offset_m);self.moving_mass_kg=float(moving_mass_kg)
         stage=(stage_factory or prepare_stage)(self.out/'training_scene.usdc')
         self.base=np.array(UsdGeom.XformCache().GetLocalToWorldTransform(stage.GetPrimAtPath(ROBOT+'/openarm_left_link0'))).T
-        omni.usd.get_context().open_stage(str(self.out/'training_scene.usdc'))
+        self.scene_reference=scene_reference
+        if scene_reference is None:
+            omni.usd.get_context().open_stage(str(self.out/'training_scene.usdc'))
+        else:
+            from sim.ausc_policy.scene_store import attach_runtime_stage,resolve_scene
+            import omni.kit.app
+            resolve_scene(scene_reference)
+            attach_runtime_stage(stage,omni.usd.get_context(),omni.kit.app.get_app().update)
         # SimulationApp is owned by entrypoint; app.update needed before World.
         import omni.kit.app
         for _ in range(8): omni.kit.app.get_app().update()
@@ -53,15 +61,23 @@ class IsaacContactEnv:
                 b=SingleRigidPrim(path,name=f'record_{len(self.bodies)}');b.initialize();self.bodies.append((path,b))
         self.contact_impulses=defaultdict(float);self.contact_pairs=defaultdict(float);self.contact_points=[]
         def callback(headers,data):
+            callback_index=None
+            observer=getattr(self,'on_native_contact_report',None)
+            if observer is not None:
+                try:callback_index=observer(headers)
+                except Exception as error:
+                    # Diagnostic failure must not replace the original contact verdict.
+                    self.native_contact_observer_error=repr(error)[:512]
             for h in headers:
                 a,b=[str(PhysicsSchemaTools.intToSdfPath(x)) for x in [h.collider0,h.collider1]]
+                header_record=contact_header_record(h,PhysicsSchemaTools.intToSdfPath)
                 impulse=0.
                 for i in range(h.contact_data_offset,h.contact_data_offset+h.num_contact_data):
                     impulse+=float(np.linalg.norm(data[i].impulse))
                     if hasattr(data[i],'position'):
-                        self.contact_points.append({'colliders':[a,b],
-                            'position_world':list(data[i].position),'impulse_Ns':list(data[i].impulse),
-                            'separation_m':float(data[i].separation)})
+                        point=contact_point_record(data[i],[a,b],actors=header_record['actors'],callback_index=callback_index)
+                        point.update(header_record)
+                        self.contact_points.append(point)
                 self.contact_pairs[tuple(sorted((a,b)))]+=impulse
                 group=self.contact_group(a,b)
                 if group is not None:self.contact_impulses[group]+=impulse
@@ -112,7 +128,11 @@ class IsaacContactEnv:
         row['tcp_rotation_base'] = (self.base[:3,:3].T @ s['rotation_world']).tolist()
         if meta:row.update(meta)
         self.rows.append(row)
-        if len(self.rows)%8==0:
+        # Compact acquisition writes native RGB-D and a complete physics audit;
+        # its finalizer deliberately does not save this legacy pose replay.
+        capture=getattr(self,'raw_capture',None)
+        compact=getattr(capture,'binding',{}).get('profile')=='compact'
+        if len(self.rows)%8==0 and not compact:
             self.poses.append([np.r_[b.get_world_pose()[0],b.get_world_pose()[1]] for _,b in self.bodies])
             self.pose_row_indices.append(len(self.rows)-1)
         return s

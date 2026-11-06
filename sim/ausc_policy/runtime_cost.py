@@ -18,7 +18,7 @@ def runtime_cost(*, physics_steps, physics_dt_s, probe_wall_s,
     remainder=None if controller_wall_s is None else probe_wall_s-controller_wall_s-setup_wall_s
     if remainder is not None and remainder < -1e-8:
         raise ValueError('Overlapping or inconsistent measured wall intervals')
-    if capture_profile not in ('diagnostic_video','full_raw','training'):
+    if capture_profile not in ('diagnostic_video','full_raw','training','compact'):
         raise ValueError('Explicit capture profile required')
     simulated=physics_steps*physics_dt_s
     return dict(schema='isaac_probe_wall_cost_v1',environment_count=1,

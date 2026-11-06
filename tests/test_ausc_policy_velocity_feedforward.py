@@ -240,7 +240,8 @@ def test_existing_collision_gates_remain_authoritative_with_velocity_enabled(mon
         queries.append(q.copy())
         clear = stage == 'observation' and len(queries) == 1
         return dict(clear=clear, minimum_distance_m=.00031 if clear else .00029)
-    controller.checker = SimpleNamespace(check=check)
+    controller.checker = SimpleNamespace(check=check,
+        check_observed=lambda q, contact, **kwargs: check(q, **kwargs))
     def inherited_tick(self, q, subphase, **kwargs):
         self.env.step(q, 'CONTACT', 'R3', dict(subphase=subphase))
         return state

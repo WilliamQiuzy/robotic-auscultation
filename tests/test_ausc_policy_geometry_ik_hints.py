@@ -193,7 +193,10 @@ def run_geometry_plan(data,monkeypatch,*,with_hints=True,mutate_during_plan=Fals
     monkeypatch.setattr(sys,'platform','linux');monkeypatch.setenv('AUSC_OWNED_RUN','1')
     monkeypatch.setattr(finite_head,'FiniteHeadFit',lambda *a:SimpleNamespace(candidates=lambda *a,**k:deepcopy(data.report)))
     checker=SimpleNamespace(check=lambda q:{'clear':True});limits=object();kin=object()
-    monkeypatch.setattr(collision,'ContactCollisionChecker',lambda *a:checker)
+    def collision_checker(*args,profile='full'):
+        assert profile==data.config.get('collision_profile','full')
+        return checker
+    monkeypatch.setattr(collision,'ContactCollisionChecker',collision_checker)
     monkeypatch.setattr(kinematics,'OpenArmKinematics',lambda **k:kin)
     monkeypatch.setattr(posture,'PostureLimits',SimpleNamespace(from_dict=lambda *a:limits))
     monkeypatch.setattr(posture,'PostureChecker',lambda *a:checker)

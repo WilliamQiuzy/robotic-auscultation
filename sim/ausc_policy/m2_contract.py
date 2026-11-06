@@ -30,16 +30,39 @@ PERIOD_S = .05
 STATE_DIM = 17
 ACTION_DIM = 7
 UNCOMPRESSED_TCP_M = .132
+# Ceiling for representing measured solver feedback, matching the existing
+# maximum PostureLimits observation envelope; not an execution permission.
+OBSERVED_URDF_TOLERANCE_RAD = .005
 IDENTITY_SPLIT_SHA256 = '0e50ebce15f6e2816a914494cdf721acc6029db7d59cd0c9caeab0685a523699'
 IDENTITY_SPLIT_PATH = Path(__file__).resolve().parents[2] / 'configs/ausc_policy/m2_identity_split_20260930.json'
 # Frozen 20260930 HuMMan identity audit: inconsistent shape betas across sequences.
 QUARANTINED_IDENTITIES = frozenset(('p000452', 'p000471'))
 REQUIRED_ARTIFACTS = ('scene', 'body', 'rgb', 'depth', 'depth_valid', 'joints',
                       'hall_adc', 'physics_trace', 'target_estimates', 'expert_queries')
-TARGET_SOURCES = frozenset(('rgbd_surface_tracking', 'gt_plus_measured_noise'))
+TARGET_SOURCES = frozenset(('rgbd_surface_tracking', 'gt_plus_measured_noise', 'given_contact_pose'))
 JOINT_ARMS = frozenset(('block_relative_joint', 'absolute_joint'))
 L2_PHASES = frozenset(('FREE', 'APPROACH'))
 _KIN = OpenArmKinematics()
+
+
+def observation_contract(metadata=None):
+    """Version the learning adapter without redefining single-frame state17."""
+    if metadata is not None and metadata.get('target_source') == 'given_contact_pose':
+        from .m2_given_contact_pose import observation_contract as given_contract
+        return given_contract()
+    from .m2_stage import RULE_ID
+    return dict(schema='m2_actor_stage_history_contract_v2',
+                route='causal_two_state17_flat_v1',history_steps=2,
+                offsets_s=[-.05,0.],state_dim=17,policy_state_dim=7,
+                policy_environment_dim=27,environment_order=['current_state17[7:]','previous_state17'],
+                upstream_n_obs_steps=1,stage_rule_id=RULE_ID,
+                stage_and_target_are_numeric_features=False)
+
+
+def require_observation_contract(metadata):
+    require_metadata(metadata)
+    if metadata.get('observation_contract')!=observation_contract(metadata):
+        raise ValueError('Explicit v2 causal stage/history observation contract required')
 
 
 def _array(value, shape, name):
@@ -70,7 +93,13 @@ def _scalar(value, name, *, minimum=0., maximum=np.inf):
 def require_metadata(metadata):
     """Reject legacy 41D/single-step and unbound or truth-target records."""
     require_current(metadata)
-    expected = dict(contract_id=CONTRACT_ID, state_dim=STATE_DIM, horizon=HORIZON,
+    given = metadata.get('target_source') == 'given_contact_pose'
+    if given:
+        from .m2_given_contact_pose import require_route, CONTRACT_ID as given_id
+        require_route(metadata)
+    elif metadata.get('task_id') is not None or metadata.get('contract_id') != CONTRACT_ID:
+        raise ValueError('Noisy/given task routes cannot be mixed')
+    expected = dict(contract_id=given_id if given else CONTRACT_ID, state_dim=STATE_DIM, horizon=HORIZON,
                     execution_prefix=EXECUTION_PREFIX, control_hz=20, joint_unit='rad',
                     position_unit='m', target_pose_frame='openarm_left_link0')
     for key, value in expected.items():
@@ -99,10 +128,21 @@ def encode_state(measured_q, estimated_target_base, confidence, *, metadata):
     """
     require_metadata(metadata)
     q = _array(measured_q, (7,), 'measured_q')
+    if (np.any(q < _KIN.lower_limits-OBSERVED_URDF_TOLERANCE_RAD-1e-9) or
+            np.any(q > _KIN.upper_limits+OBSERVED_URDF_TOLERANCE_RAD+1e-9)):
+        raise ValueError('Measured joints exceed the existing observation encoding domain')
     confidence = _scalar(confidence, 'confidence', maximum=1.)
+    if metadata.get('target_source') == 'given_contact_pose':
+        from .m2_given_contact_pose import require_route
+        reference = require_route(metadata)
+        if confidence != 1. or not np.array_equal(np.asarray(estimated_target_base), reference.pose_base):
+            raise ValueError('Given reference pose/confidence changed')
     offset = np.eye(4)
     offset[2, 3] = UNCOMPRESSED_TCP_M
-    tcp = _KIN.fk(q) @ offset
+    # Encode actual angles, including bounded solver residuals at an ideal
+    # stop. Strict command/IK validation remains in _KIN.fk and the executor;
+    # actual configured posture, collision and force gates remain mandatory.
+    tcp = _KIN._chain(q)[0][_KIN.wrist_link] @ offset
     relative = target_relative_pose(tcp, estimated_target_base)
     return np.r_[q, relative[:3, 3], relative[:3, 0], relative[:3, 1], confidence]
 

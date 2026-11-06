@@ -15,6 +15,21 @@ def write(path, value):
     Path(path).write_text(json.dumps(value, indent=2, allow_nan=False)+'\n')
 
 
+def preparation_backend(config, cpu_prepare_only, platform, environment):
+    """CPU authoring cannot enter any simulation branch or claim GPU ownership."""
+    if platform != 'linux':
+        raise RuntimeError('Linux scene preparation required')
+    if cpu_prepare_only:
+        if config.get('prepare_only') is not True or not config.get('patient_asset'):
+            raise ValueError('CPU authoring requires prepare_only and authenticated patient')
+        if environment.get('CUDA_VISIBLE_DEVICES') != '':
+            raise RuntimeError('CPU authoring requires explicitly empty CUDA_VISIBLE_DEVICES')
+        return 'cpu_usd_authoring_no_simulation_app'
+    if environment.get('AUSC_OWNED_RUN') != '1':
+        raise RuntimeError('Owned Linux Isaac required')
+    return 'native_isaac_simulation_app'
+
+
 def moving_inertia(stage, priors):
     """Re-estimate translated head and opened bore; never claim bench calibration."""
     import trimesh
@@ -148,18 +163,89 @@ def search_targets(stage, entries, output, config):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config',type=Path,required=True);parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--cpu-prepare-only',action='store_true',
+        help='Author prepare-only USD using the native SDK, without SimulationApp or physics')
     args=parser.parse_args();config=json.loads(args.config.read_text());require_current(config)
-    if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':raise RuntimeError('Owned Linux Isaac required')
+    if 'matched_scene_eval' in config:
+        from .m2_rebuild_paired_eval import seed_worker
+        seed_worker(config,output=args.output)
+    if os.environ.get('AUSC_VAL_SCENARIO_PROTOCOL') is not None:
+        from .m2_given_contact_expanded_val_scenarios import seed_worker
+        seed_worker(config,output=args.output)
+    if 'm2_given_contact_recovery' in config:
+        from .m2_given_contact_recovery import preflight
+        preflight(config)  # TRAIN metadata and original scene projection before Kit/patient payloads.
+    formal_test=None
+    if 'm2_given_contact_evaluation' in config:
+        from . import m2_given_contact_evaluation as evaluation
+        route=config[evaluation.ROUTE_KEY]
+        schema=route.get('schema') if isinstance(route,dict) else None
+        if schema==evaluation.PREP_ROUTE_SCHEMA and not args.cpu_prepare_only:
+            raise ValueError('Sealed preparation requires explicit --cpu-prepare-only')
+        if schema==evaluation.NATIVE_ROUTE_SCHEMA and args.cpu_prepare_only:
+            raise ValueError('Sealed native execution cannot use --cpu-prepare-only')
+        formal_test=evaluation.preflight(config,output=args.output)
+    if config.get('m2_act_deployment',{}).get('schema')=='m2_act_pilot_history2_deployment_v2':
+        from .m2_pilot_deployment import preflight
+        preflight(config)  # VALIDATION identities before any scene/patient payload or SimulationApp
+    if 'm2_given_contact_deployment' in config:
+        from .m2_given_contact_deployment import preflight
+        preflight(config,output=args.output)  # Formal metadata before the first patient/USD/SimulationApp read.
+    if 'm2_given_contact_pilot_deployment' in config:
+        from .m2_given_contact_pilot_deployment import preflight
+        preflight(config,output=args.output)  # Diagnostic TRAIN/VAL binding before scene payloads or Kit.
+    if 'm2_given_contact_expanded_pilot_deployment' in config:
+        from .m2_given_contact_expanded_pilot_deployment import preflight
+        preflight(config,output=args.output)
+    if 'm2_given_contact_expanded_val_scenarios' in config:
+        from .m2_given_contact_expanded_val_scenarios import preflight
+        preflight(config,output=args.output)
+    backend=preparation_backend(config,args.cpu_prepare_only,sys.platform,os.environ)
+    shared_scene='compact_scene_storage' in config
+    isolated_preflight=None
+    if shared_scene:
+        from .scene_store import validate_config,SDK_LAYER_SCHEMA
+        if args.cpu_prepare_only or config.get('prepare_only') is True:
+            raise ValueError('CPU preparation must retain the fixed prepared scene, not scene references')
+        if config['compact_scene_storage'].get('schema')==SDK_LAYER_SCHEMA:
+            from .native_usd_preflight import validate_before_kit
+            isolated_preflight=validate_before_kit(config,args.config)
+        else:validate_config(config)
     settling_inputs=None
     if 'm2_render_settling_probe' in config:
         from .render_settling_probe import preflight
         settling_inputs=preflight(config,args.config)
     args.output.mkdir(parents=True,exist_ok=False)
+    if isolated_preflight is not None:write(args.output/'native_usd_preflight.json',isolated_preflight)
     source=Path(config['geometry_source'])
-    if hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:raise ValueError('Geometry changed')
-    from isaacsim import SimulationApp
-    app=SimulationApp(dict(headless=True))
+    if not shared_scene and hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:
+        raise ValueError('Geometry changed')
+    app=None
+    if not args.cpu_prepare_only:
+        from isaacsim import SimulationApp
+        app_settings=dict(headless=True)
+        # Isaac 6 fast shutdown exits the process from close(), before our final
+        # CAS readback/byte ledger. The opted-in path must return from close().
+        if shared_scene:
+            from .native_lifecycle import shared_app_settings
+            app_settings=shared_app_settings()
+        app=SimulationApp(app_settings)
+    result=None;shutdown_attempted=False;shutdown_returned=False
     try:
+        if shared_scene:
+            from .scene_store import prepared_runtime,finalize_job
+            from .fresh_expert import run_probe
+            stage,mass=prepared_runtime(config,args.output)
+            result=run_probe(app,stage,args.output,config,mass)
+            result['training_scene_sha256']=config['compact_scene_storage']['sources']['scene']['sha256']
+            from .native_lifecycle import close_shared_runtime
+            closing_app,app=app,None;shutdown_attempted=True
+            result['runtime_shutdown']=close_shared_runtime(closing_app,
+                progress_path=args.output/'runtime_shutdown_progress.jsonl')
+            shutdown_returned=True  # Final SDK/CAS readback follows normal native close.
+            finalize_job(args.output,result)
+            with (args.output/'COMPLETE.json').open('rb') as stream:os.fsync(stream.fileno())
+            return True
         from pxr import Usd, UsdGeom
         from .geometry_export import export_geometry
         from sim.auscultation_repair_v3.physics_profile import PhysicsProfile,apply_profile
@@ -168,8 +254,19 @@ def main():
         write(args.output/'approved_camera_restoration.json',apply_approved_camera(stage))
         patient=None
         if config.get('patient_asset'):
+            stool=None
+            if config['patient_asset'].get('layout') is not None:
+                from .m2_stool_layout import install_stool_layout
+                binding=config['stool_source']
+                stool=install_stool_layout(stage,binding['directory'],binding,
+                    config['patient_asset']['layout'],patient_spec=config['patient_asset'])
+                write(args.output/'stool_layout_receipt.json',stool)
             from .patient_scene import install_patient
-            patient=install_patient(stage,config['patient_asset'])
+            patient=install_patient(stage,config['patient_asset'],**({'formal_config':config} if formal_test else {}))
+            patient['non_patient_scene_unchanged_scope']='patient replacement only; after explicit stool installation'
+            if stool is not None:
+                patient['stool_installation_sha256']=hashlib.sha256(
+                    (args.output/'stool_layout_receipt.json').read_bytes()).hexdigest()
             write(args.output/'patient_receipt.json',patient)
         mass=moving_inertia(stage,config['component_priors']);write(args.output/'mass_estimates.json',mass)
         profile=apply_profile(stage,PhysicsProfile(**config['physics']));write(args.output/'physics_profile.json',profile)
@@ -183,6 +280,22 @@ def main():
             write(args.output/'passive_preload_saved_usd_readback.json',
                 verify_preload_readback(saved,config['fresh_expert'],preload))
         entries=export_geometry(stage,args.output/'geometry')
+        if config.get('prepare_only') is True:
+            if patient is None:raise ValueError('M2 preparation requires an authenticated patient')
+            from sim.auscultation_expert_layout_v1.scene import ROBOT
+            base=np.asarray(UsdGeom.XformCache().GetLocalToWorldTransform(
+                stage.GetPrimAtPath(ROBOT+'/openarm_left_link0'))).T
+            write(args.output/'world_from_left_base.json',base.tolist())
+            write(args.output/'COMPLETE.json',dict(completed=True,
+                geometry_id=GEOMETRY_ID,source_sha256=config['geometry_source_sha256'],
+                effective_scene_sha256=hashlib.sha256(filename.read_bytes()).hexdigest(),
+                patient=patient,stool=stool,collider_count=len(entries),
+                geometry_artifacts={key:hashlib.sha256((args.output/'geometry'/name).read_bytes()).hexdigest()
+                    for name,key in [('collision_geometry.json','collision_geometry_sha256'),
+                                     ('collision_geometry.npz','collision_arrays_sha256')]},
+                world_from_left_base=base.tolist(),physics_executed=False,
+                physical_validation=False,training_eligible=False,preparation_backend=backend))
+            return
         if settling_inputs is not None:
             from .render_settling_probe import run_probe
             run_probe(app,stage,args.output,config,mass,checked_inputs=settling_inputs)
@@ -217,8 +330,37 @@ def main():
             training_eligible=False,m0_pipeline_passed=True))
     except Exception as error:
         traceback.print_exc();write(args.output/'FAILED.json',dict(error=repr(error)))
+        if shared_scene:
+            if app is not None:
+                from .native_lifecycle import close_shared_runtime
+                closing_app,app=app,None;shutdown_attempted=True
+                try:
+                    close_shared_runtime(closing_app,progress_path=args.output/'runtime_shutdown_progress.jsonl')
+                    shutdown_returned=True
+                except Exception as close_error:
+                    write(args.output/'FAILED.json',dict(error=repr(error),shutdown_error=repr(close_error)))
+            if (not shutdown_attempted or shutdown_returned) and (args.output/'scene_ref.json').is_file():
+                from .scene_store import finalize_job
+                failed=result if isinstance(result,dict) else {}
+                failed.update(success=False,compact_capture_complete=False,physical_validation=False,
+                    training_eligible=False,failure_reason=repr(error),
+                    training_scene_sha256=config['compact_scene_storage']['sources']['scene']['sha256'])
+                try:finalize_job(args.output,failed)
+                except Exception as final_error:
+                    # Integrity failures already replace stale success and count
+                    # FAILED.json; preserve the original exception for the owner.
+                    print('COMPACT_SCENE_FAILURE_FINALIZATION',repr(final_error),flush=True)
         raise
-    finally:app.close()
+    finally:
+        if app is not None:app.close()
 
 
-if __name__=='__main__':main()
+def native_entrypoint():
+    # Shared captures finalize after close. Avoid Python native finalizers only
+    # after native shutdown and byte/integrity receipts have completed normally.
+    shared_finalized=main()
+    if shared_finalized is True:
+        sys.stdout.flush();sys.stderr.flush();os._exit(0)
+
+
+if __name__=='__main__':native_entrypoint()

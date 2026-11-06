@@ -15,7 +15,7 @@ def metadata():
                 freshly_generated=True, contract_id=m.CONTRACT_ID, state_dim=17,
                 horizon=20, execution_prefix=10, control_hz=20, joint_unit='rad',
                 position_unit='m', target_pose_frame='openarm_left_link0',
-                target_source='rgbd_surface_tracking')
+                target_source='rgbd_surface_tracking',observation_contract=m.observation_contract())
 
 
 Q = np.array([.1, -.2, -.1, .3, .1, .1, -.2])
@@ -52,6 +52,38 @@ def test_state_responds_to_estimate_and_measured_q():
     changed = Q.copy(); changed[2] += .01
     c = m.encode_state(changed, np.eye(4), .8, metadata=metadata())
     assert np.linalg.norm(c[7:10] - a[7:10]) > 1e-5
+
+
+@pytest.mark.parametrize('residual',[-1.434175278536287e-10,
+    -1.1451579962074021e-10,-1.1540129962739343e-10])
+def test_measured_stop_residual_is_encoded_without_clipping(residual):
+    q=Q.copy();q[3]=residual;original=q.copy();kin=OpenArmKinematics()
+    value=m.encode_state(q,np.eye(4),.8,metadata=metadata())
+    raw=kin._chain(q)[0][kin.wrist_link]@pose(position=(0,0,.132))
+    np.testing.assert_array_equal(value[:7],original)
+    np.testing.assert_array_equal(q,original)
+    np.testing.assert_array_equal(value[7:10],raw[:3,3])
+    clipped=q.copy();clipped[3]=0.
+    assert not np.array_equal(value,m.encode_state(clipped,np.eye(4),.8,metadata=metadata()))
+    with pytest.raises(ValueError,match='URDF joint limits'):kin.fk(q)
+
+
+def test_interior_state_is_bit_identical_to_strict_fk_formula():
+    kin=OpenArmKinematics();target=pose((.2,-.1,.3),(.05,.1,.8))
+    relative=m.target_relative_pose(kin.fk(Q)@pose(position=(0,0,.132)),target)
+    expected=np.r_[Q,relative[:3,3],relative[:3,0],relative[:3,1],.8]
+    np.testing.assert_array_equal(m.encode_state(Q,target,.8,metadata=metadata()),expected)
+
+
+@pytest.mark.parametrize('side',['lower','upper'])
+def test_observation_encoding_ceiling_and_true_outside_rejection(side):
+    kin=OpenArmKinematics();q=Q.copy();sign=-1 if side=='lower' else 1
+    bound=(kin.lower_limits if side=='lower' else kin.upper_limits)[3]
+    q[3]=bound+sign*(.005+1e-9)
+    assert np.isfinite(m.encode_state(q,np.eye(4),.8,metadata=metadata())).all()
+    q[3]=np.nextafter(q[3],sign*np.inf)
+    with pytest.raises(ValueError,match='observation encoding domain'):
+        m.encode_state(q,np.eye(4),.8,metadata=metadata())
 
 
 def test_relative_pose_is_invariant_to_common_rigid_frame_change():

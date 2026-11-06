@@ -16,6 +16,27 @@ _CONTACT_FACE_PATHS = frozenset([_COLLIDERS+'Diaphragm'] + [
 _SHELL_PATHS = frozenset(_COLLIDERS+part for part in ('DeviceEdge','DeviceCone','DeviceDial'))
 
 
+def planning_plane_policy(plane_tilt_limit_deg, margin_deg):
+    """Optional bounded search reserve, independent of the physical tilt gate.
+
+    None preserves the original search and receipts. Version 1 only supports
+    strict 3 degree planes and 0 < margin <= 1.5 degrees. The finite grid adds
+    interior rings and the requested upper search bound; it is not a measured
+    or certified tracking-error envelope.
+    """
+    if margin_deg is None:return None
+    if (type(margin_deg) not in (int,float) or not np.isfinite(margin_deg)
+            or not 0.<margin_deg<=1.5 or plane_tilt_limit_deg!=3.
+            or not 3.-margin_deg<3.):
+        raise ValueError('Invalid planning plane margin: strict 3 degrees and 0 < margin <= 1.5 required')
+    limit=3.-float(margin_deg)
+    angles=sorted({angle for angle in (0.,1.5,2.,2.5,2.75) if angle<=limit}|{limit})
+    return dict(schema='m2_planning_plane_margin_v1',margin_deg=float(margin_deg),
+        candidate_tilt_limit_deg=limit,runtime_tilt_limit_deg=3.,sampled_tilts_deg=angles,
+        physical_tracking_bound_certified=False,
+        scope='Geometric planning reserve only; actual tracking and contact require unchanged physical gates')
+
+
 def _surface_anchor(position, local_normal):
     position=np.array(position,float,copy=True);normal=np.array(local_normal,float,copy=True)
     if (position.shape!=(3,) or normal.shape!=(3,) or not np.isfinite(position).all()
@@ -259,20 +280,35 @@ class FiniteHeadFit:
             'contact_face_residual_distance_m':float(final['distances_m']['contact_face']),
             'fit_evaluations':evaluations,'fit':final}
 
-    def candidates(self,position,local_normal,*,compression=.0025):
+    def candidates(self,position,local_normal,*,compression=.0025,
+                   plane_normal=None,plane_tilt_limit_deg=3.,planning_plane_margin_deg=None):
         """Regenerate the original bounded normal/roll/gap family on new meshes.
 
         Original fitting family n+u*x+v*y, u,v in [-.6,.6], gives a maximum
         40.3155-degree local-normal deviation. This is not the tracking error
         tolerance; every candidate still requires full robot/physics validation.
         """
-        position,normal=_surface_anchor(position,local_normal)
+        policy=planning_plane_policy(plane_tilt_limit_deg,planning_plane_margin_deg)
+        if policy is not None and plane_normal is None:
+            raise ValueError('A planning plane margin requires the bound contact plane')
+        position,raw_normal=_surface_anchor(position,local_normal)
+        normal=raw_normal
+        angles=(0.,5.,10.,15.,20.,25.,30.,35.,40.)
+        if plane_normal is not None:
+            _,normal=_surface_anchor(position,plane_normal)
+            if (isinstance(plane_tilt_limit_deg,(bool,np.bool_)) or
+                    plane_tilt_limit_deg not in (3.,10.)):
+                raise ValueError('Unsupported plane tilt protocol')
+            if normal@raw_normal<=0:raise ValueError('Contact plane points inward')
+            angles=(0.,1.5,3.) if plane_tilt_limit_deg==3. else (0.,3.,5.,7.5,10.)
+            if policy is not None:angles=policy['sampled_tilts_deg']
+        planning_fields={} if policy is None else dict(planning_plane_policy=policy)
         # Preserve the original audit's square-bounded tangent coordinates.
         x=np.cross(normal,[0.,0.,1.])
         if np.linalg.norm(x)<1e-8:x=np.cross(normal,[1.,0.,0.])
         x/=np.linalg.norm(x)
         y=np.cross(normal,x);rows=[];attempts=0;orientations=0;rejections={}
-        for angle in (0.,5.,10.,15.,20.,25.,30.,35.,40.):
+        for angle in angles:
             accepted=[]
             for azimuth in ([0.] if angle==0 else np.linspace(0,2*np.pi,16,endpoint=False)):
                 uv=np.tan(np.deg2rad(angle))*np.array([np.cos(azimuth),np.sin(azimuth)])
@@ -282,12 +318,25 @@ class FiniteHeadFit:
                 for roll in np.linspace(0,2*np.pi,12,endpoint=False):
                     a=np.cos(roll)*tangent+np.sin(roll)*np.cross(n,tangent)
                     rotation=np.column_stack((a,np.cross(-n,a),-n))
-                    found=self.first_contact(position,normal,rotation,compression)
+                    # Keep the original raw task anchor and first-contact line
+                    # domain; only the orientation reference changes for M2.
+                    raw_x=np.cross(raw_normal,[0.,0.,1.])
+                    if np.linalg.norm(raw_x)<1e-8:raw_x=np.cross(raw_normal,[1.,0.,0.])
+                    raw_x/=np.linalg.norm(raw_x);raw_y=np.cross(raw_normal,raw_x)
+                    dot=n@raw_normal
+                    if dot<=0 or max(abs(n@raw_x),abs(n@raw_y))/dot>.6+1e-12:continue
+                    found=self.first_contact(position,raw_normal,rotation,compression)
                     attempts+=found['fit_evaluations'];orientations+=1
                     if found['passed']:
-                        accepted.append({**found,'normal_world':n.tolist(),
+                        plane_fields={} if plane_normal is None else dict(
+                            contact_plane_normal_world=normal.tolist(),contact_plane_radius_m=.023,
+                            plane_tilt_deg=float(angle),plane_tilt_limit_deg=float(plane_tilt_limit_deg),
+                            tilt_relaxed=plane_tilt_limit_deg==10.)
+                        deviation=float(np.rad2deg(np.arccos(np.clip(n@raw_normal,-1.,1.))))
+                        accepted.append({**found,**plane_fields,'normal_world':n.tolist(),
                             'rotation_world':rotation.tolist(),
-                            'normal_deviation_from_surface_deg':angle,'roll_rad':float(roll)})
+                            'normal_deviation_from_surface_deg':angle if plane_normal is None else deviation,
+                            'roll_rad':float(roll),**planning_fields})
                     else:
                         reason=found['reason'];rejections[reason]=rejections.get(reason,0)+1
             # Preserve diversity at every tilt rather than spend all IK on one roll.
@@ -300,4 +349,5 @@ class FiniteHeadFit:
                     geometry_artifacts=getattr(self,'artifact_hashes',{}),
                     first_contact_search_resolution_m=FIRST_CONTACT_RESOLUTION_M,
                     contact_face_gap_band_m=list(CONTACT_FACE_GAP_BAND_M),gap_axis='command_normal',
-                    scope='sampled finite tool near-contact hypotheses only; no CCD, robot, physics or training qualification')
+                    scope='sampled finite tool near-contact hypotheses only; no CCD, robot, physics or training qualification',
+                    **planning_fields)

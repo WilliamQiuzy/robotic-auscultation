@@ -30,7 +30,7 @@ def metadata():
                 freshly_generated=True, contract_id=contract.CONTRACT_ID, state_dim=17,
                 horizon=20, execution_prefix=10, control_hz=20, joint_unit='rad',
                 position_unit='m', target_pose_frame='openarm_left_link0',
-                target_source='rgbd_surface_tracking', episode_id='synthetic-r3',
+                observation_contract=contract.observation_contract(),target_source='rgbd_surface_tracking', episode_id='synthetic-r3',
                 target_id='R3', subject_id='p000439', split='train',
                 identity_split_sha256=contract.IDENTITY_SPLIT_SHA256,
                 source_kind='cpu_synthetic_test', training_eligible=True,
@@ -43,7 +43,7 @@ def bindings():
 
 def writer(tmp_path, **kwargs):
     options = dict(metadata=metadata(), camera_bytes=CAMERA, calibration_bytes=CALIBRATION,
-                   code_bindings=bindings(), expected_frames=2)
+                   code_bindings=bindings(), expected_frames=2,native_image_size=(640,360))
     options.update(kwargs)
     return module().CompactTrainingCapture(tmp_path/'training_capture', **options)
 

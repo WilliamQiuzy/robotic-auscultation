@@ -18,20 +18,49 @@ def _read(path,digest):
     return data
 
 
-def load_candidate(spec):
+def layout_translation(spec):
+    layout=spec.get('layout')
+    if layout is None:return np.zeros(3)
+    if set(layout)!={'xy_m','height_m'}:raise ValueError('Unsupported patient layout fields')
+    xy=np.asarray(layout['xy_m'],float);height=layout['height_m']
+    if (xy.shape!=(2,) or not np.isfinite(xy).all() or np.max(abs(xy))>.15+1e-12
+            or isinstance(height,bool) or height not in (-.06,-.03,0.,.03,.06)):
+        raise ValueError('Layout exceeds frozen floor/height search domain')
+    return np.r_[xy,float(height)]
+
+
+def load_candidate(spec,*,formal_config=None):
+    if formal_config is not None:
+        from .m2_given_contact_evaluation import authorize_patient
+        authorize_patient(spec,formal_config)
+    elif spec.get('expected_split')=='test':
+        raise ValueError('TEST patient requires an exact issued formal capability')
     require_current(spec)
     root=Path(spec['directory'])
     manifest=json.loads(_read(root/'asset_manifest.json',spec['manifest_sha256']))
     summary=json.loads(_read(root/'summary.json',spec['summary_sha256']))
+    from .m2_contract import IDENTITY_SPLIT_SHA256, QUARANTINED_IDENTITIES
+    if summary['identity_split_sha256']!=IDENTITY_SPLIT_SHA256:
+        raise ValueError('Patient frozen identity split gate differs')
     split=json.loads(_read(spec['identity_split'],summary['identity_split_sha256']))['splits']
     anchors=json.loads(_read(spec['anchor_inventory'],summary['anchor_inventory_sha256']))['anchors']
     records=[r for r in manifest if r['file']==spec['file']]
     if len(records)!=1:raise ValueError('Patient candidate is not unique')
     record=records[0]
+    expected_split=spec.get('expected_split','train')
+    reconstructed=False
+    if ('reconstruction_source' in spec or
+            summary.get('schema')=='m2_reconstructed_observed_seated_retarget_v1'):
+        from .observed_reconstruction import validate_reconstruction
+        validate_reconstruction(spec,summary,record)
+        reconstructed=True
+    observed=summary.get('schema')=='m2_observed_seated_retarget_v1' or reconstructed
     if (record.get('numeric_candidate_screen_passed') is not True or record.get('mesh_scale')!=1.
-            or record.get('split')!='train' or record['identity'] not in split['train']
-            or record['identity'] in set(split['validation'])|set(split['test'])
-            or summary.get('schema')!='m2_authored_seated_arm_pose_pilot_v1'):
+            or expected_split not in ('train','validation','test')
+            or record.get('split')!=expected_split
+            or [name for name,ids in split.items() if record['identity'] in ids]!=[expected_split]
+            or record['identity'] in QUARANTINED_IDENTITIES
+            or (not observed and summary.get('schema')!='m2_authored_seated_arm_pose_pilot_v1')):
         raise ValueError('Patient candidate failed numeric or identity gate')
     file=root/spec['file']
     if file.resolve().parent!=root.resolve():raise ValueError('Patient candidate path escapes manifest')
@@ -39,6 +68,7 @@ def load_candidate(spec):
     with np.load(io.BytesIO(data),allow_pickle=False) as z:
         arrays={key:np.array(z[key],copy=True) for key in
             ('vertices','faces','joints','anchor_names','anchor_positions','anchor_normals')}
+        if observed:arrays['contact_patch_normals']=np.array(z['contact_patch_normals'],copy=True)
     if arrays['vertices'].shape!=(6890,3) or arrays['faces'].shape!=(13776,3):
         raise ValueError('Unexpected SMPL topology')
     calculated=evaluate_anchors(arrays['vertices'],arrays['faces'],anchors)
@@ -50,14 +80,53 @@ def load_candidate(spec):
             raise ValueError('Patient anchors differ from actual mesh')
     targets=[dict(name=str(n),position_world_m=p.tolist(),normal_world=v.tolist())
         for n,p,v in zip(arrays['anchor_names'],arrays['anchor_positions'],arrays['anchor_normals'])]
-    return arrays,dict(identity=record['identity'],proposal=record['proposal'],asset_sha256=record['sha256'],
+    if observed:
+        normals=arrays['contact_patch_normals']
+        if (normals.shape!=(10,3) or not np.isfinite(normals).all()
+                or not np.allclose(np.linalg.norm(normals,axis=1),1.,atol=1e-8,rtol=0)):
+            raise ValueError('Invalid finite contact patch normals')
+        provenance_path=root/record['provenance_file']
+        if provenance_path.resolve().parent!=root.resolve():raise ValueError('Patient provenance path escaped')
+        provenance=json.loads(_read(provenance_path,record['provenance_sha256']))
+        for target,normal in zip(targets,normals):
+            patch=provenance['contact_patches'][target['name']]
+            if (patch['radius_m']!=.023 or not np.allclose(patch['normal_world'],normal,atol=1e-10,rtol=0)):
+                raise ValueError('Contact patch provenance differs')
+            target['contact_plane_normal_world']=normal.tolist()
+            target['contact_plane_radius_m']=.023
+    delta=layout_translation(spec)
+    if np.any(delta):
+        if not observed:raise ValueError('M2 layout requires observed retargeted body')
+        from .m2_retarget import fit_contact_patch
+        arrays['vertices']=(arrays['vertices'].astype(float)+delta).astype(np.float32)
+        arrays['joints']=arrays['joints']+delta
+        evaluated=evaluate_anchors(arrays['vertices'],arrays['faces'],anchors)
+        for index,target in enumerate(targets):
+            name=target['name'];value=evaluated[name]
+            arrays['anchor_positions'][index]=value['position_m']
+            arrays['anchor_normals'][index]=value['normal']
+            patch=fit_contact_patch(arrays['vertices'],arrays['faces'],value['position_m'],value['normal'],
+                seed_vertex_ids=anchors[name]['smpl_vertex_indices'])
+            arrays['contact_patch_normals'][index]=patch['normal_world']
+            target.update(position_world_m=value['position_m'],normal_world=value['normal'],
+                          contact_plane_normal_world=patch['normal_world'])
+    receipt=dict(identity=record['identity'],proposal=record['proposal'],asset_sha256=record['sha256'],
         identity_split_sha256=summary['identity_split_sha256'],targets=targets,
-        mesh_scale=1.,clothing='none',body_is_static=True,synthetic_pose=True,
+        split=expected_split,mesh_scale=1.,clothing='none',body_is_static=True,synthetic_pose=not observed,
+        pose_source='observed_pose_retargeted_to_canonical_shape' if observed else 'authored_pose',
+        synthetic_shape_pose_combination=observed,
+        layout_translation_world_m=delta.tolist(),layout_changes_stool_and_patient=bool(np.any(delta)),
+        post_layout_external_collision_qualified=False,
         physics_qualified=False,training_eligible=False)
+    if reconstructed:
+        receipt.update(reconstruction_source=spec['reconstruction_source'],
+            reconstruction_cohort=spec['reconstruction_cohort'],
+            original_depth_plane_bytes_recovered=False)
+    return arrays,receipt
 
 
-def install_patient(stage,spec):
-    arrays,receipt=load_candidate(spec)
+def install_patient(stage,spec,*,formal_config=None):
+    arrays,receipt=load_candidate(spec,formal_config=formal_config)
     from pxr import Usd,UsdGeom,UsdPhysics,UsdShade,PhysxSchema,Gf,Vt
     if len(stage.GetLayerStack(includeSessionLayers=False))!=1:
         raise ValueError('Patient replacement requires a flattened independent stage')
@@ -92,7 +161,8 @@ def install_patient(stage,spec):
     mesh.CreateFaceVertexIndicesAttr(arrays['faces'].reshape(-1).astype(int).tolist())
     mesh.CreateSubdivisionSchemeAttr('none');mesh.CreateDoubleSidedAttr(False)
     mesh.CreateDisplayColorAttr([Gf.Vec3f(.55,.38,.29)])
-    mesh.CreateExtentAttr([Gf.Vec3f(*arrays['vertices'].min(0)),Gf.Vec3f(*arrays['vertices'].max(0))])
+    mesh.CreateExtentAttr([Gf.Vec3f(*map(float,arrays['vertices'].min(0))),
+                          Gf.Vec3f(*map(float,arrays['vertices'].max(0)))])
     UsdPhysics.CollisionAPI.Apply(mesh.GetPrim()).CreateCollisionEnabledAttr(True)
     UsdPhysics.MeshCollisionAPI.Apply(mesh.GetPrim()).CreateApproximationAttr('none')
     UsdShade.MaterialBindingAPI.Apply(mesh.GetPrim()).Bind(material,materialPurpose='physics')
