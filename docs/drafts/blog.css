@@ -1,0 +1,61 @@
+/* Experiment notebook: shared Elaya tokens and named text styles from ../style.css. */
+.exp-hero{display:grid;grid-template-columns:1.25fr 1fr;gap:var(--spacing-700);align-items:start;padding-top:calc(var(--spacing-900) + var(--spacing-700));padding-bottom:var(--spacing-800)}
+.exp-hero h1{max-width:680px;margin-bottom:var(--spacing-300);background:linear-gradient(90deg,#000,#666);color:transparent;background-clip:text;-webkit-background-clip:text}
+.exp-hero .eyebrow{margin-bottom:var(--spacing-300)}
+.exp-deck{max-width:52ch;color:var(--muted);margin-bottom:var(--spacing-400)}
+.exp-snapshot{border:1px solid var(--line);border-radius:var(--radius-xl);overflow:hidden;background:var(--surface);margin-top:var(--spacing-300)}
+.exp-snapshot-heading{padding:var(--spacing-300)}
+.exp-status{display:inline-block;background:var(--lime);color:var(--green);padding:var(--spacing-75);border-radius:var(--radius-sm);margin-bottom:var(--spacing-200)}
+.exp-snapshot-heading p{margin:0}
+.exp-chart-preview{display:block;background:white}
+.exp-chart-preview img{width:100%;height:auto;display:block}
+.exp-chart-preview>span{display:block;padding:var(--spacing-200);color:var(--muted)}
+.exp-chart-preview:hover{opacity:.8}
+.exp-measurements{display:grid;grid-template-columns:1.2fr 1fr;gap:var(--spacing-200);margin:0;padding:var(--spacing-300);font-variant-numeric:tabular-nums}
+.exp-measurements dt{color:var(--muted);margin-bottom:var(--spacing-75)}
+.exp-measurements dd{margin:0}
+.exp-boundary{margin:0;padding:0 var(--spacing-300) var(--spacing-300);color:var(--muted)}
+.exp-layout{display:grid;grid-template-columns:220px minmax(0,1fr);gap:var(--spacing-700);align-items:start}
+.exp-toc{position:sticky;top:calc(var(--spacing-900) + var(--spacing-300));padding-bottom:var(--spacing-300)}
+.exp-toc>p{margin-bottom:var(--spacing-200);color:var(--muted);letter-spacing:.05em}
+.exp-toc nav{display:grid;gap:var(--spacing-200)}
+.exp-toc a:hover,.exp-toc a[aria-current]{color:var(--green);text-decoration:underline;text-underline-offset:var(--spacing-50)}
+.exp-draft-source{display:block;color:var(--muted);margin-top:var(--spacing-400)}
+.exp-article{min-width:0;max-width:860px}
+.exp-body p{max-width:65ch;margin-bottom:var(--spacing-300)}
+.exp-body a:not(.exp-evidence-link){text-decoration:underline;text-underline-offset:var(--spacing-50)}
+.exp-body a:hover{color:var(--green)}
+.exp-body .exp-intro:first-child{padding:var(--spacing-300);border-radius:var(--radius-lg);background:var(--lime);color:var(--ink)}
+.exp-section{padding-top:var(--spacing-400);padding-bottom:var(--spacing-500)}
+.exp-section h2{margin-bottom:var(--spacing-300);max-width:680px}
+.exp-section h3{margin-top:var(--spacing-600);margin-bottom:var(--spacing-300);max-width:680px}
+.exp-body code{font-family:inherit;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;color:var(--green)}
+.exp-body strong{font-weight:600}
+.exp-body ul,.exp-body ol{padding-left:var(--spacing-300);margin-bottom:var(--spacing-300)}
+.exp-body li{margin-bottom:var(--spacing-100)}
+.exp-table{margin-bottom:var(--spacing-300)}
+.exp-table>table{min-width:640px}
+.exp-table td{padding:var(--spacing-200)}
+.exp-evidence-link{display:inline-block;color:var(--green);white-space:nowrap}
+.exp-evidence-link:hover{text-decoration:underline;text-underline-offset:var(--spacing-50)}
+.exp-recording{margin:var(--spacing-400) 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-xl);overflow:hidden}
+.exp-recording .video-top span:last-child{max-width:none}
+.exp-recording figcaption{padding:var(--spacing-300);color:var(--muted);text-wrap:pretty}
+.exp-file-link{display:block;padding:0 var(--spacing-300) var(--spacing-300)}
+.exp-chart{margin:var(--spacing-400) 0}
+.exp-chart img{display:block;width:100%;height:auto;border-radius:var(--radius-lg)}
+.exp-chart figcaption{margin-top:var(--spacing-200);color:var(--muted)}
+.exp-principle{padding-block:var(--spacing-500) var(--spacing-600);max-width:680px}
+.exp-principle .eyebrow{margin-bottom:var(--spacing-200)}
+.exp-principle p:last-child{margin:0}
+.exp-principle .word{opacity:.3;transition:opacity 500ms var(--motion)}
+.exp-principle .word.is-active{opacity:1}
+.exp-closing{display:grid;grid-template-columns:1.2fr 1fr;gap:var(--spacing-300) var(--spacing-700);border-top:1px solid var(--line);margin-top:var(--spacing-600);padding-top:var(--spacing-500);padding-bottom:var(--spacing-700)}
+.exp-closing .eyebrow{grid-column:1/-1;margin-bottom:0}
+.exp-closing .button{justify-self:start;align-self:end}
+.exp-page footer{margin-top:var(--spacing-300)}
+.exp-page .video-box[data-state=error] .video-skeleton{display:none}
+@media(max-width:1100px){.exp-hero{gap:var(--spacing-400)}.exp-hero h1{font-size:3rem;line-height:1}.exp-layout{grid-template-columns:180px minmax(0,1fr);gap:var(--spacing-400)}.exp-measurements{grid-template-columns:1fr;gap:var(--spacing-300)}}
+@media(max-width:800px){.exp-hero{grid-template-columns:1fr;padding-top:calc(var(--spacing-900) + var(--spacing-400));padding-bottom:var(--spacing-600)}.exp-hero h1{font-size:3rem;line-height:1}.exp-snapshot{margin:0;max-width:680px}.exp-measurements{grid-template-columns:1.2fr 1fr}.exp-layout{display:block}.exp-toc{display:none}.exp-article{max-width:none}.exp-section{padding-top:var(--spacing-300);padding-bottom:var(--spacing-400)}.exp-section h2{font-size:1.875rem;line-height:2.25rem}.exp-body .exp-intro:first-child{padding:var(--spacing-200)}.exp-recording figcaption{padding:var(--spacing-200)}.exp-recording .video-top{align-items:start}.exp-recording .video-top span:last-child{max-width:14ch}.exp-file-link{padding:0 var(--spacing-200) var(--spacing-200)}.exp-closing{grid-template-columns:1fr;gap:var(--spacing-300);padding-block:var(--spacing-400) var(--spacing-600)}.exp-closing .eyebrow{grid-column:auto}}
+@media(max-width:420px){.exp-hero h1{font-size:2.25rem;line-height:2.5rem}.exp-hero{padding-top:calc(var(--spacing-900) + var(--spacing-300))}.exp-hero .eyebrow{letter-spacing:.03em}.exp-deck{margin-bottom:var(--spacing-300)}.exp-snapshot-heading,.exp-measurements{padding:var(--spacing-200)}.exp-boundary{padding:0 var(--spacing-200) var(--spacing-200)}.exp-measurements{grid-template-columns:1fr}.exp-section h3{font-size:1.25rem;line-height:1.75rem}}
+@media(prefers-reduced-motion:reduce){.exp-principle .word{opacity:1}}

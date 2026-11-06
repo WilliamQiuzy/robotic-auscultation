@@ -69,7 +69,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -107,7 +110,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -145,7 +151,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -199,7 +208,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -237,7 +249,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -275,7 +290,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -329,7 +347,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -367,7 +388,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -405,7 +429,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -459,7 +486,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -497,7 +527,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -535,7 +568,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -589,7 +625,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -627,7 +666,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -665,7 +707,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -719,7 +764,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -757,7 +805,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -795,7 +846,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -849,7 +903,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -887,7 +944,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -925,7 +985,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     },
@@ -979,7 +1042,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "act": {
           "method": "act",
@@ -1017,7 +1083,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         },
         "astra": {
           "method": "astra",
@@ -1055,7 +1124,10 @@
             "media_kind": null,
             "synthesized_frames": null,
             "time_basis": null
-          }
+          },
+          "actual_native_episode": null,
+          "model_invoked": null,
+          "native_execution_receipt": null
         }
       }
     }
@@ -1065,7 +1137,8 @@
     "No measurements are inferred from scene preparation, CPU replay, a worker progress line or an inference request. Do not transfer the separate TRAIN expert video into this frozen cohort.",
     "Keep missing, failed, aborted, unavailable and unlaunched outcomes visible. The original cohort manifest and per-case source hashes cannot change.",
     "No rerun or alternate scene is authorized by this template. A schema-valid success still requires the actual original independent native audit and immutable source receipts.",
-    "Source8 plans expert/ACT/Astra parallel workers 3/3/1; bind actual protocol and observed resource receipts before publication. Do not compare wall time without this resource context and Astra inference-pause semantics."
+    "Source8 plans expert/ACT/Astra parallel workers 3/3/1; bind actual protocol and observed resource receipts before publication. Do not compare wall time without this resource context and Astra inference-pause semantics.",
+    "Terminal infrastructure/unavailable/missing-audit slots keep physical_success null. End-to-end qualified completions per eight planned slots may still be reported with execution/failure coverage; this is distinct from a conditional audited physical success rate or evidence that a model was tested."
   ],
   "execution_context": {
     "planned_parallel_workers": {

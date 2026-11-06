@@ -10,10 +10,12 @@ The two geometrically unavailable slots in the running **20-slot TRAIN/selection
 
 The template authorizes no repeat, alternate pose/target, new seed or post-outcome cohort replacement. Preserve failures and missing receipts. A changed comparison scope needs a separate declared protocol and a separate artifact; it must not overwrite this manifest.
 
+TRAIN/selection smokes are diagnostic, not an added both-smokes-physical-pass prerequisite. The failure-aware workflow admits a safely closed negative physical result only with the original authentication, model/source identity, owner and closed-trace evidence. Keep that failure visible and continue the fixed comparison as declared; do not change per-case physical qualifiers or describe the model as usable.
+
 ## Evidence required for each method slot
 
 - Exact source scenario and derived run config; immutable source inventory; reconstruction/reference/scene binding; actual run ID.
-- Terminal original owner receipt and independent original native audit before any boolean physical verdict. A partial worker result alone leaves `physical_success` null in this matched release artifact.
+- Terminal original owner receipt and independent original native audit before any boolean physical verdict. A partial worker result alone leaves `physical_success` null in this matched release artifact. Record `actual_native_episode`, `native_execution_receipt` and `model_invoked` from actual receipts; configuration or a failed launcher does not prove native execution or a model call.
 - Actual physical normal-force and plane hold, forbidden/total forces, tilt, stroke, original Hall proxy, return-home and violation metrics. Decoded spring-load estimates are not substituted for surface-normal force.
 - ACT: actual selected checkpoint hash and native learned-L2 provenance. Astra: exact `gpt-6-astra`, actual model call count and native admission/dispatch evidence, wall-time cost and whether physics paused; motors remain analytic `GivenContactExpert`. Unknown token/cost values stay null.
 - Video: actual recorded Isaac RGB frames, original source/recording receipt, matching SHA256/byte count, dimensions, frame rate/count and duration. Record simulation-time playback and inference-pause semantics. No generated or replacement frames. If unavailable, set the explicit reason and keep the asset reference null.
@@ -52,13 +54,22 @@ for method in record['methods']:
     final = all(slot['execution_status'] in
                 {'completed', 'failed', 'aborted', 'unavailable', 'not_launched', 'missing_receipt'}
                 for slot in slots)
+    native_known = [slot['actual_native_episode'] for slot in slots
+                    if slot['actual_native_episode'] is not None]
+    model_known = [slot['model_invoked'] for slot in slots
+                   if slot['model_invoked'] is not None]
     print(method, dict(planned_slots=len(slots), states=dict(states),
-          audited_verdicts=len(audited), successes=successes,
-          final_planned_slot_rate=successes / len(slots) if final and len(audited)==len(slots) else None))
+          actual_native_episodes=sum(native_known) if native_known else None,
+          actual_model_invocations_in_episodes=sum(model_known) if model_known else None,
+          audited_physical_verdicts=len(audited), qualified_completions=successes,
+          final_end_to_end_qualified_completions_per_planned_slot=(
+              successes / len(slots) if final else None),
+          conditional_audited_physical_rate=(
+              successes / len(audited) if audited else None)))
 PY
 ```
 
-Report the fixed planned denominator and the actual execution/audit coverage separately. Report preclassified geometric absences, infrastructure aborts, missing results, policy failures and physical rejections distinctly. A rate on only audited/runnable cases must name that conditional denominator and must accompany the full eight-slot accounting. A partial artifact cannot establish a completed matched leaderboard.
+Report the fixed planned denominator and the actual execution/audit coverage separately. Report preclassified geometric absences, infrastructure aborts, missing results, policy failures and physical rejections distinctly. For a terminal benchmark, end-to-end qualified completions per planned slot may be **n/8** even when some slots ended in infrastructure failure, were unavailable or have no independent audit. Keep those physical verdicts null and disclose each category and actual native/model coverage. This measures completion of the whole evaluation pipeline; it is not an observed physical failure rate or proof that every model was tested. A conditional audited physical rate uses only actual audited verdicts and must name its denominator. Running slots remain pending and cannot establish a completed matched leaderboard.
 
 Check the historical release and portable interfaces separately:
 
@@ -90,4 +101,4 @@ with dst.open('xb') as stream:
 PY
 ```
 
-This command copies a reviewed file; it does not validate, publish, update the homepage or approve a result. Add only the reviewed small summaries and actual MP4 assets to the later change. Recheck every relative link, media checksum and desktop/mobile playback before connecting the new artifact and article to the live Elaya page. Keep the old release as a historical cohort. Publishing remains a separate explicitly authorized step.
+This command copies a reviewed file; it does not validate, publish, update the homepage or approve a result. Add only the reviewed small summaries and actual MP4 assets to the later change. Recheck every relative link, media checksum and desktop/mobile playback before connecting the new artifact and article to the live Elaya page. Keep the old release as a historical cohort. After verification, publish the authorized update through the repository workflow. This guide introduces no additional user approval step.

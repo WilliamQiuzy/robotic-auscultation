@@ -1,7 +1,7 @@
 {
   "schema": "ausc-public-diagnostic-extract-v1",
   "publication_status": "draft_not_linked_from_live_demo",
-  "captured_at_utc": "2026-11-06T00:20:54.978595+00:00",
+  "captured_at_utc": "2026-11-06T00:59:06.090723+00:00",
   "extraction_scope": "Selected fields from small Linux summary receipts only; no raw arrays, images, meshes, weights, host addresses, credentials or absolute native paths.",
   "source_access": "Original full receipts remain with the experiment owner; hashes identify those bytes. This selected-field extract does not independently rerun or requalify them.",
   "entries": [
@@ -974,6 +974,57 @@
           "presentation_change": "Trailing whitespace removed only; path coordinates, labels and values unchanged"
         }
       ]
+    },
+    {
+      "evidence_id": "E13",
+      "logical_artifact": "diagnostics/capture-v2-r3-phase-assembly-20261106-v1.json",
+      "source_sha256": "a8a1b0fe294898d57e7a21adf288271a1cde0306440a4539dcb9ae109c2f0bee",
+      "source_bytes": 985,
+      "fields": {
+        "utc": "2026-11-06T00:29:22.510458+00:00",
+        "episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000476_a001231_f0023-r3",
+        "frames": 2190,
+        "native_rows": 26280,
+        "full_same_owner_causal_H20_windows": 532,
+        "native_actor_counts": {
+          "PREPARATION": 240,
+          "TEACHER_L2": 6924,
+          "L2_STOP": 25,
+          "ANALYTIC_L3_ALIGN": 243,
+          "ANALYTIC_L3": 18848
+        },
+        "window_native_roles": {
+          "given_l2_motion": 532
+        },
+        "wall_s": 16.6472891279991,
+        "recording_and_causal_assembly_passed": true,
+        "owner_physical_qualification": false,
+        "training_arrays_written": false,
+        "source_config_sha256": "ab8f415fa20959b1f05daca2ea98601d69a7b57e1229a1cd704d6bb1930dba93",
+        "source_native_sha256": "fcd0a1d002494caa2d08604bc81bcc8f3a75f992dfa84083e76c3766ea956ebb",
+        "scope": "Component diagnostic on one closed worker while aggregate collector runs; original owner/physics/source exporter still required. No arrays exported, no fabricated owner or training acceptance."
+      }
+    },
+    {
+      "evidence_id": "E14",
+      "logical_artifact": "repaired-TRAIN-pose2-r3/recorded-frame-at-55.6-s.png",
+      "source_bytes": 23194,
+      "source_sha256": "c8253031372f51fab54f86de1c7d77c3553c4d29a71b6e27e96c54cf38c83d98",
+      "fields": {
+        "public_path": "drafts/assets/expert-pose2-r3-hold.png",
+        "source_video_sha256": "625425aed8fbd3d566f0b7a8ae19e6b33881b06e5714aac6bff7878d7ec39a0a",
+        "source_frame_simulation_s": 55.6,
+        "width": 256,
+        "height": 144,
+        "scope": "Frame extracted on Linux from actual recorded V2 RGB video; no new simulator render or enhanced pixels."
+      },
+      "walltime_extract": {
+        "source_sha256": "3337f9f391786ab4b1fe4f63c4d3fb9de5a704d586484c7d551d6d1e17c17b59",
+        "source_bytes": 573309,
+        "selected_wall_fields": {
+          "runtime_cost.probe_wall_s": 1269.8293105420016
+        }
+      }
     }
   ]
 }

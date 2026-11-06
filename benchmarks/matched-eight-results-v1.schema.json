@@ -675,7 +675,10 @@
         "api_cost_usd",
         "physics_paused_during_inference",
         "metrics",
-        "recording"
+        "recording",
+        "actual_native_episode",
+        "model_invoked",
+        "native_execution_receipt"
       ],
       "properties": {
         "method": {
@@ -848,6 +851,28 @@
         },
         "recording": {
           "$ref": "#/$defs/video"
+        },
+        "actual_native_episode": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "model_invoked": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "native_execution_receipt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/artifact"
+            }
+          ]
         }
       },
       "allOf": [
@@ -1016,6 +1041,9 @@
                     }
                   }
                 ]
+              },
+              "actual_native_episode": {
+                "const": true
               }
             }
           }
@@ -1026,13 +1054,8 @@
               "method": {
                 "const": "act"
               },
-              "execution_status": {
-                "enum": [
-                  "running",
-                  "completed",
-                  "failed",
-                  "aborted"
-                ]
+              "model_invoked": {
+                "const": true
               }
             }
           },
@@ -1067,6 +1090,65 @@
               },
               "physics_paused_during_inference": {
                 "type": "boolean"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "actual_native_episode": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "run_id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "native_execution_receipt": {
+                "$ref": "#/$defs/artifact"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "model_invoked": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model_calls": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "physical_success": {
+                "const": true
+              },
+              "method": {
+                "enum": [
+                  "act",
+                  "astra"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model_invoked": {
+                "const": true
               }
             }
           }

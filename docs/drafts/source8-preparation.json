@@ -3,7 +3,6 @@
   "publication_status": "isolated_branch_not_published",
   "source_commit": "cf551566c0285a086d197553cee3299f4444f464",
   "source_archive_sha256": "ee2a0b69c322b09ac5f7c89ec0210db491deedf53fb973aedca57646bd1e5c96",
-  "source_files_byte_identical": true,
   "selection": "Explicit f4119a9 allowlist only; no finite per-run operator scripts, private launch configs, source archives, raw data, weights or credentials.",
   "qualification_scope": "Local source preparation only. No new native model verification is inferred; collection/training/evaluation outcomes remain separate.",
   "files": [
@@ -1043,5 +1042,48 @@
       "git_blob": "2019e3d8542c9c4157b6aa1c7773e2786f930d21",
       "sha256": "179ee11cfedba1001f5932f5a357cb1fc1b7e1924a857f32219887520c47fada"
     }
-  ]
+  ],
+  "frozen_runtime_source_byte_identity": true,
+  "initial_allowlist_export_commit": "f0daec01b272b4af070b869fcfff01810013d4fe",
+  "files_identity_scope": "The files list records exact bytes initially exported from source8. Runtime implementation bytes remain unchanged. The single approved test adaptation below is the only later allowlist-byte difference.",
+  "test_adaptations": [
+    {
+      "path": "tests/test_ausc_given_contact_evaluation.py",
+      "base_git_blob": "e354df21a57890a2d6e82fd922ab02cb4d1645d4",
+      "base_sha256": "b8a9855cb6b6d44f1cc81b54f399645d507bc2d83d535fbf7a7a52be83312ef4",
+      "prepared_sha256": "e48a7ea5cb425eeeae44822aa92dfc483f9346064a3ab9bd755dc10934bda61d",
+      "commit": "5e26ad61e0ce4aeeb1198a0402ddf21437c7586e",
+      "reason": "Neutral L2 observer fixture now uses current handoff.PLANNING_LIMITS instead of hardcoded old jerk 1.5. No implementation, physical gate or qualifier change."
+    }
+  ],
+  "verification": {
+    "focused_astra_rebuild_tests": {
+      "passed": 145
+    },
+    "real_ruckig_stop_jerk_tests": {
+      "passed": 12,
+      "ruckig": "0.15.3"
+    },
+    "velocity_tests": {
+      "passed": 43
+    },
+    "related_neutral_profile_tests_after_red_green_fixture_fix": {
+      "passed": 10,
+      "deselected": 196
+    },
+    "portable_demo_tests": {
+      "passed": 25
+    },
+    "broader_optional_sweep": {
+      "status": "interrupted",
+      "passed": 735,
+      "skipped": 3,
+      "failed": 1,
+      "wall_s": 618.4,
+      "failure": "The stale neutral-L2 fixture identified above; corrected and rechecked in the focused tests. The expensive remaining sweep was not repeated and no full-suite pass is claimed."
+    },
+    "ci_dependency": "requirements-ci.txt now declares ruckig==0.15.3; no packages installed during this preparation.",
+    "static_camera_and_hall_bytes": "Public camera/calibration bytes match their frozen source8 SHA256 pins; portable/native service and protocol namespaces are byte-identical.",
+    "native_model_verification": "pending; no new ACT/Astra closed-loop result or aggregate acceptance inferred"
+  }
 }
