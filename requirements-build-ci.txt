@@ -1,0 +1,6 @@
+# Build dependencies only; apply with pip >=25.3 --build-constraint.
+# Both CI jobs explicitly install the verified pip 26.0.1 before using the flag.
+# Ruckig 0.15.3 declares unbounded scikit-build-core and uses cmake.targets,
+# which scikit-build-core >=0.10 rejects. Preserve the Ruckig source/version.
+# https://github.com/pantor/ruckig/blob/v0.15.3/pyproject.toml
+scikit-build-core==0.9.10
