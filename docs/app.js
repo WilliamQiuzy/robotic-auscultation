@@ -58,15 +58,89 @@ Object.assign(zh, {
  rebuiltEvidence:'部分闭合结果证据 ↗',
  rebuiltLimits:'ACT 模型没有 RGB、深度或 Hall 输入，接触由解析技能负责。Astra 在三个固定边界做继续/中止决策；传感器因果作用尚未验证。并行资源 3/3/1 不是受控速度比较；不代表临床、声学、衣物或动态患者验证。'
 });
+Object.assign(zh, {
+  "navBenchmark": "同场景结果",
+  "heroTitle": "三个系统。<br>同一组<br>接触评测。",
+  "heroLead": "解析专家8/8，state-only ACT 0/8，Astra加解析局部控制8/8：同一组8个给定目标的仿真场景。",
+  "heroNote": "2个留出身份、2个已见坐姿、R3/L3；各自从home独立开始，不代表连续十点或临床验证。",
+  "previewLabel": "已闭合的仿真比较",
+  "previewNote": "Astra与解析专家同为8/8。这是辅助系统比较，不是学习运动模型或传感器因果作用的证明。",
+  "expertTab": "专家",
+  "actTab": "ACT",
+  "astraTab": "Astra",
+  "rebuiltLabel": "同场景比较已闭合 · 2026年11月6日",
+  "rebuiltTitle": "专家8/8。<br>ACT 0/8。<br>Astra+专家8/8。",
+  "rebuiltScope": "2个留出身份 ×2个已见坐姿 ×R3/L3，各8个独立home-start场景；给定3D目标，并非学习出的RGB-D定位。24个原始资格全部闭合。",
+  "rebuiltCaption": "相同原始物理契约下的完整辅助系统。Astra与专家同分，不能证明它改善运动控制或因果利用传感器。",
+  "rebuiltAstra": "24次实际gpt-6-astra决策，由GivenContactExpert执行局部运动/接触；8例全部独立合格。",
+  "rebuiltEvidence": "最终闭合结果JSON ↗",
+  "contractText": "官方LeRobot state-only ACT。q7+目标相对位置3+rotation6D+confidence1构成state17，H2共34维；每个H20动作块使用固定关节原点。",
+  "baselineLabel": "State-only ACT控制契约",
+  "benchmarkLead": "以下10月28–29日历史诊断批次保持独立。新的同场景8例结果见上方及实验文章。",
+  "astraLead": "闭合比较中，gpt-6-astra在HOME、PARKED、RELEASED三个边界做继续/中止决策；运动、受力和物理门始终由解析执行器管理。",
+  "astraScope": "实际原生结果8/8，包含24次真实Codex CLI调用及完成的局部技能。所有目标均为给定3D目标；Astra没有生成关节轨迹，也未证明RGB/深度/Hall依赖。",
+  "astraCompareLabel": "解释完整辅助系统",
+  "astraQuestion": "同场景结果，不同的运动角色。",
+  "astraCompare": "Astra加解析局部技能与解析专家同为8/8；ACT学习L2接近为0/8。结果不能单独识别语言模型运动能力或传感器因果贡献。",
+  "astraLatency": "服务Codex CLI墙钟6.032–11.578秒，均值8.577；客户端观测/推理墙钟6.364–12.017秒，均值8.968。纯HTTP延迟与API价格未知；仿真时间视频省略推理等待。",
+  "astraGuide": "实际角色、调用与测量 ↗",
+  "faqQ2": "新的8/8、0/8、8/8是相同场景吗？",
+  "faqA2": "是。2个留出身份×2个已见坐姿×R3/L3，每个系统8个独立home-start回合；学习/解析运动角色不同，不是模型排行榜。历史8/8与0/2属于另一个批次。",
+  "faqA3": "两帧state17共34维：q7、给定目标相对位置3、rotation6D及confidence1。ACT无RGB、深度或Hall模型输入；Hall由解析接触控制使用。给定3D目标不等于学习出的视觉定位。",
+  "faqA4": "20,000步训练按完整选模VAL目标误差选中4,500步。留出比较中ACT6例触发姿态门、2例触发mesh-clearance门。TRAIN/选模覆盖诊断支持进一步测试姿态/恢复示范，未证明单一原因或修复。",
+  "faqA5": "是。原始原生资格接受了8个Astra监督回合，包含24次实际gpt-6-astra调用，解析执行器负责局部运动。专家也通过8/8；不能证明Astra改善控制或因果利用传感器。",
+  "faqA6": "公开固定源代码、CPU检查、契约、标量证据和三段同场景真实录像。原始数组、权重和许可人体资产未打包；原生复现需另行准备Linux/NVIDIA环境并重新做本地资格。",
+  "footerNote": "仿真研究 · 2026年11月6日同场景结果 · 历史批次另行保留"
+});
 const videos = {
-  expert:{src:'assets/expert-l5.mp4',evidence:'data/expert_summary.json',tone:'pass',
-    kind:{en:'Analytic expert',zh:'解析专家'},result:{en:'Expert qualified',zh:'专家资格通过'},
-    en:'A full single point expert episode: approach → stop → contact → 3 s hold → unload → home. Actual RobotCam recording; 104.05 s playback.',
-    zh:'完整的单点解析专家回合：接近 → 停车 → 接触 → 保持 3 秒 → 卸力 → 回 home。真实 RobotCam 录像，播放时长 104.05 秒。'},
-  act:{src:'assets/act-val-l3.mp4',evidence:'data/act_summary.json',tone:'fail',
-    kind:{en:'ACT · selection validation',zh:'ACT · 选模验证'},result:{en:'Failed before contact',zh:'接触前失败'},
-    en:'Actual ACT weights on p001005 / L3 (selection validation). Stopped by the elbow height gate after 34 queries and 334 actions. No contact; 17.7 s playback.',
-    zh:'实际 ACT 权重在 p001005 / L3（选模验证人体）上的闭环。34 次查询、334 条动作后触发肘部高度门，未接触；播放时长 17.7 秒。'}
+  "expert": {
+    "src": "drafts/assets/matched-v3-expert.mp4",
+    "poster": "drafts/assets/matched-v3-expert-poster.png",
+    "evidence": "evidence/rebuilt-matched-20261106-v3.json",
+    "tone": "pass",
+    "kind": {
+      "en": "Analytic expert · matched R3",
+      "zh": "解析专家 · 同场景R3"
+    },
+    "result": {
+      "en": "Independently qualified",
+      "zh": "独立资格通过"
+    },
+    "en": "Preselected held-out p001030 / known pose 2 / R3. Independently qualified analytic expert; 112.2 simulated seconds. All three tabs show this same case.",
+    "zh": "预选留出身份p001030、已见姿态2、R3。解析专家独立合格；112.2仿真秒。三个标签展示同一场景。"
+  },
+  "act": {
+    "src": "drafts/assets/matched-v3-act.mp4",
+    "poster": "drafts/assets/matched-v3-act-poster.png",
+    "evidence": "evidence/rebuilt-act-causes-20261106.public.json",
+    "tone": "fail",
+    "kind": {
+      "en": "State-only ACT · matched R3",
+      "zh": "State-only ACT · 同场景R3"
+    },
+    "result": {
+      "en": "Original posture-envelope rejection",
+      "zh": "原姿态包络门停止"
+    },
+    "en": "Same p001030 / pose 2 / R3, selected step 4,500. 54 actual model responses, then the original posture-envelope stop before contact; 27.5 simulated seconds.",
+    "zh": "同一p001030/姿态2/R3，选定4,500步。54次实际模型响应后，在接触前被原姿态包络门停止；27.5仿真秒。"
+  },
+  "astra": {
+    "src": "drafts/assets/matched-v3-astra.mp4",
+    "poster": "drafts/assets/matched-v3-astra-poster.png",
+    "evidence": "drafts/evidence/matched-v3-astra-postflight.public.json",
+    "tone": "pass",
+    "kind": {
+      "en": "Astra + analytic expert · matched R3",
+      "zh": "Astra+解析专家 · 同场景R3"
+    },
+    "result": {
+      "en": "Independently qualified · analytic motors",
+      "zh": "独立合格 · 解析运动执行"
+    },
+    "en": "Same p001030 / pose 2 / R3. Three real gpt-6-astra decisions with GivenContactExpert local motor/contact execution; independently qualified. 112.2 simulated seconds; inference waiting omitted.",
+    "zh": "同一p001030/姿态2/R3。3次实际gpt-6-astra决策，GivenContactExpert执行局部运动/接触；独立合格。112.2仿真秒，推理等待省略。"
+  }
 };
 const originals = new Map([...document.querySelectorAll('[data-i18n]')].map(el=>[el,el.innerHTML]));
 const video = document.querySelector('#main-video');
@@ -110,7 +184,7 @@ function beginLoading(){
   clearTimeout(loadingTimer); setVideoState('loading');
   loadingTimer=setTimeout(()=>{if(video.readyState===0)setVideoState('error');},15000);
 }
-video.addEventListener('loadedmetadata',()=>setVideoState('ready'));
+video.addEventListener('loadedmetadata',()=>{if(video.readyState>=2)setVideoState('ready');});
 video.addEventListener('canplay',()=>setVideoState('ready'));
 video.addEventListener('playing',()=>setVideoState('ready'));
 video.addEventListener('waiting',()=>setVideoState('buffering'));
@@ -120,7 +194,7 @@ retry.addEventListener('click',()=>{beginLoading();video.load();});
 for(const button of document.querySelectorAll('[data-video]'))button.addEventListener('click',()=>{
   if(button.dataset.video===selected) return;
   selected=button.dataset.video;
-  video.pause(); video.removeAttribute('poster');
+  video.pause(); video.poster=videos[selected].poster;
   beginLoading(); video.src=videos[selected].src; video.load();
   for(const tab of document.querySelectorAll('[data-video]')){
     const active=tab===button;tab.classList.toggle('active',active);tab.setAttribute('aria-pressed',String(active));
@@ -207,7 +281,7 @@ if('IntersectionObserver' in window){
       if(link.getAttribute('href')===href)link.setAttribute('aria-current','location');else link.removeAttribute('aria-current');
     });
   },{rootMargin:'-15% 0px -50% 0px',threshold:0});
-  ['demo','training','benchmark','astra','questions'].forEach(id=>navObserver.observe(document.getElementById(id)));
+  ['demo','training','rebuilt-comparison','benchmark','astra','questions'].forEach(id=>navObserver.observe(document.getElementById(id)));
 }
 motionPreference.addEventListener('change',()=>{
   document.documentElement.classList.toggle('js-motion',!motionPreference.matches);
@@ -220,4 +294,4 @@ prepareTagline();
 document.documentElement.classList.add('js-video');
 beginLoading();
 if(video.error)setVideoState('error');
-else if(video.readyState>=1)setVideoState('ready');
+else if(video.readyState>=2)setVideoState('ready');

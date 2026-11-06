@@ -11,6 +11,11 @@ scenarios per system. It does not test the complete ten-point sequence on
 these bodies, unseen pose families, moving patients or clothed contact. The
 historical nominal ten-point expert run belongs to a separate cohort.
 
+All three systems receive prescribed 3D target poses from simulation plans.
+This benchmark does not train or evaluate an RGB-D target localizer. ACT state17
+is q7 + target-relative position3 + rotation6D + confidence1 (exactly1); H2
+produces34 model features, with no RGB, depth or Hall model input.
+
 ACT controls the learned approach from state input. Its contact, hold,
 release and return skills are analytic. Astra receives RGB, depth summaries,
 simulated Hall observations and joint state, and decides whether a local

@@ -1,0 +1,1160 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ausc:matched-qualified-results-v2",
+  "title": "Closed matched comparison: original qualification authority with nullable reporting metrics",
+  "description": "Reporting contract only. Original native qualifier artifacts and unchanged source/physical contracts supply verdicts. Null summary extrema are unreported or unaggregated in this extract; original qualifiers consumed recorded native measurements. Acceptance thresholds are not substituted for measured extrema. V1 remains immutable; this does not relax physics or establish full-project/clinical acceptance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "publication_status",
+    "whole_comparison_complete",
+    "as_of_utc",
+    "comparison_scope",
+    "expected_scenario_slots",
+    "methods",
+    "case_manifest",
+    "original_controller",
+    "original_reports",
+    "original_qualifications",
+    "source_context",
+    "execution_context",
+    "system_roles",
+    "scenarios",
+    "summary",
+    "notes"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ausc-matched-qualified-results-v2"
+    },
+    "publication_status": {
+      "const": "reviewed_for_append"
+    },
+    "whole_comparison_complete": {
+      "const": true
+    },
+    "as_of_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "comparison_scope": {
+      "const": "frozen_two_id_two_known_pose_two_target_diagnostic"
+    },
+    "expected_scenario_slots": {
+      "const": 8
+    },
+    "methods": {
+      "const": [
+        "expert",
+        "act",
+        "astra"
+      ]
+    },
+    "case_manifest": {
+      "$ref": "#/$defs/artifact"
+    },
+    "original_controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "complete",
+        "frozen_evaluation",
+        "all_original_arms_terminal",
+        "all_qualifications_closed"
+      ],
+      "properties": {
+        "complete": {
+          "$ref": "#/$defs/artifact"
+        },
+        "frozen_evaluation": {
+          "$ref": "#/$defs/artifact"
+        },
+        "all_original_arms_terminal": {
+          "const": true
+        },
+        "all_qualifications_closed": {
+          "const": true
+        }
+      }
+    },
+    "original_reports": {
+      "type": "object",
+      "required": [
+        "expert",
+        "act",
+        "astra"
+      ],
+      "properties": {
+        "expert": {
+          "$ref": "#/$defs/artifact"
+        },
+        "act": {
+          "$ref": "#/$defs/artifact"
+        },
+        "astra": {
+          "$ref": "#/$defs/artifact"
+        }
+      }
+    },
+    "original_qualifications": {
+      "type": "object",
+      "required": [
+        "expert",
+        "act",
+        "astra"
+      ],
+      "properties": {
+        "expert": {
+          "$ref": "#/$defs/artifact"
+        },
+        "act": {
+          "$ref": "#/$defs/artifact"
+        },
+        "astra": {
+          "$ref": "#/$defs/artifact"
+        }
+      }
+    },
+    "source_context": {
+      "type": "object"
+    },
+    "execution_context": {
+      "type": "object"
+    },
+    "system_roles": {
+      "type": "object",
+      "required": [
+        "given_3d_target",
+        "visual_target_localization",
+        "sensor_causality_proven",
+        "learned_astra_motor_policy"
+      ],
+      "properties": {
+        "given_3d_target": {
+          "const": true
+        },
+        "visual_target_localization": {
+          "const": false
+        },
+        "sensor_causality_proven": {
+          "const": false
+        },
+        "learned_astra_motor_policy": {
+          "const": false
+        }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 8,
+      "items": {
+        "$ref": "#/$defs/scenario"
+      },
+      "allOf": [
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000474_a001230_f0000-r3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000474_a001230_f0000-l3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000476_a001231_f0023-r3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000476_a001231_f0023-l3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000474_a001230_f0000-r3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000474_a001230_f0000-l3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000476_a001231_f0023-r3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        {
+          "contains": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000476_a001231_f0023-l3"
+              }
+            },
+            "required": [
+              "scenario_id"
+            ]
+          },
+          "minContains": 1,
+          "maxContains": 1
+        }
+      ]
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "qualified_completions",
+        "actual_native_episodes",
+        "qualified_positive_slots",
+        "actual_native_slots",
+        "unknown_physical_verdicts",
+        "act_failure_categories",
+        "astra"
+      ],
+      "properties": {
+        "qualified_completions": {
+          "const": {
+            "expert": 8,
+            "act": 0,
+            "astra": 8
+          }
+        },
+        "actual_native_episodes": {
+          "const": {
+            "expert": 8,
+            "act": 8,
+            "astra": 8
+          }
+        },
+        "qualified_positive_slots": {
+          "const": 16
+        },
+        "actual_native_slots": {
+          "const": 24
+        },
+        "unknown_physical_verdicts": {
+          "const": 0
+        },
+        "act_failure_categories": {
+          "const": {
+            "posture_joint_envelope": 6,
+            "mesh_clearance": 2
+          }
+        },
+        "astra": {
+          "type": "object"
+        }
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_name",
+        "sha256",
+        "bytes",
+        "public_path"
+      ],
+      "properties": {
+        "logical_name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_.\\-/]+$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "public_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^(?!.*\\.\\.)(?:data|assets|drafts|evidence)/[A-Za-z0-9_./-]+$"
+        }
+      }
+    },
+    "arm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "motor_actor",
+        "model_id",
+        "model_checkpoint",
+        "execution_status",
+        "physical_success",
+        "failure_reason",
+        "physical_category",
+        "run_id",
+        "run_config",
+        "owner_terminal",
+        "owner_drained_released",
+        "native_audit",
+        "native_execution_receipt",
+        "actual_native_episode",
+        "model_invoked",
+        "model_calls",
+        "native_source_inventory_digest",
+        "native_source_matches_plan",
+        "unchanged_physical_contract",
+        "original_qualification",
+        "metrics",
+        "model_execution",
+        "recording"
+      ],
+      "properties": {
+        "method": {
+          "enum": [
+            "expert",
+            "act",
+            "astra"
+          ]
+        },
+        "motor_actor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_checkpoint": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/artifact"
+            }
+          ]
+        },
+        "execution_status": {
+          "enum": [
+            "completed",
+            "failed",
+            "aborted"
+          ]
+        },
+        "physical_success": {
+          "type": "boolean"
+        },
+        "failure_reason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "physical_category": {
+          "enum": [
+            null,
+            "posture_joint_envelope",
+            "mesh_clearance"
+          ]
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "run_config": {
+          "$ref": "#/$defs/artifact"
+        },
+        "owner_terminal": {
+          "$ref": "#/$defs/artifact"
+        },
+        "owner_drained_released": {
+          "const": true
+        },
+        "native_audit": {
+          "$ref": "#/$defs/artifact"
+        },
+        "native_execution_receipt": {
+          "$ref": "#/$defs/artifact"
+        },
+        "actual_native_episode": {
+          "const": true
+        },
+        "model_invoked": {
+          "type": "boolean"
+        },
+        "model_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "native_source_inventory_digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "native_source_matches_plan": {
+          "const": true
+        },
+        "unchanged_physical_contract": {
+          "const": true
+        },
+        "original_qualification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "artifact",
+            "passed",
+            "configuration_matches",
+            "run_matches",
+            "authority"
+          ],
+          "properties": {
+            "artifact": {
+              "$ref": "#/$defs/artifact"
+            },
+            "passed": {
+              "type": "boolean"
+            },
+            "configuration_matches": {
+              "const": true
+            },
+            "run_matches": {
+              "const": true
+            },
+            "authority": {
+              "const": "original_native_qualifier"
+            }
+          }
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contact_force_peak_N",
+            "forbidden_contact_peak_N",
+            "spring_stroke_peak_m",
+            "verified_front_contact_hold_s",
+            "normal_hold_min_N",
+            "normal_hold_max_N",
+            "local_plane_hold_max_deg",
+            "reported_native_simulation_s",
+            "worker_wall_s",
+            "physics_steps",
+            "force_source"
+          ],
+          "properties": {
+            "contact_force_peak_N": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "forbidden_contact_peak_N": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "spring_stroke_peak_m": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "verified_front_contact_hold_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "normal_hold_min_N": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "normal_hold_max_N": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "local_plane_hold_max_deg": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "reported_native_simulation_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "worker_wall_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "physics_steps": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "force_source": {
+              "const": "original_native_contact_summary_not_decoded_spring_preload"
+            }
+          }
+        },
+        "model_execution": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "recording": {
+          "type": "object",
+          "required": [
+            "status",
+            "artifact",
+            "recording_receipt",
+            "duration_s",
+            "frames"
+          ],
+          "properties": {
+            "status": {
+              "enum": [
+                "available",
+                "not_exported"
+              ]
+            },
+            "artifact": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/artifact"
+                }
+              ]
+            },
+            "recording_receipt": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/artifact"
+                }
+              ]
+            },
+            "duration_s": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "frames": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 1
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "physical_success": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "execution_status": {
+                "const": "completed"
+              },
+              "failure_reason": {
+                "type": "null"
+              },
+              "physical_category": {
+                "type": "null"
+              },
+              "original_qualification": {
+                "properties": {
+                  "passed": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "execution_status": {
+                "enum": [
+                  "failed",
+                  "aborted"
+                ]
+              },
+              "failure_reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "original_qualification": {
+                "properties": {
+                  "passed": {
+                    "const": false
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "expert"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model_id": {
+                "type": "null"
+              },
+              "model_invoked": {
+                "const": false
+              },
+              "model_calls": {
+                "const": 0
+              },
+              "motor_actor": {
+                "const": "analytic_GivenContactExpert"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "model_invoked": {
+                "const": true
+              },
+              "model_calls": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "model_execution": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "act"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model_id": {
+                "const": "official_lerobot_act"
+              },
+              "model_checkpoint": {
+                "$ref": "#/$defs/artifact"
+              },
+              "motor_actor": {
+                "const": "learned_ACT_L2_with_analytic_contact"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "method": {
+                "const": "astra"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model_id": {
+                "const": "gpt-6-astra"
+              },
+              "motor_actor": {
+                "const": "analytic_GivenContactExpert_with_Astra_supervision"
+              },
+              "model_calls": {
+                "const": 3
+              },
+              "model_execution": {
+                "properties": {
+                  "model_fallback_count": {
+                    "const": 0
+                  },
+                  "physics_paused_during_inference": {
+                    "const": true
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_id",
+        "subject_id",
+        "pose_id",
+        "target_id",
+        "seed",
+        "source_config",
+        "arms"
+      ],
+      "properties": {
+        "scenario_id": {
+          "enum": [
+            "p001030-p000474_a001230_f0000-r3",
+            "p001030-p000474_a001230_f0000-l3",
+            "p001030-p000476_a001231_f0023-r3",
+            "p001030-p000476_a001231_f0023-l3",
+            "p000956-p000474_a001230_f0000-r3",
+            "p000956-p000474_a001230_f0000-l3",
+            "p000956-p000476_a001231_f0023-r3",
+            "p000956-p000476_a001231_f0023-l3"
+          ]
+        },
+        "subject_id": {
+          "enum": [
+            "p001030",
+            "p000956"
+          ]
+        },
+        "pose_id": {
+          "enum": [
+            "p000474_a001230_f0000",
+            "p000476_a001231_f0023"
+          ]
+        },
+        "target_id": {
+          "enum": [
+            "R3",
+            "L3"
+          ]
+        },
+        "seed": {
+          "const": 0
+        },
+        "source_config": {
+          "$ref": "#/$defs/artifact"
+        },
+        "arms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "expert",
+            "act",
+            "astra"
+          ],
+          "properties": {
+            "expert": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/arm"
+                },
+                {
+                  "properties": {
+                    "method": {
+                      "const": "expert"
+                    }
+                  }
+                }
+              ]
+            },
+            "act": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/arm"
+                },
+                {
+                  "properties": {
+                    "method": {
+                      "const": "act"
+                    }
+                  }
+                }
+              ]
+            },
+            "astra": {
+              "allOf": [
+                {
+                  "$ref": "#/$defs/arm"
+                },
+                {
+                  "properties": {
+                    "method": {
+                      "const": "astra"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000474_a001230_f0000-r3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p001030"
+              },
+              "pose_id": {
+                "const": "p000474_a001230_f0000"
+              },
+              "target_id": {
+                "const": "R3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "ad5cd811bd41e588479a76e73e9b2305deac71d27552481a191573ca6b9b4ec3"
+                  },
+                  "bytes": {
+                    "const": 108882
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000474_a001230_f0000-l3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p001030"
+              },
+              "pose_id": {
+                "const": "p000474_a001230_f0000"
+              },
+              "target_id": {
+                "const": "L3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "920bbd787468622e39cfff99777adcdce4e556544a49fe92023b01d9e437e7a4"
+                  },
+                  "bytes": {
+                    "const": 108867
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000476_a001231_f0023-r3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p001030"
+              },
+              "pose_id": {
+                "const": "p000476_a001231_f0023"
+              },
+              "target_id": {
+                "const": "R3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "063e297f470c851bf76a7e8130ff4964f65a33d854cf2f96fe1de7d21a46b204"
+                  },
+                  "bytes": {
+                    "const": 108886
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p001030-p000476_a001231_f0023-l3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p001030"
+              },
+              "pose_id": {
+                "const": "p000476_a001231_f0023"
+              },
+              "target_id": {
+                "const": "L3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "017e5f39e25f058f8715a1f592107cb8d862058bdaadb8d3af1ae87efa5d8c36"
+                  },
+                  "bytes": {
+                    "const": 108881
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000474_a001230_f0000-r3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p000956"
+              },
+              "pose_id": {
+                "const": "p000474_a001230_f0000"
+              },
+              "target_id": {
+                "const": "R3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "4afef4b615792cb03b876ad1d15c3f984cd63c03b54982703c87ea5d2fa9efe0"
+                  },
+                  "bytes": {
+                    "const": 108875
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000474_a001230_f0000-l3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p000956"
+              },
+              "pose_id": {
+                "const": "p000474_a001230_f0000"
+              },
+              "target_id": {
+                "const": "L3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "9212342b9c3b185be3bb3a9a9021848a15e478ac4c626589a7c321eeb58cc1f7"
+                  },
+                  "bytes": {
+                    "const": 108868
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000476_a001231_f0023-r3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p000956"
+              },
+              "pose_id": {
+                "const": "p000476_a001231_f0023"
+              },
+              "target_id": {
+                "const": "R3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "9cae7581bc89da3054aa5f07624f81f47dd7ec06d050ba3e998eaa2721a855f4"
+                  },
+                  "bytes": {
+                    "const": 108869
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "scenario_id": {
+                "const": "p000956-p000476_a001231_f0023-l3"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "subject_id": {
+                "const": "p000956"
+              },
+              "pose_id": {
+                "const": "p000476_a001231_f0023"
+              },
+              "target_id": {
+                "const": "L3"
+              },
+              "source_config": {
+                "properties": {
+                  "sha256": {
+                    "const": "2dd162614aa79cf1a25de9e1b2319178f2c37fe1a54c626c600c6b934d6122f3"
+                  },
+                  "bytes": {
+                    "const": 108880
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

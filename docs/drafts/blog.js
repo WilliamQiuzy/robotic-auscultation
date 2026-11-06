@@ -27,13 +27,13 @@ for(const video of document.querySelectorAll('.exp-recording video')){
   if(value==='ready'||value==='error')clearTimeout(loadingTimer);
  }
  function load(){clearTimeout(loadingTimer);state('loading');loadingTimer=setTimeout(()=>{if(video.readyState===0)state('error');},15000);}
- video.addEventListener('loadedmetadata',()=>state('ready'));
+ video.addEventListener('loadedmetadata',()=>{if(video.readyState>=2)state('ready');});
  video.addEventListener('canplay',()=>state('ready'));
  video.addEventListener('playing',()=>state('ready'));
  video.addEventListener('waiting',()=>state('loading'));
  video.addEventListener('error',()=>state('error'));
  retry.addEventListener('click',()=>{load();video.load();});
- load();if(video.error)state('error');else if(video.readyState>=1)state('ready');
+ load();if(video.error)state('error');else if(video.readyState>=2)state('ready');
 }
 const reduced=window.matchMedia('(prefers-reduced-motion:reduce)');
 const principle=document.querySelector('[data-word-reveal]');

@@ -65,7 +65,7 @@ class MatchedPresentationTests(unittest.TestCase):
         for method in pending:
             self.assertIn(method, ['act', 'astra'])
             self.assertFalse(any(method in a.get('src', '') for a in media))
-        self.assertIn('Astra pending', self.html)
+        self.assertIn('Independently qualified', self.html)
 
     def test_original_expert_recording_and_preselection_are_hash_bound(self):
         receipt = json.loads((DRAFT / 'evidence/matched-v3-expert-recording.public.json').read_text())
@@ -129,10 +129,72 @@ class MatchedPresentationTests(unittest.TestCase):
             self.assertEqual(scenario['arms']['astra']['execution_status'], 'pending')
         selected = next(s for s in partial['scenarios'] if s['scenario_id'] == receipt['scenario_id'])
         self.assertEqual(selected['arms']['astra']['recording']['status'], 'available')
-        self.assertFalse((ROOT / 'docs/evidence/rebuilt-matched-20261106-v3.json').exists())
 
-    def test_article_is_noindex_partial_and_all_local_targets_exist(self):
-        self.assertTrue(any(t == 'meta' and a.get('name') == 'robots' and a.get('content') == 'noindex,nofollow' for t, a in self.elements))
+    def test_final_closed_comparison_binds_all_original_verdicts(self):
+        final = json.loads((ROOT / 'docs/evidence/rebuilt-matched-20261106-v3.json').read_text())
+        self.assertEqual(final['schema'], 'ausc-matched-qualified-results-v2')
+        self.assertTrue(final['whole_comparison_complete'])
+        self.assertEqual(final['original_controller']['complete']['sha256'], '864c53cd28814e36381460edfc766017a6fdc56662b646905cfb1e946573f748')
+        self.assertEqual(final['original_controller']['frozen_evaluation']['sha256'], '46ea38172ae48f6651b35590b8e4b0314bd038dd9ad675734d03788ec95d4696')
+        self.assertEqual(final['summary']['qualified_completions'], {'expert': 8, 'act': 0, 'astra': 8})
+        self.assertFalse(final['source_context']['formal_acceptance'])
+        self.assertFalse(final['source_context']['training_accepted'])
+        self.assertEqual(len(final['scenarios']), 8)
+        native = positives = 0
+        for scenario in final['scenarios']:
+            self.assertEqual(set(scenario['arms']), {'expert', 'act', 'astra'})
+            for method, arm in scenario['arms'].items():
+                self.assertIsInstance(arm['physical_success'], bool)
+                self.assertEqual(arm['original_qualification']['passed'], arm['physical_success'])
+                self.assertEqual(arm['original_qualification']['authority'], 'original_native_qualifier')
+                self.assertTrue(arm['native_source_matches_plan'])
+                self.assertTrue(arm['owner_drained_released'])
+                self.assertTrue(arm['actual_native_episode'])
+                self.assertIsNone(arm['metrics']['normal_hold_min_N'])
+                self.assertIsNone(arm['metrics']['normal_hold_max_N'])
+                if method != 'expert':
+                    self.assertTrue(arm['model_invoked'])
+                    self.assertGreater(arm['model_calls'], 0)
+                native += arm['actual_native_episode']
+                positives += arm['physical_success']
+        self.assertEqual((native, positives), (24, 16))
+        astra = final['summary']['astra']
+        self.assertEqual(astra['actual_decision_records'], 24)
+        self.assertEqual(astra['pause_clock_equal_count'], 24)
+        self.assertEqual(astra['reported_executed_native_ticks'], 218585)
+        self.assertIsNone(astra['http_only_latency_s'])
+        self.assertIsNone(astra['api_cost_usd'])
+        self.assertIsNone(astra['pricing_source'])
+        self.assertEqual(astra['token_usage_totals']['input_tokens'], 656352)
+        self.assertEqual(astra['token_usage_totals']['cached_input_tokens'], 29568)
+        self.assertFalse(final['system_roles']['sensor_causality_proven'])
+        self.assertFalse(final['system_roles']['learned_astra_motor_policy'])
+
+    def test_final_public_artifact_refs_match_bytes_and_hashes(self):
+        final = json.loads((ROOT / 'docs/evidence/rebuilt-matched-20261106-v3.json').read_text())
+        def walk(value):
+            if isinstance(value, dict):
+                if value.get('public_path') and 'sha256' in value and 'bytes' in value:
+                    target = ROOT / 'docs' / value['public_path']
+                    self.assertTrue(target.is_file(), str(target))
+                    raw = target.read_bytes()
+                    self.assertEqual(len(raw), value['bytes'])
+                    self.assertEqual(hashlib.sha256(raw).hexdigest(), value['sha256'])
+                for child in value.values():
+                    walk(child)
+            elif isinstance(value, list):
+                for child in value:
+                    walk(child)
+        walk(final)
+        self.assertEqual((ROOT / 'benchmarks/matched-qualified-results-v2.schema.json').read_bytes(), (ROOT / 'docs/evidence/matched-qualified-results-v2.schema.json').read_bytes())
+        serialized = json.dumps(final)
+        self.assertNotIn('/opt/', serialized)
+        self.assertNotIn('/Users/', serialized)
+        self.assertNotIn('GPU-', serialized)
+
+    def test_article_is_published_closed_and_all_local_targets_exist(self):
+        self.assertFalse(any(t == 'meta' and a.get('name') == 'robots' and 'noindex' in a.get('content', '') for t, a in self.elements))
+        self.assertTrue(any(t == 'link' and a.get('rel') == 'canonical' and a.get('href') == 'https://williamqiuzy.github.io/robotic-auscultation/drafts/rebuild-20261105.html' for t, a in self.elements))
         home = (ROOT / 'docs/index.html').read_text()
         self.assertIn('id="rebuilt-comparison"', home)
         self.assertIn('Historical release', home)
