@@ -1,0 +1,81 @@
+{
+  "source_video": {
+    "bytes": 699630,
+    "sha256": "61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc",
+    "logical_name": "actual_fresh_expert.mp4"
+  },
+  "staged_video": {
+    "bytes": 699630,
+    "sha256": "61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc",
+    "logical_name": "expert.mp4"
+  },
+  "frames": {
+    "bytes": 101940,
+    "sha256": "573fe6fc0f3a7d00b3600c2fb70342d0d7eaa6a9d05fcd72954c910687abc377",
+    "logical_name": "video_frames.json"
+  },
+  "worker": {
+    "bytes": 703,
+    "sha256": "87862f1370fe9147c32cc192bb195103c664e88b6800a302bf34550ded771f47",
+    "logical_name": "p001030-p000476_a001231_f0023-r3.result.json"
+  },
+  "run_result": {
+    "bytes": 570914,
+    "sha256": "5095a1446c76714f98481c90a8c54caf88437de83e0d55e6cc2a98e2fbba7fef",
+    "logical_name": "fresh_expert_result.json"
+  },
+  "ffprobe": {
+    "programs": [],
+    "streams": [
+      {
+        "width": 640,
+        "height": 360,
+        "r_frame_rate": "10/1",
+        "nb_frames": "1122"
+      }
+    ],
+    "format": {
+      "duration": "112.200000"
+    }
+  },
+  "frame_index_count": 1122,
+  "native_frame_stride": 24,
+  "physics_hz": 240,
+  "actual_recording": true,
+  "new_render": false,
+  "qualified_benchmark_result_pending": true,
+  "simulation_time_playback": true,
+  "inference_wall_pause_included": false,
+  "source_record": {
+    "logical_name": "rebuilt-matched-videos-20261106-v1/expert-VIDEO.json",
+    "bytes": 1839,
+    "sha256": "2e4498fe8dc74067ed512b588cbf43a179d4dd9e72d3ae2b0c8faab4e70d436e"
+  },
+  "media_selection": {
+    "schema": "wam_rebuilt_matched_media_selection_v1",
+    "selected_utc": "2026-11-06T04:17:35.185098+00:00",
+    "scenario_id": "p001030-p000476_a001231_f0023-r3",
+    "criterion": "First frozen identity, second already-seen seated pose, R3. Same scenario for all three systems; not chosen from ACT/Astra outcomes.",
+    "act_or_astra_run_started": false,
+    "scope": "Presentation selection only; all eight planned scenarios remain the evaluation denominator",
+    "selected_before_act_astra_outcomes": true,
+    "physical_qualification_pending": true
+  },
+  "media_selection_record": {
+    "logical_name": "rebuilt-matched-videos-20261106-v1/MEDIA_SELECTION.json",
+    "bytes": 544,
+    "sha256": "62fdce646ef9e77a66829e0d5331247da0e53a35816ca13f9b25e0340a786409"
+  },
+  "public_assets": {
+    "expert.mp4": {
+      "path": "assets/matched-v3-expert.mp4",
+      "bytes": 699630,
+      "sha256": "61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc"
+    },
+    "expert-poster.png": {
+      "path": "assets/matched-v3-expert-poster.png",
+      "bytes": 87210,
+      "sha256": "91bd3499bec20691b2045fbc7beed95668b3e3329b5a0aab9032704d3daa2258"
+    }
+  }
+}

@@ -1,0 +1,64 @@
+/* Presentation accounting only. Physical qualification remains the recorded native verdict. */
+(function(root){
+ 'use strict';
+ const methods=['expert','act','astra'];
+ const subjects=['p001030','p000956'];
+ const poses=['p000474_a001230_f0000','p000476_a001231_f0023'];
+ const expected=new Set(subjects.flatMap(s=>poses.flatMap(p=>['r3','l3'].map(t=>`${s}-${p}-${t}`))));
+ const statuses=new Set(['pending','running','completed','failed','aborted','unavailable','not_launched','missing_receipt']);
+ const terminal=new Set(['completed','failed','aborted','unavailable','not_launched','missing_receipt']);
+ function summarize(data){
+  if(data.schema!=='ausc-matched-eight-results-v1'||data.expected_scenario_slots!==8||!Array.isArray(data.scenarios)||data.scenarios.length!==8)throw new Error('Expected all eight frozen scenario slots.');
+  const seen=new Set();const summaries=Object.fromEntries(methods.map(m=>[m,{planned:8,pending:0,running:0,terminal:0,qualified:0,physicalRejected:0,physicalUnknown:0,actualNative:0,modelInvoked:0,categories:{}}]));
+  for(const scenario of data.scenarios){
+   if(!expected.has(scenario.scenario_id)||seen.has(scenario.scenario_id))throw new Error('Frozen scenarios must appear exactly once.');
+   seen.add(scenario.scenario_id);
+   for(const method of methods){
+    const arm=scenario.arms?.[method];
+    if(!arm||arm.method!==method||!statuses.has(arm.execution_status)||![null,true,false].includes(arm.physical_success))throw new Error('Incomplete or invalid method slot.');
+    if(['pending','running','unavailable','not_launched','missing_receipt'].includes(arm.execution_status)&&arm.physical_success!==null)throw new Error('Unknown physical verdict must remain null.');
+    if(arm.physical_success!==null&&(!arm.owner_terminal||!arm.native_audit))throw new Error('Physical verdict has no terminal audit binding.');
+    if(arm.physical_success===true&&(arm.execution_status!=='completed'||arm.actual_native_episode!==true||(method!=='expert'&&arm.model_invoked!==true)))throw new Error('Qualified completion contradicts execution evidence.');
+    const s=summaries[method];
+    if(arm.execution_status==='pending')s.pending++;
+    if(arm.execution_status==='running')s.running++;
+    if(terminal.has(arm.execution_status))s.terminal++;
+    if(arm.physical_success===true)s.qualified++;
+    else if(arm.physical_success===false)s.physicalRejected++;
+    else s.physicalUnknown++;
+    if(arm.actual_native_episode===true)s.actualNative++;
+    if(arm.model_invoked===true)s.modelInvoked++;
+    s.categories[arm.execution_status]=(s.categories[arm.execution_status]||0)+1;
+   }
+  }
+  return {reviewed:data.publication_status==='reviewed_for_append',methods:summaries};
+ }
+ function verdict(arm){
+  if(arm.physical_success===true)return 'Qualified';
+  if(arm.physical_success===false)return 'Physical rejection';
+  return {pending:'Pending',running:'Running · verdict pending',completed:'Closed · audit unavailable',failed:'Execution failed · physical unknown',aborted:'Aborted · physical unknown',unavailable:'Unavailable · physical unknown',not_launched:'Not launched',missing_receipt:'Missing audit · physical unknown'}[arm.execution_status];
+ }
+ function render(element,data){
+  const result=summarize(data);
+  for(const method of methods){
+   const summary=result.methods[method];
+   element.querySelector(`[data-summary="${method}"]`).textContent=result.reviewed?`${summary.qualified} / 8`:'Pending';
+   for(const scenario of data.scenarios){
+    const cell=element.querySelector(`[data-case="${scenario.scenario_id}"][data-method="${method}"]`);
+    if(!cell)throw new Error('Missing scenario cell.');
+    cell.textContent=verdict(scenario.arms[method]);
+    cell.dataset.verdict=scenario.arms[method].physical_success===null?'unknown':String(scenario.arms[method].physical_success);
+   }
+  }
+  element.querySelector('#matched-status').textContent=result.reviewed?'End-to-end qualified completions per eight planned scenarios. Physical unknowns remain distinct from observed rejections.':'Qualification pending. All 24 system slots remain pending; no matched aggregate score is available.';
+  element.querySelector('#matched-coverage').textContent=result.reviewed?methods.map(m=>{const s=result.methods[m];return `${{expert:'Expert',act:'ACT',astra:'Astra + expert'}[m]}: ${s.actualNative}/8 actual native episodes; ${s.physicalRejected} audited physical rejections; ${s.physicalUnknown} unknown physical verdicts; ${s.modelInvoked} model-invoked episodes. Execution categories: ${Object.entries(s.categories).map(([k,v])=>`${k.replaceAll('_',' ')} ${v}`).join(', ')}.`;}).join(' '):'Eight planned slots per system. Pending is unknown, not an observed physical failure. Terminal infrastructure or missing-audit outcomes retain a null physical verdict.';
+  return result;
+ }
+ const api={summarize,verdict,render};
+ if(typeof module!=='undefined'&&module.exports)module.exports=api;
+ else root.MatchedResults=api;
+ if(typeof document!=='undefined'){
+  const element=document.querySelector('[data-results-source]');
+  if(element)fetch(element.dataset.resultsSource).then(response=>{if(!response.ok)throw new Error('Result extract unavailable.');return response.json();}).then(data=>render(element,data)).catch(()=>{element.querySelector('#matched-status').textContent='The result extract could not be verified. The static table remains pending; no score is inferred.';});
+ }
+})(typeof window!=='undefined'?window:globalThis);
