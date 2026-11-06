@@ -23,10 +23,27 @@ ledger accounts for actual constant STOP-tail samples without relabeling them
 as L2. Only complete episodes passing original physical/source/reset checks
 enter the new export; every failed attempt remains in its outcome ledger.
 
-The [source selection](drafts/act-recovery-source-selection-20261106.json)
+The [current source selection](drafts/act-student-recovery-source-selection-20261106.json)
 binds the distributed production/test bytes to the experiment source. Private
 per-run orchestration, credentials, licensed bodies, raw arrays and checkpoints
-are not distributed. The historical source8 inventory remains unchanged.
+are not distributed. Historical source8 and source17 inventories remain intact;
+the source17 public snapshot is commit `64c8c764fc6d27dad32e12b3b1700ed0bd6544f6`.
+
+The first repaired ACT completed20,000 steps but passed0/4 actual development
+cycles. The next recovery mode authenticates raw target prefixes from closed
+failed TRAIN student rollouts, executes them from a fresh physical home start,
+and queries the expert from the resulting measured state. It is replay for data
+collection, not a new student evaluation. Internal history waits retain their
+true role and held target. Every replay cell is a perturbation and supplies no
+teacher future. Only subsequent expert actions from an episode passing the
+original full qualifier become labels. VALIDATION and TEST inputs are rejected
+before native payloads open. The actual failed source episode stays negative.
+
+The optional bounded `--cpu-workers 3` export uses the same full physical and
+setter-fidelity reader as serial export and preserves declared row ordering.
+It changes decoding throughput, not admission. Before the second training run,
+all seven arrays of previously admitted TRAIN and selection VAL origins must
+remain bit identical as an ordered prefix of the expanded export.
 
 ## Export and train on an independently qualified Linux installation
 

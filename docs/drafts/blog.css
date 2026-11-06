@@ -39,6 +39,7 @@
 .exp-evidence-link{display:inline-block;color:var(--green);white-space:nowrap}
 .exp-evidence-link:hover{text-decoration:underline;text-underline-offset:var(--spacing-50)}
 .exp-recording{margin:var(--spacing-400) 0;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-xl);overflow:hidden}
+.exp-recording>img{display:block;width:100%;height:auto}
 .exp-recording .video-top span:last-child{max-width:none}
 .exp-recording figcaption{padding:var(--spacing-300);color:var(--muted);text-wrap:pretty}
 .exp-file-link{display:block;padding:0 var(--spacing-300) var(--spacing-300)}

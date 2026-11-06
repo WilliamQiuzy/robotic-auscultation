@@ -168,3 +168,15 @@ def test_masked_training_balances_real_near_goal_origins_without_state_noise():
     legacy=dict(states=states)
     np.testing.assert_array_equal(train.training_indices(np.random.default_rng(1),legacy,64),
         np.random.default_rng(1).integers(100,size=64))
+
+
+def test_parallel_physical_decode_keeps_all_failed_inputs_in_original_order(tmp_path):
+    from sim.ausc_policy import m2_given_contact_masked_dataset as export
+    rows=[dict(episode_id='case-'+str(i),config=dict(path=str(tmp_path/(str(i)+'.json')),
+        bytes=1,sha256='0'*64)) for i in range(4)]
+    got=list(export.decode_rows(rows,tmp_path,cpu_workers=3))
+    serial=list(export.decode_rows(rows,tmp_path,cpu_workers=1))
+    assert got==serial
+    assert [r['episode_id'] for r,payload,error in got]==[r['episode_id'] for r in rows]
+    assert all(payload is None and isinstance(error,str) and error for r,payload,error in got)
+    with pytest.raises(ValueError):list(export.decode_rows(rows,tmp_path,cpu_workers=4))

@@ -4,8 +4,10 @@ No simulator or model is invoked. Histories are always two real observations;
 only actually executed complete teacher raw setter cells supply future labels.
 """
 import argparse
+from concurrent.futures import ProcessPoolExecutor
 from copy import deepcopy
 import json
+import multiprocessing
 from pathlib import Path
 import traceback
 
@@ -20,6 +22,25 @@ from . import m2_given_contact_expanded_pilot_train as trainer
 need=rt.need
 REQUEST_SCHEMA='m2_given_contact_masked_export_request_v1'
 ARRAY_KEYS=shared.ARRAY_KEYS+('action_is_pad',)
+
+
+def _decode_job(value):
+    row,base=value
+    try:return row,read_episode(row,base),None
+    except Exception as error:return row,None,type(error).__name__+': '+str(error)
+
+
+def decode_rows(rows,base,*,cpu_workers=1):
+    """Same complete physical/fidelity decoder, in source order, with no CUDA."""
+    need(type(cpu_workers) is int and 1<=cpu_workers<=3,'One through three CPU decoder workers required')
+    jobs=((row,Path(base)) for row in rows)
+    if cpu_workers==1:
+        yield from map(_decode_job,jobs)
+    else:
+        # Spawn independent readers; no inherited native/BLAS process state and
+        # no shared mutable decoder. map preserves the declared source order.
+        with ProcessPoolExecutor(max_workers=cpu_workers,mp_context=multiprocessing.get_context('spawn')) as pool:
+            yield from pool.map(_decode_job,jobs)
 
 
 def read_episode(row,base):
@@ -94,7 +115,8 @@ def coverage(samples):
         interpretation='Encoded uncompressed TCP vs prescribed reference, not measured contact-plane flatness. Origins inside the instantaneous handoff trigger are not required; policy is never queried there.')
 
 
-def export(request_ref,output):
+def export(request_ref,output,*,cpu_workers=1):
+    need(type(cpu_workers) is int and 1<=cpu_workers<=3,'One through three CPU decoder workers required')
     request=rt.read_bound(request_ref)
     need(set(request)=={'schema','source_dataset','recovery_manifests'} and request['schema']==REQUEST_SCHEMA,
          'Exact original source dataset plus explicit recovery manifests required')
@@ -117,14 +139,16 @@ def export(request_ref,output):
         rebuild.permitted_subject(row['split'],row['subject_id']);data._metadata(row,base)
     output=Path(output).resolve();need(not output.exists(),'New immutable masked export required');output.mkdir()
     rt.write_new(output/'REQUEST.json',request)
+    execution=rt.write_new(output/'DECODE_EXECUTION.json',dict(cpu_workers=cpu_workers,
+        decoder=rt.reference(__file__),input_order_preserved=True,original_physical_decoder=True))
     decoded=[];outcomes=[]
     try:
-        for row in rows:
+        for row,payload,error in decode_rows(rows,base,cpu_workers=cpu_workers):
             outcome=dict(episode_id=row['episode_id'],positive_data=False,windows=0)
-            try:
-                payload=read_episode(row,base);decoded.append((row,payload))
+            if payload is not None:
+                decoded.append((row,payload))
                 outcome.update(positive_data=True,windows=len(payload[0]['states']))
-            except Exception as error:outcome['error']=type(error).__name__+': '+str(error)
+            else:outcome['error']=error
             outcomes.append(outcome)
             print(json.dumps(outcome),flush=True)
         result=combine(decoded);arrays={}
@@ -144,6 +168,7 @@ def export(request_ref,output):
             source_manifest=positive,source_dataset=request['source_dataset'],coverage=coverage_ref,outcomes=ledger,
             counts=result['counts'],split_subject_ids=result['split_subject_ids'],task_contract=rt.task_contract(),
             reference_inventory=result['reference_inventory'],rebuild_epoch='observed-reconstruction-20261105',
+            decode_execution=execution,
             original_cases=0,**rebuild.FLAGS))
         trainer.load_dataset(complete)
         return rt.write_new(output/'COMPLETE.json',rt.read_bound(complete))
@@ -156,8 +181,9 @@ def export(request_ref,output):
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--request',required=True);p.add_argument('--sha256',required=True);p.add_argument('--output',required=True)
+    p.add_argument('--cpu-workers',type=int,default=1,choices=(1,2,3))
     args=p.parse_args();ref=rt.reference(args.request);need(ref['sha256']==args.sha256,'Request changed')
-    export(ref,args.output)
+    export(ref,args.output,cpu_workers=args.cpu_workers)
 
 
 if __name__=='__main__':main()

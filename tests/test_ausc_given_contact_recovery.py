@@ -71,6 +71,44 @@ def test_late_dart_trigger_uses_measured_goal_distance_and_does_not_move_handoff
     assert m.recovery_trigger(dict(schema=m.SCHEMA),phase='APPROACH',approach_cells=4,distance_m=1.)
 
 
+def test_student_replay_is_a_separate_exact_train_scene_projection(tmp_path,monkeypatch):
+    m=module();s=source(tmp_path)
+    from sim.ausc_policy import m2_student_recovery_prefix as student
+    payload=dict(raw_targets=[[.01]*7,[.02]*7],start_row=252,initial_measured_q=[0.]*7)
+    pref=m.runtime.write_new(tmp_path/'prefix.json',dict(schema=student.SCHEMA))
+    seen=[]
+    def load(ref,nominal):seen.append((ref,nominal));return deepcopy(payload)
+    monkeypatch.setattr(student,'load',load)
+    cfg=m.derive_student_config(s,episode_id='student-recovery-a',student_prefix=pref)
+    binding=m.preflight(cfg)
+    assert cfg[m.ROUTE_KEY]['schema']==m.STUDENT_SCHEMA
+    assert binding['student_prefix']==payload and seen[-1]==(pref,s)
+    assert cfg['physics']==m.PHYSICS and cfg['fresh_expert']['passive_preload_N']==1.5
+    assert not any('deployment' in k for k in cfg)
+    cfg[m.ROUTE_KEY]['amplitude_rad']=.03
+    with pytest.raises(ValueError):m.preflight(cfg)
+
+
+def test_new_replay_numeric_candidates_cover_other_joints_without_changing_legacy():
+    m=module();retained=np.full(7,.1);route=np.asarray([retained+.00001,np.full(7,.2)])
+    old=m.recovery_route_candidates(retained,route)
+    new=m.recovery_route_candidates(retained,route,all_joints=True)
+    assert len(old)==5 and len(new)==29
+    assert all(np.array_equal(a,b) for a,b in zip(old,new[:5]))
+    assert any(r[1,0]==pytest.approx(route[0,0]+.001) for r in new[5:])
+    assert any(r[1,5]==pytest.approx(route[0,5]+.001) for r in new[5:])
+    assert all(np.array_equal(r[0],retained) and np.array_equal(r[-1],route[-1]) for r in new)
+
+
+def test_retained_student_prefix_starts_at_real_free_history_without_relabeling_phase(tmp_path):
+    m=module();ref,q=query(tmp_path);q['context'][-1]='FREE'
+    assert m.recovery_trigger(dict(schema=m.STUDENT_SCHEMA),phase='FREE',approach_cells=1,distance_m=.4)
+    assert not m.recovery_trigger(dict(schema=m.SCHEMA),phase='FREE',approach_cells=99,distance_m=.4)
+    with pytest.raises(ValueError):m._validate_query(q,ref)
+    np.testing.assert_array_equal(m._validate_query(q,ref,replay_start=True),q['measured_q'])
+    assert q['context'][-1]=='FREE'
+
+
 def test_late_numeric_candidates_preserve_measured_plan_and_retained_command_without_stop_at_sensor():
     m=module();retained=np.full(7,.1);measured=retained+.00001;goal=np.full(7,.2)
     route=np.asarray([measured,goal]);before=route.copy()
@@ -195,6 +233,35 @@ def ledger(audit,meta):
     return dict(schema=m.SIDECAR_SCHEMA,episode_id=meta['episode_id'],reference_sha256=meta['reference_sha256'],
         config_sha256='a'*64,completed=True,native_steps=len(audit),events=events,
         perturbations_executed=1,queries=[dict(kind='recovery_proposal')])
+
+
+def test_only_typed_student_prefix_can_change_perturbation_length(tmp_path):
+    m=module();e=exporter();_,rows,audit,meta=new_inputs(tmp_path,n=34);sidecar=ledger(audit,meta)
+    for cell in sidecar['events'][10:12]:cell['kind']='perturbation'
+    setters=[a['raw_intent']['setter'] for a in audit if a.get('raw_intent',{}).get('native_tick_in_cell')==0][:12]
+    prefix=m.runtime.write_new(tmp_path/'student-prefix.json',dict(
+        schema='m2_actual_student_raw_target_prefix_v1',raw_targets=[s['target_q'] for s in setters],
+        source_roles=['given_l2_motion']*12))
+    sidecar['declaration']=dict(schema=m.STUDENT_SCHEMA,student_prefix=prefix)
+    got=e.assemble_recovery_samples(rows,audit,meta,sidecar)
+    assert len(got['states'])==3
+    assert got['derived_index']['windows'][0]['inclusive_native_ticks'][0]==143
+    sidecar['declaration']['schema']=m.SCHEMA
+    with pytest.raises(ValueError):e.validate_sidecar(sidecar,audit,meta)
+
+
+def test_student_history_wait_is_an_authenticated_perturbation_and_never_a_teacher_future(tmp_path):
+    m=module();e=exporter();_,_,audit,meta=new_inputs(tmp_path,n=34);sidecar=ledger(audit,meta)
+    for event in audit:
+        if event.get('raw_intent',{}).get('setter',{}).get('physics_row_start')==60:
+            event['raw_intent']['setter']['execution_role']='given_l2_history_wait'
+    setters=[a['raw_intent']['setter'] for a in audit if a.get('raw_intent',{}).get('native_tick_in_cell')==0][:10]
+    pref=m.runtime.write_new(tmp_path/'student.json',dict(schema='m2_actual_student_raw_target_prefix_v1',
+        raw_targets=[s['target_q'] for s in setters],source_roles=[s['execution_role'] for s in setters]))
+    sidecar['declaration']=dict(schema=m.STUDENT_SCHEMA,student_prefix=pref)
+    assert e.validate_sidecar(sidecar,audit,meta)[60]['kind']=='perturbation'
+    sidecar['events'][5]['kind']='recovery_teacher'
+    with pytest.raises(ValueError):e.validate_sidecar(sidecar,audit,meta)
 
 
 def test_labels_are_raw_intents_and_perturbation_can_only_be_in_causal_history(tmp_path):

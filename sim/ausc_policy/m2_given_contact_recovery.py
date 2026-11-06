@@ -27,6 +27,7 @@ from sim.auscultation_pi05_v6.execution import FinishedStationaryRoundoffError
 ROUTE_KEY='m2_given_contact_recovery'
 SCHEMA='m2_given_contact_dart_collection_v1'
 LATE_SCHEMA='m2_given_contact_late_dart_collection_v2'
+STUDENT_SCHEMA='m2_given_contact_student_prefix_recovery_v3'
 SIDECAR_SCHEMA='m2_given_contact_recovery_setter_roles_v1'
 NATIVE_PYTHON='/opt/wam-runtime/envs/isaacsim60/bin/python'
 PHYSICS=dict(position_iterations=64,velocity_iterations=1,armature_kg_m2=.02)
@@ -40,6 +41,14 @@ KINDS=frozenset(('nominal_teacher','recovery_teacher','perturbation','excluded')
 
 
 def _settings(value):
+    if isinstance(value,dict) and value.get('schema')==STUDENT_SCHEMA:
+        need(set(value)=={'schema','source_config','episode_id','student_prefix'},
+            'Exact explicit historical-student prefix settings required')
+        need(isinstance(value['episode_id'],str) and
+            re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]{0,127}',value['episode_id']) is not None,
+            'Bounded distinct recovery episode required')
+        runtime.bound_path(value['student_prefix'])
+        return value
     late=isinstance(value,dict) and value.get('schema')==LATE_SCHEMA
     keys={'schema','source_config','episode_id','seed','amplitude_rad'}|({'trigger_distance_m'} if late else set())
     need(isinstance(value,dict) and set(value)==keys and value.get('schema') in (SCHEMA,LATE_SCHEMA),
@@ -93,7 +102,11 @@ def preflight(config):
          capture.get('episode_id')==settings['episode_id'] and capture['compact']['metadata']==meta and
          config['fresh_expert'].get('plans')==[ref.snapshot()['sources']['fresh_plan']],
          'Exact native compact/reference/plan binding required')
-    return dict(metadata=deepcopy(meta),settings=deepcopy(settings),reference=ref,config_sha256=runtime.digest(config))
+    result=dict(metadata=deepcopy(meta),settings=deepcopy(settings),reference=ref,config_sha256=runtime.digest(config))
+    if settings['schema']==STUDENT_SCHEMA:
+        from . import m2_student_recovery_prefix as student
+        result['student_prefix']=student.load(settings['student_prefix'],settings['source_config'])
+    return result
 
 
 def derive_config(source_config, *, episode_id, seed, amplitude_rad, trigger_distance_m=None):
@@ -104,7 +117,23 @@ def derive_config(source_config, *, episode_id, seed, amplitude_rad, trigger_dis
     result=_project(original,settings);preflight(result);return result
 
 
+def derive_student_config(source_config,*,episode_id,student_prefix):
+    settings=dict(schema=STUDENT_SCHEMA,source_config=deepcopy(source_config),episode_id=episode_id,
+        student_prefix=deepcopy(student_prefix))
+    _settings(settings);result=_project(runtime.read_bound(source_config),settings);preflight(result);return result
+
+
+def perturbation_cell_count(settings):
+    if settings.get('schema')!=STUDENT_SCHEMA:return PERTURB_CELLS
+    from . import m2_student_recovery_prefix as student
+    prefix=runtime.read_bound(settings['student_prefix']);targets=np.asarray(prefix.get('raw_targets'),float)
+    need(prefix.get('schema')==student.SCHEMA and targets.ndim==2 and targets.shape[1:]==(7,) and
+        1<=len(targets)<=2400 and np.isfinite(targets).all(),'Bounded authenticated student prefix cells required')
+    return len(targets)
+
+
 def recovery_trigger(settings, *, phase, approach_cells, distance_m):
+    if settings['schema']==STUDENT_SCHEMA:return phase in ('FREE','APPROACH') and approach_cells>=1
     if phase!='APPROACH':return False
     if settings['schema']==SCHEMA:return approach_cells>=APPROACH_DELAY_CELLS
     need(settings['schema']==LATE_SCHEMA and np.isfinite(distance_m) and distance_m>=0,
@@ -150,7 +179,7 @@ def preview_cells(trajectory, command_history, targets, verify_command, **kwargs
     return _preview(trajectory,command_history,targets,verify_command,settle=False,**kwargs)
 
 
-def _validate_query(query, reference):
+def _validate_query(query, reference,*,replay_start=False):
     q=contract._array(query['measured_q'],(7,),'same-state measured q')
     dq=contract._array(query['measured_dq'],(7,),'same-state measured dq')
     history=contract._array(query['history'],(2,17),'real recovery history')
@@ -161,8 +190,8 @@ def _validate_query(query, reference):
     runtime.shared.require_membership('train',metadata.get('subject_id'))
     need(require_route(metadata).sha256==reference.sha256 and context[0]==metadata['episode_id'],
          'Same-state metadata/reference/episode differs')
-    need(query['reference_sha256']==reference.sha256 and len(context)==4 and type(context[2]) is int and
-         context[2:]==[0,'APPROACH'] and
+    need(type(replay_start) is bool and query['reference_sha256']==reference.sha256 and len(context)==4 and type(context[2]) is int and
+         context[2]==0 and (context[3]=='APPROACH' or replay_start and context[3]=='FREE') and
          context[1]==reference.snapshot()['target_id'], 'Same-state reference/APPROACH context differs')
     need(type(row) is int and row>=12 and row%12==0 and abs(stamp-row/240.)<=1e-8 and
          abs(times[1]-stamp)<=1e-8 and abs(times[1]-times[0]-.05)<=1e-8 and
@@ -179,7 +208,7 @@ def _validate_query(query, reference):
     return q
 
 
-def recovery_route_candidates(retained, route):
+def recovery_route_candidates(retained, route,*,all_joints=False):
     """Measured state plans geometry; retained command q/v/a plans dynamics.
 
     Do not require an exact zero-velocity stop at the noisy sensor sample.
@@ -189,9 +218,10 @@ def recovery_route_candidates(retained, route):
     retained=contract._array(retained,(7,),'retained command')
     route=np.asarray(route,dtype=float)
     candidates=[np.vstack([retained,route[1:]])]
-    for delta in (.001,-.001,.003,-.003):
-        intermediate=route[0].copy();intermediate[4]+=delta
-        candidates.append(np.vstack([retained,intermediate,route[1:]]))
+    for joint in ([4,0,1,2,3,5,6] if all_joints else [4]):
+        for delta in (.001,-.001,.003,-.003):
+            intermediate=route[0].copy();intermediate[joint]+=delta
+            candidates.append(np.vstack([retained,intermediate,route[1:]]))
     return candidates
 
 
@@ -202,7 +232,7 @@ def record_incomplete_recovery(result):
 
 
 def propose_recovery(query, trajectory, command_history, destination, *, reference, planner,
-                     verify_command, trajectory_factory=None, numeric_detours=False):
+                     verify_command, trajectory_factory=None, numeric_detours=False,all_joint_detours=False):
     """Same-state moving teacher proposal; never an execution/label receipt."""
     result=dict(kind='abstain',physics_executed=False,training_eligible=False,query=deepcopy(query))
     original=handoff.input_snapshot(trajectory);output=handoff.output_snapshot(trajectory)
@@ -224,7 +254,7 @@ def propose_recovery(query, trajectory, command_history, destination, *, referen
         # Legacy connector is retained for v1. The v2 candidates use the actual
         # retained command seam and full preview, without stopping at sensor q.
         # Neither route resets q/v/a or substitutes measured command derivatives.
-        candidates=(recovery_route_candidates(retained,route) if numeric_detours else [np.vstack([retained,route])])
+        candidates=(recovery_route_candidates(retained,route,all_joints=all_joint_detours) if numeric_detours else [np.vstack([retained,route])])
         attempts=[];preview=None
         for candidate in candidates:
             candidate=candidate[np.r_[True,np.max(abs(np.diff(candidate,axis=0)),axis=1)>1e-12]]
@@ -265,9 +295,11 @@ class GivenContactRecoveryExpert(GivenContactExpert):
 
     def _issue_intent(self,target,context,role,*,stop=False):
         setter=super()._issue_intent(target,context,role,stop=stop)
+        student_wait=(self._data_kind=='perturbation' and role=='given_l2_history_wait' and
+            self.recovery_binding['settings']['schema']==STUDENT_SCHEMA)
         self._recovery_events.append(dict(intent_id=setter['intent_id'],setter_sha256=setter['setter_sha256'],
             physics_row_start=setter['physics_row_start'],physics_row_end_exclusive=setter['physics_row_start'],
-            kind=self._data_kind if not stop and role=='given_l2_motion' else 'excluded',completed=False))
+            kind=self._data_kind if not stop and (role=='given_l2_motion' or student_wait) else 'excluded',completed=False))
         return setter
 
     def _advance_tick(self,subphase,**kwargs):
@@ -307,32 +339,52 @@ class GivenContactRecoveryExpert(GivenContactExpert):
             metadata=deepcopy(self.metadata))
 
     def _recover_to_destination(self,destination):
-        self._attempted=True;query=self._query_state();_validate_query(query,self.reference)
+        settings=self.recovery_binding['settings'];student=settings['schema']==STUDENT_SCHEMA
+        self._attempted=True;query=self._query_state();_validate_query(query,self.reference,replay_start=student)
         history=np.asarray([r['q_command'] for r in self.env.rows[-3:]],float)
         frozen=deepcopy(query);snapshot=handoff.input_snapshot(self.trajectory)
-        settings=self.recovery_binding['settings'];rng=np.random.default_rng(settings['seed'])
-        offset=rng.normal(size=7);offset*=settings['amplitude_rad']/np.max(abs(offset))
-        target=np.asarray(self.trajectory.input.target_position)+offset
-        self._verify_recovery_command(target)
-        perturb=preview_cells(self.trajectory,history,[target]*PERTURB_CELLS,self._verify_recovery_command)
+        if student:
+            prefix=self.recovery_binding['student_prefix']
+            need(query['physics_row']==prefix['start_row'] and
+                query['context'][-1]==prefix['initial_context_phase'] and
+                np.allclose(query['measured_q'],prefix['initial_measured_q'],atol=1e-5,rtol=0),
+                'Fresh original home/history boundary differs from retained student source')
+            targets=np.asarray(prefix['raw_targets'],float)
+            roles=prefix['source_roles']
+            provenance=dict(kind='student_prefix_preview',student_prefix=settings['student_prefix'],
+                source_native_rows=[prefix['start_row'],prefix['end_row_exclusive']],
+                source_policy_motion_cells=prefix['source_policy_motion_cells'],
+                source_history_wait_cells=prefix['source_history_wait_cells'],
+                learned_policy_executed=False,positive_teacher_labels=False)
+            # A raw target is an intent, not an executed pose. The entire actual
+            # retained-q/v/a command prefix receives the unchanged full checks.
+        else:
+            rng=np.random.default_rng(settings['seed'])
+            offset=rng.normal(size=7);offset*=settings['amplitude_rad']/np.max(abs(offset))
+            target=np.asarray(self.trajectory.input.target_position)+offset
+            self._verify_recovery_command(target);targets=[target]*PERTURB_CELLS;roles=['given_l2_motion']*PERTURB_CELLS
+            provenance=dict(kind='perturbation_preview',offset_rad=offset.tolist(),target_q=target.tolist())
+        perturb=preview_cells(self.trajectory,history,targets,self._verify_recovery_command)
         need(self._query_state()==frozen and handoff.input_snapshot(self.trajectory)==snapshot,
              'Physics/history changed during perturbation preview')
-        self._recovery_queries.append(dict(kind='perturbation_preview',query=frozen,offset_rad=offset.tolist(),
-            target_q=target.tolist(),preview={k:v for k,v in perturb.items() if k not in ('commands','cells')}))
+        self._recovery_queries.append(dict(provenance,query=frozen,
+            preview={k:v for k,v in perturb.items() if k not in ('commands','cells')}))
         self._data_kind='perturbation'
-        for _ in range(PERTURB_CELLS):
+        for target,role in zip(targets,roles):
             observation=self._reference_observation()
-            self._issue_intent(target,observation['context'],'given_l2_motion')
+            self._issue_intent(target,observation['context'],role)
             for _ in range(12):
-                self._advance_tick('given_l2_motion');observation=self._reference_observation()
-                if self._handoff_ready(observation):return True
+                self._advance_tick(role);observation=self._reference_observation()
+                if self._handoff_ready(observation):
+                    need(not student,'Retained student prefix reached handoff before its declared cut')
+                    return True
         self._perturbations+=1;self._data_kind='recovery_teacher'
         query=self._query_state();history=np.asarray([r['q_command'] for r in self.env.rows[-3:]],float)
         frozen=deepcopy(query);snapshot=handoff.input_snapshot(self.trajectory)
         proposal=propose_recovery(query,self.trajectory,history,destination,reference=self.reference,
             planner=lambda start,goal,deadline:self._plan_inter_point_bridge(start,goal,deadline),
             verify_command=self._verify_recovery_command,
-            numeric_detours=settings['schema']==LATE_SCHEMA)
+            numeric_detours=settings['schema'] in (LATE_SCHEMA,STUDENT_SCHEMA),all_joint_detours=student)
         saved=deepcopy(proposal)
         if saved.get('preview'):saved['preview']={k:v for k,v in saved['preview'].items() if k not in ('commands','cells')}
         self._recovery_queries.append(saved)
@@ -346,7 +398,9 @@ class GivenContactRecoveryExpert(GivenContactExpert):
             _preview(self.trajectory,history,[waypoint],self._verify_recovery_command,settle=True)
             if super()._teacher_waypoint(waypoint):
                 self._recovery_completed=True;return True
-        self._recovery_completed=True;self._data_kind='nominal_teacher';return False
+        self._recovery_completed=True;self._data_kind='nominal_teacher'
+        need(not student,'Student-state expert reached final waypoint without qualified handoff')
+        return False
 
     def _teacher_waypoint(self,destination):
         for _ in range(120*240):
@@ -356,12 +410,16 @@ class GivenContactRecoveryExpert(GivenContactExpert):
                 if len(self._history.frames)!=2:
                     if self._wait_history_cell(observation)=='handoff':return True
                     continue
-                if observation['phase']=='APPROACH' and not self._attempted:
+                student=self.recovery_binding['settings']['schema']==STUDENT_SCHEMA
+                if (observation['phase']=='APPROACH' or student and observation['phase']=='FREE') and not self._attempted:
                     self._approach_cells+=1
                     pose=self.kin.tcp(np.asarray(self.env.state()['q']))
                     distance=float(np.linalg.norm(pose[:3,3]-self.reference.pose_base[:3,3]))
                     if recovery_trigger(self.recovery_binding['settings'],phase=observation['phase'],
                             approach_cells=self._approach_cells,distance_m=distance):
+                        if self.recovery_binding['settings']['schema']==STUDENT_SCHEMA:
+                            plan=runtime.pose.bound_json(self.reference.snapshot()['sources']['fresh_plan'])
+                            destination=np.asarray(plan['transfer_q'],float)[-1]
                         return self._recover_to_destination(destination)
                 if (np.max(abs(self.q-destination))<=1e-10 and np.max(abs(self.trajectory.velocity))<=1e-10 and
                         np.max(abs(self.trajectory.acceleration))<=1e-10 and self._stationary()):return False

@@ -40,7 +40,7 @@ def validate_sidecar(sidecar,audit,metadata):
             if raw['native_tick_in_cell']==0:setters.append(raw['setter'])
             ends[raw['setter']['intent_id']]=event['physics_row']+1
     need(len(entries)==len(setters) and entries,'Missing recovery setter role provenance')
-    by_row={}
+    by_row={};actual_setters={};student=sidecar.get('declaration',{}).get('schema')==recovery.STUDENT_SCHEMA
     for i,(entry,setter) in enumerate(zip(entries,setters)):
         need(set(entry)=={'intent_id','setter_sha256','physics_row_start','physics_row_end_exclusive','kind','completed'} and
              entry['kind'] in recovery.KINDS and type(entry['completed']) is bool and
@@ -51,13 +51,22 @@ def validate_sidecar(sidecar,audit,metadata):
              entry['physics_row_start']==start and entry['physics_row_end_exclusive']==end and end>start and
              entry['completed']==(end-start==12), 'Recovery role ledger differs from actual setter hash/interval')
         if entry['kind']!='excluded':
+            student_wait=student and entry['kind']=='perturbation' and setter['execution_role']=='given_l2_history_wait'
             need(not setter['offgrid_stop'] and setter['control_owner']=='TEACHER_L2' and
-                 setter['execution_role']=='given_l2_motion', 'STOP/ALIGN/nonteacher cannot provide recovery labels')
-        by_row[start]=entry
+                 (setter['execution_role']=='given_l2_motion' or student_wait), 'STOP/ALIGN/nonteacher cannot provide recovery labels')
+        by_row[start]=entry;actual_setters[start]=setter
     perturbed=[e for e in entries if e['kind']=='perturbation']
-    need(len(perturbed)==recovery.PERTURB_CELLS and all(e['completed'] for e in perturbed) and
+    expected=recovery.perturbation_cell_count(sidecar.get('declaration',{}))
+    need(len(perturbed)==expected and all(e['completed'] for e in perturbed) and
          all(b['physics_row_start']==a['physics_row_end_exclusive'] for a,b in zip(perturbed,perturbed[1:])),
-         'One complete actual ten-cell perturbation interval required')
+         'One complete actual declared perturbation interval required')
+    if student:
+        prefix=runtime.read_bound(sidecar['declaration']['student_prefix'])
+        need(len(prefix.get('source_roles',[]))==expected,'Retained source role count differs')
+        for entry,target,role in zip(perturbed,prefix['raw_targets'],prefix['source_roles']):
+            setter=actual_setters[entry['physics_row_start']]
+            need(role in ('given_l2_motion','given_l2_history_wait') and setter['execution_role']==role and
+                np.array_equal(setter['target_q'],target),'Actual student replay differs from its retained target/role input')
     return by_row
 
 

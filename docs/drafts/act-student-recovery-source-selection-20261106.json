@@ -1,0 +1,139 @@
+{
+  "schema": "ausc_act_recovery_public_source_selection_v2",
+  "private_source_commit": "87f6b46953b062719a8f1c80bd450c948535d82f",
+  "runtime_archive_sha256": "4a977f6a17fc9c49a787ef8b30b9ed14138cd99d5c19c774c30941cdfdbaabd8",
+  "files": [
+    {
+      "file": "sim/ausc_policy/m2_act.py",
+      "bytes": 49153,
+      "sha256": "71a5441cc03fd164279773590c60ecc060d3730bb4a452465bcf835b39146b3e",
+      "source_git_blob": "0f4a771b57050b05e8002bd025ae6d1ff9de6ea9",
+      "superseded_public_sha256": "71a5441cc03fd164279773590c60ecc060d3730bb4a452465bcf835b39146b3e"
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_recovery_scope.py",
+      "bytes": 2788,
+      "sha256": "684f7fdcbdd384967f6b35d6ae1b2ee93e4fda014b5154c2cbbfbd5ff4b2e925",
+      "source_git_blob": "bd83480d5f0d9902489b572018f16b567c2d3aad",
+      "superseded_public_sha256": "684f7fdcbdd384967f6b35d6ae1b2ee93e4fda014b5154c2cbbfbd5ff4b2e925"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_act.py",
+      "bytes": 8351,
+      "sha256": "c452ac690dec105d19dd501de5e074eda7ad3955c7001710c49aa9ca4991b1fd",
+      "source_git_blob": "8f8b3380dc76bc5c961db95f5d928cdde02ab78d",
+      "superseded_public_sha256": "c452ac690dec105d19dd501de5e074eda7ad3955c7001710c49aa9ca4991b1fd"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_dataset.py",
+      "bytes": 112573,
+      "sha256": "a2b9214b443bf3e005dbfc371a3cf592899abfe000eaf2faf3485eaec9703ee4",
+      "source_git_blob": "4cf40bf9457fc84119ce2076b133d465ca484412",
+      "superseded_public_sha256": "a2b9214b443bf3e005dbfc371a3cf592899abfe000eaf2faf3485eaec9703ee4"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+      "bytes": 16399,
+      "sha256": "a36a4e093a82c784e58a56f8a5bcd5afc015efdfaf124e60a4485fb6d75fa523",
+      "source_git_blob": "063e599a6681983770293e45cf008c5c399a8947",
+      "superseded_public_sha256": "a36a4e093a82c784e58a56f8a5bcd5afc015efdfaf124e60a4485fb6d75fa523"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+      "bytes": 22512,
+      "sha256": "27069b4a6d5a776b9780db93dc813433ada75bc810c7e32cc370d19feb0fb31f",
+      "source_git_blob": "672d294fe83891dc374c5c1afda39baf930412be",
+      "superseded_public_sha256": "27069b4a6d5a776b9780db93dc813433ada75bc810c7e32cc370d19feb0fb31f"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_masked_dataset.py",
+      "bytes": 11518,
+      "sha256": "52b5a91a47f8282444603ca74b12eecd6f8647973c27af7a4999eccf882bf0da",
+      "source_git_blob": "928139e42f2e6e5f30cdc27c1ea62a8341d94894",
+      "superseded_public_sha256": "022e9488da8a4e284e8827d5d32fe6d2e114ea927cd086ec1d9852d189fbcfc6"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_recovery.py",
+      "bytes": 30156,
+      "sha256": "bbfadbb830a6083cad966cccf45058f91815e7f57317c5008ba79d7e561b1a00",
+      "source_git_blob": "b8da4583c1bf12947220d8349dae34282aae9939",
+      "superseded_public_sha256": "296f62fad836b13b021025f1fb9e82d11f015aec8b9e0f40ebbd6bf83bdd62c5"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+      "bytes": 11054,
+      "sha256": "30a3e06db885775abc1f4d161d75cbc9ebf3607a8f626e8cea2405a9529c3264",
+      "source_git_blob": "92287361bbf39d6904d7ddfafa498693c48924d2",
+      "superseded_public_sha256": "150b65ec1575a2100bfad2bcf11f23c7e46d7c8f58e44564493a71ddebf404e8"
+    },
+    {
+      "file": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "bytes": 46802,
+      "sha256": "79837f73962925adbc38b8084cc072224fd2682c13cf7be532842bee4e35e86f",
+      "source_git_blob": "d4d96bf50a41e6034380491e4f28588276fe343e",
+      "superseded_public_sha256": "79837f73962925adbc38b8084cc072224fd2682c13cf7be532842bee4e35e86f"
+    },
+    {
+      "file": "sim/ausc_policy/native_measurements.py",
+      "bytes": 2910,
+      "sha256": "cc015145b1208050f56ba22e408e770fd14151e4f6124309edfcf00813f22898",
+      "source_git_blob": "98f3fdcafb4291e5f71f9b2a7d1d8cae8e2a8851",
+      "superseded_public_sha256": "cc015145b1208050f56ba22e408e770fd14151e4f6124309edfcf00813f22898"
+    },
+    {
+      "file": "tests/test_ausc_act_recovery_scope.py",
+      "bytes": 2513,
+      "sha256": "0d72191419950648c2d919559684d69c36e8d7d4ae515b7111ab293598e93f91",
+      "source_git_blob": "8d1a0aaade6a361b898a2fa8bcb436fa3fc027b7",
+      "superseded_public_sha256": "0d72191419950648c2d919559684d69c36e8d7d4ae515b7111ab293598e93f91"
+    },
+    {
+      "file": "tests/test_ausc_given_contact_masked.py",
+      "bytes": 9759,
+      "sha256": "782b92f066a067de5f8b6be23c855a2ed95bacd32e15af2d5b93c99c8ae315e4",
+      "source_git_blob": "0c46a583e98bf5a10ce72434283c4cad548f0bba",
+      "superseded_public_sha256": "f5e53a018026100d237d3c6b9a2e47e1506be73dc66467b3a37a2a5c070658e8"
+    },
+    {
+      "file": "tests/test_ausc_given_contact_recovery.py",
+      "bytes": 28260,
+      "sha256": "b6ca688811218dcbb778f9e12c0b1a1e0f9f35d6cc87a927ca88db4ae12b994f",
+      "source_git_blob": "012ee99382a3a581f102c014ed3a1507f3ea506a",
+      "superseded_public_sha256": "8c6a7ed2451d7146fcc6387d3ef6b4ed79aaca047bcb6e62e973d22824eb3f59"
+    },
+    {
+      "file": "tests/test_ausc_native_measurements.py",
+      "bytes": 2005,
+      "sha256": "7cbdb1912996f8ec6b2602cc15b3342405293abee73b03428f6747adae8ddb83",
+      "source_git_blob": "97c6c81547a9df0a9c6d5712dbad55d11258dd32",
+      "superseded_public_sha256": "7cbdb1912996f8ec6b2602cc15b3342405293abee73b03428f6747adae8ddb83"
+    },
+    {
+      "file": "tests/test_ausc_rebuild_paired_eval.py",
+      "bytes": 18429,
+      "sha256": "48e475677b76af53b1f7cfb86bc9280ec86f47098081b58fe29d0d6b83c4ae19",
+      "source_git_blob": "49e2b6c62f2e06bb0f435b788bdeb9beadd32ac0",
+      "superseded_public_sha256": "48e475677b76af53b1f7cfb86bc9280ec86f47098081b58fe29d0d6b83c4ae19"
+    },
+    {
+      "file": "sim/ausc_policy/m2_student_recovery_prefix.py",
+      "bytes": 13474,
+      "sha256": "c26c7f0eab1b6288213b9a0f304e5202d9f188c6428a7777afd9caf1be2249e8",
+      "source_git_blob": "98a8b54d82f0817b1c54afc1727e17430dd18c78",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "tests/test_ausc_student_recovery_prefix.py",
+      "bytes": 5281,
+      "sha256": "8544ab86999f6d0923bf35e4b1f0e150fc869b71d8e36e32b3ca8fd27e95c449",
+      "source_git_blob": "3ce19bc26994d27e3a1da0e688adad4ed989a1bf",
+      "superseded_public_sha256": null
+    }
+  ],
+  "operator_scripts_and_tests_distributed": false,
+  "credentials_raw_arrays_weights_distributed": false,
+  "changes": "Authenticated actual TRAIN student target-prefix recovery; internal history WAIT retained as perturbation; ordered bounded CPU decoding. Original numerical model and physical gates unchanged.",
+  "historical_source17_selection": "docs/drafts/act-recovery-source-selection-20261106.json",
+  "historical_source17_public_commit": "64c8c764fc6d27dad32e12b3b1700ed0bd6544f6",
+  "publication_status": "prepared_not_published"
+}
