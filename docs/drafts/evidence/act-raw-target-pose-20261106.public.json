@@ -1,0 +1,221 @@
+{
+  "schema": "act_teacher_distribution_raw_target_pose_error_public_v1",
+  "models": [
+    {
+      "run_id": "act-recovery-train-20261106-v1",
+      "selected_step": 3500,
+      "input_splits": "TRAIN and selection VAL, not the fresh evaluation cohort",
+      "teacher_input_raw_target_errors_within35mm": {
+        "train": {
+          "0": {
+            "raw_joint_error_mrad": {
+              "maximum": 16.41960743797454,
+              "mean": 1.6879414553776608,
+              "n": 1613,
+              "p50": 1.5960501435744665,
+              "p95": 2.4129248694481116
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 3.4958174402739175,
+              "mean": 0.13064589250471684,
+              "n": 1613,
+              "p50": 0.10882572755428326,
+              "p95": 0.16148244240245296
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 13.329561514161167,
+              "mean": 0.9220973277570139,
+              "n": 1613,
+              "p50": 0.775838865761631,
+              "p95": 1.4491066128840961
+            }
+          },
+          "9": {
+            "raw_joint_error_mrad": {
+              "maximum": 15.984392995949209,
+              "mean": 1.4202247499411602,
+              "n": 1487,
+              "p50": 0.8867198434047509,
+              "p95": 3.098937474467211
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 3.501895242550099,
+              "mean": 0.13664073230828866,
+              "n": 1487,
+              "p50": 0.10199235629922199,
+              "p95": 0.20860394174544838
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 14.18825452964443,
+              "mean": 0.8706314938204606,
+              "n": 1487,
+              "p50": 0.5791682265228342,
+              "p95": 1.9160751862929997
+            }
+          }
+        },
+        "validation": {
+          "0": {
+            "raw_joint_error_mrad": {
+              "maximum": 2.7522476052601905,
+              "mean": 1.4676319847827082,
+              "n": 455,
+              "p50": 1.4899470687494976,
+              "p95": 2.2354713490639355
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 0.30010747045758407,
+              "mean": 0.12804833112964906,
+              "n": 455,
+              "p50": 0.09526039919774246,
+              "p95": 0.2915696930362934
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 1.6554122951528187,
+              "mean": 0.7122652734905934,
+              "n": 455,
+              "p50": 0.7004919747566627,
+              "p95": 1.4955917701634445
+            }
+          },
+          "9": {
+            "raw_joint_error_mrad": {
+              "maximum": 6.270209868609926,
+              "mean": 1.8248134020822757,
+              "n": 419,
+              "p50": 1.1599732297811194,
+              "p95": 4.411505243296963
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 0.5673110008582339,
+              "mean": 0.21125584185711402,
+              "n": 419,
+              "p50": 0.12897728738263547,
+              "p95": 0.5588620215335416
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 1.3996817807303064,
+              "mean": 0.6436167435389885,
+              "n": 419,
+              "p50": 0.579402162717687,
+              "p95": 1.1511253153876462
+            }
+          }
+        }
+      }
+    },
+    {
+      "run_id": "act-student-recovery-train-20261106-v1",
+      "selected_step": 16500,
+      "input_splits": "TRAIN and selection VAL, not the fresh evaluation cohort",
+      "teacher_input_raw_target_errors_within35mm": {
+        "train": {
+          "0": {
+            "raw_joint_error_mrad": {
+              "maximum": 16.107414846404136,
+              "mean": 1.5874979971821355,
+              "n": 1662,
+              "p50": 1.3603085498474443,
+              "p95": 2.7834862176470185
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 2.8082991997891162,
+              "mean": 0.09358226360816908,
+              "n": 1662,
+              "p50": 0.06584117183998241,
+              "p95": 0.12858453498140268
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 10.885625735028807,
+              "mean": 0.8168979092176343,
+              "n": 1662,
+              "p50": 0.7539716720683289,
+              "p95": 1.264928053458509
+            }
+          },
+          "9": {
+            "raw_joint_error_mrad": {
+              "maximum": 15.303700990030212,
+              "mean": 1.254084459009781,
+              "n": 1500,
+              "p50": 0.8869579314010612,
+              "p95": 2.518585895953063
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 2.7823770533566963,
+              "mean": 0.07028647592104066,
+              "n": 1500,
+              "p50": 0.04948259154287906,
+              "p95": 0.08695228692071175
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 11.122971419246914,
+              "mean": 0.6656776853128725,
+              "n": 1500,
+              "p50": 0.476639534782279,
+              "p95": 1.300818205079288
+            }
+          }
+        },
+        "validation": {
+          "0": {
+            "raw_joint_error_mrad": {
+              "maximum": 7.144055556353967,
+              "mean": 1.9198101443332032,
+              "n": 455,
+              "p50": 1.5757233399554513,
+              "p95": 4.98882031805778
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 1.0005230704840935,
+              "mean": 0.2066706921443371,
+              "n": 455,
+              "p50": 0.08534373775198836,
+              "p95": 0.8464942045105791
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 3.2529834224176932,
+              "mean": 0.7575388419572889,
+              "n": 455,
+              "p50": 0.7416412906463962,
+              "p95": 1.433103384864145
+            }
+          },
+          "9": {
+            "raw_joint_error_mrad": {
+              "maximum": 6.484830140118781,
+              "mean": 1.9348057598578323,
+              "n": 419,
+              "p50": 0.9704759882079237,
+              "p95": 5.4237897180100285
+            },
+            "raw_target_rotation_error_deg": {
+              "maximum": 1.13647657243047,
+              "mean": 0.2596261282946875,
+              "n": 419,
+              "p50": 0.10499409652226883,
+              "p95": 0.9892525411636427
+            },
+            "raw_target_translation_error_mm": {
+              "maximum": 2.16501601429082,
+              "mean": 0.7585973310573934,
+              "n": 419,
+              "p50": 0.6669234342791385,
+              "p95": 1.6576376880461265
+            }
+          }
+        }
+      }
+    }
+  ],
+  "source_receipt": {
+    "bytes": 45627,
+    "sha256": "6217de4cd424be7d2c40bc2f04435c5e908a8b897764f352e04d55d576364706"
+  },
+  "offset_m": 0.132,
+  "selection_validation_used": true,
+  "fresh_evaluation_data_used": false,
+  "physics_qualified": false,
+  "model_acceptance": false,
+  "interpretation": "FK of predicted and teacher raw joint targets, not measured tracking or native executed TCP/contact performance. Out-of-domain raw predictions are scored mathematically and reported, never admitted as physical poses."
+}
