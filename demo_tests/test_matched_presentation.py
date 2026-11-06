@@ -108,6 +108,29 @@ class MatchedPresentationTests(unittest.TestCase):
         self.assertTrue(post['physical_qualified'])
         self.assertEqual(post['source_video']['sha256'], '61891cf1eebe96083e5662242e669e7dd7d1eff9ea417eded194eec75b3e24dc')
 
+    def test_actual_astra_video_does_not_promote_pending_qualification(self):
+        receipt = json.loads((DRAFT / 'evidence/matched-v3-astra-recording.public.json').read_text())
+        self.assertEqual(receipt['source_record']['sha256'], 'e4ed3709260eb21e8cee157b6b819b77ee444fe4725ad5642424633ae6530df8')
+        self.assertTrue(receipt['actual_recording'])
+        self.assertFalse(receipt['new_render'])
+        self.assertTrue(receipt['original_worker_physical_reported'])
+        self.assertTrue(receipt['qualification_pending'])
+        self.assertIsNone(receipt['physical_qualified'])
+        self.assertEqual(receipt['model_id'], 'gpt-6-astra')
+        self.assertEqual(receipt['model_request_count'], 3)
+        self.assertEqual(receipt['motor_actor'], 'analytic_GivenContactExpert')
+        for asset in receipt['public_assets'].values():
+            data = (DRAFT / asset['path']).read_bytes()
+            self.assertEqual(len(data), asset['bytes'])
+            self.assertEqual(hashlib.sha256(data).hexdigest(), asset['sha256'])
+        partial = json.loads((DRAFT / 'evidence/rebuilt-matched-20261106-v3.partial.json').read_text())
+        for scenario in partial['scenarios']:
+            self.assertIsNone(scenario['arms']['astra']['physical_success'])
+            self.assertEqual(scenario['arms']['astra']['execution_status'], 'pending')
+        selected = next(s for s in partial['scenarios'] if s['scenario_id'] == receipt['scenario_id'])
+        self.assertEqual(selected['arms']['astra']['recording']['status'], 'available')
+        self.assertFalse((ROOT / 'docs/evidence/rebuilt-matched-20261106-v3.json').exists())
+
     def test_article_is_noindex_partial_and_all_local_targets_exist(self):
         self.assertTrue(any(t == 'meta' and a.get('name') == 'robots' and a.get('content') == 'noindex,nofollow' for t, a in self.elements))
         home = (ROOT / 'docs/index.html').read_text()

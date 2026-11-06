@@ -53,8 +53,8 @@ Object.assign(zh, {
  rebuiltAct:'6 例姿态包络停止，2 例原始 mesh-clearance 门停止；8 例均实际调用选定模型。',
  rebuiltPending:'待完成',
  rebuiltAstra:'技能边界监督，解析执行器负责局部运动与接触。8 个物理结论全部未知。',
- rebuiltFit:'新 ACT 训练完成 20,000 次更新，选中第 4,500 步；TRAIN/选模 VAL 的 H20 目标误差为 5.664018/26.522571 mrad。20 个计划数据槽含 18 个实际合格专家回合；离线误差不是实测跟踪或接触成功。',
- rebuiltArticle:'同场景专家/ACT 录像、训练曲线与有范围的诊断 ↗',
+ rebuiltFit:'新 ACT 训练完成 20,000 次更新，选中第 4,500 步；TRAIN/选模 VAL 的 H20 目标误差为 5.664018/26.522571 mrad。20 个计划数据槽含 14 个 TRAIN 专家回合 / 4 个选模 VAL 专家回合；离线误差不是实测跟踪或接触成功。',
+ rebuiltArticle:'同场景专家/ACT/Astra 录像、训练曲线与有范围的诊断 ↗',
  rebuiltEvidence:'部分闭合结果证据 ↗',
  rebuiltLimits:'ACT 模型没有 RGB、深度或 Hall 输入，接触由解析技能负责。Astra 在三个固定边界做继续/中止决策；传感器因果作用尚未验证。并行资源 3/3/1 不是受控速度比较；不代表临床、声学、衣物或动态患者验证。'
 });

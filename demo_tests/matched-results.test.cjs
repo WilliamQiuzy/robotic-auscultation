@@ -37,3 +37,7 @@ test('closed expert/ACT partial extract reports observed counts without completi
 });
 test('a pending Astra arm cannot be declared a closed-arm result',()=>{const d=structuredClone(actualPartial);d.reported_methods.push('astra');assert.throws(()=>summarize(d),/unresolved slots/);});
 test('a partial extract cannot claim whole-comparison completion or publication review',()=>{for(const change of [{whole_comparison_complete:true},{publication_status:'reviewed_for_append'}]){const d=structuredClone(actualPartial);Object.assign(d,change);assert.throws(()=>summarize(d),/partial extract/);}});
+
+test('an actual Astra recording with a worker report does not become an independent qualified result',()=>{
+ const scenario=actualPartial.scenarios.find(s=>s.scenario_id==='p001030-p000476_a001231_f0023-r3');assert.equal(scenario.arms.astra.recording.status,'available');assert.equal(scenario.arms.astra.physical_success,null);const r=summarize(actualPartial);assert.equal(r.methods.astra.reportable,false);assert.equal(r.methods.astra.physicalUnknown,8);assert.equal(r.methods.astra.pending,8);
+});

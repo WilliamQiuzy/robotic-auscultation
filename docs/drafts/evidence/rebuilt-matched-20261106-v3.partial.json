@@ -747,19 +747,29 @@
           "physics_paused_during_inference": null,
           "metrics": null,
           "recording": {
-            "status": "pending",
+            "status": "available",
             "reason": null,
-            "artifact": null,
-            "recording_receipt": null,
-            "duration_s": null,
-            "width": null,
-            "height": null,
-            "fps": null,
-            "frames": null,
+            "artifact": {
+              "logical_name": "matched-v3-astra.mp4",
+              "bytes": 658017,
+              "sha256": "eea1cf26db62ded7f762c9c5585187313f5c0d9cc78c1a6ccd47cf8eaa5c8b10",
+              "public_path": "drafts/assets/matched-v3-astra.mp4"
+            },
+            "recording_receipt": {
+              "logical_name": "matched-v3-astra-recording.public.json",
+              "bytes": 2685,
+              "sha256": "e68c5a044b14cde872d99ba965dabe549bd6f5cfe29ab5d1ad40ceb7bd13e9f6",
+              "public_path": "drafts/evidence/matched-v3-astra-recording.public.json"
+            },
+            "duration_s": 112.2,
+            "width": 640,
+            "height": 360,
+            "fps": 10,
+            "frames": 1122,
             "camera_path": null,
-            "media_kind": null,
-            "synthesized_frames": null,
-            "time_basis": null
+            "media_kind": "actual_isaac_recording",
+            "synthesized_frames": false,
+            "time_basis": "simulation_time"
           },
           "actual_native_episode": null,
           "model_invoked": null,
@@ -1975,7 +1985,8 @@
     "All eight frozen slots per system remain. Original native qualification records supply the physical verdicts; software completion alone is not physical success.",
     "Available scalars are selected from the existing closed reports. Unreported hold-force min/max stay null; qualification thresholds are not substituted as measured values.",
     "Two ACT wrapper failures are original_tick mesh-clearance stops, with original full-reader integrity passed; no recording-corruption explanation is inferred.",
-    "Whole-comparison completion and publication review remain pending until the original Astra owner and its qualification report close."
+    "Whole-comparison completion and publication review remain pending until the original Astra owner and its qualification report close.",
+    "The preselected Astra recording is now available. Its original worker reports physical success and three model decisions, but this is not an independent qualification. All eight Astra physical verdicts remain pending/null; the original recording receipt is immutable and a separate postflight binding must supply any later qualification."
   ],
   "execution_context": {
     "planned_parallel_workers": {
