@@ -3,7 +3,7 @@
   "publication_status": "isolated_branch_not_published",
   "source_commit": "cf551566c0285a086d197553cee3299f4444f464",
   "source_archive_sha256": "ee2a0b69c322b09ac5f7c89ec0210db491deedf53fb973aedca57646bd1e5c96",
-  "selection": "Explicit f4119a9 allowlist only; no finite per-run operator scripts, private launch configs, source archives, raw data, weights or credentials.",
+  "selection": "Explicit source8 allowlist from f4119a9 plus five individually reviewed test dependencies recorded below; excludes the private eval-operator-only test and all finite per-run operators, private launch configs, source archives, raw data, weights and credentials.",
   "qualification_scope": "Local source preparation only. No new native model verification is inferred; collection/training/evaluation outcomes remain separate.",
   "files": [
     {
@@ -917,13 +917,6 @@
       "sha256": "036d291cffd571d40dd61a9dd93fbce5378a7fbb5d9e0036646c2ea638281f20"
     },
     {
-      "path": "tests/test_ausc_rebuild_eval_chain.py",
-      "category": "test_candidates",
-      "bytes": 10185,
-      "git_blob": "3fef30fd22a943cfec47c36496da97676bc10cbb",
-      "sha256": "e4a5d3bcc7dfcd5c236b5799044570fdba43e5d367b835e3a7d8f38f387e05bc"
-    },
-    {
       "path": "tests/test_ausc_rebuild_gpu_binding.py",
       "category": "test_candidates",
       "bytes": 8461,
@@ -1041,11 +1034,46 @@
       "bytes": 3123,
       "git_blob": "2019e3d8542c9c4157b6aa1c7773e2786f930d21",
       "sha256": "179ee11cfedba1001f5932f5a357cb1fc1b7e1924a857f32219887520c47fada"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+      "category": "source_candidates",
+      "bytes": 9789,
+      "git_blob": "fa3e246ddf4d62ab52fca2fca3feb75651b256f9",
+      "sha256": "8b83207e1a9312079e57c3ddae2d2fd31db9dddc21c643f59782a31f86cdd470"
+    },
+    {
+      "path": "sim/ausc_policy/layered_runtime_equivalence_probe.py",
+      "category": "source_candidates",
+      "bytes": 33975,
+      "git_blob": "7f015d6452028369bd790cb98ab08cb123422602",
+      "sha256": "7f72f164bd02a75f2600c8a5092e7164fd49cd1a0e13d0baf58f34b32b28aefe"
+    },
+    {
+      "path": "reports/ausc_policy/recovery_bootstrap_20261105/wam_sdk_cpu_schema_paths.pth",
+      "category": "test_support_candidates",
+      "bytes": 1224,
+      "git_blob": "25affbd6b969323292a95f25ff6681a670e3edff",
+      "sha256": "d27c76a0d9ae6d284f40930cc6da9109b400182310dcf487682d9a62c2e53046"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/render_expert.py",
+      "category": "source_candidates",
+      "bytes": 44497,
+      "git_blob": "ea0ec21c309c009505b8bb4be90c3aaed6a168b1",
+      "sha256": "ba66ac47002ddd6b0b0d856afc6c86e6ae4bc9aa7ff4bfa4ebe324059eb9c477"
+    },
+    {
+      "path": "sim/auscultation_training/render_expert.py",
+      "category": "source_candidates",
+      "bytes": 36671,
+      "git_blob": "fb435b831ba43fc84d1a92176c2f80ba9d8a597d",
+      "sha256": "e8839e3075dfc0f885c84470211112ee83e2b3680e89eca7112cd40f1c357190"
     }
   ],
   "frozen_runtime_source_byte_identity": true,
   "initial_allowlist_export_commit": "f0daec01b272b4af070b869fcfff01810013d4fe",
-  "files_identity_scope": "The files list records exact bytes initially exported from source8. Runtime implementation bytes remain unchanged. The single approved test adaptation below is the only later allowlist-byte difference.",
+  "files_identity_scope": "Current selected files record their exact frozen source8 bytes. All original 71 runtime/source selections and four added reusable source dependencies remain unchanged. The single approved test adaptation below is the only selected-file byte difference. The initial 148-file export excluded a private operator test in follow-up and added five explicitly reviewed dependencies, yielding 152 selected files.",
   "test_adaptations": [
     {
       "path": "tests/test_ausc_given_contact_evaluation.py",
@@ -1082,8 +1110,100 @@
       "wall_s": 618.4,
       "failure": "The stale neutral-L2 fixture identified above; corrected and rechecked in the focused tests. The expensive remaining sweep was not repeated and no full-suite pass is claimed."
     },
-    "ci_dependency": "requirements-ci.txt now declares ruckig==0.15.3; no packages installed during this preparation.",
+    "ci_dependency": "requirements-ci.txt now declares ruckig==0.15.3; no packages installed during this preparation. Policy pytest runs with -B for the original owned-interpreter fixture contract.",
     "static_camera_and_hall_bytes": "Public camera/calibration bytes match their frozen source8 SHA256 pins; portable/native service and protocol namespaces are byte-identical.",
-    "native_model_verification": "pending; no new ACT/Astra closed-loop result or aggregate acceptance inferred"
+    "native_model_verification": "pending; no new ACT/Astra closed-loop result or aggregate acceptance inferred",
+    "publication_dependency_fixtures": {
+      "passed": 127,
+      "deselected": 28,
+      "wall_s": 24.27,
+      "scope": "Retained probe/bootstrap, recovery exporter, archival metadata helpers and parameterized renderer scene-reference fixtures, with required -B interpreter. Not the full policy suite.",
+      "portable_demo_tests_passed": 25,
+      "historical_asset_recheck": "python -B -m demo.benchmark --verify-assets passed; original evidence/media and historical visible claims unchanged.",
+      "static_checks": "All selected file identities, approved test adaptation, static article/schema/resources/links, 24 pending slots and historical-file preservation checked; git diff --check clean."
+    }
+  },
+  "excluded_operator_tests": [
+    {
+      "path": "tests/test_ausc_rebuild_eval_chain.py",
+      "category": "test_candidates",
+      "bytes": 10185,
+      "git_blob": "3fef30fd22a943cfec47c36496da97676bc10cbb",
+      "sha256": "e4a5d3bcc7dfcd5c236b5799044570fdba43e5d367b835e3a7d8f38f387e05bc",
+      "reason": "Tests only the intentionally non-distributed per-run scripts.rebuild_eval_chain_20261105 operator. Fixture execution reproduced its absence. Keep the operator and its test in the private experiment source; public library/native/physical tests remain distributed."
+    }
+  ],
+  "dependency_audit": {
+    "initial_selected_test_files": 66,
+    "remaining_selected_test_files": 65,
+    "method": "AST Import/ImportFrom and dynamic import/path string scan, including function bodies; resolved the parameterized renderer imports; directly executed missing fixtures rather than relying on collection.",
+    "excluded_private_operator_tests": [
+      "tests/test_ausc_rebuild_eval_chain.py"
+    ],
+    "supplemental_frozen_files": [
+      {
+        "path": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+        "reason": "tests/test_ausc_given_contact_recovery.py calls the reusable current-contract recovery exporter inside fixtures; preserve original TRAIN-only, source, physical and setter-ledger gates."
+      },
+      {
+        "path": "sim/ausc_policy/layered_runtime_equivalence_probe.py",
+        "reason": "tests/test_ausc_layered_runtime_equivalence_probe.py imports this reusable original-owner software-equivalence probe inside fixtures; preserve its original ownership, header, source and no-physics contracts."
+      },
+      {
+        "path": "reports/ausc_policy/recovery_bootstrap_20261105/wam_sdk_cpu_schema_paths.pth",
+        "reason": "Exact frozen 1,224-byte reference recipe used by test_wam_sdk_cpu_bootstrap_install.py. Generic SDK install paths, not credentials or raw data. This fixture is not automatically installed or portable qualification."
+      },
+      {
+        "path": "sim/auscultation_expert_layout_v1/render_expert.py",
+        "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions."
+      },
+      {
+        "path": "sim/auscultation_training/render_expert.py",
+        "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions."
+      }
+    ],
+    "other_private_operator_references_in_remaining_selected_tests": [],
+    "native_physical_library_tests_removed": false,
+    "fixture_execution": {
+      "passed": 127,
+      "deselected": 28,
+      "wall_s": 24.27,
+      "command": [
+        "/tmp/wam-paired-eval-venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_ausc_layered_runtime_equivalence_probe.py",
+        "tests/test_wam_sdk_cpu_bootstrap_install.py",
+        "tests/test_ausc_given_contact_recovery.py",
+        "tests/test_ausc_given_contact_lossless_mapping.py::test_current_raw_mapping_accepts_producer_metadata_without_payload",
+        "tests/test_ausc_given_contact_lossless_mapping.py::test_current_condition_record_matches_public_producer_and_preserves_every_field",
+        "tests/test_ausc_given_contact_lossless_mapping.py::test_checkpoint_headers_route_historical_outputs_and_new_plans_to_distinct_roots",
+        "tests/test_ausc_policy_scene_store.py::test_renderers_use_scene_reference_resolver_and_track_reference_bytes",
+        "-k",
+        "not test_ausc_given_contact_recovery or labels or provenance or export or sidecar"
+      ],
+      "pre_fix_failures": [
+        "Private eval-operator test asserted intentionally excluded operator exists.",
+        "Recovery exporter and software equivalence probe were not distributed.",
+        "SDK bootstrap static reference recipe was absent.",
+        "Both public renderers lacked frozen scene-reference replay APIs."
+      ],
+      "interpreter_note": "Initial unflagged probe run had one positive owned-interpreter fixture reject. The existing fixture models platform and executable but requires actual sys.dont_write_bytecode; rerunning with -B passed. CI now uses -B; no gate or test was altered."
+    }
+  },
+  "selection_counts": {
+    "source_candidates": 75,
+    "test_candidates": 65,
+    "configuration_candidates": 1,
+    "documentation_candidates": 9,
+    "cpu_bootstrap_candidate": 1,
+    "test_support_candidates": 1,
+    "total_files": 152,
+    "frozen_reference_bytes": 3300450,
+    "prepared_bytes": 3300512
   }
 }

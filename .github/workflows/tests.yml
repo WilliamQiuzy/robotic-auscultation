@@ -22,8 +22,9 @@ jobs:
           pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
       - name: Run tests
         # These three files open the binary USD scene assets, which are kept out of git.
+        # The positive original-owner fixture requires an unoptimized -B interpreter.
         run: >
-          python -m pytest tests -q
+          python -B -m pytest tests -q
           --ignore=tests/test_ausc_policy_passive_preload.py
           --ignore=tests/test_ausc_policy_retainer_geometry.py
           --ignore=tests/test_ausc_policy_m2_sensor_probe.py

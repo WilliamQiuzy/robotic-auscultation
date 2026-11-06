@@ -20,6 +20,7 @@ import math
 import os
 from pathlib import Path
 import subprocess
+from sim.ausc_policy.scene_store import replay_scene,replay_stage
 
 
 def validate_replay_timing(rows, indices):
@@ -62,12 +63,12 @@ def verify_replay_inputs(input_files, input_hashes):
         raise RuntimeError("Replay inputs changed during rendering")
 
 
-def validate_scene_binding(outcome, artifact_hashes):
+def validate_scene_binding(outcome, artifact_hashes,scene_name='training_scene.usdc'):
     """Require the saved scene to be the exact scene bound by the audited outcome."""
     expected = outcome.get("training_scene_sha256")
     if (not isinstance(expected, str) or len(expected) != 64
             or any(character not in "0123456789abcdef" for character in expected)
-            or artifact_hashes.get("training_scene.usdc") != expected):
+            or artifact_hashes.get(scene_name) != expected):
         raise ValueError("Training scene does not match the audited outcome training_scene_sha256")
 
 
@@ -446,7 +447,7 @@ def main():
     out = (args.output or root / "results" / ("video_" + name + "_" + view_mode)).resolve()
     if out == inputs or inputs in out.parents:
         parser.error("--output must be outside the immutable episode directory")
-    source = inputs / "training_scene.usdc"
+    source = replay_scene(inputs)
     trace = inputs / "expert_trace.jsonl"
     replay = inputs / "expert_replay.npz"
     outcome_path = inputs / "outcome.json"
@@ -455,6 +456,9 @@ def main():
     # matched to the posture auditor, not a second read of a mutable pathname.
     replay_bytes = replay.read_bytes()
     input_hashes = {source.name: sha256(source), replay.name: hashlib.sha256(replay_bytes).hexdigest()}
+    if (inputs/'scene_ref.json').exists():
+        input_files.append(inputs/'scene_ref.json')
+        input_hashes['scene_ref.json']=sha256(inputs/'scene_ref.json')
     rows, input_hashes[trace.name] = read_hashed_json(trace, lines=True)
     outcome, input_hashes[outcome_path.name] = read_hashed_json(outcome_path)
     presentation = replay_presentation(outcome, rows)
@@ -491,7 +495,7 @@ def main():
     else:
         render_outcome = outcome
         presentation["rejected_diagnostic"] = False
-    validate_scene_binding(outcome, input_hashes)
+    validate_scene_binding(outcome, input_hashes,source.name)
     camera_reference, reference_hashes = read_camera_reference(inputs, outcome)
     width, height = ((camera_reference["width"], camera_reference["height"])
                      if args.robotcam_view else (1280, 720))
@@ -520,7 +524,7 @@ def main():
         fps = 15
 
         # Flatten to an anonymous layer before edits; source files remain read-only.
-        original = Usd.Stage.Open(str(source))
+        original = replay_stage(inputs)
         original_camera = sensor_camera_state(original, camera_reference["width"], camera_reference["height"])
         check_camera_reference(original_camera, camera_reference)
         stage = Usd.Stage.Open(original.Flatten())
