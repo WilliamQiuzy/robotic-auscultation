@@ -1,0 +1,1030 @@
+{
+  "schema": "ausc-public-diagnostic-extract-v1",
+  "publication_status": "draft_not_linked_from_live_demo",
+  "captured_at_utc": "2026-11-06T00:59:06.090723+00:00",
+  "extraction_scope": "Selected fields from small Linux summary receipts only; no raw arrays, images, meshes, weights, host addresses, credentials or absolute native paths.",
+  "source_access": "Original full receipts remain with the experiment owner; hashes identify those bytes. This selected-field extract does not independently rerun or requalify them.",
+  "entries": [
+    {
+      "evidence_id": "E1",
+      "logical_artifact": "datasets/observed-reconstruction-20261105-v1/COMPLETE.json",
+      "source_sha256": "7ed83691a8f7005697ac6863e5bc1cf147a7c68dd5e1c10983c3ef650750cb4c",
+      "source_bytes": 2497,
+      "fields": {
+        "schema": "m2_observed_reconstruction_complete_v1",
+        "completed": true,
+        "reconstruction_source_sha256": "9ea6c6f71342c20e4ef92a6219ef55e5370342d7a854a5b177c2465ddffb3fa0",
+        "cohorts": [
+          {
+            "name": "train",
+            "split": "train",
+            "identities": [
+              "p001120",
+              "p000758",
+              "p001031",
+              "p000833"
+            ]
+          },
+          {
+            "name": "selection_validation",
+            "split": "validation",
+            "identities": [
+              "p000923"
+            ]
+          },
+          {
+            "name": "frozen_evaluation",
+            "split": "validation",
+            "identities": [
+              "p001030",
+              "p000956"
+            ]
+          }
+        ],
+        "original_depth_plane_bytes_recovered": false,
+        "physics_qualified": false,
+        "training_eligible": false,
+        "seat_support_qualified": false,
+        "ik_qualified": false,
+        "static_scene_qa_passed": false
+      }
+    },
+    {
+      "evidence_id": "E2",
+      "logical_artifact": "diagnostics/rebuild-native-witness-20261105-v2/QUALIFIED.json",
+      "source_sha256": "1e00febe7c45d4c9774ed5647613fda45c052ffb8264cb473662ef6fcec53456",
+      "source_bytes": 3459,
+      "fields": {
+        "schema": "qualified_native_retainer_witness_v1",
+        "qualified": true,
+        "qualified_at_utc": "2026-11-05T22:36:41.081609+00:00",
+        "qualification_scope": "Fresh native shape-0 witness semantics and conservative six-face classification only.",
+        "scope": {
+          "patient_shape": "staticTriangleMesh",
+          "retainer_pair_index": 0,
+          "retainer_shape": "convexHull"
+        },
+        "rule": {
+          "normal_direction": "shape1_to_shape0",
+          "pair1_qualified": false,
+          "pose_frames": [
+            "pre_step_current",
+            "post_step_current"
+          ],
+          "witness": "p+s*n"
+        },
+        "execution": {
+          "complete": true,
+          "exit_code": 0,
+          "terminal": true
+        },
+        "expert_episode_requalified": false,
+        "model_validated": false,
+        "old_run_verdicts_unchanged": true,
+        "test_payloads_opened": false,
+        "training_eligible": false
+      }
+    },
+    {
+      "evidence_id": "E3",
+      "logical_artifact": "diagnostics/stop-preview-jerk14999-20261105-v1/r3/COMPLETE.json",
+      "source_sha256": "940ef17fd0c5ff40a8aec8483a02ee46a720da28e55c0941885bbd795e808c4e",
+      "source_bytes": 55487,
+      "fields": {
+        "complete": true,
+        "counterfactual_profile": true,
+        "physical_qualification": false,
+        "physics_executed": false,
+        "gpu_launched": false,
+        "geometry_future_verified": false,
+        "measured_settling_verified": false,
+        "all_issued_commands_bit_identical": false,
+        "actual_prefix_rows": 7140,
+        "actual_interpolator_rows": 6900,
+        "requested_limits": {
+          "acceleration": 0.5,
+          "jerk": 1.4999,
+          "velocity": 0.174999
+        },
+        "roundoff_ulps": 64,
+        "hypothetical_stop_ticks": 1,
+        "hypothetical_total_parking_ticks": 49,
+        "hypothetical_wait_ticks": 24,
+        "max_abs_archive_command_delta_rad": 1.944562970881969e-06,
+        "command_derivative_maxima": {
+          "acceleration": 0.49999999999997824,
+          "jerk": 1.4999000109128247,
+          "velocity": 0.17499900000002455
+        },
+        "original_failed_episode_verdict_unchanged": true,
+        "training_eligible": false
+      }
+    },
+    {
+      "evidence_id": "E4",
+      "logical_artifact": "diagnostics/stop-preview-jerk14999-20261105-v1/l3/COMPLETE.json",
+      "source_sha256": "723d37f9f15e17ceb7e2cb3cef315ce9f14e0a6a1cad9bcf048b67aa68200ce8",
+      "source_bytes": 55690,
+      "fields": {
+        "complete": true,
+        "counterfactual_profile": true,
+        "physical_qualification": false,
+        "physics_executed": false,
+        "gpu_launched": false,
+        "geometry_future_verified": false,
+        "measured_settling_verified": false,
+        "all_issued_commands_bit_identical": false,
+        "actual_prefix_rows": 7440,
+        "actual_interpolator_rows": 7200,
+        "requested_limits": {
+          "acceleration": 0.5,
+          "jerk": 1.4999,
+          "velocity": 0.174999
+        },
+        "roundoff_ulps": 64,
+        "hypothetical_stop_ticks": 9,
+        "hypothetical_total_parking_ticks": 45,
+        "hypothetical_wait_ticks": 12,
+        "max_abs_archive_command_delta_rad": 1.944562970881969e-06,
+        "command_derivative_maxima": {
+          "acceleration": 0.5000000000080718,
+          "jerk": 1.4999000231910031,
+          "velocity": 0.17499900000002455
+        },
+        "original_failed_episode_verdict_unchanged": true,
+        "training_eligible": false
+      }
+    },
+    {
+      "evidence_id": "E5",
+      "logical_artifact": "diagnostics/astra-modality-replay-20261105-v1/summary.json",
+      "source_sha256": "44f47683d1742e0ddc559c0778b636e742184f046f6a679ec666ab4d4cd2a24f",
+      "source_bytes": 12197,
+      "fields": {
+        "schema": "astra_recorded_modality_cpu_replay_v1",
+        "scope": "CPU replay of recorded native inputs only; no new physics/model inference/training qualification",
+        "audit_sha256": "352d0129bc68225e92609638a0cc3faf1b8cad8aeb1ee3b10b1af3ecc910b694",
+        "calibration_sha256": "ce6bcda3bef2282e07be0f44686dc007756ede57cdfcd732d35e28c1d469d054",
+        "bench_verified": false,
+        "physics_rows": 26980,
+        "duration_s": 112.41666666664659,
+        "first_raw_astra_domain_rejection": {
+          "physics_row": 0,
+          "time_s": 0.004166666666666667,
+          "compression_m": -1.5336825143208443e-08,
+          "error": "Slider outside calibrated mechanical travel"
+        },
+        "negative_raw_rows": 3045,
+        "raw_compression_m": {
+          "min": -1.8642781469679903e-06,
+          "max": 0.00252509955316782,
+          "mean": 0.00014607801659645772
+        },
+        "recorded_adc_equivalent_normalization": {
+          "rows": 3045,
+          "max_delta_m": 1.8642781469679903e-06,
+          "receipt": {
+            "bench_verified_extrapolation": false,
+            "lower_endpoint_linear_quantizer_input": 1974.1659090909093,
+            "lower_tolerance_m": 3.809856306074158e-06,
+            "max_delta_m": 1.8642781469679903e-06,
+            "method": "deterministic_adc_equivalent_lower_endpoint_v1",
+            "native_adc_bits": 12,
+            "native_adc_zero_code": 1974,
+            "noise_bias_drift_warp_zero": true,
+            "normalized_ticks": 3045,
+            "physical_safety_gates_unchanged": true,
+            "raw_physics_unchanged": true,
+            "upper_clamping": false,
+            "voltage_slope_v_per_m": -105.75999999999999,
+            "zero_quantizer_input": 1973.6659090909093
+          }
+        },
+        "hall": {
+          "replay_schedule": "first acquisition at first recorded physics tick, matching existing compact capture; no invented earlier sample",
+          "unique_packets": 11242,
+          "raw_u16": {
+            "min": 26278.0,
+            "max": 31591.0,
+            "mean": 31283.716345441066
+          },
+          "voltage_v": {
+            "min": 1.3232227054245822,
+            "max": 1.590757610437171,
+            "mean": 1.5752844119929128
+          },
+          "decoded_spring_estimate_N": {
+            "min": 1.4975641978331033,
+            "max": 4.027187035358279,
+            "mean": 1.6438686145767716
+          },
+          "native_axial_proxy_N": {
+            "min": 0.0,
+            "max": 3.9899537417829523,
+            "mean": 0.26553328501720797
+          },
+          "initial_settle": {
+            "rows": 240,
+            "decoded_spring_N": {
+              "min": 1.4975641978331033,
+              "max": 1.4975641978331033,
+              "mean": 1.4975641978331033
+            },
+            "native_proxy_N": {
+              "min": 0.0,
+              "max": 0.0,
+              "mean": 0.0
+            }
+          },
+          "peak_decoded": {
+            "row": 13844,
+            "time_s": 57.68750000001894,
+            "decoded_spring_N": 4.027187035358279,
+            "voltage_v": 1.3232227054245822,
+            "native_proxy_N": 3.9874242129040773,
+            "phase": "HOLD"
+          },
+          "status_counts": {
+            "WARN": 25813,
+            "OK": 1167
+          },
+          "age_s": {
+            "min": 0.0,
+            "max": 0.008333333333339965,
+            "mean": 0.0031249999999994416
+          },
+          "phase_diagnostics": {
+            "APPROACH": {
+              "rows": 7706,
+              "native_proxy_N": {
+                "min": 0.0,
+                "max": 0.0,
+                "mean": 0.0
+              },
+              "decoded_spring_N": {
+                "min": 1.4975641978331033,
+                "max": 1.4975641978331033,
+                "mean": 1.4975641978331033
+              },
+              "decoded_minus_native_proxy_N": {
+                "min": 1.4975641978331033,
+                "max": 1.4975641978331033,
+                "mean": 1.4975641978331033
+              }
+            },
+            "CONTACT": {
+              "rows": 5906,
+              "native_proxy_N": {
+                "min": 0.0,
+                "max": 3.937868228604287,
+                "mean": 0.6183869342164775
+              },
+              "decoded_spring_N": {
+                "min": 1.4975641978331033,
+                "max": 3.9738801066792626,
+                "mean": 1.8024882717843704
+              },
+              "decoded_minus_native_proxy_N": {
+                "min": 0.033510543763692446,
+                "max": 1.5965977892655219,
+                "mean": 1.1841013375678928
+              }
+            },
+            "DONE": {
+              "rows": 11204,
+              "native_proxy_N": {
+                "min": 1e-323,
+                "max": 2.013238692883077e-102,
+                "mean": 1.0421978238773516e-105
+              },
+              "decoded_spring_N": {
+                "min": 1.4975641978331033,
+                "max": 1.4975641978331033,
+                "mean": 1.4975641978331031
+              },
+              "decoded_minus_native_proxy_N": {
+                "min": 1.4975641978331033,
+                "max": 1.4975641978331033,
+                "mean": 1.4975641978331031
+              }
+            },
+            "HOLD": {
+              "rows": 720,
+              "native_proxy_N": {
+                "min": 3.938858547045261,
+                "max": 3.9899537417829523,
+                "mean": 3.9824417924878364
+              },
+              "decoded_spring_N": {
+                "min": 3.9738801066792626,
+                "max": 4.027187035358279,
+                "mean": 4.020377125699861
+              },
+              "decoded_minus_native_proxy_N": {
+                "min": 0.03224392762168726,
+                "max": 0.04165628420454759,
+                "mean": 0.03793533321202374
+              }
+            },
+            "RETRACT": {
+              "rows": 1444,
+              "native_proxy_N": {
+                "min": 2.4326634205670516e-102,
+                "max": 3.9889905564249,
+                "mean": 0.4463550593424599
+              },
+              "decoded_spring_N": {
+                "min": 1.4975641978331033,
+                "max": 4.027187035358279,
+                "mean": 1.7260865488884474
+              },
+              "decoded_minus_native_proxy_N": {
+                "min": -0.032320770272063815,
+                "max": 1.4975641978331033,
+                "mean": 1.2797314895459873
+              }
+            }
+          },
+          "compact_replay_comparison": {
+            "frames": 2248,
+            "adc_mismatches": 0,
+            "voltage_max_abs_residual_v": 0.0,
+            "decoded_force_max_abs_residual_N": 0.0,
+            "age_s": {
+              "min": 0.004166666666662877,
+              "max": 0.0041666666666699825,
+              "mean": 0.00416666666666592
+            },
+            "integrity_reader_exhausted": true
+          }
+        },
+        "depth": {
+          "saved_native_image_size": [
+            256,
+            144
+          ],
+          "semantics": "metric_optical_z",
+          "unit_m": 0.0001,
+          "invalid_representation": "zero with false validity; raw invalid sentinel value is not retained",
+          "intrinsics": {
+            "cx": 128.0,
+            "cy": 72.0,
+            "fx": 152.66055580141105,
+            "fy": 150.96774657980848
+          },
+          "projected_gt_uv": [
+            135.59658728331775,
+            86.62175111164079
+          ],
+          "nearest_pixel_xy": [
+            136,
+            87
+          ],
+          "all_frame_valid_fraction": {
+            "min": 0.9363606770833334,
+            "max": 0.9363606770833334
+          },
+          "existing_640_helper_rejection": "Native depth and validity shapes/types differ",
+          "truthful_256_dynamic_grid_diagnostic": true,
+          "first_per_phase": {
+            "APPROACH": {
+              "index": 0,
+              "phase": "APPROACH",
+              "time_s": 0.049999999999999996,
+              "shape": [
+                144,
+                256
+              ],
+              "valid_fraction": 0.9363606770833334,
+              "depth_m": {
+                "min": 0.49660000000000004,
+                "max": 18.3065,
+                "mean": 3.301693574366997
+              },
+              "grid_shape": [
+                18,
+                32
+              ],
+              "grid_cell_pixels": [
+                8,
+                8
+              ],
+              "null_grid_cells": 25,
+              "probe": {
+                "source": "native_saved_depth_at_prescribed_pose_projection",
+                "anatomical_target_estimator": false,
+                "valid": true,
+                "optical_z_m": 0.5335,
+                "prescribed_optical_z_m": 0.5324255112258793,
+                "depth_minus_prescribed_z_m": 0.001074488774120641,
+                "backprojection_roundtrip_pixel_error": 1.4210854715202004e-14
+              }
+            },
+            "CONTACT": {
+              "index": 642,
+              "phase": "CONTACT",
+              "time_s": 32.14999999999862,
+              "shape": [
+                144,
+                256
+              ],
+              "valid_fraction": 0.9363606770833334,
+              "depth_m": {
+                "min": 0.34550000000000003,
+                "max": 18.3065,
+                "mean": 3.292137565907643
+              },
+              "grid_shape": [
+                18,
+                32
+              ],
+              "grid_cell_pixels": [
+                8,
+                8
+              ],
+              "null_grid_cells": 25,
+              "probe": {
+                "source": "native_saved_depth_at_prescribed_pose_projection",
+                "anatomical_target_estimator": false,
+                "valid": true,
+                "optical_z_m": 0.48350000000000004,
+                "prescribed_optical_z_m": 0.5324255112258793,
+                "depth_minus_prescribed_z_m": -0.04892551122587929,
+                "backprojection_roundtrip_pixel_error": 1.4210854715202004e-14
+              }
+            },
+            "HOLD": {
+              "index": 1134,
+              "phase": "HOLD",
+              "time_s": 56.7500000000182,
+              "shape": [
+                144,
+                256
+              ],
+              "valid_fraction": 0.9363606770833334,
+              "depth_m": {
+                "min": 0.3507,
+                "max": 18.3065,
+                "mean": 3.2922304276029903
+              },
+              "grid_shape": [
+                18,
+                32
+              ],
+              "grid_cell_pixels": [
+                8,
+                8
+              ],
+              "null_grid_cells": 25,
+              "probe": {
+                "source": "native_saved_depth_at_prescribed_pose_projection",
+                "anatomical_target_estimator": false,
+                "valid": true,
+                "optical_z_m": 0.4773,
+                "prescribed_optical_z_m": 0.5324255112258793,
+                "depth_minus_prescribed_z_m": -0.05512551122587933,
+                "backprojection_roundtrip_pixel_error": 0.0
+              }
+            },
+            "RETRACT": {
+              "index": 1194,
+              "phase": "RETRACT",
+              "time_s": 59.750000000020584,
+              "shape": [
+                144,
+                256
+              ],
+              "valid_fraction": 0.9363606770833334,
+              "depth_m": {
+                "min": 0.3507,
+                "max": 18.3065,
+                "mean": 3.292230746277305
+              },
+              "grid_shape": [
+                18,
+                32
+              ],
+              "grid_cell_pixels": [
+                8,
+                8
+              ],
+              "null_grid_cells": 25,
+              "probe": {
+                "source": "native_saved_depth_at_prescribed_pose_projection",
+                "anatomical_target_estimator": false,
+                "valid": true,
+                "optical_z_m": 0.4773,
+                "prescribed_optical_z_m": 0.5324255112258793,
+                "depth_minus_prescribed_z_m": -0.05512551122587933,
+                "backprojection_roundtrip_pixel_error": 0.0
+              }
+            },
+            "DONE": {
+              "index": 1314,
+              "phase": "DONE",
+              "time_s": 65.75000000002237,
+              "shape": [
+                144,
+                256
+              ],
+              "valid_fraction": 0.9363606770833334,
+              "depth_m": {
+                "min": 0.3448,
+                "max": 18.3065,
+                "mean": 3.292164809664523
+              },
+              "grid_shape": [
+                18,
+                32
+              ],
+              "grid_cell_pixels": [
+                8,
+                8
+              ],
+              "null_grid_cells": 25,
+              "probe": {
+                "source": "native_saved_depth_at_prescribed_pose_projection",
+                "anatomical_target_estimator": false,
+                "valid": true,
+                "optical_z_m": 0.45320000000000005,
+                "prescribed_optical_z_m": 0.5324255112258793,
+                "depth_minus_prescribed_z_m": -0.07922551122587929,
+                "backprojection_roundtrip_pixel_error": 0.0
+              }
+            }
+          },
+          "peak_hall_frame": {
+            "index": 1153,
+            "phase": "HOLD",
+            "time_s": 57.70000000001895,
+            "shape": [
+              144,
+              256
+            ],
+            "valid_fraction": 0.9363606770833334,
+            "depth_m": {
+              "min": 0.3507,
+              "max": 18.3065,
+              "mean": 3.2922307404832263
+            },
+            "grid_shape": [
+              18,
+              32
+            ],
+            "grid_cell_pixels": [
+              8,
+              8
+            ],
+            "null_grid_cells": 25,
+            "probe": {
+              "source": "native_saved_depth_at_prescribed_pose_projection",
+              "anatomical_target_estimator": false,
+              "valid": true,
+              "optical_z_m": 0.4773,
+              "prescribed_optical_z_m": 0.5324255112258793,
+              "depth_minus_prescribed_z_m": -0.05512551122587933,
+              "backprojection_roundtrip_pixel_error": 0.0
+            }
+          }
+        },
+        "training_eligible": false,
+        "physical_qualification": false,
+        "native_astra_camera_qualified": false
+      },
+      "logical_capture": {
+        "collection": "rebuilt-expert-capture-20261105-v1",
+        "subject_id": "p001120",
+        "pose_id": "p000474_a001230_f0000",
+        "target_id": "R3"
+      }
+    },
+    {
+      "evidence_id": "E6",
+      "logical_artifact": "diagnostics/astra-hall-boundary-eval8-cpu-20261105/summary.json",
+      "source_sha256": "27f03d8aa312a25d203b9cb2d1af5b98efc132d68f025b766e07a04bf442eb97",
+      "source_bytes": 1680,
+      "fields": {
+        "schema": "astra_evaluation8_adc_boundary_cpu_replay_v1",
+        "scope": "Candidate shared-helper replay on ACTUAL recorded compression/time; no physics/model/GPU execution; not training qualification",
+        "helper_sha256": "a273e91e5141200419392cfbdf4de1667e06e68a5efb6c426eb9683504d0f4c9",
+        "calibration_sha256": "ce6bcda3bef2282e07be0f44686dc007756ede57cdfcd732d35e28c1d469d054",
+        "rows": 26980,
+        "normalized_ticks": 3045,
+        "max_delta_m": 1.8642781469679903e-06,
+        "policy": {
+          "method": "deterministic_adc_equivalent_lower_endpoint_v1",
+          "lower_tolerance_m": 3.809856306074158e-06,
+          "voltage_slope_v_per_m": -105.75999999999999,
+          "native_adc_bits": 12,
+          "native_adc_zero_code": 1974,
+          "lower_endpoint_linear_quantizer_input": 1974.1659090909093,
+          "zero_quantizer_input": 1973.6659090909093,
+          "noise_bias_drift_warp_zero": true,
+          "upper_clamping": false,
+          "raw_physics_unchanged": true,
+          "physical_safety_gates_unchanged": true,
+          "bench_verified_extrapolation": false
+        },
+        "recorded_input_mapping_differences": 0,
+        "full_packet_differences_against_recorded_capture_model": 0,
+        "decoded_spring_estimate_N": {
+          "min": 1.4975641978331033,
+          "max": 4.027187035358279
+        },
+        "voltage_v": {
+          "min": 1.3232227054245822,
+          "max": 1.590757610437171
+        },
+        "packet_age_s": {
+          "min": 0.0,
+          "max": 0.008333333333339965
+        },
+        "no_joint_or_camera_binding_claim": true,
+        "physical_qualification": false,
+        "training_eligible": false
+      }
+    },
+    {
+      "evidence_id": "E7",
+      "logical_artifact": "benchmarks/rebuilt-frozen-sources-20261105-v3/CASES.json",
+      "source_sha256": "5f9c24bc2c10e6a1cb27d859c81a3bc3c80327c63e5331fe11aaa773b72352f9",
+      "source_bytes": 6482,
+      "fields": {
+        "schema": "m2_rebuild_paired_eval_cases_v1",
+        "complete": true,
+        "model_outcomes_consulted": false,
+        "target_ids": [
+          "R3",
+          "L3"
+        ],
+        "pose_ids": [
+          "p000474_a001230_f0000",
+          "p000476_a001231_f0023"
+        ],
+        "fixed_denominator": 8,
+        "cases": [
+          {
+            "index": 1,
+            "scenario_id": "p001030-p000474_a001230_f0000-r3",
+            "subject_id": "p001030",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000474_a001230_f0000",
+            "target_id": "R3",
+            "episode_id": "frozen-source-p001030-p000474_a001230_f0000-r3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p001030-p000474_a001230_f0000-r3.json",
+              "sha256": "ad5cd811bd41e588479a76e73e9b2305deac71d27552481a191573ca6b9b4ec3",
+              "bytes": 108882
+            }
+          },
+          {
+            "index": 2,
+            "scenario_id": "p001030-p000474_a001230_f0000-l3",
+            "subject_id": "p001030",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000474_a001230_f0000",
+            "target_id": "L3",
+            "episode_id": "frozen-source-p001030-p000474_a001230_f0000-l3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p001030-p000474_a001230_f0000-l3.json",
+              "sha256": "920bbd787468622e39cfff99777adcdce4e556544a49fe92023b01d9e437e7a4",
+              "bytes": 108867
+            }
+          },
+          {
+            "index": 3,
+            "scenario_id": "p001030-p000476_a001231_f0023-r3",
+            "subject_id": "p001030",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000476_a001231_f0023",
+            "target_id": "R3",
+            "episode_id": "frozen-source-p001030-p000476_a001231_f0023-r3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p001030-p000476_a001231_f0023-r3.json",
+              "sha256": "063e297f470c851bf76a7e8130ff4964f65a33d854cf2f96fe1de7d21a46b204",
+              "bytes": 108886
+            }
+          },
+          {
+            "index": 4,
+            "scenario_id": "p001030-p000476_a001231_f0023-l3",
+            "subject_id": "p001030",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000476_a001231_f0023",
+            "target_id": "L3",
+            "episode_id": "frozen-source-p001030-p000476_a001231_f0023-l3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p001030-p000476_a001231_f0023-l3.json",
+              "sha256": "017e5f39e25f058f8715a1f592107cb8d862058bdaadb8d3af1ae87efa5d8c36",
+              "bytes": 108881
+            }
+          },
+          {
+            "index": 5,
+            "scenario_id": "p000956-p000474_a001230_f0000-r3",
+            "subject_id": "p000956",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000474_a001230_f0000",
+            "target_id": "R3",
+            "episode_id": "frozen-source-p000956-p000474_a001230_f0000-r3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p000956-p000474_a001230_f0000-r3.json",
+              "sha256": "4afef4b615792cb03b876ad1d15c3f984cd63c03b54982703c87ea5d2fa9efe0",
+              "bytes": 108875
+            }
+          },
+          {
+            "index": 6,
+            "scenario_id": "p000956-p000474_a001230_f0000-l3",
+            "subject_id": "p000956",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000474_a001230_f0000",
+            "target_id": "L3",
+            "episode_id": "frozen-source-p000956-p000474_a001230_f0000-l3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p000956-p000474_a001230_f0000-l3.json",
+              "sha256": "9212342b9c3b185be3bb3a9a9021848a15e478ac4c626589a7c321eeb58cc1f7",
+              "bytes": 108868
+            }
+          },
+          {
+            "index": 7,
+            "scenario_id": "p000956-p000476_a001231_f0023-r3",
+            "subject_id": "p000956",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000476_a001231_f0023",
+            "target_id": "R3",
+            "episode_id": "frozen-source-p000956-p000476_a001231_f0023-r3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p000956-p000476_a001231_f0023-r3.json",
+              "sha256": "9cae7581bc89da3054aa5f07624f81f47dd7ec06d050ba3e998eaa2721a855f4",
+              "bytes": 108869
+            }
+          },
+          {
+            "index": 8,
+            "scenario_id": "p000956-p000476_a001231_f0023-l3",
+            "subject_id": "p000956",
+            "cohort": "frozen_evaluation",
+            "split": "validation",
+            "pose_id": "p000476_a001231_f0023",
+            "target_id": "L3",
+            "episode_id": "frozen-source-p000956-p000476_a001231_f0023-l3",
+            "seed": 0,
+            "preparation_status": "prepared",
+            "reason": null,
+            "config": {
+              "logical_name": "p000956-p000476_a001231_f0023-l3.json",
+              "sha256": "2dd162614aa79cf1a25de9e1b2319178f2c37fe1a54c626c600c6b934d6122f3",
+              "bytes": 108880
+            }
+          }
+        ]
+      }
+    },
+    {
+      "evidence_id": "E8",
+      "logical_artifact": "deliverables/repaired-expert-pose2-r3-20261106-v1/VIDEO.json",
+      "source_sha256": "67aadca1567970220eab3443f5cfab8362ecf91802227eb1891aeb7822b535a3",
+      "source_bytes": 1568,
+      "fields": {
+        "utc": "2026-11-06T00:07:27.827101+00:00",
+        "video": {
+          "public_path": "drafts/assets/repaired-expert-pose2-r3-20261106.mp4",
+          "bytes": 415071,
+          "sha256": "625425aed8fbd3d566f0b7a8ae19e6b33881b06e5714aac6bff7878d7ec39a0a"
+        },
+        "source_rgb": {
+          "sha256": "d178ac0bf261ddcafbe580d949a4c515574cc0a2b9ca8527e6258c92a3034c2c",
+          "bytes": 9714223
+        },
+        "source_result": {
+          "sha256": "3337f9f391786ab4b1fe4f63c4d3fb9de5a704d586484c7d551d6d1e17c17b59",
+          "bytes": 573309
+        },
+        "source_child": {
+          "sha256": "a75cad52c006f0b90a2d51367b2cec7b33b45a49f25d015f2f4f068969e61ace",
+          "bytes": 699
+        },
+        "ffprobe": {
+          "programs": [],
+          "streams": [
+            {
+              "width": 256,
+              "height": 144,
+              "r_frame_rate": "20/1",
+              "duration": "109.500000",
+              "nb_read_frames": "2190"
+            }
+          ]
+        },
+        "scope": "Actual native expert RGB frames; one original frame per20Hz observation, 1xsimulation playback. No newrender, nolearnedmodel oraggregatequalification claim.",
+        "collector_aggregate_still_running": true
+      }
+    },
+    {
+      "evidence_id": "E9",
+      "logical_artifact": "diagnostics/capture-v2-r3-recording-fidelity-20261106-v2.json",
+      "source_sha256": "4fcdc1b9c22737a05434e4b5286ce0e33f4c956b503a3628f336c116ae3afaf0",
+      "source_bytes": 541,
+      "fields": {
+        "utc": "2026-11-06T00:06:53.795968+00:00",
+        "frames": 2190,
+        "terminal_observations": 1,
+        "wall_s": 10.823578643001383,
+        "storage_fidelity_passed": true,
+        "physical_training_qualification": false,
+        "scope": "Recording integrity only; collector aggregate still running. Previous v1 evidence JSON serialization failed after reader exhaustion; preserved partial receipt."
+      }
+    },
+    {
+      "evidence_id": "E10",
+      "logical_artifact": "capture-v2/TRAIN-p001120-pose2-r3/fresh_expert_result.json",
+      "source_sha256": "3337f9f391786ab4b1fe4f63c4d3fb9de5a704d586484c7d551d6d1e17c17b59",
+      "source_bytes": 573309,
+      "fields": {
+        "success": true,
+        "physical_validation": true,
+        "compact_capture_complete": true,
+        "points[0].success": true,
+        "points[0].contact_plane_audit.continuous_force_and_plane_hold_s": 3.0,
+        "points[0].contact_plane_audit.maximum_hold_tilt_deg": 0.001605013844033271,
+        "points[0].force_audit.contact_force_peak_N": 4.009271243808496,
+        "points[0].force_audit.maxima.forbidden_N": 0.0,
+        "points[0].observed_hold_s": 3.0,
+        "points[0].verified_front_contact_hold_s": 3.000000000000044
+      },
+      "child_receipt": {
+        "logical_name": "p001120-p000476_a001231_f0023-r3.result.json",
+        "bytes": 699,
+        "sha256": "a75cad52c006f0b90a2d51367b2cec7b33b45a49f25d015f2f4f068969e61ace",
+        "selected_scalar_fields": {
+          "exit_code": 0,
+          "physical_pass": true,
+          "worker_complete": true
+        }
+      }
+    },
+    {
+      "evidence_id": "E11",
+      "logical_artifact": "diagnostics/stop-preview-numeric-20261105-v1/replay/COMPLETE.json",
+      "source_sha256": "472f24dffb432ae19c9923c818b3205ecded77593b12b2586b86a1438d2603ec",
+      "source_bytes": 54976,
+      "fields": {
+        "complete": true,
+        "all_issued_commands_bit_identical": true,
+        "actual_prefix_rows": 7140,
+        "actual_interpolator_rows": 6900,
+        "physical_qualification": false,
+        "physics_executed": false,
+        "gpu_launched": false,
+        "geometry_future_verified": false,
+        "measured_settling_verified": false,
+        "original_failed_episode_verdict_unchanged": true,
+        "roundoff_ulps": 64
+      },
+      "derived_first_rejected_J7": {
+        "position_residual_rad": 3.196354292356318e-11,
+        "unchanged_64_ulp_bound_rad": 1.424586002620553e-14,
+        "derivation": "raw_position[6] minus target_position[6]; bound = 64 * float64 epsilon * max(1, abs(target_position[6])), matching the original execution helper; no command arrays exported"
+      }
+    },
+    {
+      "evidence_id": "E12",
+      "logical_artifact": "repaired-TRAIN-pose2-r3/halfsecond-minmax-summary.json",
+      "source_sha256": "106ba6f40a47096f0f90e4ece8230b2b843b35779769a6c87308872fd0572245",
+      "source_bytes": 65174,
+      "fields": {
+        "public_extract": "drafts/evidence/expert-pose2-r3-minmax-summary.public.json",
+        "raw_stream_transferred": false,
+        "summary_bin_s": 0.5,
+        "scope": "Actual one-episode expert physics, not dataset or learned model qualification",
+        "force_audit": {
+          "contact_force_peak_N": 4.009271243808496,
+          "contact_surface": "membrane_and_device_retainer_v2",
+          "continuous_contact_hold_s": 4.75,
+          "lip_must_be_exactly_zero": true,
+          "maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.0024658190086483955,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9889240274427364,
+            "lip_N": 0.0,
+            "retainer_N": 4.009271243808496
+          },
+          "passed": true,
+          "training_eligible": false
+        },
+        "contact_plane_audit": {
+          "contact_plane_normal_world": [
+            0.2866900219728165,
+            -0.9573927580299388,
+            0.0347554049473329
+          ],
+          "contact_plane_radius_m": 0.023,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 0.001605013844033271,
+          "passed": true,
+          "plane_tilt_limit_deg": 3.0,
+          "tilt_relaxed": false
+        }
+      },
+      "charts": [
+        {
+          "public_path": "drafts/assets/expert-pose2-r3-physics.png",
+          "bytes": 105858,
+          "sha256": "13710cf9a532ee2c264fefc8fdd008a2fd16dca3c827d97c50b8c0a9a3811a3e"
+        },
+        {
+          "public_path": "drafts/assets/expert-pose2-r3-physics.svg",
+          "bytes": 73372,
+          "sha256": "5bd0eabff748fbbbf8e8a4cdf6b598081ad33f247a9635a6c998bee2dd466c00",
+          "source_sha256_before_whitespace_cleanup": "3531c994b66918f0d03ee043d48890ba0082fef1a239be98876e6d88122f43f2",
+          "presentation_change": "Trailing whitespace removed only; path coordinates, labels and values unchanged"
+        }
+      ]
+    },
+    {
+      "evidence_id": "E13",
+      "logical_artifact": "diagnostics/capture-v2-r3-phase-assembly-20261106-v1.json",
+      "source_sha256": "a8a1b0fe294898d57e7a21adf288271a1cde0306440a4539dcb9ae109c2f0bee",
+      "source_bytes": 985,
+      "fields": {
+        "utc": "2026-11-06T00:29:22.510458+00:00",
+        "episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000476_a001231_f0023-r3",
+        "frames": 2190,
+        "native_rows": 26280,
+        "full_same_owner_causal_H20_windows": 532,
+        "native_actor_counts": {
+          "PREPARATION": 240,
+          "TEACHER_L2": 6924,
+          "L2_STOP": 25,
+          "ANALYTIC_L3_ALIGN": 243,
+          "ANALYTIC_L3": 18848
+        },
+        "window_native_roles": {
+          "given_l2_motion": 532
+        },
+        "wall_s": 16.6472891279991,
+        "recording_and_causal_assembly_passed": true,
+        "owner_physical_qualification": false,
+        "training_arrays_written": false,
+        "source_config_sha256": "ab8f415fa20959b1f05daca2ea98601d69a7b57e1229a1cd704d6bb1930dba93",
+        "source_native_sha256": "fcd0a1d002494caa2d08604bc81bcc8f3a75f992dfa84083e76c3766ea956ebb",
+        "scope": "Component diagnostic on one closed worker while aggregate collector runs; original owner/physics/source exporter still required. No arrays exported, no fabricated owner or training acceptance."
+      }
+    },
+    {
+      "evidence_id": "E14",
+      "logical_artifact": "repaired-TRAIN-pose2-r3/recorded-frame-at-55.6-s.png",
+      "source_bytes": 23194,
+      "source_sha256": "c8253031372f51fab54f86de1c7d77c3553c4d29a71b6e27e96c54cf38c83d98",
+      "fields": {
+        "public_path": "drafts/assets/expert-pose2-r3-hold.png",
+        "source_video_sha256": "625425aed8fbd3d566f0b7a8ae19e6b33881b06e5714aac6bff7878d7ec39a0a",
+        "source_frame_simulation_s": 55.6,
+        "width": 256,
+        "height": 144,
+        "scope": "Frame extracted on Linux from actual recorded V2 RGB video; no new simulator render or enhanced pixels."
+      },
+      "walltime_extract": {
+        "source_sha256": "3337f9f391786ab4b1fe4f63c4d3fb9de5a704d586484c7d551d6d1e17c17b59",
+        "source_bytes": 573309,
+        "selected_wall_fields": {
+          "runtime_cost.probe_wall_s": 1269.8293105420016
+        }
+      }
+    }
+  ]
+}

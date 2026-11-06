@@ -13,7 +13,7 @@ import time
 import numpy as np
 from .geometry_epoch import contact_frame, require_geometry_artifacts
 from .geometry_ik_hints import BoundIKHints
-from .finite_head import CONTACT_SURFACE, _observation
+from .finite_head import CONTACT_SURFACE, _observation, planning_plane_policy
 
 
 def write(path,value):
@@ -34,6 +34,23 @@ def patient_provenance(config):
         raise ValueError('Planning targets differ from the installed patient surface')
     return dict(binding=binding,identity=receipt['identity'],asset_sha256=receipt['asset_sha256'],
                 identity_split_sha256=receipt['identity_split_sha256'])
+
+
+def plane_options(config,target,patient):
+    """An explicit reserve must reach the strict, patient-bound fit search."""
+    margin='planning_plane_margin_deg' in config
+    if margin:
+        if (patient is None or config['planning_plane_margin_deg'] is None
+                or config.get('fit_refinement_diagnostic') is not None):
+            raise ValueError('A planning plane margin requires the patient-bound strict planning path')
+        planning_plane_policy(config.get('plane_tilt_limit_deg',3.),config['planning_plane_margin_deg'])
+    if patient is None:return {}
+    if target.get('contact_plane_radius_m')!=.023:
+        raise ValueError('M2 requires the bound 23 mm local contact plane')
+    options=dict(plane_normal=target['contact_plane_normal_world'],
+                 plane_tilt_limit_deg=config.get('plane_tilt_limit_deg',3.))
+    if margin:options['planning_plane_margin_deg']=config['planning_plane_margin_deg']
+    return options
 
 
 def fit_audit(name, compression, report):
@@ -66,6 +83,9 @@ def main():
     if hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:
         raise ValueError('Geometry source changed')
     patient=patient_provenance(config)
+    if 'planning_plane_margin_deg' in config:
+        if not config['targets']:raise ValueError('A planning plane margin requires targets')
+        for target in config['targets']:plane_options(config,target,patient)
     hint_bindings=BoundIKHints(config,hashes,patient)
     args.output.mkdir(parents=True,exist_ok=False)
     from .finite_head import FiniteHeadFit
@@ -91,7 +111,8 @@ def main():
     kin=OpenArmKinematics(contact_frame=contact_frame)
     base=_base_transform(config['world_from_left_base'])
     limits=PostureLimits.from_dict(config['posture_limits'],kin)
-    full=ContactCollisionChecker(kin,base,directory,config)
+    full=ContactCollisionChecker(kin,base,directory,config,
+        profile=config.get('collision_profile','full'))
     checker=PostureChecker(full,base,limits)
     fit=FiniteHeadFit(directory,config);rows=[]
     if not checker.check(np.zeros(7))['clear']:
@@ -101,7 +122,8 @@ def main():
         position=np.asarray(target['position_world_m']);normal=np.asarray(target['normal_world'])
         if name not in [s+str(i) for s in 'LR' for i in range(1,6)]:
             raise ValueError('Unknown retained target')
-        candidates=fit.candidates(position,normal,compression=config['loaded_compression_m'])
+        candidates=fit.candidates(position,normal,compression=config['loaded_compression_m'],
+                                  **plane_options(config,target,patient))
         write(args.output/(name+'_fits.json'),candidates)
         hint_receipt=hint_bindings.bind(target,args.output/(name+'_fits.json'))
         print('FRESH_FITS',name,len(candidates['candidates']),flush=True)
@@ -141,6 +163,9 @@ def main():
     require_geometry_artifacts(directory,config)
     if patient_provenance(config)!=patient:raise ValueError('Patient provenance changed during planning')
     hint_verification=hint_bindings.finalize();completion_extra={}
+    if 'planning_plane_margin_deg' in config:
+        completion_extra['planning_plane_policy']=planning_plane_policy(
+            config.get('plane_tilt_limit_deg',3.),config['planning_plane_margin_deg'])
     if hint_verification is not None:
         if hashlib.sha256(source.read_bytes()).hexdigest()!=config['geometry_source_sha256']:
             raise ValueError('Geometry source changed during hinted planning')

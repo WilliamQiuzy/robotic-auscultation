@@ -49,9 +49,25 @@ def require_geometry_artifacts(directory, metadata):
     return result
 
 
-def qualify_contact(rows, dt=1/240):
+def qualify_contact(rows, dt=1/240, *, retainer_witness_contract=None):
     """Strict physical hold gate; successful setup alone is never a pass."""
     from .retainer_contact import ALL_FORCE_GROUPS, CONTACT_SURFACE
+    from .retainer_witness import SCHEMA, load_contract
+    declared=[r.get('native_retainer_audit') for r in rows]
+    expected=retainer_witness_contract
+    if expected is None and any(value is not None for value in declared):
+        expected=next(value for value in declared if value is not None)
+    if expected is not None:
+        try:load_contract(expected)
+        except (ValueError,TypeError,KeyError,OSError):
+            return dict(passed=False,reason='unqualified or changed native retainer receipt')
+        if any(value!=expected for value in declared):
+            return dict(passed=False,reason='mixed or downgraded native retainer audit contract')
+        if any(r.get('retainer_front_audit',{}).get('schema')!=SCHEMA or
+               r.get('retainer_front_audit',{}).get('native_retainer_audit')!=expected for r in rows):
+            return dict(passed=False,reason='missing qualified v3 retainer audit binding')
+    elif any(r.get('retainer_front_audit',{}).get('schema')==SCHEMA for r in rows):
+        return dict(passed=False,reason='unbound v3 retainer audit')
     required = tuple(k+'_N' for k in ALL_FORCE_GROUPS) + ('compression_m', 'hall_N')
     values = np.asarray([[r[k] for k in required] for r in rows], float)
     if (not len(rows) or values.shape != (len(rows), 9) or not np.isfinite(values).all()

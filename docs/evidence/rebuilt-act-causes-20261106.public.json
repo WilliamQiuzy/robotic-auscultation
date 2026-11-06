@@ -1,0 +1,124 @@
+{
+  "schema": "wam_rebuilt_act_closed_causes_reporting_addendum_v1",
+  "created_utc": "2026-11-06T08:55:37.986831+00:00",
+  "original_act_report": {
+    "bytes": 154633,
+    "sha256": "f8f9b9434a87030b82b09f51ce1bf5b66fa4a35005b8fa49a7526a8af0a01a58",
+    "logical_name": "diagnostics/rebuilt-comparison-reporting-20261106-v1/ACT-REPORT.json"
+  },
+  "root_independent_terminal_reader_summary": {
+    "bytes": 3128,
+    "sha256": "944c798dcc39fd3875c583d369282964fd67e41511dde8474def2828415b21ab",
+    "logical_name": "diagnostics/rebuilt-act-terminal-ticks-20261106-v1/SUMMARY.json"
+  },
+  "cases": [
+    {
+      "scenario_id": "p001030-p000474_a001230_f0000-r3",
+      "original_failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_original_tick_mesh_clearance_guard_negative",
+      "original_tick_error": "EpisodeRejected(\"command/observation mesh collision rejected: {'clear': False, 'minimum_distance_m': 0.00299919451301417, 'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_28', '/World/Patient/SMPLSurface'], 'general_clearance_m': 0.003, 'violations': [{'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_28', '/World/Patient/SMPLSurface'], 'distance_m': 0.00299919451301417, 'required_m': 0.003}]}\")",
+      "original_tick_stage": "original_tick",
+      "native_rows_checked_by_root": 2789,
+      "root_reader_integrity_passed": true,
+      "root_evidence_is_new_physical_pass": false
+    },
+    {
+      "scenario_id": "p001030-p000474_a001230_f0000-l3",
+      "original_failure_reason": "L3: command posture rejected: posture_joint_envelope",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_command_posture_joint_envelope_negative",
+      "root_reader_integrity_passed": null
+    },
+    {
+      "scenario_id": "p001030-p000476_a001231_f0023-r3",
+      "original_failure_reason": "R3: command posture rejected: posture_joint_envelope",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_command_posture_joint_envelope_negative",
+      "root_reader_integrity_passed": null
+    },
+    {
+      "scenario_id": "p001030-p000476_a001231_f0023-l3",
+      "original_failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_original_tick_mesh_clearance_guard_negative",
+      "original_tick_error": "EpisodeRejected(\"command/observation mesh collision rejected: {'clear': False, 'minimum_distance_m': 0.002998632910291487, 'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_00', '/World/Patient/SMPLSurface'], 'general_clearance_m': 0.003, 'violations': [{'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_00', '/World/Patient/SMPLSurface'], 'distance_m': 0.002998632910291487, 'required_m': 0.003}]}\")",
+      "original_tick_stage": "original_tick",
+      "native_rows_checked_by_root": 2915,
+      "root_reader_integrity_passed": true,
+      "root_evidence_is_new_physical_pass": false
+    },
+    {
+      "scenario_id": "p000956-p000474_a001230_f0000-r3",
+      "original_failure_reason": "R3: command posture rejected: posture_joint_envelope",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_command_posture_joint_envelope_negative",
+      "root_reader_integrity_passed": null
+    },
+    {
+      "scenario_id": "p000956-p000474_a001230_f0000-l3",
+      "original_failure_reason": "L3: command posture rejected: posture_joint_envelope",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_command_posture_joint_envelope_negative",
+      "root_reader_integrity_passed": null
+    },
+    {
+      "scenario_id": "p000956-p000476_a001231_f0023-r3",
+      "original_failure_reason": "R3: command posture rejected: posture_joint_envelope",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_command_posture_joint_envelope_negative",
+      "root_reader_integrity_passed": null
+    },
+    {
+      "scenario_id": "p000956-p000476_a001231_f0023-l3",
+      "original_failure_reason": "L3: command posture rejected: posture_joint_envelope",
+      "original_qualified_physical_success": false,
+      "underlying_outcome": "physical_command_posture_joint_envelope_negative",
+      "root_reader_integrity_passed": null
+    }
+  ],
+  "cause_counts": {
+    "posture_joint_envelope": 6,
+    "original_tick_mesh_clearance": 2
+  },
+  "selected_step": 4500,
+  "selected_model": {
+    "checkpoint": {
+      "bytes": 10667201,
+      "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+      "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt"
+    },
+    "complete": {
+      "bytes": 236386,
+      "sha256": "96ea177b0ad31f52463b8a9afc0f61ab33e01db752a4cb499538be868cd8fbe9",
+      "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/COMPLETE.json"
+    }
+  },
+  "closed_act_metadata_counts": {
+    "cpu_ready": 8,
+    "ready_checkpoint_matches_plan": 8,
+    "request_count": 412,
+    "response_count": 412,
+    "accepted_response_count": 412,
+    "actions_attempted": 4043,
+    "actions_with_reported_native_ticks": 4043,
+    "reported_native_ticks_in_action_ranges": 48472,
+    "all_response_request_bindings_match": true,
+    "all_request_counts_match_child_exit": true
+  },
+  "fixed_denominator": 8,
+  "qualified_physical_successes": 0,
+  "original_report_unchanged": true,
+  "qualifications_unchanged": true,
+  "this_addendum_replayed_models": false,
+  "this_addendum_opened_native_streams": false,
+  "raw_tick_proof_scope": "Root independently read only the two cited terminal-tick cases; prefix counts here come from original closed action receipts",
+  "reporting_only": true,
+  "astra_final_result": null,
+  "source_record": {
+    "logical_name": "rebuilt-comparison-reporting-20261106-v1/ACT-CAUSES-ADDENDUM.json",
+    "bytes": 6167,
+    "sha256": "ed953b1eba50c5d2dd1f4d1f4d4cb62dc373b37f547e009df567f45105122e3b",
+    "public_path": null
+  }
+}

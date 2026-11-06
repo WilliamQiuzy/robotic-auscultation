@@ -1,0 +1,80 @@
+{
+  "schema": "wam_matched_actual_recording_v1",
+  "scenario_id": "p001030-p000476_a001231_f0023-r3",
+  "arm": "act",
+  "actual_recording": true,
+  "new_render": false,
+  "source_video": {
+    "bytes": 188523,
+    "sha256": "35afae55627a6c51e81184442d377a326bd779f954e4276a23eb4aa571ae49f8",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3/actual_fresh_expert.mp4"
+  },
+  "staged_video": {
+    "bytes": 188523,
+    "sha256": "35afae55627a6c51e81184442d377a326bd779f954e4276a23eb4aa571ae49f8",
+    "logical_name": "deliverables/rebuilt-matched-videos-20261106-v1/act.mp4"
+  },
+  "frames": {
+    "bytes": 24734,
+    "sha256": "e723b58d137aa8ab4d9086c3f0157da0532f9c0b24eba1a6fa6d781f0011b364",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3/video_frames.json"
+  },
+  "worker": {
+    "bytes": 701,
+    "sha256": "e0da9c1d619f1db28ecf8b47b1cee4b4c5e5b9c94607f806a47f1afd9acc6274",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3.result.json"
+  },
+  "run_result": {
+    "bytes": 1150315,
+    "sha256": "c77259429f5054a246a615edabc7d03dad6fba3e51a827ff8166103662a5f730",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3/fresh_expert_result.json"
+  },
+  "qualification": {
+    "bytes": 1817,
+    "sha256": "138aa25ba3dd655423e5b7fcbd82eb7ba6659c80d56f1f3523003fbcc0dbd187",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-act/output/p001030-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json"
+  },
+  "physical_qualified": false,
+  "actual_model_checkpoint": {
+    "bytes": 10667201,
+    "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e",
+    "logical_name": "runs/ausc_policy/rebuilt-act-20261105-v2/output/best_expanded_pilot.pt"
+  },
+  "model_request_count": 54,
+  "failure_reason": "R3: command posture rejected: posture_joint_envelope",
+  "ffprobe": {
+    "programs": [],
+    "streams": [
+      {
+        "width": 640,
+        "height": 360,
+        "r_frame_rate": "10/1",
+        "nb_frames": "275"
+      }
+    ],
+    "format": {
+      "duration": "27.500000"
+    }
+  },
+  "native_frame_stride": 24,
+  "physics_hz": 240,
+  "whole_benchmark_pending": true,
+  "simulation_time_playback": true,
+  "source_record": {
+    "logical_name": "rebuilt-matched-videos-20261106-v1/act-VIDEO.json",
+    "bytes": 2538,
+    "sha256": "81bd9cfb2d8a4057fee6423888c2f1748f6af748d3e367274e30e8281263c22a"
+  },
+  "public_assets": {
+    "act.mp4": {
+      "path": "assets/matched-v3-act.mp4",
+      "bytes": 188523,
+      "sha256": "35afae55627a6c51e81184442d377a326bd779f954e4276a23eb4aa571ae49f8"
+    },
+    "act-poster.png": {
+      "path": "assets/matched-v3-act-poster.png",
+      "bytes": 83068,
+      "sha256": "205fb7561f597c642438b1e2a24eafe39ebc6e7a8c3cedf8234fa647bf40d30b"
+    }
+  }
+}

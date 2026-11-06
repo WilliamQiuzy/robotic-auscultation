@@ -1,0 +1,1486 @@
+{
+  "schema": "ausc-source8-publication-candidate-allowlist-v1",
+  "publication_status": "isolated_preparation_not_published",
+  "inspected_root_code_commit": "cf551566c0285a086d197553cee3299f4444f464",
+  "companion_semantics_note_commit": "4c381a6",
+  "public_base_commit": "270cbc84dad8be94113ed4dea09b4c49dc21ac57",
+  "static_dependency_method": "AST import closure (including imports inside functions) from 14 named runtime/rebuild/diagnostic entry modules; 178 local Python modules reached, of which 71 differ from the public base. Conservative closure is not a runtime qualification or final import-completeness certificate. Follow-up AST import/dynamic literal audit of all 66 initially selected test files and fixture-body execution removed the private eval-operator-only test and added two exact frozen library dependencies plus one static SDK recipe fixture. Parameterized renderer import fixtures were also exercised; their two frozen scene-reference replay updates are explicitly selected. No remaining selected test references an excluded private operator. Full cloud CI identified an omitted generic sealed formal template and an omitted updated fresh-expert companion test; these and the pre-existing gravity test baseline are now explicitly selected. Test/template adaptations are bound separately in the preparation inventory.",
+  "source_candidates": [
+    {
+      "path": "scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+      "change": "new",
+      "root_blob": "c090b382336001c7fcaeb1344a4bd8d5d7f8bc65",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+      "docstring": "Closed, read-only capability for the completed V3 CPU authoring stage.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+      "change": "new",
+      "root_blob": "4b0ea0e0f9bd68f8a5f2eb0e9fd24ca007d103ab",
+      "public_blob": null,
+      "imported_by": "scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+      "docstring": "Finite lossless given-contact successor; prepare/launch/reconcile/export.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/astra_native.py",
+      "change": "new",
+      "root_blob": "c8cfcb0e690a08ac97228745f63273e2745a6fc2",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Opt-in Astra supervisor + unchanged GivenContactExpert local motor skills.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/astra_sensors.py",
+      "change": "new",
+      "root_blob": "8bcf76e1885096b12675905fe66983c12a2095b4",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Read-only single-camera RGB-D and simulated calibrated Hall observations.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/astra_service.py",
+      "change": "new",
+      "root_blob": "0b51881fd709eb5538588a710fd0b69ac1527034",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "CPU-only, token-gated loopback Astra inference; never export account auth.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/astra_supervisor.py",
+      "change": "new",
+      "root_blob": "e53b02c2e574cd7a05471454283f621a074d065b",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Bounded Astra skill protocol. This module applies no motor commands.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/contact_collision.py",
+      "change": "modified",
+      "root_blob": "fcf00d957dca788e2bcd2b4b70390a39d113fefa",
+      "public_blob": "7774b65af56f37868ed335bf31454cc3cf481276",
+      "imported_by": "sim/ausc_policy/m2_sensor_probe.py",
+      "docstring": "Fresh-geometry clearance policy with membrane and device-retainer contact.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/contact_semantics_oracle.py",
+      "change": "new",
+      "root_blob": "aca4e2390f2a64087d2a20f5600a5c05605405af",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Synthetic convex-wedge/triangle-plate diagnostic, never a robot qualification.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/expert_capture.py",
+      "change": "modified",
+      "root_blob": "ab439ecec7f45fba4b8162bf9cd7af927220e4db",
+      "public_blob": "d4ed40f108e66f8872ff3f43e73345dffe526aed",
+      "imported_by": "sim/ausc_policy/scene_store.py",
+      "docstring": "Opt-in raw expert acquisition; successful recording grants no training gate.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/finite_head.py",
+      "change": "modified",
+      "root_blob": "b2f36d629d83d37cdcb9d45381a3f23d2da0be5b",
+      "public_blob": "f48e2ac5bfe7d0215b8b12ed7c65788112e97075",
+      "imported_by": "sim/ausc_policy/m2_pilot_config.py",
+      "docstring": "Fresh finite-head surface fitting; no previous plans, IK or motion.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/fresh_expert.py",
+      "change": "modified",
+      "root_blob": "d69fbc7cbca4ba6fd3c2dcd0e92e5c433f097cf4",
+      "public_blob": "65112c1e3771936bac3932d4161c055242541b48",
+      "imported_by": "sim/ausc_policy/m2_act_controller.py",
+      "docstring": "Actual home-to-home expert mechanics on hash-bound current 5 mm geometry.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/geometry_epoch.py",
+      "change": "modified",
+      "root_blob": "c819d53a3a6aff6b3b3085e2eccecea5ce1b9e03",
+      "public_blob": "e2d5cfe567142facf2b774f579c940eddc8077bc",
+      "imported_by": "sim/ausc_policy/retainer_witness_qualification.py",
+      "docstring": "Active geometry contract. Old evidence is retained, never silently relabeled.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/geometry_plan.py",
+      "change": "modified",
+      "root_blob": "208c58b06a134e1ea4795c511b8eed25263a5f5b",
+      "public_blob": "16200e4bd7876ff9b7930ac7db346c2b32094744",
+      "imported_by": "sim/ausc_policy/fresh_expert.py",
+      "docstring": "Rebuild finite-head fits and low-elbow paths solely on current exported meshes.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/geometry_qualification.py",
+      "change": "modified",
+      "root_blob": "040d720ece4cd760ba876b69f02835af29a6363f",
+      "public_blob": "945ff9f793e627fb790b57e023f5c064b4861443",
+      "imported_by": "sim/ausc_policy/m2_pilot_deployment.py",
+      "docstring": "Fresh ten-point geometry qualification in owned Linux Isaac; no old paths.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/hall_adc_boundary.py",
+      "change": "new",
+      "root_blob": "0bdc9f521d67f68bce9379a965bfcff362acebf1",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Shared existing deterministic ADC-equivalent lower-end conversion.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/isaac_batch.py",
+      "change": "new",
+      "root_blob": "0850937f34a31e646d3be9831c2c5e1d794a5eef",
+      "public_blob": null,
+      "imported_by": "scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+      "docstring": "Finite parallel Isaac workers under ONE existing owner session and GPU lock.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/layered_scene_authoring.py",
+      "change": "new",
+      "root_blob": "943c1134738cde200fa626076c7b75c783676441",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/scene_store.py",
+      "docstring": "CPU-only, closed, lossless static USD factoring. Never starts Kit or physics.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "publication_note": "Preserve exact non-secret historical provenance/admission path literals; they are not portable runtime configuration. Owner explicitly confirmed preservation."
+    },
+    {
+      "path": "sim/ausc_policy/m2_act.py",
+      "change": "new",
+      "root_blob": "bf47cf87c1e851cbe117340e847f1e237cedcf32",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "docstring": "New M2 state-only official LeRobot ACT baseline. No physics or capture code.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_act_controller.py",
+      "change": "new",
+      "root_blob": "1b5cac4defc443f7280b15bea8cff712856826cd",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_handoff.py",
+      "docstring": "M2 state17 ACT L2 adapter; current FreshExpert owns every physical gate.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_act_pilot.py",
+      "change": "new",
+      "root_blob": "cc1df8b8ca8c7332e71d25e4999da2133c8c5d4b",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_pilot_deployment.py",
+      "docstring": "Early ACT fit diagnosis on available qualified live TRAIN/VALIDATION episodes.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_capture.py",
+      "change": "modified",
+      "root_blob": "2e198607c53564fde30cd53a7bf0044d511e5148",
+      "public_blob": "479859c372c6f6b19a984493c334a35252ba656f",
+      "imported_by": "sim/ausc_policy/training_capture.py",
+      "docstring": "Raw 20 Hz RGB-D / same-step Hall evidence for the current 5 mm tool.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_contract.py",
+      "change": "modified",
+      "root_blob": "1dbb8bfcf1b515f72dcfc9b681721eadd3ed7043",
+      "public_blob": "4af1cf08a380ff0fb83f84d666d9e4cc1c71496f",
+      "imported_by": "sim/ausc_policy/m2_given_contact_handoff.py",
+      "docstring": "M2 L2 numerical and provenance contract for the approved 5 mm tool.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_estimate_provider.py",
+      "change": "new",
+      "root_blob": "14c7bb5043d7d904ec3c2b81b3a47415a631b170",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_pilot_deployment.py",
+      "docstring": "Explicit frozen, noisy simulation target provider for M2 deployment.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_act.py",
+      "change": "new",
+      "root_blob": "8ce34b981470a30d1f7f7802627e43e21c48ae94",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "docstring": "Distinct prescribed-pose ACT admission using the existing numerical backbone.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_admission.py",
+      "change": "new",
+      "root_blob": "6acdfb28fba21b49b11459602564f0ce48156ebc",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_deployment.py",
+      "docstring": "Independent full-population CPU admission for one completed formal ACT run.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_controller.py",
+      "change": "new",
+      "root_blob": "c71578e7280e1d010a008a47e3177e533254362e",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_pilot_config.py",
+      "docstring": "Separately owned bounded initialization for prescribed contact-pose control.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_dataset.py",
+      "change": "new",
+      "root_blob": "a07a5b47fb4f1b913506afa536ccd717069a558d",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "docstring": "Fail-closed Task5A reconstruction for the prescribed-contact raw-intent task.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_deployment.py",
+      "change": "new",
+      "root_blob": "bfd37eec85ad2e6d834ef5e334e76dc1260d6157",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Finite, simulation-only given ACT permit and same-session CPU pipe bridge.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "change": "new",
+      "root_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Finite once-only paired given-pose simulation evaluation.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "source8_baseline_git_blob": "54c0fc31f79b5035251d020d2a60fc8ac1401885",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+      "change": "new",
+      "root_blob": "de06048f0077b408f205b0af14c9c14ce7c96164",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Expanded TRAIN/VAL ACT diagnostic using the original guarded native hook.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+      "change": "new",
+      "root_blob": "3e516886f7945e5544185223a1a0baf6da6c3bde",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+      "docstring": "Official state-only ACT on the expanded successful expert TRAIN/VAL set.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+      "change": "new",
+      "root_blob": "fe5b6eaabd9af6a8d2e66ee78ee94310129bb5c0",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Thirty paired held-out VALIDATION scenarios for the expanded diagnostic ACT.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_handoff.py",
+      "change": "new",
+      "root_blob": "6c6037094339d5414b96dba5ae42b18e984eb5e5",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "docstring": "Frozen interior trigger, read-only stop preview and actual-pose settling.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_intent.py",
+      "change": "new",
+      "root_blob": "ce02bb0a508e12cf565f1ae4044b4da982bea421",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_pose.py",
+      "docstring": "Given-task raw setter intent, separate from issued native commands.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+      "change": "new",
+      "root_blob": "b7e3319200a9e74b2f06fdd215e90f970bf566f2",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_deployment.py",
+      "docstring": "Authenticated metadata projection of the fixed allocation onto lossless refs.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+      "change": "new",
+      "root_blob": "2dd01e66ae5167253bc05b2d2f0373c4de719f0d",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Eight-case TRAIN/VAL ACT diagnostic, with an owned official-CPU pipe child.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "change": "new",
+      "root_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/fresh_expert.py",
+      "docstring": "Buffered full neutral native evidence for diagnostic learned-pilot routes.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "source8_baseline_git_blob": "fd891b50f11d4bc12cbc9f935cf15cb28b283994",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_train.py",
+      "change": "new",
+      "root_blob": "7e6bb5652c38cb5cb1d9c9716065b9b5f6dcefa3",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+      "docstring": "Official ACT eight-case learning pilot; diagnostic TRAIN/VAL only, no resume.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pose.py",
+      "change": "new",
+      "root_blob": "4a24a87898cd26d42f50b64244e93bf2c99c84ed",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "docstring": "Explicit known-goal control reference. No estimator or normal-only roll fit.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_recovery.py",
+      "change": "new",
+      "root_blob": "6f7ad8e62c647e781e7605528488ade67522a36c",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Opt-in TRAIN DART collection on current 5mm/64-iteration native mechanics.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "change": "new",
+      "root_blob": "c68f833de916c81aca0f198b5ae02988ec4701c4",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/retainer_witness_qualification.py",
+      "docstring": "Official given-contact ACT runtime and finite numerical protocol.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_train.py",
+      "change": "new",
+      "root_blob": "5e5b1f2a0a9e2d15c9053eadc28e743f2bf39439",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_given_contact_deployment.py",
+      "docstring": "One finite official given-contact ACT run. No resume or TEST route.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_pilot_config.py",
+      "change": "new",
+      "root_blob": "d12fd5ae17d1d254cef615159566a5b547725fca",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/layered_scene_authoring.py",
+      "docstring": "Pure hash-bound M2 pilot configuration builders; never launch or qualify.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_pilot_deployment.py",
+      "change": "new",
+      "root_blob": "297e359d0dfb79bcec4f40f36ef688bfa708b581",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_act_controller.py",
+      "docstring": "Explicit VAL-only diagnostic ACT rollout admission; never production qualification.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_capture_dataset.py",
+      "change": "new",
+      "root_blob": "85d8b51ac18b9a976d32beec776aaf1cd83f18a6",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Bounded diagnostic expert capture and fresh ACT arrays after the Pod loss.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "change": "new",
+      "root_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Opt-in rebuilt matched-scene ACT/expert/Astra diagnostic, never a native owner.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "publication_note": "Contains loopback service defaults and an error phrase naming reference/home/physics; no actual server endpoint is selected by these defaults.",
+      "source8_baseline_git_blob": "fcc0794bbac096178714bf9e3e3fc3f8a97f299d",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda"
+    },
+    {
+      "path": "sim/ausc_policy/m2_retarget.py",
+      "change": "new",
+      "root_blob": "9abbc1a9a850c7c13039aec7167a55f14bb58e0c",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/patient_scene.py",
+      "docstring": "CPU-only observed-pose retarget assets; static numeric screening, never physics.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_stage.py",
+      "change": "new",
+      "root_blob": "64ad99263e886eb1c2a632bca8d98ef8d4c7d5d9",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/m2_contract.py",
+      "docstring": "Causal actor supervision, separate from the unchanged analytic L3 manager.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_stool_layout.py",
+      "change": "new",
+      "root_blob": "81e63730df69e7db9f93b80d30ceb35689cf16fa",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Prepare/install a bounded stool layout from authenticated original geometry.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/native_contact_evidence.py",
+      "change": "new",
+      "root_blob": "69a16f718f8e74515a1118093034db52317c3149",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/contact_semantics_oracle.py",
+      "docstring": "Native contact diagnostics; no point correction or acceptance decision.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/native_lifecycle.py",
+      "change": "new",
+      "root_blob": "9f5e015c722caf8e2926ab2335953b41b06dc257",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Normal close for shared compact jobs; no Kit import until invoked.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/native_usd_preflight.py",
+      "change": "new",
+      "root_blob": "dd738fc9c52d04910df989b2542633ad15a96f28",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Full layered preflight in a bounded CPU child, keeping Kit's parent USD-clean.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/observed_reconstruction.py",
+      "change": "new",
+      "root_blob": "40a68b73350e21d5da59497e19417d89d4e0af35",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "New, opt-in observed M2 reconstruction; never restores old depth-plane bytes.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/patient_scene.py",
+      "change": "modified",
+      "root_blob": "16a2e28411e1373fcc93188727938037bc454a88",
+      "public_blob": "445173c9cc79e2793a6b98ab01fd903f92527383",
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Bind a numerically screened SMPL candidate into a separate simulation scene.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/process_guard.py",
+      "change": "modified",
+      "root_blob": "12525e716c7433df693b0aeb86c5a654ea5cc543",
+      "public_blob": "737948e4fc36c991d74fadd1db52daa3c4220219",
+      "imported_by": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "docstring": "Versioned WAM process guard with bounded exit-time GPU identity checks.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/rebuild_gpu_binding.py",
+      "change": "new",
+      "root_blob": "df83c8fec56b17f498c091045c03580a7b3088bc",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Explicit replacement-Pod resource identity for rebuilt diagnostic ACT only.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/rebuild_scene_prepare.py",
+      "change": "new",
+      "root_blob": "097ae958f40dc6910e3c66aab0c94b5e6441993b",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Bounded CPU scene preparation/planning for the new reconstructed cohort.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/retainer_failure.py",
+      "change": "new",
+      "root_blob": "756dcda5d726b1b825992bdddac7cc2c7a69c1f3",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/native_contact_evidence.py",
+      "docstring": "Bounded first-failure native contact evidence; no control or acceptance gates.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/retainer_witness.py",
+      "change": "new",
+      "root_blob": "b3073f8a7879864f14eb49ec54e0b258a3cd23ee",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/retainer_witness_qualification.py",
+      "docstring": "Qualified shape-0 convex retainer witness audit; opt-in and fail closed.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/retainer_witness_qualification.py",
+      "change": "new",
+      "root_blob": "fecec1b83d5623528e91b1640711b8a78dd0bde5",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "CPU-only independent issuer for a fresh, terminal native contact oracle.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/run.py",
+      "change": "modified",
+      "root_blob": "d8527849538509ddeb4e95beccb7a7b2c738ddd4",
+      "public_blob": "30f97e5e79f112b9e2c11affc442833e00f12137",
+      "imported_by": "explicit entry point",
+      "docstring": "Single GPU experiment owner, with existing resource and process-group guard.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/runtime_cost.py",
+      "change": "modified",
+      "root_blob": "7dc0206b169dc4a26a766703625ba4f7b0f5b1bc",
+      "public_blob": "d191c877f063bc813e260360a3ff07a4d054ba21",
+      "imported_by": "sim/ausc_policy/fresh_expert.py",
+      "docstring": "Pure summaries of labeled wall clocks; no extrapolated parallel performance.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/scene_store.py",
+      "change": "new",
+      "root_blob": "fa86bc649d617619508f3e4444caf2a907ffe3ba",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/geometry_qualification.py",
+      "docstring": "Versioned compact initial-scene CAS. No simulator, training or data admission.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/sdk_mdl.py",
+      "change": "new",
+      "root_blob": "0c7034a98fd4b940466bda2d384214420f89f5bd",
+      "public_blob": null,
+      "imported_by": "sim/ausc_policy/scene_store.py",
+      "docstring": "Pure CPU manifest for one approved Isaac 6.0 MDL library, not qualification.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/stop_preview_numeric_diagnostic.py",
+      "change": "new",
+      "root_blob": "7c48883fc7048887931e78d0743b149acf423302",
+      "public_blob": null,
+      "imported_by": "explicit entry point",
+      "docstring": "Replay a failed expert capture on CPU; raw archives stay on Linux.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/tool_geometry_review.py",
+      "change": "modified",
+      "root_blob": "2bfcb57220b0f220667bd5310bb9dabf027ed083",
+      "public_blob": "2b7e0d1ca85f9dc2e47989cbc265ed609db80662",
+      "imported_by": "sim/ausc_policy/fresh_expert.py",
+      "docstring": "Own one finite, locked Isaac static model review.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/training_capture.py",
+      "change": "modified",
+      "root_blob": "4f1a494430eaba9bfe91cf5ce97d118d547c8f30",
+      "public_blob": "2ad2d31ed5001a798bce7ec565b86452d369e093",
+      "imported_by": "sim/ausc_policy/m2_act.py",
+      "docstring": "Bounded, single-target compact recording; NOT an Isaac runtime adapter.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/env.py",
+      "change": "modified",
+      "root_blob": "e03c79ef96e2dd95f2d83ceafa54157031426acc",
+      "public_blob": "d3d43a6c2fe56e27878fde7cf73c2d647df28c20",
+      "imported_by": "sim/ausc_policy/fresh_expert.py",
+      "docstring": "PhysX-only OpenArm runtime. No CAN, ROS, or physical robot imports.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/posture.py",
+      "change": "modified",
+      "root_blob": "2e4ba2066b9fd77f064aac0cb02a497c05e10c93",
+      "public_blob": "772d710cc379aa38d4814d8bef0b5973e4951388",
+      "imported_by": "sim/auscultation_expert_layout_v1/controller.py",
+      "docstring": "Explicit low-elbow posture constraints, in the existing world frame.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/auscultation_pi05_v6/execution.py",
+      "change": "modified",
+      "root_blob": "12d1a1205632979c30275c363de58b0f27cc991f",
+      "public_blob": "051d2f1db059bdc6eb64801c5c38e6a26a0d32fa",
+      "imported_by": "sim/ausc_policy/m2_given_contact_handoff.py",
+      "docstring": "Continuous bounded joint execution; no pose inversion or teacher path.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/curobo_expert_v1/fast_collision.py",
+      "change": "modified",
+      "root_blob": "47d63ab22a90a0a29edaf7f92c2cf6df36d9cdbe",
+      "public_blob": "be8f2b585106e3443ca3cd2cf3258c972b6e8164",
+      "imported_by": "sim/ausc_policy/contact_collision.py",
+      "docstring": "Same triangle-mesh FCL policy with batched conservative broad-phase updates.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+      "change": "new",
+      "root_git_blob": "fa3e246ddf4d62ab52fca2fca3feb75651b256f9",
+      "public_git_blob": null,
+      "reason": "tests/test_ausc_given_contact_recovery.py calls the reusable current-contract recovery exporter inside fixtures; preserve original TRAIN-only, source, physical and setter-ledger gates.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "imported_by": "tests/test_ausc_given_contact_recovery.py"
+    },
+    {
+      "path": "sim/ausc_policy/layered_runtime_equivalence_probe.py",
+      "change": "new",
+      "root_git_blob": "7f015d6452028369bd790cb98ab08cb123422602",
+      "public_git_blob": null,
+      "reason": "tests/test_ausc_layered_runtime_equivalence_probe.py imports this reusable original-owner software-equivalence probe inside fixtures; preserve its original ownership, header, source and no-physics contracts.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "imported_by": "tests/test_ausc_layered_runtime_equivalence_probe.py"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/render_expert.py",
+      "change": "modified",
+      "root_git_blob": "ea0ec21c309c009505b8bb4be90c3aaed6a168b1",
+      "public_git_blob": "4cdabf00a9a29451b3593c8230c43652b1f3751f",
+      "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "imported_by": "tests/test_ausc_policy_scene_store.py::test_renderers_use_scene_reference_resolver_and_track_reference_bytes"
+    },
+    {
+      "path": "sim/auscultation_training/render_expert.py",
+      "change": "modified",
+      "root_git_blob": "fb435b831ba43fc84d1a92176c2f80ba9d8a597d",
+      "public_git_blob": "08eca7ccb4e809a2474434c6b3769dd47ba74e0e",
+      "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "imported_by": "tests/test_ausc_policy_scene_store.py::test_renderers_use_scene_reference_resolver_and_track_reference_bytes"
+    }
+  ],
+  "test_candidates": [
+    {
+      "path": "tests/test_ausc_given_contact_accounting_envelope.py",
+      "change": "new",
+      "root_git_blob": "f6d901803fb94ccb6599738b9565a016b5290616",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_act.py",
+      "change": "new",
+      "root_git_blob": "ee8b297b0ec4794d08fb71964890e86f52525841",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_admission.py",
+      "change": "new",
+      "root_git_blob": "4f8d64f4b5d09a28f362720ef3f601d98be4c6b7",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_capture.py",
+      "change": "new",
+      "root_git_blob": "d5fd7f3b3621d8d72ce41977df2486fcb3c1e2cd",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_controller.py",
+      "change": "new",
+      "root_git_blob": "6a2a996712cb727478d3a9ff5b7b93a1c8e6f84b",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_dataset.py",
+      "change": "new",
+      "root_git_blob": "c1ea858a887fbcca4a78150e5f8cfdd4111cd818",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_deployment.py",
+      "change": "new",
+      "root_git_blob": "a50f84006be56b0a2f41024dac1885a25b470b5e",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_evaluation.py",
+      "change": "new",
+      "root_git_blob": "e354df21a57890a2d6e82fd922ab02cb4d1645d4",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_expanded_pilot.py",
+      "change": "new",
+      "root_git_blob": "09378af08e551fa5f495716820855218bddc80cc",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_handoff.py",
+      "change": "new",
+      "root_git_blob": "eae1c6648f9c7b00c51318ffb10726808fb04c7c",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_intent.py",
+      "change": "new",
+      "root_git_blob": "3c3fc3e00e37ea8400e3e066a693138a84479e80",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_jerk_reserve.py",
+      "change": "new",
+      "root_git_blob": "5b3bd4e2affefc4a470a2e102392b9423175ef3d",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_lossless_mapping.py",
+      "change": "new",
+      "root_git_blob": "eaf3861afe44527cf2593de857ae50a25dc7136b",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pilot_deployment.py",
+      "change": "new",
+      "root_git_blob": "eeff52fedb49f8024d3c2d4d669bab7882c1bb8f",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pilot_native_audit.py",
+      "change": "new",
+      "root_git_blob": "cc75a21ab4a719769d7b7dd7cfcd6b290794e036",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pilot_train.py",
+      "change": "new",
+      "root_git_blob": "ec1988ba88c62bc09f07c1bcf090539511dc7d43",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pose.py",
+      "change": "new",
+      "root_git_blob": "8d48d2ef1d374594fa782a2cd01d5b7e5a68be4b",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_recovery.py",
+      "change": "new",
+      "root_git_blob": "8ff76b3207396f013544ba8d3391b214e0ffcb20",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_ruckig_parity.py",
+      "change": "new",
+      "root_git_blob": "2e2756cccfd388860d0debd95d2c78f24313e37e",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_runtime.py",
+      "change": "new",
+      "root_git_blob": "d1a7a126a9472ba41f779bdea5bb61adea951636",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_scene_store.py",
+      "change": "new",
+      "root_git_blob": "52c5401e6fc56a2abb5c6bea05161259a5315439",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_train.py",
+      "change": "new",
+      "root_git_blob": "16ab9ab497f741ec43008a735d5a793cfdcb0273",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_val_scenarios.py",
+      "change": "new",
+      "root_git_blob": "a7f1ea11f59dd874055f935c7ce9feda41e6e801",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_velocity_reserve.py",
+      "change": "new",
+      "root_git_blob": "e90a57f8e4184701faa9a661da94c5ff1b99c595",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_given_processing_source_envelope.py",
+      "change": "new",
+      "root_git_blob": "3d667881fa326ab7ad69d4543c38fbc8ae2558c7",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_given_contact_runtime.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_layered_runtime_equivalence_probe.py",
+      "change": "new",
+      "root_git_blob": "c08b6ca8b901c9677fa5f213c018432775ba2fd9",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_hall_boundary.py",
+      "change": "new",
+      "root_git_blob": "067aabd0b770ecf151eb55dec6fc0f225fcee9cc",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_modality_semantics.py",
+      "change": "new",
+      "root_git_blob": "5a829bb004ea29beaeb4dee12a311a3c4c56d055",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_sensors.py",
+      "change": "new",
+      "root_git_blob": "3649a6f8e313ae9190ead004af552d0593e8d7e7",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_supervisor.py",
+      "change": "new",
+      "root_git_blob": "205f791c1489179ca0a33617b7caa9d9abdce241",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_compact_expert_capture.py",
+      "change": "new",
+      "root_git_blob": "22ecf289fe5b84a899aa790d0bb4bafee3a448cf",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_compact_resolution.py",
+      "change": "new",
+      "root_git_blob": "026d64935a924a18867da1a4dcc03491d228fbdc",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_contact_semantics_oracle.py",
+      "change": "new",
+      "root_git_blob": "201b8d8837126de12fa8ebfe56b0c22796c99f95",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_cpu_preparation.py",
+      "change": "new",
+      "root_git_blob": "fdf0f05c2a6505ce8cd966c1a9ed8c575078e805",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_expert_capture.py",
+      "change": "modified",
+      "root_git_blob": "57429601ba9e9dffce2fc055ea367e127440e67f",
+      "public_git_blob": "46d85e13bc98b0a2d5292bde4cd4c6d399088eaf",
+      "reason": "test fixture imported by tests/test_ausc_given_contact_capture.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_geometry_ik_hints.py",
+      "change": "modified",
+      "root_git_blob": "7f0dd5b97ed52b0c7c03319de05558b95aa9625c",
+      "public_git_blob": "a7159a98fcc119e224b80d1bfc31d4d56f605432",
+      "reason": "test fixture imported by tests/test_ausc_policy_geometry_plan.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_geometry_plan.py",
+      "change": "modified",
+      "root_git_blob": "4a0e6932f478c5948f2dc953b401d6bef1231163",
+      "public_git_blob": "510b245b38df8358fb5c889fcf9d4b1396d91ad3",
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_isaac_batch.py",
+      "change": "new",
+      "root_git_blob": "b957d8d3952b0ccc4278dea32b742f3eb7d1a61e",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_given_contact_val_scenarios.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_layered_scene.py",
+      "change": "new",
+      "root_git_blob": "5ca817cf248d02af2571cdec02a56c7091844882",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_act.py",
+      "change": "new",
+      "root_git_blob": "ea73d320b73d08548d9cead4c2cc36a662a544e1",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_given_contact_capture.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_act_controller.py",
+      "change": "new",
+      "root_git_blob": "3dbf43e8e348b361e47628437619bf612edafe39",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_given_contact_act.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_capture.py",
+      "change": "modified",
+      "root_git_blob": "45eeb424070f2f534f0dccfa32ea929517d042a6",
+      "public_git_blob": "d37e40707df236838d05137e2d11e16b10448cbb",
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_contract.py",
+      "change": "modified",
+      "root_git_blob": "972ee41448a45da0fb5700f11f230c0ec77d0d5c",
+      "public_git_blob": "ac8dcc86e88cf59c66cfce1cf123881f8b3b23e5",
+      "reason": "test fixture imported by tests/test_ausc_policy_m2_estimate_provider.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_deployment_integration.py",
+      "change": "new",
+      "root_git_blob": "d5f12ffdfc0d15d76148cbb38a6836130b0a2fdb",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_policy_retainer_failure.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_estimate_provider.py",
+      "change": "new",
+      "root_git_blob": "ccff487de58a6888960714b80d7f310961e4c4b3",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_policy_m2_deployment_integration.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_pilot_config.py",
+      "change": "new",
+      "root_git_blob": "8920f2857048a5536a1dc517761b43b82a6ee684",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_given_contact_capture.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_native_contact_evidence.py",
+      "change": "new",
+      "root_git_blob": "8a9f6a5019ae3c0391c57cd1ed4bf2e85a4c6d7e",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_native_lifecycle.py",
+      "change": "new",
+      "root_git_blob": "b906e58859c090d1471161512c344fa94cdaf3a7",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_numeric_container.py",
+      "change": "new",
+      "root_git_blob": "c2d031cb968687500d6e74b0dceacb606020e61b",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_process_guard.py",
+      "change": "modified",
+      "root_git_blob": "53251835cc0f2f2768590aa4aba38014e3d4df6e",
+      "public_git_blob": "6af4695f2240e455b5e50e1e5bdc26cb89d92079",
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_retainer_contact.py",
+      "change": "already_identical",
+      "root_git_blob": "a2b15e911ac71c4869581e990a268065e9b06eaa",
+      "public_git_blob": "a2b15e911ac71c4869581e990a268065e9b06eaa",
+      "reason": "test fixture imported by tests/test_ausc_policy_retainer_witness.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_retainer_failure.py",
+      "change": "new",
+      "root_git_blob": "45eea5a173012265c02897146a6070a61ecd71a5",
+      "public_git_blob": null,
+      "reason": "test fixture imported by tests/test_ausc_policy_native_contact_evidence.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_retainer_witness.py",
+      "change": "new",
+      "root_git_blob": "40d39fc866b8e4fa705a79727edb37906d3d76e7",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_scene_sdk_mdl.py",
+      "change": "new",
+      "root_git_blob": "a9110b8f5c2d09563ee6fd4577d1c8a0ed41b2aa",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_scene_store.py",
+      "change": "new",
+      "root_git_blob": "bdccbde70cda1cd5817fc0a2fdc6879373e6b635",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_sdk_mdl.py",
+      "change": "new",
+      "root_git_blob": "e4ed5e40d427b6b8b42f7a521cb45abef88a759c",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_training_capture.py",
+      "change": "modified",
+      "root_git_blob": "385f41bf161383fecf4573333e521caf2150071f",
+      "public_git_blob": "e152e093827acf7d142ce75f7e3916ac309abd3d",
+      "reason": "test fixture imported by tests/test_ausc_policy_m2_act.py",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_velocity_feedforward.py",
+      "change": "modified",
+      "root_git_blob": "efe6ac5ecfbd317ce71f39c8b31c2fca546282ae",
+      "public_git_blob": "d8f575cfa83fc2c665a19dad5905645ef7b89531",
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_capture_dataset.py",
+      "change": "new",
+      "root_git_blob": "20b5d22999eec699d28c1ac68c4aa927c1904cf1",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_gpu_binding.py",
+      "change": "new",
+      "root_git_blob": "9dfadfc299c2ab4e377fe599132625c068d7542b",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_paired_eval.py",
+      "change": "new",
+      "root_git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published",
+      "source8_baseline_git_blob": "1a9f01f3f34072ca1330d9542b0c1eb572ed005b",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_scene_prepare.py",
+      "change": "new",
+      "root_git_blob": "37b828d5b6c3ccf1069a0346790bf875fb5c50f1",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_retainer_witness_qualification.py",
+      "change": "new",
+      "root_git_blob": "a26ac1b088b2eab0d446d77759b2bf46447f03b2",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_stop_preview_numeric_rejection.py",
+      "change": "new",
+      "root_git_blob": "3dd0ff5533eb8a134d655ecaf0524d81cf55ad46",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_wam_sdk_cpu_bootstrap_install.py",
+      "change": "new",
+      "root_git_blob": "a691635bc747d436a3c828b64ca8db1fc50d434c",
+      "public_git_blob": null,
+      "reason": "focused regression for an allowed feature, physical gate or shared runtime dependency",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_fresh_expert.py",
+      "change": "modified",
+      "root_git_blob": "c90045946ae797f7a19b9d0a098d2d58be42d4ca",
+      "public_git_blob": "7ffa4dd8cf6dbeada6b0248ead988bfdf7b3903b",
+      "reason": "Exact frozen fresh-expert companion tests: valid JSON geometry fixture, current profile/observed-query interfaces, and strict original local-plane/compact capture regressions omitted from the prior public selection.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_policy_gravity_feedforward.py",
+      "change": "modified",
+      "root_git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "public_git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "reason": "Existing public/frozen gravity test baseline explicitly recorded for the current collision-profile fixture adaptation; original prestep-failure persistence and safety assertions remain unchanged.",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "change": "new",
+      "public_git_blob": null,
+      "reason": "Explicit root-reviewed CODE10 lossless native-audit transport companion; no private operator dependency.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "root_git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0"
+    }
+  ],
+  "configuration_candidates": [
+    {
+      "path": "configs/astra_supervisor_given_contact_v1.merge.json",
+      "change": "new",
+      "root_git_blob": "51310bde17209817d500baa7a9055962aff675c9",
+      "public_git_blob": null,
+      "reason": "Generic loopback endpoint and token environment variable name only; no token bytes or per-run config",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+      "change": "new",
+      "root_git_blob": "7c1eb385782b7abd7e1f6500ae4a3f3359b3394f",
+      "public_git_blob": null,
+      "reason": "Generic formal training template read by the distributed schedule/seal test. All actual seals/input bindings remain null. Two stale handoff labels are separately adapted to the current v3 runtime contract; numerical schedule and admission remain unchanged.",
+      "status": "prepared_on_isolated_branch_not_published"
+    }
+  ],
+  "documentation_candidates": [
+    {
+      "path": "docs/astra_native_supervisor_v1.md",
+      "change": "new",
+      "root_git_blob": "467eb0c26dc70279c9d551e2aad7d3e730e633d8",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_rebuild_capture_dataset_20261105.md",
+      "change": "new",
+      "root_git_blob": "215c9584cfa8e1883512ae29ac7d10ea9a58ebd6",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_rebuild_paired_eval_v1.md",
+      "change": "new",
+      "root_git_blob": "838bba696c24e20829d77c5520e6ee987cb7a67f",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_rebuild_gpu_binding_v1.md",
+      "change": "new",
+      "root_git_blob": "b3dc91e57454c0e65c833128b4249a0dfc014da6",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_stop_preview_numeric_rejection_20261105.md",
+      "change": "new",
+      "root_git_blob": "403d538101c22f3220cdc46f2b76c1dbfd6fc2d6",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_l2_jerk_planning_reserve_20261105.md",
+      "change": "new",
+      "root_git_blob": "96a32159699af09769ace69970eaa77aae55a73c",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/retainer_witness_qualification_20261105.md",
+      "change": "new",
+      "root_git_blob": "696e54197e0558ecde46ca6813267de00fd40b3b",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_given_contact_expanded_act_pilot_v1.md",
+      "change": "new",
+      "root_git_blob": "537d68cdd78f027a29d00f7f4c1c9ae13857752a",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/m2_given_contact_expanded_val_scenarios_v1.md",
+      "change": "new",
+      "root_git_blob": "5d81a5ee1ad490d9d0ef81155d31188eaa0c2aec",
+      "public_git_blob": null,
+      "reason": "Review scope and commands; publish source8 semantics after actual freeze/native evidence",
+      "status": "prepared_on_isolated_branch_not_published"
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "change": "new",
+      "public_git_blob": null,
+      "reason": "Explicit root-reviewed CODE10 lossless native-audit transport companion; no private operator dependency.",
+      "status": "prepared_on_isolated_branch_not_published",
+      "root_git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "root_sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2"
+    }
+  ],
+  "cpu_bootstrap_candidate": [
+    {
+      "path": "scripts/experiments/wam_runpod_20261026/install_sdk_cpu_bootstrap.py",
+      "change": "new",
+      "root_git_blob": "2019e3d8542c9c4157b6aa1c7773e2786f930d21",
+      "public_git_blob": null,
+      "reason": "Trusted SDK namespace/schema bootstrap needed by rebuilt pure CPU scene preparation; review and test separately",
+      "status": "prepared_on_isolated_branch_not_published"
+    }
+  ],
+  "excluded_operator_scripts": [
+    {
+      "path": "scripts/rebuild_runtime_20261105.py",
+      "reason": "One-off operator program with per-run source/output paths. Keep private; document explicit parameterized helper commands instead."
+    },
+    {
+      "path": "scripts/rebuild_cpu_chain_20261105.py",
+      "reason": "One-off operator program with per-run source/output paths. Keep private; document explicit parameterized helper commands instead."
+    },
+    {
+      "path": "scripts/rebuild_train_chain_20261105.py",
+      "reason": "One-off operator program with per-run source/output paths. Keep private; document explicit parameterized helper commands instead."
+    },
+    {
+      "path": "scripts/rebuild_eval_chain_20261105.py",
+      "reason": "One-off post-training operator with per-run source/output/queue ownership. Not distributed; use the parameterized m2_rebuild_paired_eval helper and original run owner documented in docs/m2_rebuild_paired_eval_v1.md."
+    }
+  ],
+  "excluded_categories": [
+    "credentials, account auth, .env and per-run token files",
+    "actual server URLs, SSH addresses and private launch configs",
+    "source archive manifests containing absolute native paths",
+    "human raw data, body meshes, raw RGB/depth/physics arrays and weights",
+    "unrelated website/backend changes and any untracked private files"
+  ],
+  "final_gate": "The explicit frozen selection is locally prepared on an isolated branch, with individually hash-bound test/template adaptations and the private operator test excluded. Verify actual runtime/data/model identities and terminal native receipts separately, append true matched results, then integrate through the already authorized publication workflow. This preparation does not merge the branch or establish native model acceptance.",
+  "source_freeze": {
+    "code_commit": "cf551566c0285a086d197553cee3299f4444f464",
+    "files": 1597,
+    "archive_sha256": "ee2a0b69c322b09ac5f7c89ec0210db491deedf53fb973aedca57646bd1e5c96",
+    "owner_reported_critical_cpu_tests_passed": 67,
+    "verification_scope": "Source8 baseline provenance and owner-reported CPU checks; explicit CODE10 transport overrides apply to the current selected files. No new native model result is inferred."
+  },
+  "excluded_operator_tests": [
+    {
+      "path": "tests/test_ausc_rebuild_eval_chain.py",
+      "change": "new",
+      "root_git_blob": "3fef30fd22a943cfec47c36496da97676bc10cbb",
+      "public_git_blob": null,
+      "reason": "Tests only the intentionally non-distributed per-run scripts.rebuild_eval_chain_20261105 operator. Fixture execution reproduced its absence. Keep the operator and its test in the private experiment source; public library/native/physical tests remain distributed.",
+      "status": "excluded_not_distributed"
+    }
+  ],
+  "test_support_candidates": [
+    {
+      "path": "reports/ausc_policy/recovery_bootstrap_20261105/wam_sdk_cpu_schema_paths.pth",
+      "change": "new",
+      "root_git_blob": "25affbd6b969323292a95f25ff6681a670e3edff",
+      "public_git_blob": null,
+      "reason": "Exact frozen 1,224-byte reference recipe used by test_wam_sdk_cpu_bootstrap_install.py. Generic SDK install paths, not credentials or raw data. This fixture is not automatically installed or portable qualification.",
+      "status": "prepared_on_isolated_branch_not_published"
+    }
+  ],
+  "selection_counts": {
+    "source_candidates": 75,
+    "test_candidates": 68,
+    "configuration_candidates": 2,
+    "documentation_candidates": 10,
+    "cpu_bootstrap_candidate": 1,
+    "test_support_candidates": 1,
+    "total_files": 157,
+    "frozen_reference_bytes": 3386086,
+    "prepared_bytes": 3390889
+  },
+  "source_overrides": [
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 15662,
+      "git_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 186738,
+      "git_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 44698,
+      "git_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 5726,
+      "git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 17759,
+      "git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 4573,
+      "git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "scope": "Exact reviewed CODE10 bytes; public documentation adaptation is separately hash-bound."
+    }
+  ],
+  "inspected_root_code_commit_scope": "Source8 baseline; inspect source_overrides for current CODE10 file pins."
+}

@@ -15,13 +15,17 @@ import time
 import numpy as np
 
 from .edge_timing import checked_edge_commands
-from .expert_capture import ExpertCapture, capture_settings, checked_render, controller_labels
+from .expert_capture import create_expert_capture, capture_settings, checked_render, controller_labels
 from .gravity_feedforward import (GravityFeedforwardRejected, NativeGravityFeedforward,
                                  gravity_feedforward_settings, read_native_angular_drive_modes)
 from .force_feedback import hold_config, balance_receipt
 from .velocity_feedforward import NativeVelocityFeedforward, velocity_feedforward_settings
 from .retainer_contact import (CONTACT_SURFACE, RETAINER_PATHS, DIAPHRAGM_PATH, ALL_FORCE_GROUPS,
                                CONTACT_FORCE_GROUPS, is_retainer_patient_pair, audit_retainer_front)
+from .retainer_witness import settings as retainer_audit_settings, NativeRetainerAudit
+from .retainer_failure import latch_retainer_failure,save_retainer_failure
+from .native_contact_evidence import (native_pose_sample,latch_first_positive_contact,
+                                      save_first_positive_contact)
 from .geometry_epoch import (GEOMETRY_ID, contact_frame, require_current,
                              require_geometry_artifacts, qualify_contact)
 from sim.auscultation_expert_layout_v1.controller import CONTROL_STEPS, EpisodeRejected
@@ -64,6 +68,34 @@ def _route(value, label):
     if result.ndim != 2 or result.shape[1:] != (7,) or len(result) < 2 or not np.isfinite(result).all():
         raise ValueError('Invalid '+label)
     return result
+
+
+def contact_plane_contract(row):
+    """Optional for frozen nominal regression; mandatory for varied patients."""
+    source=row.get('selected_fit',{}).get('first_contact',{})
+    if 'contact_plane_normal_world' not in source:
+        if row.get('patient_provenance') is not None:
+            raise ValueError('Varied patient is missing the local contact plane')
+        return None
+    normal=_vector(source['contact_plane_normal_world'],(3,),'contact plane normal')
+    limit=source.get('plane_tilt_limit_deg')
+    if (not np.isclose(np.linalg.norm(normal),1.,atol=1e-8,rtol=0)
+            or isinstance(limit,bool) or limit not in (3.,10.)
+            or source.get('contact_plane_radius_m')!=.023
+            or source.get('tilt_relaxed') is not (limit==10.)):
+        raise ValueError('Invalid local contact plane contract')
+    return dict(contact_plane_normal_world=normal.tolist(),contact_plane_radius_m=.023,
+        plane_tilt_limit_deg=float(limit),tilt_relaxed=limit==10.)
+
+
+def contact_plane_observation(contract,axis_world):
+    axis=_vector(axis_world,(3,),'actual tool axis')
+    if not np.isclose(np.linalg.norm(axis),1.,atol=1e-6,rtol=0):
+        raise ValueError('Actual tool axis is not unit length')
+    angle=float(np.rad2deg(np.arccos(np.clip(-axis@contract['contact_plane_normal_world'],-1.,1.))))
+    return dict(tilt_deg=angle,limit_deg=contract['plane_tilt_limit_deg'],
+        passed=angle<=contract['plane_tilt_limit_deg']+1e-9,
+        tilt_relaxed=contract['tilt_relaxed'])
 
 
 def require_near_contact(row, target, normal, center, fitted_gap):
@@ -113,6 +145,24 @@ def read_plans(config, geometry, kin):
     gravity_feedforward_settings(requested)
     velocity_feedforward_settings(requested)
     passive_effort(0, requested.get('passive_preload_N'))
+    installed_patient=None
+    geometry_file=Path(geometry)/'collision_geometry.json'
+    smpl_surface=geometry_file.is_file() and any(
+        c.get('path')=='/World/Patient/SMPLSurface'
+        for c in json.loads(geometry_file.read_text()).get('colliders',[]))
+    if config.get('patient_asset') or smpl_surface:
+        if not config.get('patient_asset'):
+            raise ValueError('Varied patient has no authenticated asset specification')
+        from .patient_scene import load_candidate
+        _,expected_patient=load_candidate(config['patient_asset'],**(
+            {'formal_config':config} if 'm2_given_contact_evaluation' in config else {}))
+        patient_file=Path(geometry).parent/'patient_receipt.json'
+        patient_bytes=patient_file.read_bytes();installed_patient=json.loads(patient_bytes)
+        if (installed_patient.get('non_patient_scene_unchanged') is not True or any(
+                installed_patient.get(k)!=expected_patient[k]
+                for k in ('identity','split','asset_sha256','identity_split_sha256','targets'))):
+            raise ValueError('Installed patient differs from authenticated asset')
+        installed_patient=dict(installed_patient,receipt_sha256=hashlib.sha256(patient_bytes).hexdigest())
     bindings = requested.get('plans')
     if not isinstance(bindings, list) or not bindings:
         raise ValueError('Fresh plan bindings are required')
@@ -124,6 +174,12 @@ def read_plans(config, geometry, kin):
         if actual != binding.get('sha256'):
             raise ValueError('Fresh plan bytes changed: '+str(path))
         row = json.loads(data); require_current(row)
+        if installed_patient is not None:
+            bound=row.get('patient_provenance',{})
+            if (bound.get('identity')!=installed_patient['identity'] or
+                    bound.get('asset_sha256')!=installed_patient['asset_sha256'] or
+                    bound.get('binding',{}).get('sha256')!=installed_patient['receipt_sha256']):
+                raise ValueError('Fresh plan missing or mismatched installed patient binding')
         metadata = {**row, **row.get('geometry_artifacts', {})}
         artifacts = require_geometry_artifacts(geometry, metadata)
         if geometry_meta is not None and artifacts != geometry_meta['geometry_artifacts']:
@@ -162,6 +218,22 @@ def read_plans(config, geometry, kin):
             raise ValueError('Unsupported contact or free domain')
         center = _vector(row['expected_contact_center_world'],(3,),'fitted center')
         require_near_contact(row,target,normal,center,fitted_gap)
+        plane=contact_plane_contract(row)
+        if plane is not None:
+            if not contact_plane_observation(plane,rotation[:,2])['passed']:
+                raise ValueError('Planned orientation exceeds local contact plane limit')
+            if row.get('patient_provenance') is not None:
+                binding=row['patient_provenance']['binding']
+                patient_bytes=Path(binding['file']).read_bytes()
+                if hashlib.sha256(patient_bytes).hexdigest()!=binding['sha256']:
+                    raise ValueError('Local contact plane patient binding changed')
+                actual_target=next(t for t in json.loads(patient_bytes)['targets'] if t['name']==name)
+                if (actual_target.get('contact_plane_radius_m')!=.023 or not np.allclose(
+                        actual_target['contact_plane_normal_world'],plane['contact_plane_normal_world'],
+                        atol=1e-10,rtol=0) or not np.allclose(
+                        actual_target['position_world_m'],target,atol=1e-10,rtol=0) or not np.allclose(
+                        actual_target['normal_world'],raw_normal,atol=1e-10,rtol=0)):
+                    raise ValueError('Local contact plane differs from installed patient')
         transfer=_route(row['transfer_q'],'home transfer'); approach=_route(row['approach_q'],'free approach')
         loaded=_vector(row['loaded_q'],(7,),'loaded joint pose')
         staging=_vector(row['lower_staging_q'],(7,),'lower staging joint pose')
@@ -186,7 +258,8 @@ def read_plans(config, geometry, kin):
         points.append((Target(name,target.copy(),raw_normal.copy(),base[:3,:3].T@(target-base[:3,3]),
                               base[:3,:3].T@raw_normal,provenance),row))
         records.append(dict(file=str(path),sha256=actual,name=name))
-    return points, dict(**geometry_meta,world_from_left_base=base.tolist(),plans=records)
+    return points, dict(**geometry_meta,world_from_left_base=base.tolist(),plans=records,
+        patient_provenance=installed_patient)
 
 
 def inter_point_budget_settings(value):
@@ -308,6 +381,17 @@ class FreshExpert(SkillExpert):
         capture=getattr(self.env,'raw_capture',None)
         rows_before=len(self.env.rows)
         before=controller_labels(self,subphase,active,recovery) if capture is not None else None
+        capture_evidence={}
+        if is_compact_capture(capture):
+            issued=float(self.env.state()['time_s'])
+            capture_evidence=dict(clean_command=dict(q_command=np.asarray(command,float).tolist(),
+                issued_at_s=issued,endpoint_at_s=issued+DT,readback_at_s=issued+DT,
+                source_id='fresh_expert_clean_native_command_v1'),
+                control_owner='L3' if getattr(self,'_contact_active',False) or recovery else 'L2')
+            if getattr(self,'task_id',None)=='m2_given_contact_pose_control_v1':
+                capture_evidence['control_owner']=('L3' if self.control_owner in
+                    ('ANALYTIC_L3_ALIGN','ANALYTIC_L3') or recovery else 'L2')
+                capture_evidence['clean_command']['source_id']='given_contact_teacher_native_command_v1'
         try:
             try:
                 state=super()._tick(command,subphase,active=active,recovery=recovery)
@@ -315,7 +399,7 @@ class FreshExpert(SkillExpert):
                 if capture is not None:
                     try:
                         capture.finish_tick(self.env,rows_before,before,
-                            controller_labels(self,subphase,active,recovery),error=repr(error))
+                            controller_labels(self,subphase,active,recovery),error=repr(error),**capture_evidence)
                     except BaseException:
                         # The capture owns its failure evidence; retain the
                         # initiating controller exception without storing it.
@@ -323,7 +407,7 @@ class FreshExpert(SkillExpert):
                 raise
             if capture is not None:
                 capture.finish_tick(self.env,rows_before,before,
-                                    controller_labels(self,subphase,active,recovery))
+                                    controller_labels(self,subphase,active,recovery),**capture_evidence)
             return state
         finally:
             del self._fresh_collision_context
@@ -331,7 +415,17 @@ class FreshExpert(SkillExpert):
     def _check_collision(self, q, compression, contact):
         context=getattr(self,'_fresh_collision_context',{})
         try:
-            result=super()._check_collision(q,compression,contact)
+            if context.get('stage')=='observation':
+                if not np.isfinite(compression):
+                    raise EpisodeRejected('invalid compression for collision check')
+                clearance=self.executor_config['contact_clearance_m'] if contact else .003
+                result=self.checker.check_observed(q,contact=self._contact_posture_required(),
+                    clearance=clearance,allow_patient_contact=contact,compression=max(0.,float(compression)))
+                distance=float(result.get('minimum_distance_m',float('nan')))
+                if result.get('clear') is not True or not np.isfinite(distance) or distance<clearance-1e-9:
+                    raise EpisodeRejected('command/observation mesh collision rejected: '+str(result))
+            else:
+                result=super()._check_collision(q,compression,contact)
         except Exception as error:
             def finite(value):
                 try:array=np.asarray(value,float)
@@ -415,6 +509,12 @@ class FreshExpert(SkillExpert):
 
     def _violations(self, state):
         violations,total=super()._violations(state)
+        if getattr(self,'_contact_active',False):
+            plane=contact_plane_contract(getattr(self,'_point_plan',{}))
+            if plane is not None:
+                observed=contact_plane_observation(plane,state['axis_world'])
+                if self.env.rows:self.env.rows[-1]['contact_plane_audit']=observed
+                if not observed['passed']:violations.append('local contact plane tilt')
         for group in FORBIDDEN:
             force=float(self.env.last_contacts.get(group,0.))
             if not np.isfinite(force) or force!=0.:
@@ -450,6 +550,7 @@ class FreshExpert(SkillExpert):
                 point['phase_failure_reason']=failures[-1]['phase_failure_reason']
                 point['phase_failure_diagnostic']=failures[-1]
         outcome.update(executed_controller_class=__name__+'.FreshExpert',
+            contact_plane_contracts={target.name:contact_plane_contract(row) for target,row in points},
             contact_surface=CONTACT_SURFACE,
             candidate_method=__name__+'.FreshExpert',
             candidate_timing='each retained free edge uses quintic time, with a stationary waypoint; contact uses bounded normal executor',
@@ -475,6 +576,29 @@ class FreshExpert(SkillExpert):
 class FreshContactEnv(IsaacContactEnv):
     contact_groups = ALL_FORCE_GROUPS
 
+    def __init__(self,*args,native_retainer_audit=None,**kwargs):
+        # Verify native binary before World initialization or any movement.
+        self.native_retainer_audit=deepcopy(native_retainer_audit)
+        self._native_retainer_auditor=(None if native_retainer_audit is None else
+                                       NativeRetainerAudit(native_retainer_audit))
+        super().__init__(*args,**kwargs)
+
+    def _sample_native_carriage(self,label):
+        def read(path):
+            from omni.physx import get_physx_interface
+            return get_physx_interface().get_rigidbody_transformation(path)
+        return native_pose_sample(read,'/World/Stethoscope/Carriage',label)
+
+    def on_native_contact_report(self,headers):
+        evidence=self.contact_tick_evidence
+        index=evidence['callback_count'];evidence['callback_count']+=1
+        if len(evidence['callbacks'])<16:
+            evidence['callbacks'].append(dict(callback_index=index,
+                header_count=len(headers),contact_data_count=sum(h.num_contact_data for h in headers),
+                callback_current_pose=self._sample_native_carriage('callback_current')))
+        else:evidence['callbacks_omitted']+=1
+        return index
+
     def contact_group(self, a, b):
         if is_retainer_patient_pair(a, b):return 'retainer'
         label=super().contact_group(a, b)
@@ -488,6 +612,11 @@ class FreshContactEnv(IsaacContactEnv):
             return self._position_step(q_target,label,target,dict(meta or {},velocity_feedforward=receipt))
 
     def _position_step(self,q_target,label='',target='',meta=None):
+        declared=getattr(self,'native_retainer_audit',None)
+        auditor=getattr(self,'_native_retainer_auditor',None)
+        if (declared is not None or auditor is not None) and (
+                auditor is None or declared!=auditor.contract):
+            raise ValueError('Configured v3 native retainer auditor is missing or mismatched')
         from isaacsim.core.utils.types import ArticulationAction
         indices,efforts=passive_effort(self.slider,self.passive_preload_N)
         feedforward=getattr(self,'gravity_feedforward',None)
@@ -514,20 +643,42 @@ class FreshContactEnv(IsaacContactEnv):
         self.robot.apply_action(ArticulationAction(joint_efforts=efforts,joint_indices=indices))
         capture=getattr(self,'raw_capture',None)
         rows_before=len(self.rows)
+        self.contact_tick_evidence=dict(schema='native_contact_tick_v1',physics_row=rows_before,
+            interval_start_s=float(getattr(self,'t',0.)),physics_dt_s=DT,
+            pre_step=self._sample_native_carriage('pre_step_current'),callbacks=[],
+            callback_count=0,callbacks_omitted=0,contact_generation_pose_available=False,
+            callback_contract='PhysX110.1.11 callback delivered after simulation step; current pose is not an impact pose')
+        self.native_contact_observer_error=None
         try:
             state=super().step(q_target,label,target,metadata)
-            # Read the actual rigid-body pose after the executed step. The raw
-            # impulses remain separate B/C records, even when this audit fails.
-            from scipy.spatial.transform import Rotation
-            carriage=next(body for path,body in self.bodies if path=='/World/Stethoscope/Carriage')
-            position,quaternion=carriage.get_world_pose()
-            world=np.eye(4)
-            world[:3,:3]=Rotation.from_quat(np.asarray(quaternion)[[1,2,3,0]]).as_matrix()
-            world[:3,3]=position
-            self.retainer_front_audit=audit_retainer_front(
-                self.contact_points,world,self.last_contacts.get('retainer',0.))
+            self.contact_tick_evidence['post_step']=self._sample_native_carriage('post_step_current')
+            self.contact_tick_evidence['observer_error']=self.native_contact_observer_error
+            auditor=getattr(self,'_native_retainer_auditor',None)
+            if auditor is not None:
+                self.retainer_front_audit=auditor.audit(self.contact_points,self.contact_tick_evidence,
+                    self.last_contacts.get('retainer',0.),dt=DT,physics_row=rows_before,
+                    time_s=self.rows[-1]['time_s'])
+                self.rows[-1]['native_retainer_audit']=deepcopy(auditor.contract)
+                self.rows[-1]['native_retainer_tick']=deepcopy(self.contact_tick_evidence)
+                # Snapshot metadata only; audit never substitutes an unavailable
+                # native frame with SingleRigidPrim, callback pose or FK.
+                world=self.contact_tick_evidence['post_step'].get('world_from_carriage')
+            else:
+                if getattr(self,'native_retainer_audit',None) is not None:
+                    raise ValueError('Configured v3 native retainer auditor is missing')
+                from scipy.spatial.transform import Rotation
+                carriage=next(body for path,body in self.bodies if path=='/World/Stethoscope/Carriage')
+                position,quaternion=carriage.get_world_pose()
+                world=np.eye(4)
+                world[:3,:3]=Rotation.from_quat(np.asarray(quaternion)[[1,2,3,0]]).as_matrix()
+                world[:3,3]=position
+                self.contact_tick_evidence['post_step_single_rigid_prim_world_from_carriage']=world.tolist()
+                self.retainer_front_audit=audit_retainer_front(
+                    self.contact_points,world,self.last_contacts.get('retainer',0.))
             self.rows[-1]['retainer_front_audit']=deepcopy(self.retainer_front_audit)
             self.rows[-1]['contact_surface']=CONTACT_SURFACE
+            latch_first_positive_contact(self,world)
+            latch_retainer_failure(self,world)
             if getattr(self,'force_balance_enabled',False) and label in ('CONTACT','HOLD','RETRACT'):
                 from omni.physx import get_physx_simulation_interface
                 from pxr import PhysicsSchemaTools
@@ -557,9 +708,11 @@ class FreshContactEnv(IsaacContactEnv):
         return state
 
 
-def audit_physics(outcome,rows):
+def audit_physics(outcome,rows, *, retainer_witness_contract=None):
     """Each target must independently complete ≥3 s of actual B+C contact load."""
     result=deepcopy(outcome)
+    if retainer_witness_contract is not None:
+        result['native_retainer_audit']=deepcopy(retainer_witness_contract)
     result['training_accepted']=result['training_eligible']=False
     valid=bool(result.get('success') and result.get('points'))
     for point in result.get('points',[]):
@@ -569,10 +722,32 @@ def audit_physics(outcome,rows):
             audit=dict(passed=False,reason='missing or inconsistent per-point physics range')
         else:
             try:
-                audit=qualify_contact(rows[start:end])
+                audit=qualify_contact(rows[start:end],retainer_witness_contract=retainer_witness_contract)
             except (KeyError, ValueError, TypeError):
                 audit=dict(passed=False,reason='missing or malformed physical contact samples')
         point['force_audit']=audit;point['training_accepted']=False
+        plane=result.get('contact_plane_contracts',{}).get(point.get('target'))
+        if plane is not None:
+            try:
+                # Independently recompute from measured native axes. Do not
+                # trust a stored controller pass flag or nominal command pose.
+                longest=count=0;angles=[]
+                for row in rows[start:end]:
+                    if row.get('phase')!='HOLD':
+                        count=0
+                        continue
+                    observation=contact_plane_observation(plane,row['axis_world'])
+                    force=sum(float(row.get(k+'_N',0.)) for k in CONTACT_FORCE_GROUPS)
+                    good=observation['passed'] and 3.5<=force<=4.5
+                    count=count+1 if good else 0;longest=max(longest,count)
+                    angles.append(observation['tilt_deg'])
+                plane_audit=dict(passed=longest*DT>=3.-1e-9,
+                    continuous_force_and_plane_hold_s=longest*DT,
+                    maximum_hold_tilt_deg=max(angles) if angles else None,**plane)
+            except (KeyError,ValueError,TypeError):
+                plane_audit=dict(passed=False,reason='missing or malformed measured plane evidence')
+            point['contact_plane_audit']=plane_audit
+            valid=bool(valid and plane_audit['passed'])
         valid=bool(valid and point.get('success') and audit['passed'])
     for row in rows: row['training_accepted']=False
     result['controller_motion_complete']=bool(outcome.get('success'))
@@ -634,6 +809,25 @@ class _VideoRecorder:
 
 
 
+def is_compact_capture(capture):
+    return capture is not None and getattr(capture,'binding',{}).get('profile')=='compact'
+
+
+def scene_factory(stage,scene_reference=None):
+    """Keep legacy disk export; opted-in workers get a private anonymous root."""
+    def factory(destination):
+        if scene_reference is not None:
+            from .scene_store import SDK_SCHEMA,SDK_LAYER_SCHEMA,runtime_stage,write_scene_ref,write_sdk_selection
+            write_scene_ref(Path(destination).parent,scene_reference)
+            private=runtime_stage(scene_reference)
+            if scene_reference['binding']['schema'] in (SDK_SCHEMA,SDK_LAYER_SCHEMA):
+                write_sdk_selection(private,Path(destination).parent)
+            return private
+        stage.GetRootLayer().Export(str(destination))
+        return stage
+    return factory
+
+
 def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
     """Attempt every independent preservation/release operation after a failure.
 
@@ -641,6 +835,8 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
     or strict JSON serialization fails. Return all errors to revoke acceptance.
     """
     errors=[];video=None;output=Path(output)
+    from .m2_given_contact_pilot_native_audit import installed,close_checked
+    pilot_light=installed(controller)
     def attempt(label,operation):
         try:return operation()
         except BaseException as caught:
@@ -653,12 +849,21 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
             output/'fresh_expert_velocity_feedforward_reset.json',
             getattr(env,'velocity_feedforward_reset_receipt',None)))
     if capture is not None:attempt('raw_capture_finalize',lambda:capture.close(error))
+    if controller is not None and hasattr(controller,'close_astra_sensors'):
+        attempt('astra_sensor_finalize',controller.close_astra_sensors)
     if env is not None:
+        if getattr(env,'_retainer_failure_payload',None) is not None:
+            attempt('retainer_failure_save',lambda:save_retainer_failure(env,output,capture=capture))
+        if getattr(env,'_retainer_first_contact_payload',None) is not None:
+            attempt('retainer_first_contact_save',lambda:save_first_positive_contact(env,output,capture=capture))
         if capture is not None:attempt('raw_capture_hook_detach',lambda:setattr(env,'raw_capture',None))
         attempt('video_hook_detach',lambda:setattr(env,'video_recorder',None))
         def save_trace():
             for row in env.rows:row['training_accepted']=False
-            env.save('fresh_expert')
+            # Compact's bounded native_audit already records safety/phase
+            # scalars. Full poses, impulses and native command mirrors belong
+            # to the explicitly selected full_raw/Tier B profile only.
+            if not is_compact_capture(capture) and not pilot_light:env.save('fresh_expert')
         attempt('trace_save',save_trace)
         if hasattr(env,'gravity_feedforward_failure_receipts'):
             attempt('gravity_feedforward_failure_save',lambda:_write(
@@ -670,6 +875,8 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
                 env.velocity_feedforward_failure_receipts))
     if controller is not None:
         def save_controls():
+            if is_compact_capture(capture) or pilot_light:
+                return
             with (output/'fresh_expert_control.jsonl').open('w') as stream:
                 for row in controller.control_rows:
                     row['training_accepted']=False
@@ -682,12 +889,89 @@ def finalize_probe(env,controller,recorder,output,*,capture=None,error=None):
             contact_preflights=getattr(controller,'contact_preflights',[]),
             phase_failure_diagnostics=getattr(controller,'phase_failure_diagnostics',[]),
             collision_failure_diagnostics=getattr(controller,'collision_failure_diagnostics',[]))))
+        if hasattr(controller,'_neutral_native_audit'):
+            from .m2_given_contact_evaluation import close_native_audit
+            attempt('neutral_native_audit_finalize',lambda:close_checked(controller) if pilot_light else close_native_audit(controller))
     if recorder is not None:video=attempt('video_finalize',lambda:recorder.close())
-    if env is not None:attempt('world_stop',lambda:env.world.stop())
+    if env is not None:
+        attempt('world_stop',lambda:env.world.stop())
+        if getattr(env,'scene_reference',None) is not None:
+            from .scene_store import defer_runtime_stage_release
+            def defer_cache_lease():
+                env.private_scene_cache_lease_receipt=defer_runtime_stage_release(env.stage)
+                _write(output/'private_scene_stage_cache_lease.json',env.private_scene_cache_lease_receipt)
+            attempt('private_scene_cache_defer',defer_cache_lease)
     return video,errors
 
 
+def _learned_failure_handoffs(config,reason,target=None):
+    """A failed declared single-point attempt remains in its L2 denominator."""
+    if target is None:
+        deployment=config.get('m2_act_deployment')
+        metadata=deployment.get('metadata') if isinstance(deployment,dict) else None
+        target=metadata.get('target_id') if isinstance(metadata,dict) else None
+    return [dict(target=target,l2_handoff_success=False,l3_started=False,l3_completed=False,
+                 expert_l2_fallback=False,failure_reason=str(reason),learned_policy=True,
+                 expert_demonstration=False,training_eligible=False)]
+
+
 def run_probe(app,stage,output,config,mass):
+    """Preserve learned identity even when preflight fails before env creation."""
+    if 'm2_rebuild_paired_eval' in config:
+        from .m2_rebuild_paired_eval import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'astra_supervisor' in config:
+        from .astra_native import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'm2_given_contact_expanded_val_scenarios' in config:
+        from .m2_given_contact_expanded_val_scenarios import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'm2_given_contact_expanded_pilot_deployment' in config:
+        from .m2_given_contact_expanded_pilot_deployment import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'm2_given_contact_pilot_deployment' in config:
+        from .m2_given_contact_pilot_deployment import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'm2_given_contact_evaluation' in config:
+        from .m2_given_contact_evaluation import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'm2_given_contact_deployment' in config:
+        from .m2_given_contact_deployment import run_native_probe
+        return run_native_probe(app,stage,output,config,mass)
+    if 'm2_act_deployment' not in config:
+        return _run_probe(app,stage,output,config,mass)
+    lifecycle={}
+    try:
+        if isinstance(config['m2_act_deployment'],dict) and config['m2_act_deployment'].get('schema')=='m2_act_pilot_history2_deployment_v2':
+            from .m2_pilot_deployment import preflight
+            preflight(config)
+        return _run_probe(app,stage,output,config,mass,_learned_lifecycle=lifecycle)
+    except BaseException as error:
+        from .m2_act_controller import tag_learned_result
+        deployment=config.get('m2_act_deployment')
+        receipt=dict(schema='m2_act_l2_failed_preflight_v1',controller_constructed=False,
+            configured_deployment=deepcopy(deployment),checkpoint_validation_completed=False)
+        env=lifecycle.get('env');controller=lifecycle.get('controller')
+        result=dict(success=False,physical_validation=False,diagnostic_completed=False,
+            physics_steps=len(env.rows) if env is not None else 0,video=lifecycle.get('video'),
+            geometry_id=GEOMETRY_ID,geometry_source_sha256=config.get('geometry_source_sha256'),points=[],
+            errors=[dict(stage='learned_preflight_or_finalization',error=repr(error))],failure_reason=str(error),
+            raw_capture_complete=False,compact_capture_complete=False,raw_multimodal_training_capture=False)
+        result['runtime_sources_sha256']=lifecycle.get('source_hashes',{})
+        if env is not None and hasattr(env,'retainer_failure_evidence'):
+            result['retainer_failure_evidence']=deepcopy(env.retainer_failure_evidence)
+        if env is not None and hasattr(env,'retainer_first_contact_evidence'):
+            result['retainer_first_contact_evidence']=deepcopy(env.retainer_first_contact_evidence)
+        tag_learned_result(result,getattr(controller,'policy_receipt',receipt),
+            getattr(controller,'l2_handoffs',[]) or _learned_failure_handoffs(config,error))
+        try:_write(Path(output)/'fresh_expert_result.json',result)
+        except Exception as write_error:
+            result['errors'].append(dict(stage='result_save',error=repr(write_error)))
+        if not isinstance(error,Exception):raise
+        return result
+
+
+def _run_probe(app,stage,output,config,mass,*,_learned_lifecycle=None):
     """Called only by the owned Linux geometry-qualification Isaac worker."""
     import time
     from .runtime_cost import runtime_cost
@@ -698,21 +982,109 @@ def run_probe(app,stage,output,config,mass):
     import os,sys
     if sys.platform!='linux' or os.environ.get('AUSC_OWNED_RUN')!='1':
         raise RuntimeError('Owned Linux Isaac runtime required')
+    formal_test=None
+    if 'm2_given_contact_evaluation' in config:
+        from .m2_given_contact_evaluation import preflight
+        formal_test=preflight(config,output=output)
+        if formal_test['stage']!='native':raise ValueError('A preparation capability cannot execute native physics')
+        import random
+        random.seed(formal_test['row']['seed']);np.random.seed(formal_test['row']['seed'])
+    native_retainer_contract=retainer_audit_settings(config['fresh_expert'])
     feedforward_settings=gravity_feedforward_settings(config['fresh_expert'])
     velocity_settings=velocity_feedforward_settings(config['fresh_expert'])
     raw_settings=capture_settings(config['fresh_expert'])
+    learned='m2_act_deployment' in config
+    formal_learned='m2_given_contact_deployment' in config
+    validation_scenario='m2_given_contact_expanded_val_scenarios' in config
+    expanded_pilot='m2_given_contact_expanded_pilot_deployment' in config
+    rebuilt_paired='m2_rebuild_paired_eval' in config
+    pilot_learned='m2_given_contact_pilot_deployment' in config or expanded_pilot or validation_scenario or rebuilt_paired
+    given_learned=formal_learned or pilot_learned
+    formal_binding=None
+    if formal_learned:
+        from . import m2_given_contact_deployment as formal_adapter
+        formal_binding=formal_adapter.preflight(config,output=output)
+    if pilot_learned:
+        if rebuilt_paired:
+            from . import m2_rebuild_paired_eval as pilot_adapter
+        elif validation_scenario:
+            from . import m2_given_contact_expanded_val_scenarios as pilot_adapter
+        elif expanded_pilot:
+            from . import m2_given_contact_expanded_pilot_deployment as pilot_adapter
+        else:
+            from . import m2_given_contact_pilot_deployment as pilot_adapter
+        pilot_binding=pilot_adapter.preflight(config,output=output)
+        if validation_scenario:
+            import random
+            random.seed(pilot_binding['case']['seed']);np.random.seed(pilot_binding['case']['seed'])
+    given_route=config.get('m2_given_contact_control')
+    given_recovery='m2_given_contact_recovery' in config
+    if given_recovery:
+        from . import m2_given_contact_recovery as recovery_adapter
+        recovery_adapter.preflight(config)
+    if given_route is not None:
+        if learned:raise ValueError('Given-contact teacher and old learned route cannot be mixed')
+        if raw_settings is not None and raw_settings.get('profile')!='compact':
+            raise ValueError('Given-contact native capture requires its versioned compact metadata')
+        from .m2_given_contact_pose import require_route
+        given_ref=require_route(given_route['metadata']);given_ref.verify_sources()
+        if (raw_settings is not None and (raw_settings['compact']['metadata'].get('reference_sha256')!=given_ref.sha256 or
+                raw_settings['compact']['metadata'].get('task_id')!=given_route['schema'])):
+            raise ValueError('Given-contact capture/control reference differs')
+    elif raw_settings is not None and raw_settings.get('compact',{}).get('metadata',{}).get('target_source')=='given_contact_pose':
+        raise ValueError('Given-contact capture cannot relabel the original precise-route teacher')
+    estimate_provider=None;learned_adapter=None
+    if given_learned:
+        from .m2_given_contact_pose import GivenPoseProvider,require_route
+        from . import m2_act_controller as learned_adapter
+        binding=pilot_binding if pilot_learned else formal_binding
+        deployment=deepcopy(binding['deployment']);given_ref=require_route(deployment['metadata'])
+        estimate_provider=GivenPoseProvider(given_ref,deployment['episode_id'],deployment['metadata'])
+    if learned and raw_settings is not None:
+        raise ValueError('M2 ACT deployment cannot use expert raw/compact capture labels')
     from .passive_preload import passive_preload_settings, verify_preload_readback
     preload_settings=passive_preload_settings(config['fresh_expert'])
     preload_receipt=None;preload_startup=None
     output=Path(output);kin=OpenArmKinematics(contact_frame=contact_frame)
     points,metadata=read_plans(config,output/'geometry',kin)
+    if given_route is not None:
+        if len(points)!=1:raise ValueError('Given-contact control requires one declared target')
+        metadata.update(task_id=given_route['schema'],given_contact_control=deepcopy(given_route))
+    if native_retainer_contract is not None:
+        metadata['native_retainer_audit']=deepcopy(native_retainer_contract)
+    if given_learned:
+        if len(points)!=1 or points[0][0].name!=deployment['metadata']['target_id']:
+            raise ValueError('Given ACT requires its one frozen target')
+        patient=metadata.get('patient_provenance') or {}
+        if (patient.get('identity')!=deployment['metadata']['subject_id'] or
+                patient.get('split')!=deployment['metadata']['split'] or
+                patient.get('receipt_sha256')!=given_ref.snapshot()['sources']['patient_receipt']['sha256']):
+            raise ValueError('Given ACT reference differs from actual installed patient')
+        metadata.update(task_id=given_ref.snapshot()['task_id'],learned_policy=True,expert_demonstration=False,
+            **{(pilot_adapter.ROUTE_KEY if pilot_learned else 'm2_given_contact_deployment'):deepcopy(deployment)})
+    if learned:
+        from . import m2_act_controller as learned_adapter
+        from .m2_estimate_provider import FrozenEstimateProvider
+        deployment=config['m2_act_deployment']
+        if len(points)!=1:raise ValueError('M2 ACT deployment requires exactly one declared target')
+        if _sha(deployment['checkpoint'])!=deployment['checkpoint_sha256']:
+            raise ValueError('M2 deployment checkpoint hash changed before initialization')
+        estimate_provider=FrozenEstimateProvider(config.get('m2_target_estimate'),
+            metadata=deployment['metadata'],episode_id=deployment['episode_id'],target_id=points[0][0].name,
+            patient=metadata.get('patient_provenance'))
+        deployment=dict(deepcopy(deployment),metadata=deepcopy(estimate_provider.metadata))
+        for key,value in metadata['geometry_artifacts'].items():
+            if estimate_provider.snapshot()['source_metadata'].get(key)!=value:
+                raise ValueError('Frozen estimate collision geometry differs from actual runtime: '+key)
     if preload_settings is not None:
         preload_receipt=json.loads((output/'passive_preload_authoring.json').read_text())
         metadata['passive_preload_model']=dict(authoring=preload_receipt,
             preinitialization_usd_readback=verify_preload_readback(stage,config['fresh_expert'],preload_receipt))
     base=np.asarray(metadata['world_from_left_base'])
     current={**metadata,**metadata['geometry_artifacts']}
-    checker=ContactCollisionChecker(kin,base,output/'geometry',current)
+    checker=ContactCollisionChecker(kin,base,output/'geometry',current,
+        profile=config['fresh_expert'].get('collision_profile','full'))
+    metadata['collision_profile']=checker.profile
     snapshot=output/'fresh_expert_inputs';snapshot.mkdir(exist_ok=False)
     for index,binding in enumerate(metadata['plans']):
         data=Path(binding['file']).read_bytes()
@@ -722,35 +1094,119 @@ def run_probe(app,stage,output,config,mass):
     source_paths=[Path(__file__),Path(__file__).with_name('runtime_cost.py'),Path(__file__).with_name('edge_timing.py'),
                   Path(__file__).with_name('geometry_epoch.py'),Path(__file__).with_name('contact_collision.py'),
                   Path(__file__).with_name('retainer_contact.py'),
+                  Path(__file__).with_name('retainer_failure.py'),
+                  Path(__file__).with_name('native_contact_evidence.py'),
                   Path(__file__).with_name('gravity_feedforward.py'),
                   Path(__file__).with_name('velocity_feedforward.py')]
+    if native_retainer_contract is not None:
+        source_paths += [Path(__file__).with_name('retainer_witness.py'),
+            Path(__file__).with_name('retainer_geometry.py'),Path(native_retainer_contract['qualification']['file'])]
     source_paths.append(Path(__file__).with_name('force_feedback.py'))
+    if 'matched_scene_eval' in config:
+        from . import m2_rebuild_paired_eval
+        source_paths += [Path(m2_rebuild_paired_eval.__file__),Path(m2_rebuild_paired_eval.audit.__file__),Path(m2_rebuild_paired_eval.neutral.__file__)]
+    if 'astra_supervisor' in config:
+        from . import astra_native,astra_supervisor,astra_service,astra_sensors
+        source_paths += [Path(module.__file__) for module in (astra_native,astra_supervisor,astra_service)]
+        source_paths += astra_sensors.source_paths()
+        metadata['astra_supervisor']=deepcopy(config['astra_supervisor'])
+        _write(snapshot/'astra_supervisor.json',config['astra_supervisor'])
+    if given_route is not None or given_learned:
+        from . import m2_given_contact_pose,m2_given_contact_controller,m2_given_contact_act,m2_given_contact_intent,m2_contract,m2_stage,m2_act_controller,m2_act
+        from sim.auscultation_pi05_v6 import execution as given_execution
+        source_paths += [Path(module.__file__) for module in (m2_given_contact_pose,m2_given_contact_controller,
+            m2_given_contact_act,m2_given_contact_intent,m2_contract,m2_stage,m2_act_controller,m2_act,given_execution)]
+        source_paths += [Path(ref['file']) for ref in given_ref.snapshot()['sources'].values()]
+        from . import m2_given_contact_handoff
+        given_meta=given_route['metadata'] if given_route is not None else deployment['metadata']
+        if given_meta.get('handoff_policy_id')==m2_given_contact_handoff.POLICY_ID:
+            source_paths.append(Path(m2_given_contact_handoff.__file__))
+        if pilot_learned:
+            from . import m2_given_contact_pilot_native_audit as pilot_native_audit
+            source_paths += [Path(pilot_adapter.__file__),Path(pilot_native_audit.__file__),Path(pilot_native_audit.neutral.__file__)]
+        if given_recovery:
+            from sim.auscultation_expert_layout_v1 import plan_low_elbow,posture,pose_ik
+            source_paths += [Path(module.__file__) for module in (recovery_adapter,recovery_adapter.runtime,
+                recovery_adapter.runtime.dataset,plan_low_elbow,posture,pose_ik)]
+    if 'compact_scene_storage' in config:
+        source_paths.append(Path(__file__).with_name('scene_store.py'))
+        from .scene_store import SDK_LAYER_SCHEMA
+        if config['compact_scene_storage'].get('schema')==SDK_LAYER_SCHEMA:
+            source_paths.append(Path(__file__).with_name('layered_scene_authoring.py'))
+            source_paths.append(Path(__file__).with_name('m2_pilot_config.py'))
+            source_paths.append(Path(__file__).with_name('patient_scene.py'))
+            source_paths.append(Path(__file__).with_name('native_usd_preflight.py'))
+            source_paths.append(Path(__file__).with_name('geometry_qualification.py'))
     if preload_settings is not None:source_paths.append(Path(__file__).with_name('passive_preload.py'))
     import inspect
     from sim.auscultation_skill_v1 import curve,executor
     from sim.curobo_expert_v1 import static_world
     from sim.auscultation_expert_layout_v1.kinematics import DEFAULT_URDF_PATH
     source_objects=[IsaacContactEnv,OpenArmKinematics,PostureLimits,curve,executor,static_world]
+    source_paths.append(Path(static_world.__file__).with_name('fast_collision.py'))
     source_objects += [cls for cls in SkillExpert.__mro__ if cls.__module__.startswith('sim.')]
     source_paths += [Path(inspect.getfile(value)) for value in source_objects]+[Path(DEFAULT_URDF_PATH)]
+    if learned:
+        from . import m2_act,m2_contract,m2_estimate_provider,contact_entry
+        from sim.auscultation_pi05_v6 import execution
+        source_paths += [Path(module.__file__) for module in
+            (learned_adapter,m2_act,m2_contract,m2_estimate_provider,contact_entry,execution)]
+        source_paths += [Path(config['m2_act_deployment']['checkpoint']),*estimate_provider.source_paths]
+        if deployment.get('schema')=='m2_act_pilot_history2_deployment_v2':
+            from . import m2_pilot_deployment
+            source_paths += [Path(m2_pilot_deployment.__file__),Path(deployment['diagnostic_receipt']['file']).resolve()]
+        metadata.update(learned_policy=True,expert_demonstration=False,
+            m2_act_deployment=deepcopy(deployment),
+            m2_estimate_provider=estimate_provider.snapshot())
+        for name,data in estimate_provider.artifact_bytes.items():(snapshot/name).write_bytes(data)
+        _write(snapshot/'m2_estimate_provider.json',estimate_provider.snapshot())
+    if formal_learned:
+        permit=formal_binding['permit'];admission=formal_adapter.runtime.read_bound(permit['admission'])
+        source_paths += [Path(ref['path']) for ref in permit['source_inventory'].values()]
+        source_paths += [Path(ref['path']) for ref in (deployment['permit'],permit['admission'],
+            permit['model']['checkpoint'],permit['model']['complete'],admission['normalization'],
+            admission['reference_inventory'],admission['source_inventory'],permit['processing']['processing_freeze'])]
+    if formal_learned or formal_test is not None:
+        from . import m2_given_contact_evaluation,patient_scene,m2_pilot_config,geometry_plan,tool_geometry_review
+        source_paths.extend(Path(module.__file__) for module in
+            (m2_given_contact_evaluation,patient_scene,m2_pilot_config,geometry_plan,tool_geometry_review))
+        if formal_test is not None:
+            source_paths.extend(Path(ref['path']) for ref in formal_test['capability']['source_inventory'].values())
     source_hashes={str(path):_sha(path) for path in source_paths}
+    if learned:
+        expected=dict(estimate_provider.expected_source_hashes)
+        expected[str(Path(config['m2_act_deployment']['checkpoint']))]=config['m2_act_deployment']['checkpoint_sha256']
+        if deployment.get('schema')=='m2_act_pilot_history2_deployment_v2':
+            expected[str(Path(deployment['diagnostic_receipt']['file']).resolve())]=deployment['diagnostic_receipt']['sha256']
+        if any(source_hashes[path]!=digest for path,digest in expected.items()):
+            raise ValueError('Learned checkpoint/estimate source changed while preparing snapshot')
+        if _learned_lifecycle is not None:_learned_lifecycle['source_hashes']=source_hashes
+    if formal_learned and _learned_lifecycle is not None:_learned_lifecycle['source_hashes']=source_hashes
+    if 'astra_supervisor' in config and _learned_lifecycle is not None:_learned_lifecycle['source_hashes']=source_hashes
     metadata['runtime_sources_sha256']=source_hashes
     _write(snapshot/'manifest.json',metadata)
     _write(snapshot/'runtime_config.json',config)
     _write(snapshot/'current_mass_estimate.json',mass)
     mass_kg=float(mass['mass_kg'])
     if not np.isfinite(mass_kg) or mass_kg<=0:raise ValueError('Invalid current moving mass')
-    def factory(destination):
-        stage.GetRootLayer().Export(str(destination));return stage
+    scene_reference=None
+    if 'compact_scene_storage' in config:
+        from .scene_store import resolve_scene
+        scene_reference=json.loads((output/'scene_ref.json').read_bytes())
+        resolve_scene(scene_reference)
+    factory=scene_factory(stage,scene_reference)
     env=None;controller=None;recorder=None;video=None;capture=None
     outcome=dict(success=False,points=[],training_accepted=False)
     errors=[]
     try:
         if raw_settings is not None:
-            capture=ExpertCapture(output/'raw_multimodal',binding=raw_settings,
+            capture=create_expert_capture(output/('compact_multimodal' if raw_settings.get('profile')=='compact'
+                                                 else 'raw_multimodal'),binding=raw_settings,
                 geometry_metadata=metadata,source_paths=source_paths)
+        scene_options={} if scene_reference is None else dict(scene_reference=scene_reference)
         env=FreshContactEnv(output/'fresh_expert',stage_factory=factory,
-                            contact_offset_m=.132,moving_mass_kg=mass_kg)
+                            contact_offset_m=.132,moving_mass_kg=mass_kg,native_retainer_audit=native_retainer_contract,**scene_options)
+        if _learned_lifecycle is not None:_learned_lifecycle['env']=env
         env.passive_preload_N=config['fresh_expert']['passive_preload_N'];env.video_recorder=None
         env.force_balance_enabled=config['fresh_expert'].get('force_feedback') is not None
         if preload_settings is not None:
@@ -775,16 +1231,47 @@ def run_probe(app,stage,output,config,mass):
                 recorder=_VideoRecorder.__new__(_VideoRecorder)
                 recorder.__init__(env,output)
         if capture is None:create_recorder()
-        else:checked_render(env,create_recorder,'expert video setup')
+        elif not is_compact_capture(capture):checked_render(env,create_recorder,'expert video setup')
         env.video_recorder=recorder
         if capture is not None:
             env.raw_capture=capture
             capture.start(env)
-        controller=FreshExpert(env,kin,checker,static_world_bundle=checker.static_bundle,
-                               static_geometry_dir=output/'geometry',
-                               near_surface_motion=config['fresh_expert'].get('near_surface_motion'),
-                               force_feedback=config['fresh_expert'].get('force_feedback'),
-                               inter_point_budget=config['fresh_expert'].get('inter_point_budget'))
+        controller_options=dict(static_world_bundle=checker.static_bundle,static_geometry_dir=output/'geometry',
+            near_surface_motion=config['fresh_expert'].get('near_surface_motion'),
+            force_feedback=config['fresh_expert'].get('force_feedback'),
+            inter_point_budget=config['fresh_expert'].get('inter_point_budget'))
+        if given_learned:
+            given_adapter=pilot_adapter if pilot_learned else formal_adapter
+            controller=given_adapter.make_controller(env,kin,checker,deployment=deployment,
+                estimate_provider=estimate_provider,output=output,**controller_options)
+            _write(snapshot/'given_reference_before_motion.json',estimate_provider.snapshot())
+        elif learned:
+            controller_factory=learned_adapter.make_controller
+            if deployment.get('schema')=='m2_act_pilot_history2_deployment_v2':
+                from .m2_pilot_deployment import make_controller as controller_factory
+            controller=controller_factory(env,kin,checker,deployment=deployment,
+                estimate_provider=estimate_provider,**controller_options)
+        elif given_route is not None:
+            from .m2_given_contact_controller import make_expert
+            if 'astra_supervisor' in config:
+                from .astra_native import make_controller as make_astra
+                controller=make_astra(env,kin,checker,route=given_route,
+                    supervisor=config['astra_supervisor'],output=output,**controller_options)
+            elif given_recovery:
+                controller=recovery_adapter.make_controller(env,kin,checker,config=config,**controller_options)
+            else:controller=make_expert(env,kin,checker,route=given_route,**controller_options)
+            _write(snapshot/'given_reference_before_motion.json',controller.estimate_provider.snapshot())
+        else:controller=FreshExpert(env,kin,checker,**controller_options)
+        if formal_learned or formal_test is not None:
+            from .m2_given_contact_evaluation import attach_native_audit
+            attach_native_audit(controller,config,output)
+        elif pilot_learned:
+            from .m2_given_contact_pilot_native_audit import attach
+            attach(controller,config,output,adapter=pilot_adapter)
+        elif 'matched_scene_eval' in config:
+            from .m2_rebuild_paired_eval import attach_analytic
+            attach_analytic(controller,config,output)
+        if _learned_lifecycle is not None:_learned_lifecycle['controller']=controller
         controller_wall_started=time.monotonic()
         outcome=controller.run(points)
     except BaseException as error:
@@ -796,16 +1283,26 @@ def run_probe(app,stage,output,config,mass):
             errors.append(dict(stage='failure_text_save',error=repr(write_error)))
     finally:
         if controller_wall_started is not None:controller_wall_ended=time.monotonic()
+        if given_learned and controller is not None:
+            try:controller.close_bridge()
+            except Exception as error:errors.append(dict(stage='given_cpu_child_cleanup',error=repr(error)))
+        if learned or given_learned:
+            for row in [*([] if env is None else env.rows),
+                        *getattr(controller,'control_rows',[])]:row.update(learned_adapter.LABELS)
         capture_error=('; '.join(item['error'] for item in errors) if errors else
                        None if outcome.get('success') else outcome.get('failure_reason','Expert execution incomplete'))
         video,cleanup_errors=finalize_probe(env,controller,recorder,output,
                                           capture=capture,error=capture_error)
+        if _learned_lifecycle is not None:_learned_lifecycle['video']=video
         errors.extend(cleanup_errors)
     rows=[] if env is None else env.rows
-    try:result=audit_physics(outcome,rows)
+    try:result=audit_physics(outcome,rows,retainer_witness_contract=native_retainer_contract)
     except Exception as error:
         errors.append(dict(stage='physics_audit',error=repr(error)))
         result=dict(success=False,physical_validation=False,training_accepted=False,points=[])
+    if native_retainer_contract is not None:result['native_retainer_audit']=deepcopy(native_retainer_contract)
+    if formal_learned or formal_test is not None:
+        result['neutral_native_audit']=deepcopy(getattr(controller,'neutral_native_audit',None))
     if not result['physical_validation']:
         result.setdefault('failure_reason','actual per-point contact-interface/withdrawal qualification failed')
     result.update(geometry_id=GEOMETRY_ID,geometry_source_sha256=config['geometry_source_sha256'],
@@ -846,8 +1343,21 @@ def run_probe(app,stage,output,config,mass):
         result['velocity_feedforward_reset_receipt']=deepcopy(
             getattr(env,'velocity_feedforward_reset_receipt',None))
     if env is not None:
-        try:result['trace_sha256']=_sha(env.out/'fresh_expert_trace.jsonl')
+        if hasattr(env,'retainer_failure_evidence'):
+            result['retainer_failure_evidence']=deepcopy(env.retainer_failure_evidence)
+        if hasattr(env,'retainer_first_contact_evidence'):
+            result['retainer_first_contact_evidence']=deepcopy(env.retainer_first_contact_evidence)
+        try:
+            from .m2_given_contact_pilot_native_audit import installed,trace_path
+            trace=(trace_path(controller) if installed(controller) else
+                capture.output/'native_audit.jsonl.gz' if is_compact_capture(capture) else env.out/'fresh_expert_trace.jsonl')
+            result['trace_file']=str(trace)
+            result['trace_sha256']=_sha(trace)
         except Exception as error:errors.append(dict(stage='trace_hash',error=repr(error)))
+    from .m2_given_contact_pilot_native_audit import installed
+    if installed(controller):
+        result['neutral_native_audit']=deepcopy(getattr(controller,'neutral_native_audit',controller._pilot_light_native_audit.receipt))
+        result['pilot_light_native_audit']=True
     # Post-run fingerprints are individually protected too: a missing trace or
     # replaced source file must not discard the other diagnostic errors.
     for binding in metadata['plans']:
@@ -867,6 +1377,7 @@ def run_probe(app,stage,output,config,mass):
         result['raw_multimodal_capture']=capture.result(len(rows),
             execution_completed=bool(outcome.get('success')),errors=errors)
         result['raw_capture_complete']=result['raw_multimodal_capture']['raw_capture_complete']
+        result['compact_capture_complete']=result['raw_multimodal_capture'].get('compact_capture_complete',False)
     elif raw_settings is not None:
         result['raw_capture_complete']=False
     if errors:
@@ -878,7 +1389,40 @@ def run_probe(app,stage,output,config,mass):
                            controller_wall_ended-controller_wall_started),
         setup_wall_s=(None if controller_wall_started is None else
                       controller_wall_started-probe_wall_started),
-        capture_profile='full_raw' if raw_settings is not None else 'diagnostic_video')
+        capture_profile=(raw_settings.get('profile','full_raw') if raw_settings is not None else 'diagnostic_video'))
+    if learned:
+        # Must follow every old expert result.update, including failure paths.
+        # Keep physical audit success independent from the L2 handoff outcome.
+        policy_receipt=getattr(controller,'policy_receipt',dict(schema='m2_act_l2_deployment_attempt_v1',
+            checkpoint_sha256=config['m2_act_deployment']['checkpoint_sha256'],controller_constructed=False,
+            configured_deployment=deepcopy(deployment)))
+        handoffs=getattr(controller,'l2_handoffs',[]) or _learned_failure_handoffs(
+            config,result.get('failure_reason','L2 did not reach handoff'),points[0][0].name)
+        learned_adapter.tag_learned_result(result,policy_receipt,handoffs)
+        result.update(m2_estimate_provider=estimate_provider.snapshot(),
+            l2_queries=deepcopy(getattr(controller,'l2_queries',[])),
+            l2_actions=deepcopy(getattr(controller,'l2_actions',[])),
+            raw_capture_complete=False,compact_capture_complete=False)
+    if formal_learned:
+        formal_adapter.tag_result(result,deployment,controller)
+    if pilot_learned:
+        pilot_adapter.tag_result(result,deployment,controller)
+    if given_route is not None:
+        if 'handoff_policy_id' in given_route['metadata']:
+            result['handoff_policy_id']=given_route['metadata']['handoff_policy_id']
+        result.update(task_id=given_route['schema'],target_source='given_contact_pose',
+            action_semantics_id=given_route['metadata']['action_semantics_id'],
+            observation_contract=deepcopy(given_route['metadata']['observation_contract']),
+            l2_handoffs=deepcopy(getattr(controller,'l2_handoffs',[])),
+            given_reference=(controller.estimate_provider.snapshot() if controller is not None else given_ref.snapshot()),
+            l3_initialization='m2_given_contact_l3_align_v1',
+            scope='Prescribed full-pose state-only control baseline; no visual or sensor robustness claim')
+    if formal_test is not None:
+        from .m2_given_contact_evaluation import tag_arm_result
+        tag_arm_result(result,config,formal_test)
+    if 'astra_supervisor' in config:
+        from .astra_native import tag_result
+        tag_result(result,controller)
     try:_write(output/'fresh_expert_result.json',result)
     except Exception as error:
         errors.append(dict(stage='result_save',error=repr(error)))
@@ -887,6 +1431,7 @@ def run_probe(app,stage,output,config,mass):
         if capture is not None:
             result['raw_multimodal_capture']=capture.result(len(rows),execution_completed=False,errors=errors)
             result['raw_capture_complete']=False
+            result['compact_capture_complete']=False
         # The owner still receives a failed receipt even if this artifact cannot
         # be written. All release operations have already been attempted.
         print('FRESH_EXPERT_RESULT_SAVE_FAILED',repr(error),flush=True)

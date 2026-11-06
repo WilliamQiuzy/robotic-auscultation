@@ -2,9 +2,19 @@
 
 **[Watch the interactive simulation demo](https://williamqiuzy.github.io/robotic-auscultation/)** · [中文](README.zh-CN.md) · [Train ACT](docs/TRAINING.md) · [Evaluation & benchmark](docs/BENCHMARK.md) · [Astra integration](docs/ASTRA.md)
 
-<p align="center"><a href="https://williamqiuzy.github.io/robotic-auscultation/"><img src="docs/assets/expert-poster.png" width="760" alt="Actual Isaac Sim analytic expert episode; this is not a learned-policy success"></a></p>
+<p align="center"><a href="https://williamqiuzy.github.io/robotic-auscultation/"><img src="docs/drafts/assets/matched-v3-expert-poster.png" width="760" alt="Actual Isaac Sim analytic expert episode; this is not a learned-policy success"></a></p>
 
-### Simulation demo release · November 5, 2026
+### Closed matched simulation comparison · November 6, 2026
+
+**Expert 8/8 · state-only ACT 0/8 · Astra + analytic expert 8/8.** All 24 original native qualifications are closed on the same fixed scenarios: **two held-out identities × two already-seen seated poses × R3/L3**, eight independent home-start episodes per system. ACT had six posture-envelope stops and two original mesh-clearance stops; the selected model was invoked in all eight. Astra made 24 real `gpt-6-astra`/Codex CLI decisions with 24 admitted/completed local skills and no fallback. **Astra’s tie with the analytic expert does not establish improved motor control or causal sensor use.** This compares complete assisted systems, not a learned-motor model ranking or a continuous ten-point examination.
+
+The new ACT fit completed **20,000 updates**, selecting **step 4,500**. The export contains **14 TRAIN expert episodes / 4 selection-VAL expert episodes**, from four TRAIN identities / one selection identity, within 20 planned data slots (two geometric absences retained). TRAIN/selection-VAL H20 target MAE is **5.664018/26.522571 mrad**; this is offline prediction error, not measured tracking/contact success. ACT observes q7 + given-target-relative position3 + rotation6D + confidence1, H2=34 features, with no RGB-D/Hall model input. Astra chooses continue/abort at three fixed boundaries; GivenContactExpert supplies local motor/contact control. Every system receives a prescribed 3D target, not a trained visual point localizer.
+
+Astra service Codex CLI wall time is **6.032–11.578 s/call (mean 8.577)**; client observation/inference wall is **6.364–12.017 s (mean 8.968)**. HTTP-only latency and pricing remain unknown/null. Reported usage is 656,352 input tokens, 29,568 separately reported cached inputs, 2,645 output tokens and 16 reasoning output tokens. Native simulation used the replacement NVIDIA A40; ACT inference ran on CPU. A separately labeled after-run hardware observation records 46,068 MiB / driver 595.91.07. Worker parallelism 3/3/1 prevents a controlled speed claim. Videos use simulation time and omit inference pauses.
+
+[Three actual same-case videos, training curve and bounded diagnosis](docs/drafts/rebuild-20261105.html) · [Canonical closed comparison](docs/evidence/rebuilt-matched-20261106-v3.json) · [Reporting contract](benchmarks/MATCHED_QUALIFIED_RESULTS_V2.md) · [Hardware/real-world gaps](docs/real_world_gap_20261105.md). Original qualifiers supply physical verdicts; unreported metric extrema stay null. Raw arrays, weights and licensed assets are not bundled; native reproduction needs a separately provisioned runtime and fresh local qualification. No clinical, acoustic, clothing, moving-patient or broad population claim is established. The historical release below keeps its original cohorts, numbers and assets.
+
+### Historical simulation demo release · November 5, 2026
 
 This release makes the training task, actual simulator videos and evaluation evidence available together. **The analytic expert is qualified; the published ACT pilot is not yet usable.** The task has ten posterior targets, but this small release does not validate all ten with a learned model.
 
@@ -27,7 +37,7 @@ python -m demo.astra_policy --observation examples/astra_observation.json --outp
 
 The [portable official-ACT training entry point](demo/train_act.py) uses state17/history2, H20/E10, identity-disjoint data, TRAIN-only normalization and full-validation selection. Install NumPy for CPU interface checks. Training also requires the pinned LeRobot/PyTorch environment and your qualified exported arrays. Licensed body assets, original raw arrays, checkpoints and the complete original native environment are not bundled; [reproduction boundaries](docs/TRAINING.md) are explicit.
 
-Astra is proposed as a supervisor above local skills. It consumes RGB (when supplied), depth-derived target geometry, joints and Hall voltage; it cannot change the local contact controller's thresholds. The [integration note](docs/ASTRA.md) separates this prototype from future direct-action and actual simulator evaluations.
+In that historical release, Astra was proposed as a supervisor above local skills. It consumes RGB (when supplied), depth-derived target geometry, joints and Hall voltage; it cannot change the local contact controller's thresholds. The [integration note](docs/ASTRA.md) separates this prototype from future direct-action and actual simulator evaluations.
 
 ---
 

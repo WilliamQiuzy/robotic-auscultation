@@ -1,0 +1,1518 @@
+{
+  "schema": "ausc-source8-local-preparation-v1",
+  "publication_status": "isolated_branch_not_published",
+  "source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+  "source_archive_sha256": "ee2a0b69c322b09ac5f7c89ec0210db491deedf53fb973aedca57646bd1e5c96",
+  "selection": "Explicit source8 selection and reviewed fixture dependencies plus six CODE10 transport overrides. No finite per-run/private recording retry operator or operator-only tests, private launch configs, source archives, raw data, weights or credentials.",
+  "qualification_scope": "Local source preparation only. No new native model verification is inferred; collection/training/evaluation outcomes remain separate.",
+  "files": [
+    {
+      "path": "scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+      "category": "source_candidates",
+      "bytes": 30443,
+      "git_blob": "c090b382336001c7fcaeb1344a4bd8d5d7f8bc65",
+      "sha256": "c980785fe5ff50d4f0f344f370d70f27f272ea5b4eff7eef86f1f193e83adb65"
+    },
+    {
+      "path": "scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+      "category": "source_candidates",
+      "bytes": 178741,
+      "git_blob": "4b0ea0e0f9bd68f8a5f2eb0e9fd24ca007d103ab",
+      "sha256": "a80a3b5dad34356e57b91a30e9fc34ca5784145294844eecd234e829b5937377"
+    },
+    {
+      "path": "sim/ausc_policy/astra_native.py",
+      "category": "source_candidates",
+      "bytes": 16036,
+      "git_blob": "c8cfcb0e690a08ac97228745f63273e2745a6fc2",
+      "sha256": "7447e9e3b47ab7b1660c90753fdb3a287130bfd49b7b89c414cadef496f508bc"
+    },
+    {
+      "path": "sim/ausc_policy/astra_sensors.py",
+      "category": "source_candidates",
+      "bytes": 13898,
+      "git_blob": "8bcf76e1885096b12675905fe66983c12a2095b4",
+      "sha256": "83499630615bca364e7db876bf4d78f7b931ea4d00a002291db4611e51142881"
+    },
+    {
+      "path": "sim/ausc_policy/astra_service.py",
+      "category": "source_candidates",
+      "bytes": 6234,
+      "git_blob": "0b51881fd709eb5538588a710fd0b69ac1527034",
+      "sha256": "bc3d6b2b77c28af9d5c868cb8ec9cf7413a3800e0ad43b734a7b45655cca944c"
+    },
+    {
+      "path": "sim/ausc_policy/astra_supervisor.py",
+      "category": "source_candidates",
+      "bytes": 10670,
+      "git_blob": "e53b02c2e574cd7a05471454283f621a074d065b",
+      "sha256": "19b4437d6de10940b3285d36193674fb2ac16fae736db5e07686a3f2e02062e1"
+    },
+    {
+      "path": "sim/ausc_policy/contact_collision.py",
+      "category": "source_candidates",
+      "bytes": 19366,
+      "git_blob": "fcf00d957dca788e2bcd2b4b70390a39d113fefa",
+      "sha256": "1c74e2b5f9242132c3300d230d4ee50ec51dc4f30a11a9bf7f74b27d3be5015b"
+    },
+    {
+      "path": "sim/ausc_policy/contact_semantics_oracle.py",
+      "category": "source_candidates",
+      "bytes": 18257,
+      "git_blob": "aca4e2390f2a64087d2a20f5600a5c05605405af",
+      "sha256": "fccfd0ee0a4412115b575979b8631c8e4915915a13f9cc64ef62805875ad8693"
+    },
+    {
+      "path": "sim/ausc_policy/expert_capture.py",
+      "category": "source_candidates",
+      "bytes": 45451,
+      "git_blob": "ab439ecec7f45fba4b8162bf9cd7af927220e4db",
+      "sha256": "a3352f8883498710299f16c019f6d3417b61174fe590debaa79652c8c8817778"
+    },
+    {
+      "path": "sim/ausc_policy/finite_head.py",
+      "category": "source_candidates",
+      "bytes": 21100,
+      "git_blob": "b2f36d629d83d37cdcb9d45381a3f23d2da0be5b",
+      "sha256": "c563923ded866c9832a5a418fbdf0d1b61a3f62c63fbdff2c68b1721d35f927c"
+    },
+    {
+      "path": "sim/ausc_policy/fresh_expert.py",
+      "category": "source_candidates",
+      "bytes": 92271,
+      "git_blob": "d69fbc7cbca4ba6fd3c2dcd0e92e5c433f097cf4",
+      "sha256": "dca1d18baf25120b05e5a39657f12f1e5be6619c44e44bfb166aae5fff1865b7"
+    },
+    {
+      "path": "sim/ausc_policy/geometry_epoch.py",
+      "category": "source_candidates",
+      "bytes": 5157,
+      "git_blob": "c819d53a3a6aff6b3b3085e2eccecea5ce1b9e03",
+      "sha256": "2b33d274efe7d8c7b8dcdae130f2a10eb1c71909b4b379f921b86b114c3dca38"
+    },
+    {
+      "path": "sim/ausc_policy/geometry_plan.py",
+      "category": "source_candidates",
+      "bytes": 10815,
+      "git_blob": "208c58b06a134e1ea4795c511b8eed25263a5f5b",
+      "sha256": "4abe27ec89b595dd0649f0ff76e87d5e146ec71d48e33273700949e4a3806c1d"
+    },
+    {
+      "path": "sim/ausc_policy/geometry_qualification.py",
+      "category": "source_candidates",
+      "bytes": 22217,
+      "git_blob": "040d720ece4cd760ba876b69f02835af29a6363f",
+      "sha256": "bb3cb8d2196a90a6c8f2f4bfb2100fe1fbbac49a6aa0ae8d0522d24d603a2ac5"
+    },
+    {
+      "path": "sim/ausc_policy/hall_adc_boundary.py",
+      "category": "source_candidates",
+      "bytes": 1891,
+      "git_blob": "0bdc9f521d67f68bce9379a965bfcff362acebf1",
+      "sha256": "a273e91e5141200419392cfbdf4de1667e06e68a5efb6c426eb9683504d0f4c9"
+    },
+    {
+      "path": "sim/ausc_policy/isaac_batch.py",
+      "category": "source_candidates",
+      "bytes": 9043,
+      "git_blob": "0850937f34a31e646d3be9831c2c5e1d794a5eef",
+      "sha256": "14b6c0ffa6608cca3cc80aa668a61f6a240cf01175109782529d1f079c213cf7"
+    },
+    {
+      "path": "sim/ausc_policy/layered_scene_authoring.py",
+      "category": "source_candidates",
+      "bytes": 41264,
+      "git_blob": "943c1134738cde200fa626076c7b75c783676441",
+      "sha256": "73887aa5a75f4c62ac542cc63bcfd627ff266d35dd3f86213333fc0e4505f7c6"
+    },
+    {
+      "path": "sim/ausc_policy/m2_act.py",
+      "category": "source_candidates",
+      "bytes": 46343,
+      "git_blob": "bf47cf87c1e851cbe117340e847f1e237cedcf32",
+      "sha256": "b953f533e3589a806e8fa54eff9feeb789e784294d22dc56453d9be0335c7c74"
+    },
+    {
+      "path": "sim/ausc_policy/m2_act_controller.py",
+      "category": "source_candidates",
+      "bytes": 23132,
+      "git_blob": "1b5cac4defc443f7280b15bea8cff712856826cd",
+      "sha256": "9532e4572801a416c21bcf903d377657bf5686fd85392b8bb1d25882a5b55ad3"
+    },
+    {
+      "path": "sim/ausc_policy/m2_act_pilot.py",
+      "category": "source_candidates",
+      "bytes": 14092,
+      "git_blob": "cc1df8b8ca8c7332e71d25e4999da2133c8c5d4b",
+      "sha256": "d30d71036cec8e6417006c909e23a81141ef64daf9be349ced7be59c8be3c719"
+    },
+    {
+      "path": "sim/ausc_policy/m2_capture.py",
+      "category": "source_candidates",
+      "bytes": 28034,
+      "git_blob": "2e198607c53564fde30cd53a7bf0044d511e5148",
+      "sha256": "4a9040fa239b911f753825db6c5c5d61766f3bddc97610adc8cd0f018f7c6109"
+    },
+    {
+      "path": "sim/ausc_policy/m2_contract.py",
+      "category": "source_candidates",
+      "bytes": 14322,
+      "git_blob": "1dbb8bfcf1b515f72dcfc9b681721eadd3ed7043",
+      "sha256": "dfced4d4929b7272391f3193f9834a30e65044f7cabb5c47272e0d2c549cfd4b"
+    },
+    {
+      "path": "sim/ausc_policy/m2_estimate_provider.py",
+      "category": "source_candidates",
+      "bytes": 10649,
+      "git_blob": "14c7bb5043d7d904ec3c2b81b3a47415a631b170",
+      "sha256": "7e7498060ff71ed8c2804d533d633fd8d5a6826a4c895df7ea59741d393e64a5"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_act.py",
+      "category": "source_candidates",
+      "bytes": 7161,
+      "git_blob": "8ce34b981470a30d1f7f7802627e43e21c48ae94",
+      "sha256": "2d9b49667020927e08f5e9a336d73202b5fa356716623ad50beeeb657dc5b5d0"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_admission.py",
+      "category": "source_candidates",
+      "bytes": 16926,
+      "git_blob": "6acdfb28fba21b49b11459602564f0ce48156ebc",
+      "sha256": "86788a03f34e7a9a1271c4e36c96f8871e506926657720a88f5e915bcfa8cb00"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_controller.py",
+      "category": "source_candidates",
+      "bytes": 51395,
+      "git_blob": "c71578e7280e1d010a008a47e3177e533254362e",
+      "sha256": "d2cd40ed8d72cc75986bd12dc561d3b138a7450f482b34fc16bcf5f8bd4c869f"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_dataset.py",
+      "category": "source_candidates",
+      "bytes": 112082,
+      "git_blob": "a07a5b47fb4f1b913506afa536ccd717069a558d",
+      "sha256": "07f16a032f28b2708a6dc586dbedeb6f6e16267def7a4f19c3483f8ebe25ca29"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_deployment.py",
+      "category": "source_candidates",
+      "bytes": 65469,
+      "git_blob": "bfd37eec85ad2e6d834ef5e334e76dc1260d6157",
+      "sha256": "b8f400595acb303aa9467b3894c7f6994535dd493522b6530e8ede64aa05b584"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "category": "source_candidates",
+      "bytes": 186738,
+      "git_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d",
+      "superseded_source8_baseline": {
+        "bytes": 186540,
+        "git_blob": "54c0fc31f79b5035251d020d2a60fc8ac1401885",
+        "sha256": "039e58a879837dcc57d714feed2b93b9796ef5d1bdbe1a93fe5a12eac86e7d96"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+      "category": "source_candidates",
+      "bytes": 16393,
+      "git_blob": "de06048f0077b408f205b0af14c9c14ce7c96164",
+      "sha256": "e83d0ed8914a26488877bbb6ad63534a0821a195476d71ac43a70f0580e82c60"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+      "category": "source_candidates",
+      "bytes": 20446,
+      "git_blob": "3e516886f7945e5544185223a1a0baf6da6c3bde",
+      "sha256": "702168fe1989d7af455c3ce2a871a6a44a23ae0ba3818fcafb9d9b0655a20c73"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+      "category": "source_candidates",
+      "bytes": 30235,
+      "git_blob": "fe5b6eaabd9af6a8d2e66ee78ee94310129bb5c0",
+      "sha256": "4e7f2b476927d266d9a49b1c1cc617a73ebf54ecab4c725ec1d2c68515267cbb"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_handoff.py",
+      "category": "source_candidates",
+      "bytes": 17919,
+      "git_blob": "6c6037094339d5414b96dba5ae42b18e984eb5e5",
+      "sha256": "759e8e4843cbc6621ae1077a72122a31f39e66d4a739647c870f041de7c84db7"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_intent.py",
+      "category": "source_candidates",
+      "bytes": 9083,
+      "git_blob": "ce02bb0a508e12cf565f1ae4044b4da982bea421",
+      "sha256": "52de6dc03046768420d315db187150e92955f5a0466de5da6cf31253d9f9723b"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+      "category": "source_candidates",
+      "bytes": 68953,
+      "git_blob": "b7e3319200a9e74b2f06fdd215e90f970bf566f2",
+      "sha256": "9cfe5d8503278ec78a9366cac62d1b7ea75254641b6fcea7e191ba1d33ad5ae9"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+      "category": "source_candidates",
+      "bytes": 29264,
+      "git_blob": "2dd01e66ae5167253bc05b2d2f0373c4de719f0d",
+      "sha256": "d81bf557d766bd19f8c4fe15a115020d9440026760e1dd384b7b33a40ce92b7b"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "category": "source_candidates",
+      "bytes": 15662,
+      "git_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8",
+      "superseded_source8_baseline": {
+        "bytes": 15059,
+        "git_blob": "fd891b50f11d4bc12cbc9f935cf15cb28b283994",
+        "sha256": "ee846dc254495b59e3d7ce2efd9031fdc376a1fbaa57502ec0be10df855b21db"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_train.py",
+      "category": "source_candidates",
+      "bytes": 14241,
+      "git_blob": "7e6bb5652c38cb5cb1d9c9716065b9b5f6dcefa3",
+      "sha256": "b47a42e1625d1da4084ce46ae3eb46ca5d251dc3705c116b62fa297e08a78d98"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pose.py",
+      "category": "source_candidates",
+      "bytes": 11453,
+      "git_blob": "4a24a87898cd26d42f50b64244e93bf2c99c84ed",
+      "sha256": "1481f0407b7bcc95e1271b79a8b027637e536cb8468ae5d8443faea823f1af3a"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_recovery.py",
+      "category": "source_candidates",
+      "bytes": 21740,
+      "git_blob": "6f7ad8e62c647e781e7605528488ade67522a36c",
+      "sha256": "3e0d89603e2d71a9e730637794e20e790d6168db25ab3cd103ee93cc21b192d7"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "category": "source_candidates",
+      "bytes": 54053,
+      "git_blob": "c68f833de916c81aca0f198b5ae02988ec4701c4",
+      "sha256": "dbb078d9fe980c23c00804ff9055c29ea0caf58daca44e5c5e64f284846f5847"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_train.py",
+      "category": "source_candidates",
+      "bytes": 28042,
+      "git_blob": "5e5b1f2a0a9e2d15c9053eadc28e743f2bf39439",
+      "sha256": "9465fc315aef336b4fafa9bd923ca457c4c02caf7451a8bde6c16aca1dc01377"
+    },
+    {
+      "path": "sim/ausc_policy/m2_pilot_config.py",
+      "category": "source_candidates",
+      "bytes": 22935,
+      "git_blob": "d12fd5ae17d1d254cef615159566a5b547725fca",
+      "sha256": "b782e26565f239bb8b9887fb1e1ae24c67ffa63a5e24f066e9903b3ed5b10e57"
+    },
+    {
+      "path": "sim/ausc_policy/m2_pilot_deployment.py",
+      "category": "source_candidates",
+      "bytes": 26631,
+      "git_blob": "297e359d0dfb79bcec4f40f36ef688bfa708b581",
+      "sha256": "216055653e0ef805251a7e82ca001c28b7f9f4527705cf3f2c12d774ffca85a0"
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_capture_dataset.py",
+      "category": "source_candidates",
+      "bytes": 28938,
+      "git_blob": "85d8b51ac18b9a976d32beec776aaf1cd83f18a6",
+      "sha256": "a467a38370eb3672e271056c5483ae3792136c63c17a0c2c25599d62204d859f"
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "category": "source_candidates",
+      "bytes": 44698,
+      "git_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda",
+      "superseded_source8_baseline": {
+        "bytes": 44597,
+        "git_blob": "fcc0794bbac096178714bf9e3e3fc3f8a97f299d",
+        "sha256": "cf149a7c3e38635c9c193421edb6a8defa2f7a431d4ccbc56f26b6d08d38b73f"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    },
+    {
+      "path": "sim/ausc_policy/m2_retarget.py",
+      "category": "source_candidates",
+      "bytes": 23343,
+      "git_blob": "9abbc1a9a850c7c13039aec7167a55f14bb58e0c",
+      "sha256": "b284cf148606e1a15ea30d9b2630d82d7df91fcf338d50419ae936d5dd3e6ab2"
+    },
+    {
+      "path": "sim/ausc_policy/m2_stage.py",
+      "category": "source_candidates",
+      "bytes": 6137,
+      "git_blob": "64ad99263e886eb1c2a632bca8d98ef8d4c7d5d9",
+      "sha256": "b1c58e32493f3c4763acbb8f14631adbade4213cadb3afa0ea63829c6e8b7e70"
+    },
+    {
+      "path": "sim/ausc_policy/m2_stool_layout.py",
+      "category": "source_candidates",
+      "bytes": 11607,
+      "git_blob": "81e63730df69e7db9f93b80d30ceb35689cf16fa",
+      "sha256": "908e03ede178b893a8e64c42f192fdb94d5eaa9688b6503a8336a52cb8bedba3"
+    },
+    {
+      "path": "sim/ausc_policy/native_contact_evidence.py",
+      "category": "source_candidates",
+      "bytes": 4939,
+      "git_blob": "69a16f718f8e74515a1118093034db52317c3149",
+      "sha256": "ad187edb8cf39eee65bd4598cb826c59341873944f93d114e4898d7a4ff18201"
+    },
+    {
+      "path": "sim/ausc_policy/native_lifecycle.py",
+      "category": "source_candidates",
+      "bytes": 4395,
+      "git_blob": "9f5e015c722caf8e2926ab2335953b41b06dc257",
+      "sha256": "1955e1d8f10c2797fa9deb8a12800d04da40a0241650fdb51d2f9eae96d56df4"
+    },
+    {
+      "path": "sim/ausc_policy/native_usd_preflight.py",
+      "category": "source_candidates",
+      "bytes": 12284,
+      "git_blob": "dd738fc9c52d04910df989b2542633ad15a96f28",
+      "sha256": "03f583ae256985cd5881600f792af59130467526a6e33277acd8571846387aa4"
+    },
+    {
+      "path": "sim/ausc_policy/observed_reconstruction.py",
+      "category": "source_candidates",
+      "bytes": 27102,
+      "git_blob": "40a68b73350e21d5da59497e19417d89d4e0af35",
+      "sha256": "2728dfa2b84268277689063b804998c0f0abea921240135730f900bfc4e5a217"
+    },
+    {
+      "path": "sim/ausc_policy/patient_scene.py",
+      "category": "source_candidates",
+      "bytes": 13378,
+      "git_blob": "16a2e28411e1373fcc93188727938037bc454a88",
+      "sha256": "74ca4e8a01ce624a7c5788d9933c3e08e20b07379e57e94bd9eef21f4899c2e3"
+    },
+    {
+      "path": "sim/ausc_policy/process_guard.py",
+      "category": "source_candidates",
+      "bytes": 18184,
+      "git_blob": "12525e716c7433df693b0aeb86c5a654ea5cc543",
+      "sha256": "35305b9151a1da5046023c4462acbfb50aadc2d997b073f4acabc356bd16dc5d"
+    },
+    {
+      "path": "sim/ausc_policy/rebuild_gpu_binding.py",
+      "category": "source_candidates",
+      "bytes": 7239,
+      "git_blob": "df83c8fec56b17f498c091045c03580a7b3088bc",
+      "sha256": "129d47094cc10da854efbf428eddb9d4d001db5bad3136bfc0bd928e9b493e30"
+    },
+    {
+      "path": "sim/ausc_policy/rebuild_scene_prepare.py",
+      "category": "source_candidates",
+      "bytes": 22371,
+      "git_blob": "097ae958f40dc6910e3c66aab0c94b5e6441993b",
+      "sha256": "9e89b4f8bbab21f268664f6d76e12df2412bdab6c6fb4d1a7fcf68c20833893f"
+    },
+    {
+      "path": "sim/ausc_policy/retainer_failure.py",
+      "category": "source_candidates",
+      "bytes": 7737,
+      "git_blob": "756dcda5d726b1b825992bdddac7cc2c7a69c1f3",
+      "sha256": "ed9be9f4c676fba6fa3def9ab76d7c8422821e6f9bfea943971e4db96db41ae3"
+    },
+    {
+      "path": "sim/ausc_policy/retainer_witness.py",
+      "category": "source_candidates",
+      "bytes": 18239,
+      "git_blob": "b3073f8a7879864f14eb49ec54e0b258a3cd23ee",
+      "sha256": "b332913b0dcf56453a229ec5edeef518a568c76b446c3b5e3c01309735684209"
+    },
+    {
+      "path": "sim/ausc_policy/retainer_witness_qualification.py",
+      "category": "source_candidates",
+      "bytes": 22907,
+      "git_blob": "fecec1b83d5623528e91b1640711b8a78dd0bde5",
+      "sha256": "03a6eedcbff3545b6b8118ba74b2f7137ac728f9ce70777e8ea439952186f4ba"
+    },
+    {
+      "path": "sim/ausc_policy/run.py",
+      "category": "source_candidates",
+      "bytes": 6225,
+      "git_blob": "d8527849538509ddeb4e95beccb7a7b2c738ddd4",
+      "sha256": "16f5f5729042eb3a40c2ea8f55606c64ea323ea5ad0568f096774ae21afc0434"
+    },
+    {
+      "path": "sim/ausc_policy/runtime_cost.py",
+      "category": "source_candidates",
+      "bytes": 8822,
+      "git_blob": "7dc0206b169dc4a26a766703625ba4f7b0f5b1bc",
+      "sha256": "0faec9faaf8b45420f290b1465a3aaf543f8d46365f3f38ced47796c224105b3"
+    },
+    {
+      "path": "sim/ausc_policy/scene_store.py",
+      "category": "source_candidates",
+      "bytes": 68575,
+      "git_blob": "fa86bc649d617619508f3e4444caf2a907ffe3ba",
+      "sha256": "1d39234f8227fc5ca75f6cc2c4f3796029b120db0424317a7afc1499102f79a6"
+    },
+    {
+      "path": "sim/ausc_policy/sdk_mdl.py",
+      "category": "source_candidates",
+      "bytes": 6932,
+      "git_blob": "0c7034a98fd4b940466bda2d384214420f89f5bd",
+      "sha256": "db682a3161fff9ac46239fdc9ab9d93c753ed6b5f3f48475a33a67a86dd1d964"
+    },
+    {
+      "path": "sim/ausc_policy/stop_preview_numeric_diagnostic.py",
+      "category": "source_candidates",
+      "bytes": 8204,
+      "git_blob": "7c48883fc7048887931e78d0743b149acf423302",
+      "sha256": "f2f7534b315ce0c273f54eecbba12c2766ab6690e2bacfb3fe538b6c5fc0c5fe"
+    },
+    {
+      "path": "sim/ausc_policy/tool_geometry_review.py",
+      "category": "source_candidates",
+      "bytes": 4942,
+      "git_blob": "2bfcb57220b0f220667bd5310bb9dabf027ed083",
+      "sha256": "b501628ceebcc1045026f8c472eef379eb320b2d51962f14ace689cdabd3cd13"
+    },
+    {
+      "path": "sim/ausc_policy/training_capture.py",
+      "category": "source_candidates",
+      "bytes": 70016,
+      "git_blob": "4f1a494430eaba9bfe91cf5ce97d118d547c8f30",
+      "sha256": "385069835b2b8dce1094c6afbc79e83c1b990409025193c5a6ea978e17a1b738"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/env.py",
+      "category": "source_candidates",
+      "bytes": 9050,
+      "git_blob": "e03c79ef96e2dd95f2d83ceafa54157031426acc",
+      "sha256": "62d015d711ca40d24a206390c4e06ae095865626ff1119d2975d49082e24d625"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/posture.py",
+      "category": "source_candidates",
+      "bytes": 5874,
+      "git_blob": "2e4ba2066b9fd77f064aac0cb02a497c05e10c93",
+      "sha256": "adef5c183f3e251b066cfb289ccd2c99065c31f7d8741a0b4be7e27a614a1b89"
+    },
+    {
+      "path": "sim/auscultation_pi05_v6/execution.py",
+      "category": "source_candidates",
+      "bytes": 4987,
+      "git_blob": "12d1a1205632979c30275c363de58b0f27cc991f",
+      "sha256": "d143e2e659d47e5d97108869a9b7d104d98213586d809a0f4f5157e3079e98d3"
+    },
+    {
+      "path": "sim/curobo_expert_v1/fast_collision.py",
+      "category": "source_candidates",
+      "bytes": 4801,
+      "git_blob": "47d63ab22a90a0a29edaf7f92c2cf6df36d9cdbe",
+      "sha256": "0a624115673c654aeb1ea582f01558d8ab50b1083bda371f1f5e708f41be3225"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_accounting_envelope.py",
+      "category": "test_candidates",
+      "bytes": 8878,
+      "git_blob": "f6d901803fb94ccb6599738b9565a016b5290616",
+      "sha256": "d71678dc5052a7cf5a22e008edaf8b8be9ff09df7b140265e13a89974e4515f0"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_act.py",
+      "category": "test_candidates",
+      "bytes": 4120,
+      "git_blob": "ee8b297b0ec4794d08fb71964890e86f52525841",
+      "sha256": "023892b11e5defd7b400cfce2b08d8c3d07f1e8f1a318742cd2f782d94f82354"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_admission.py",
+      "category": "test_candidates",
+      "bytes": 9599,
+      "git_blob": "4f8d64f4b5d09a28f362720ef3f601d98be4c6b7",
+      "sha256": "745748838abb98c90c4d8ecd0ec33dadd318a94b168c096eec4e4a1c5975cd74"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_capture.py",
+      "category": "test_candidates",
+      "bytes": 19415,
+      "git_blob": "d5fd7f3b3621d8d72ce41977df2486fcb3c1e2cd",
+      "sha256": "ab8af1d16e7d74506ae7f0676e60264508d0636c7fe34a8b0758f6862c2ff130"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_controller.py",
+      "category": "test_candidates",
+      "bytes": 9280,
+      "git_blob": "6a2a996712cb727478d3a9ff5b7b93a1c8e6f84b",
+      "sha256": "83e75219cbc88d9748e24381f1c5a165c2342fbb13de90007c60373361edcf4e"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_dataset.py",
+      "category": "test_candidates",
+      "bytes": 55922,
+      "git_blob": "c1ea858a887fbcca4a78150e5f8cfdd4111cd818",
+      "sha256": "146c04a1f51eb7997f6864b0ba5e1f2b1e46714986ec45873616a13288ee54ec"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_deployment.py",
+      "category": "test_candidates",
+      "bytes": 65532,
+      "git_blob": "a50f84006be56b0a2f41024dac1885a25b470b5e",
+      "sha256": "889def313368dbdd4591359c30705bffa24755c4a05dc9c28a5ac1838e4424b5"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_evaluation.py",
+      "category": "test_candidates",
+      "bytes": 114683,
+      "git_blob": "e354df21a57890a2d6e82fd922ab02cb4d1645d4",
+      "sha256": "b8a9855cb6b6d44f1cc81b54f399645d507bc2d83d535fbf7a7a52be83312ef4"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_expanded_pilot.py",
+      "category": "test_candidates",
+      "bytes": 11493,
+      "git_blob": "09378af08e551fa5f495716820855218bddc80cc",
+      "sha256": "b897237a2daff47e7a1efde40473573ab30be8e5f1b1461a0f36d0679c05d7d2"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_handoff.py",
+      "category": "test_candidates",
+      "bytes": 42082,
+      "git_blob": "eae1c6648f9c7b00c51318ffb10726808fb04c7c",
+      "sha256": "b2e1449ac8a7b9e62e3800d67ab3cf371b3b1e10014eaf46a3333412800fded8"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_intent.py",
+      "category": "test_candidates",
+      "bytes": 7368,
+      "git_blob": "3c3fc3e00e37ea8400e3e066a693138a84479e80",
+      "sha256": "18b297eea671c6d43d5797cdc7c88ad6e74136bcdb9573960cca7c792d3039aa"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_jerk_reserve.py",
+      "category": "test_candidates",
+      "bytes": 2556,
+      "git_blob": "5b3bd4e2affefc4a470a2e102392b9423175ef3d",
+      "sha256": "f38520e8cc78bf7ddf9910b3783e577d05fba4cdd0c49862c477c33bc9414374"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_lossless_mapping.py",
+      "category": "test_candidates",
+      "bytes": 82857,
+      "git_blob": "eaf3861afe44527cf2593de857ae50a25dc7136b",
+      "sha256": "6f6fc5b4028732ab1619133a4afeab1c1ab9ad2deb5b52d20d6d6894981dd313"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pilot_deployment.py",
+      "category": "test_candidates",
+      "bytes": 6676,
+      "git_blob": "eeff52fedb49f8024d3c2d4d669bab7882c1bb8f",
+      "sha256": "d13a032475f5d682b8a0f973b5f12a5711836148eb0ad52f2cba2182aaa5883a"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pilot_native_audit.py",
+      "category": "test_candidates",
+      "bytes": 10407,
+      "git_blob": "cc75a21ab4a719769d7b7dd7cfcd6b290794e036",
+      "sha256": "2dc797d2a140b77400156621234bfdb15a6bcd459d1da81a089b6024ba5e6325"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pilot_train.py",
+      "category": "test_candidates",
+      "bytes": 5392,
+      "git_blob": "ec1988ba88c62bc09f07c1bcf090539511dc7d43",
+      "sha256": "84c0ff719d0d1a4a8dd23fbdd411d2067afd2d4f6e7952c70253f1159e6d14b9"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_pose.py",
+      "category": "test_candidates",
+      "bytes": 5572,
+      "git_blob": "8d48d2ef1d374594fa782a2cd01d5b7e5a68be4b",
+      "sha256": "e51e262170743a5d0bbb2f98766a21c01760e471870e4ec052013dd97726efeb"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_recovery.py",
+      "category": "test_candidates",
+      "bytes": 20857,
+      "git_blob": "8ff76b3207396f013544ba8d3391b214e0ffcb20",
+      "sha256": "b6ae92bc1795b6638cf8eb6a31353d187f0483319a52c52878943b1e16fea945"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_ruckig_parity.py",
+      "category": "test_candidates",
+      "bytes": 7741,
+      "git_blob": "2e2756cccfd388860d0debd95d2c78f24313e37e",
+      "sha256": "501f0a093f5847be7639ff2acd49f5d73544de25d4ea2a72ad9c33d4fd083a73"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_runtime.py",
+      "category": "test_candidates",
+      "bytes": 29253,
+      "git_blob": "d1a7a126a9472ba41f779bdea5bb61adea951636",
+      "sha256": "5ad4b1312d3420c73e3c1afcdf74b8de5f7a76d206b4606d627070252a3b9b68"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_scene_store.py",
+      "category": "test_candidates",
+      "bytes": 4669,
+      "git_blob": "52c5401e6fc56a2abb5c6bea05161259a5315439",
+      "sha256": "4131612fb98f8cbc07e1c41707e5cde30617949378369089f56a52cb8a98e49c"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_train.py",
+      "category": "test_candidates",
+      "bytes": 20844,
+      "git_blob": "16ab9ab497f741ec43008a735d5a793cfdcb0273",
+      "sha256": "f981cb57e1b87f3829fa1ddf2fa9eddb2081bad929b59424c30df9313fc4a1f0"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_val_scenarios.py",
+      "category": "test_candidates",
+      "bytes": 12863,
+      "git_blob": "a7f1ea11f59dd874055f935c7ce9feda41e6e801",
+      "sha256": "adb4b436ed67bb79b9121f86b84966b7cc8a8b5b8a38daaa3d9276118c06848d"
+    },
+    {
+      "path": "tests/test_ausc_given_contact_velocity_reserve.py",
+      "category": "test_candidates",
+      "bytes": 5654,
+      "git_blob": "e90a57f8e4184701faa9a661da94c5ff1b99c595",
+      "sha256": "e9a80d32db2f8e2ffdb80eb4ea4eb5c257154597726636818ef8021c43598c66"
+    },
+    {
+      "path": "tests/test_ausc_given_processing_source_envelope.py",
+      "category": "test_candidates",
+      "bytes": 8135,
+      "git_blob": "3d667881fa326ab7ad69d4543c38fbc8ae2558c7",
+      "sha256": "1debf57bf6c00c33ab6e6f81ecc0ac6176e347e8a5474b8430ef5c94692affad"
+    },
+    {
+      "path": "tests/test_ausc_layered_runtime_equivalence_probe.py",
+      "category": "test_candidates",
+      "bytes": 34118,
+      "git_blob": "c08b6ca8b901c9677fa5f213c018432775ba2fd9",
+      "sha256": "d01052635c38cf0bed79f33c8bf3c2e9656dabc62134b353ed9ba75e3b9fe670"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_hall_boundary.py",
+      "category": "test_candidates",
+      "bytes": 4452,
+      "git_blob": "067aabd0b770ecf151eb55dec6fc0f225fcee9cc",
+      "sha256": "ffb0110bd632c5355944ad13c80d146c5978c8cf972babbf96c9eee8ea7f6441"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_modality_semantics.py",
+      "category": "test_candidates",
+      "bytes": 5609,
+      "git_blob": "5a829bb004ea29beaeb4dee12a311a3c4c56d055",
+      "sha256": "284656f36b4c769304f89a1270e8f1d22dabd616e9f14e65bb85628e2169e12b"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_sensors.py",
+      "category": "test_candidates",
+      "bytes": 9447,
+      "git_blob": "3649a6f8e313ae9190ead004af552d0593e8d7e7",
+      "sha256": "156df4d0242eba15c3a5de3423be878a831ff48967adf06bf630a93d4f2b6022"
+    },
+    {
+      "path": "tests/test_ausc_policy_astra_supervisor.py",
+      "category": "test_candidates",
+      "bytes": 14127,
+      "git_blob": "205f791c1489179ca0a33617b7caa9d9abdce241",
+      "sha256": "f2e7e0f2097f7187491e96906c509f847ff39515d3f366a900792fb4e42e39c5"
+    },
+    {
+      "path": "tests/test_ausc_policy_compact_expert_capture.py",
+      "category": "test_candidates",
+      "bytes": 12475,
+      "git_blob": "22ecf289fe5b84a899aa790d0bb4bafee3a448cf",
+      "sha256": "2214277235552c89c77ded6df83c326fd2f734b49cbe587b94b87779cd352a15"
+    },
+    {
+      "path": "tests/test_ausc_policy_compact_resolution.py",
+      "category": "test_candidates",
+      "bytes": 7344,
+      "git_blob": "026d64935a924a18867da1a4dcc03491d228fbdc",
+      "sha256": "139cf9a7ce31fa84f6ec3f77e8402cb9dd82cb017a335982c4ce7ca1102ab017"
+    },
+    {
+      "path": "tests/test_ausc_policy_contact_semantics_oracle.py",
+      "category": "test_candidates",
+      "bytes": 6465,
+      "git_blob": "201b8d8837126de12fa8ebfe56b0c22796c99f95",
+      "sha256": "f9a46c1c8eeca0d0f160ee4b3d243cd6c37f2faaa1c97c2702d7dd54243251ae"
+    },
+    {
+      "path": "tests/test_ausc_policy_cpu_preparation.py",
+      "category": "test_candidates",
+      "bytes": 1446,
+      "git_blob": "fdf0f05c2a6505ce8cd966c1a9ed8c575078e805",
+      "sha256": "734d64ee24a4df0d17ac3d537cbad4f17286c4be3c5941fcfbab2c2079c3d1de"
+    },
+    {
+      "path": "tests/test_ausc_policy_expert_capture.py",
+      "category": "test_candidates",
+      "bytes": 16990,
+      "git_blob": "57429601ba9e9dffce2fc055ea367e127440e67f",
+      "sha256": "4389fd595128a13b65eea5e0e33bbcadfbdef6535b539d1dfed444f16901b4c8"
+    },
+    {
+      "path": "tests/test_ausc_policy_geometry_ik_hints.py",
+      "category": "test_candidates",
+      "bytes": 14077,
+      "git_blob": "7f0dd5b97ed52b0c7c03319de05558b95aa9625c",
+      "sha256": "066cfcffb217605c3880d21675eecf17769398a44eac339e5dda43cef4aedfe0"
+    },
+    {
+      "path": "tests/test_ausc_policy_geometry_plan.py",
+      "category": "test_candidates",
+      "bytes": 6050,
+      "git_blob": "4a0e6932f478c5948f2dc953b401d6bef1231163",
+      "sha256": "bf2fd32cfe0159c36cb379ec416eb8f798c1fd8591a492e5ca2ac88271408f96"
+    },
+    {
+      "path": "tests/test_ausc_policy_isaac_batch.py",
+      "category": "test_candidates",
+      "bytes": 5730,
+      "git_blob": "b957d8d3952b0ccc4278dea32b742f3eb7d1a61e",
+      "sha256": "f4c72934d9bd645d1d0b44fa77979c01d08d6612d3285bc45aacd42204324d0d"
+    },
+    {
+      "path": "tests/test_ausc_policy_layered_scene.py",
+      "category": "test_candidates",
+      "bytes": 41816,
+      "git_blob": "5ca817cf248d02af2571cdec02a56c7091844882",
+      "sha256": "65d20b34c2c022f20e7e58f95b855f9f7a152b13d4ab7eb4d2c7d26c6d4b07a9"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_act.py",
+      "category": "test_candidates",
+      "bytes": 19912,
+      "git_blob": "ea73d320b73d08548d9cead4c2cc36a662a544e1",
+      "sha256": "8c0444e1dcf3afb0add21148ce517a737c20510b960d5fce976814e73ce911cb"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_act_controller.py",
+      "category": "test_candidates",
+      "bytes": 10987,
+      "git_blob": "3dbf43e8e348b361e47628437619bf612edafe39",
+      "sha256": "478cc9c564342af8048c0873bdb7bb5dae576ce9299f4a15a656b556b4e85f32"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_capture.py",
+      "category": "test_candidates",
+      "bytes": 24523,
+      "git_blob": "45eeb424070f2f534f0dccfa32ea929517d042a6",
+      "sha256": "ac1aa980b377ba58f55b340d05fadcbd0ac5b198d9719eee3faa4ef9a2956603"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_contract.py",
+      "category": "test_candidates",
+      "bytes": 10376,
+      "git_blob": "972ee41448a45da0fb5700f11f230c0ec77d0d5c",
+      "sha256": "508a5c56137e07ca0872d8c4dea49f12c9fa802cc2083d2f9708c80050c337ea"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_deployment_integration.py",
+      "category": "test_candidates",
+      "bytes": 8094,
+      "git_blob": "d5f12ffdfc0d15d76148cbb38a6836130b0a2fdb",
+      "sha256": "bf04b2c15ccb2f32d63686653f1f28f6f6d742be3f8889ca94779549e11e5680"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_estimate_provider.py",
+      "category": "test_candidates",
+      "bytes": 6903,
+      "git_blob": "ccff487de58a6888960714b80d7f310961e4c4b3",
+      "sha256": "942643566d439e95e8e8a038d0b0bc453da82130a63ed2e02f1237097931a3f6"
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_pilot_config.py",
+      "category": "test_candidates",
+      "bytes": 18179,
+      "git_blob": "8920f2857048a5536a1dc517761b43b82a6ee684",
+      "sha256": "3db4a5b9514fbf327a3d85a54e7fe6f363fbd9b8106a3d7b059e203ab172e8bf"
+    },
+    {
+      "path": "tests/test_ausc_policy_native_contact_evidence.py",
+      "category": "test_candidates",
+      "bytes": 9785,
+      "git_blob": "8a9f6a5019ae3c0391c57cd1ed4bf2e85a4c6d7e",
+      "sha256": "ddf7928a12d3e7026ba85caca80cb2971cf3eb1834e487fb93e7068e4d7a8660"
+    },
+    {
+      "path": "tests/test_ausc_policy_native_lifecycle.py",
+      "category": "test_candidates",
+      "bytes": 4015,
+      "git_blob": "b906e58859c090d1471161512c344fa94cdaf3a7",
+      "sha256": "18a18cf508fbf57f4e166fa53ccc21872fbeee6072f8de66243c4e4c65c92a2d"
+    },
+    {
+      "path": "tests/test_ausc_policy_numeric_container.py",
+      "category": "test_candidates",
+      "bytes": 14950,
+      "git_blob": "c2d031cb968687500d6e74b0dceacb606020e61b",
+      "sha256": "b5046f5149f681f8a697de5031e177fceb20b4244669707b466bf38ff51c9ea5"
+    },
+    {
+      "path": "tests/test_ausc_policy_process_guard.py",
+      "category": "test_candidates",
+      "bytes": 7976,
+      "git_blob": "53251835cc0f2f2768590aa4aba38014e3d4df6e",
+      "sha256": "bf44e3f910d87277c08a09b49d2d37e6a44be30ce5ce49252626b85b821fcd44"
+    },
+    {
+      "path": "tests/test_ausc_policy_retainer_contact.py",
+      "category": "test_candidates",
+      "bytes": 7920,
+      "git_blob": "a2b15e911ac71c4869581e990a268065e9b06eaa",
+      "sha256": "542e59cd411db6a77e7ec70da6c4ad42cfa0e7fb5763cb65cd1e81592d1b3c22"
+    },
+    {
+      "path": "tests/test_ausc_policy_retainer_failure.py",
+      "category": "test_candidates",
+      "bytes": 12184,
+      "git_blob": "45eea5a173012265c02897146a6070a61ecd71a5",
+      "sha256": "09caedec1e38d7b96545f71bb734b501c853ad65061c0bb45ef4e09665cfa845"
+    },
+    {
+      "path": "tests/test_ausc_policy_retainer_witness.py",
+      "category": "test_candidates",
+      "bytes": 27084,
+      "git_blob": "40d39fc866b8e4fa705a79727edb37906d3d76e7",
+      "sha256": "826c4325dcebe91738b7cc6deb77b208758db77f001759eed29c93bdc501733f"
+    },
+    {
+      "path": "tests/test_ausc_policy_scene_sdk_mdl.py",
+      "category": "test_candidates",
+      "bytes": 16467,
+      "git_blob": "a9110b8f5c2d09563ee6fd4577d1c8a0ed41b2aa",
+      "sha256": "4f20da00ba98292dd0ee96e18eb3cc3638e97ccebf0cd155e2eb7e14bc5d6644"
+    },
+    {
+      "path": "tests/test_ausc_policy_scene_store.py",
+      "category": "test_candidates",
+      "bytes": 29073,
+      "git_blob": "bdccbde70cda1cd5817fc0a2fdc6879373e6b635",
+      "sha256": "d73961ed0ed3c96760c9146adcf6f130dd11785a3c22741e58e0681a2ca72a51"
+    },
+    {
+      "path": "tests/test_ausc_policy_sdk_mdl.py",
+      "category": "test_candidates",
+      "bytes": 5618,
+      "git_blob": "e4ed5e40d427b6b8b42f7a521cb45abef88a759c",
+      "sha256": "5b2ce55b64e8d17f27280ae034287fbb52bd5c58b3d6a5092537cf25d4f6a346"
+    },
+    {
+      "path": "tests/test_ausc_policy_training_capture.py",
+      "category": "test_candidates",
+      "bytes": 51101,
+      "git_blob": "385f41bf161383fecf4573333e521caf2150071f",
+      "sha256": "381bda980c9ebc3792b7f11758efa0c561f62d52f3a77a45c48f2ef138a88e66"
+    },
+    {
+      "path": "tests/test_ausc_policy_velocity_feedforward.py",
+      "category": "test_candidates",
+      "bytes": 24814,
+      "git_blob": "efe6ac5ecfbd317ce71f39c8b31c2fca546282ae",
+      "sha256": "cbce8d39bd73000a31bb95bb545d1d3b136b47c7772902b9a64d0394041373fe"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_capture_dataset.py",
+      "category": "test_candidates",
+      "bytes": 9974,
+      "git_blob": "20b5d22999eec699d28c1ac68c4aa927c1904cf1",
+      "sha256": "036d291cffd571d40dd61a9dd93fbce5378a7fbb5d9e0036646c2ea638281f20"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_gpu_binding.py",
+      "category": "test_candidates",
+      "bytes": 8461,
+      "git_blob": "9dfadfc299c2ab4e377fe599132625c068d7542b",
+      "sha256": "ccdd90959f4d4e47e6d6c39c3122715ebb10eb54818470e72ed2c7a15a7748b5"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_paired_eval.py",
+      "category": "test_candidates",
+      "bytes": 17759,
+      "git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58",
+      "superseded_source8_baseline": {
+        "bytes": 17671,
+        "git_blob": "1a9f01f3f34072ca1330d9542b0c1eb572ed005b",
+        "sha256": "ddb9dca6d533f0314be8361149d0324473bb26721057574232ddf83dc0bfe7fe"
+      },
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    },
+    {
+      "path": "tests/test_ausc_rebuild_scene_prepare.py",
+      "category": "test_candidates",
+      "bytes": 19409,
+      "git_blob": "37b828d5b6c3ccf1069a0346790bf875fb5c50f1",
+      "sha256": "42be14f1fcf07928f187753a5129ab69e54089c63b169fe80b5f5af66962f7e0"
+    },
+    {
+      "path": "tests/test_ausc_retainer_witness_qualification.py",
+      "category": "test_candidates",
+      "bytes": 7946,
+      "git_blob": "a26ac1b088b2eab0d446d77759b2bf46447f03b2",
+      "sha256": "ea00231e87293f7c03a9e395f0a2e08901324f64316638dfb8f59bb7c53a8785"
+    },
+    {
+      "path": "tests/test_ausc_stop_preview_numeric_rejection.py",
+      "category": "test_candidates",
+      "bytes": 5891,
+      "git_blob": "3dd0ff5533eb8a134d655ecaf0524d81cf55ad46",
+      "sha256": "12ef56efeb02bbe31ee272990b31081dacddd52431ca9a58dfcb01c11158f5f2"
+    },
+    {
+      "path": "tests/test_wam_sdk_cpu_bootstrap_install.py",
+      "category": "test_candidates",
+      "bytes": 1598,
+      "git_blob": "a691635bc747d436a3c828b64ca8db1fc50d434c",
+      "sha256": "376fd18c84c63f136c51d2a52158eb475640ffe1a3a00dde687fc24907b54167"
+    },
+    {
+      "path": "configs/astra_supervisor_given_contact_v1.merge.json",
+      "category": "configuration_candidates",
+      "bytes": 230,
+      "git_blob": "51310bde17209817d500baa7a9055962aff675c9",
+      "sha256": "4b63122743fc7588e17069e15cb5575aa1a6d58f7b8219fbe3b447a0de26611f"
+    },
+    {
+      "path": "docs/astra_native_supervisor_v1.md",
+      "category": "documentation_candidates",
+      "bytes": 12045,
+      "git_blob": "467eb0c26dc70279c9d551e2aad7d3e730e633d8",
+      "sha256": "355c6b11201ecbe7c8e67c4f3ce252c4402fd40edfdc04119a41e19bdfb5f32f"
+    },
+    {
+      "path": "docs/m2_rebuild_capture_dataset_20261105.md",
+      "category": "documentation_candidates",
+      "bytes": 9234,
+      "git_blob": "215c9584cfa8e1883512ae29ac7d10ea9a58ebd6",
+      "sha256": "f252742066b83c0c439932499b8a34319ac01d92ade7fb7ec4d2ea62e189394a"
+    },
+    {
+      "path": "docs/m2_rebuild_paired_eval_v1.md",
+      "category": "documentation_candidates",
+      "bytes": 11518,
+      "git_blob": "838bba696c24e20829d77c5520e6ee987cb7a67f",
+      "sha256": "8d4450398d07299b16674e0c9535cb06731c487028b4cd7b294538e71450a86e"
+    },
+    {
+      "path": "docs/m2_rebuild_gpu_binding_v1.md",
+      "category": "documentation_candidates",
+      "bytes": 5093,
+      "git_blob": "b3dc91e57454c0e65c833128b4249a0dfc014da6",
+      "sha256": "bc949373aaaafc34e1e22903fd2b432a354467e941ff407590fdcb47adb4bb4f"
+    },
+    {
+      "path": "docs/m2_stop_preview_numeric_rejection_20261105.md",
+      "category": "documentation_candidates",
+      "bytes": 4170,
+      "git_blob": "403d538101c22f3220cdc46f2b76c1dbfd6fc2d6",
+      "sha256": "017d9a52cbca2f6e631b7e0d764472cdf4e2a08cec5817e6987b3d74b8cfd697"
+    },
+    {
+      "path": "docs/m2_l2_jerk_planning_reserve_20261105.md",
+      "category": "documentation_candidates",
+      "bytes": 3307,
+      "git_blob": "96a32159699af09769ace69970eaa77aae55a73c",
+      "sha256": "390482e3d38214f4ab8ad49eac00b84d270957535a84efee439863558c6b7d81"
+    },
+    {
+      "path": "docs/retainer_witness_qualification_20261105.md",
+      "category": "documentation_candidates",
+      "bytes": 4064,
+      "git_blob": "696e54197e0558ecde46ca6813267de00fd40b3b",
+      "sha256": "b7e6ce79752fa58af960c0b3aaca2acf23af65d58b6d56c52fc37c85e1394a77"
+    },
+    {
+      "path": "docs/m2_given_contact_expanded_act_pilot_v1.md",
+      "category": "documentation_candidates",
+      "bytes": 6655,
+      "git_blob": "537d68cdd78f027a29d00f7f4c1c9ae13857752a",
+      "sha256": "8580e3a245ca940bd32cfc589dc8103b4e5863b03951c03c69042725a97af377"
+    },
+    {
+      "path": "docs/m2_given_contact_expanded_val_scenarios_v1.md",
+      "category": "documentation_candidates",
+      "bytes": 4679,
+      "git_blob": "5d81a5ee1ad490d9d0ef81155d31188eaa0c2aec",
+      "sha256": "33ac6fd052cc0d07598856af671a7c2ef4e896bda01e4e302e040e62248b5363"
+    },
+    {
+      "path": "scripts/experiments/wam_runpod_20261026/install_sdk_cpu_bootstrap.py",
+      "category": "cpu_bootstrap_candidate",
+      "bytes": 3123,
+      "git_blob": "2019e3d8542c9c4157b6aa1c7773e2786f930d21",
+      "sha256": "179ee11cfedba1001f5932f5a357cb1fc1b7e1924a857f32219887520c47fada"
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+      "category": "source_candidates",
+      "bytes": 9789,
+      "git_blob": "fa3e246ddf4d62ab52fca2fca3feb75651b256f9",
+      "sha256": "8b83207e1a9312079e57c3ddae2d2fd31db9dddc21c643f59782a31f86cdd470"
+    },
+    {
+      "path": "sim/ausc_policy/layered_runtime_equivalence_probe.py",
+      "category": "source_candidates",
+      "bytes": 33975,
+      "git_blob": "7f015d6452028369bd790cb98ab08cb123422602",
+      "sha256": "7f72f164bd02a75f2600c8a5092e7164fd49cd1a0e13d0baf58f34b32b28aefe"
+    },
+    {
+      "path": "reports/ausc_policy/recovery_bootstrap_20261105/wam_sdk_cpu_schema_paths.pth",
+      "category": "test_support_candidates",
+      "bytes": 1224,
+      "git_blob": "25affbd6b969323292a95f25ff6681a670e3edff",
+      "sha256": "d27c76a0d9ae6d284f40930cc6da9109b400182310dcf487682d9a62c2e53046"
+    },
+    {
+      "path": "sim/auscultation_expert_layout_v1/render_expert.py",
+      "category": "source_candidates",
+      "bytes": 44497,
+      "git_blob": "ea0ec21c309c009505b8bb4be90c3aaed6a168b1",
+      "sha256": "ba66ac47002ddd6b0b0d856afc6c86e6ae4bc9aa7ff4bfa4ebe324059eb9c477"
+    },
+    {
+      "path": "sim/auscultation_training/render_expert.py",
+      "category": "source_candidates",
+      "bytes": 36671,
+      "git_blob": "fb435b831ba43fc84d1a92176c2f80ba9d8a597d",
+      "sha256": "e8839e3075dfc0f885c84470211112ee83e2b3680e89eca7112cd40f1c357190"
+    },
+    {
+      "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+      "category": "configuration_candidates",
+      "bytes": 8775,
+      "git_blob": "7c1eb385782b7abd7e1f6500ae4a3f3359b3394f",
+      "sha256": "a74ea62512b714a02fb9ceba7ba6dfdc961c7a728abb1095ed0d5ffe0dd0637c"
+    },
+    {
+      "path": "tests/test_ausc_policy_fresh_expert.py",
+      "category": "test_candidates",
+      "bytes": 43294,
+      "git_blob": "c90045946ae797f7a19b9d0a098d2d58be42d4ca",
+      "sha256": "6ba71261fb3902828fe45c649679e84c4075bf66f55ac2907c0c625a9f0487c2"
+    },
+    {
+      "path": "tests/test_ausc_policy_gravity_feedforward.py",
+      "category": "test_candidates",
+      "bytes": 22278,
+      "git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "sha256": "a56409927f464ac3acb5ce1502f8faf44be15aa1c3eca9fab92f7e30952616fe"
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "category": "test_candidates",
+      "bytes": 5726,
+      "git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "category": "documentation_candidates",
+      "bytes": 4573,
+      "git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport"
+    }
+  ],
+  "frozen_runtime_source_byte_identity": false,
+  "initial_allowlist_export_commit": "f0daec01b272b4af070b869fcfff01810013d4fe",
+  "files_identity_scope": "The current157-file selection has75 production/source files:72 exact source8 baselines and3 exact explicitly pinned CODE10 transport overrides. Five test-only, one sealed-template and one public-document adaptation are separately hash-bound; no unrecorded production edits or physical acceptance changes.",
+  "test_adaptations": [
+    {
+      "path": "tests/test_ausc_given_contact_evaluation.py",
+      "base_git_blob": "e354df21a57890a2d6e82fd922ab02cb4d1645d4",
+      "base_sha256": "b8a9855cb6b6d44f1cc81b54f399645d507bc2d83d535fbf7a7a52be83312ef4",
+      "prepared_sha256": "e48a7ea5cb425eeeae44822aa92dfc483f9346064a3ab9bd755dc10934bda61d",
+      "commit": "5e26ad61e0ce4aeeb1198a0402ddf21437c7586e",
+      "reason": "Neutral L2 observer fixture now uses current handoff.PLANNING_LIMITS instead of hardcoded old jerk 1.5. No implementation, physical gate or qualifier change."
+    },
+    {
+      "path": "tests/test_ausc_policy_gravity_feedforward.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "df043e455d3f5aa42ae2a5ea11f09c70fa3be0da",
+      "base_sha256": "a56409927f464ac3acb5ce1502f8faf44be15aa1c3eca9fab92f7e30952616fe",
+      "prepared_sha256": "812d90ccba7d7560470a25c49a75a4fd8f7678e0fcc4433f03420cadc5244165",
+      "reason": "The stub now accepts the actual required collision profile keyword, asserts full profile, and exposes it for source metadata; failure persistence assertions are unchanged."
+    },
+    {
+      "path": "tests/test_ausc_policy_m2_deployment_integration.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "d5f12ffdfc0d15d76148cbb38a6836130b0a2fdb",
+      "base_sha256": "bf04b2c15ccb2f32d63686653f1f28f6f6d742be3f8889ca94779549e11e5680",
+      "prepared_sha256": "af2125d1fcea511b0ab61605d262ccbc3173e479efe94faf7b066f13a26f5beb",
+      "reason": "The physics-audit stub accepts the current retainer_witness_contract keyword and asserts None for this non-retainer fixture. Preloads the real subclass hierarchy before the expert-branch sentinel so the fixture works in isolation. Expected outcome/source/label/cleanup assertions remain unchanged; unexpected errors now print in the assertion."
+    },
+    {
+      "path": "tests/test_ausc_layered_runtime_equivalence_probe.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "c08b6ca8b901c9677fa5f213c018432775ba2fd9",
+      "base_sha256": "d01052635c38cf0bed79f33c8bf3c2e9656dabc62134b353ed9ba75e3b9fe670",
+      "prepared_sha256": "e736b66fb251707579a4716ce2a5d61cb0ff7a7ceb00f7ace483e97db3e24d32",
+      "reason": "Checks that metadata admission attempts no USD import, even when cached by earlier tests, and that it leaves the prior pxr module mapping unchanged. Replaces the incorrect full-suite global-empty-cache assumption without changing original owned-process/native-source admission."
+    },
+    {
+      "path": "tests/test_ausc_given_contact_velocity_reserve.py",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "public_pre_fix_commit": "ae4b1958634fe62272f7494d9d6d2a8781f4dc9a",
+      "base_git_blob": "e90a57f8e4184701faa9a661da94c5ff1b99c595",
+      "base_sha256": "e9a80d32db2f8e2ffdb80eb4ea4eb5c257154597726636818ef8021c43598c66",
+      "prepared_sha256": "b1fb9d03357e3734f8180c1747fe257771188b0b64b4d6c58f819a0e955c1773",
+      "reason": "Positive velocity regression now declares the actual current v3 handoff policy and full synthetic CPU feedback contract; original joint route, instantaneous q feedback,1/240 dt, coarse row901 and strict .175 velocity assertions are retained. A separate exact metadata-None archival fixture requires the real typed64ULP stationary rejection, legal derivative endpoint and no continuation. No production, bound, clipping, skip or physical qualification changes."
+    }
+  ],
+  "verification": {
+    "focused_astra_rebuild_tests": {
+      "passed": 145
+    },
+    "real_ruckig_stop_jerk_tests": {
+      "passed": 12,
+      "ruckig": "0.15.3"
+    },
+    "velocity_tests": {
+      "passed": 43
+    },
+    "related_neutral_profile_tests_after_red_green_fixture_fix": {
+      "passed": 10,
+      "deselected": 196
+    },
+    "portable_demo_tests": {
+      "passed": 25
+    },
+    "broader_optional_sweep": {
+      "status": "interrupted",
+      "passed": 735,
+      "skipped": 3,
+      "failed": 1,
+      "wall_s": 618.4,
+      "failure": "The stale neutral-L2 fixture identified above; corrected and rechecked in the focused tests. The expensive remaining sweep was not repeated and no full-suite pass is claimed."
+    },
+    "ci_dependency": "requirements-ci.txt now declares ruckig==0.15.3; no packages installed during this preparation. Policy pytest runs with -B for the original owned-interpreter fixture contract.",
+    "static_camera_and_hall_bytes": "Public camera/calibration bytes match their frozen source8 SHA256 pins; portable/native service and protocol namespaces are byte-identical.",
+    "native_model_verification": "pending; no new ACT/Astra closed-loop result or aggregate acceptance inferred",
+    "publication_dependency_fixtures": {
+      "passed": 127,
+      "deselected": 28,
+      "wall_s": 24.27,
+      "scope": "Retained probe/bootstrap, recovery exporter, archival metadata helpers and parameterized renderer scene-reference fixtures, with required -B interpreter. Not the full policy suite.",
+      "portable_demo_tests_passed": 25,
+      "historical_asset_recheck": "python -B -m demo.benchmark --verify-assets passed; original evidence/media and historical visible claims unchanged.",
+      "static_checks": "All selected file identities, approved test adaptation, static article/schema/resources/links, 24 pending slots and historical-file preservation checked; git diff --check clean."
+    },
+    "full_policy_cloud_ci_ae4b195": {
+      "run_id": 42155499520,
+      "policy_job_id": 127688549947,
+      "failed": 17,
+      "passed": 4196,
+      "skipped": 10,
+      "passed_subtests": 72,
+      "wall_s": 853.4,
+      "perception_passed": 1363,
+      "demo_workflow": "success",
+      "scope": "Actual full cloud outcome before the current distribution/fixture repairs. The two velocity-reserve positives were subsequently diagnosed as archival metadata-None fixtures and adapted to the current v3 unit contract while retaining the exact archival guard-negative. No new full-suite pass is claimed."
+    },
+    "policy_distribution_fixture_repairs": {
+      "scope": "Seventeen cloud failures diagnosed as distribution/fixture mismatches; no production/native gate changes.",
+      "passed": 145,
+      "wall_s": 1.62,
+      "interpreter": "Anaconda Python3.9 -B",
+      "files": [
+        "tests/test_ausc_policy_fresh_expert.py",
+        "tests/test_ausc_policy_gravity_feedforward.py",
+        "tests/test_ausc_policy_m2_deployment_integration.py"
+      ],
+      "additional_nodes": [
+        "tests/test_ausc_given_contact_train.py::test_committed_template_locks_schedule_and_cannot_run_without_actual_seal",
+        "tests/test_ausc_layered_runtime_equivalence_probe.py::test_admission_reads_all_headers_then_full_preflights_without_usd_import"
+      ],
+      "prior_pxr_cache_check": {
+        "passed": 1,
+        "wall_s": 0.06,
+        "interpreter": "Python3.11 -B",
+        "method": "Seed a pre-existing pxr module entry and run the metadata-import contract test in isolation; the call must attempt no USD import and preserve prior module mapping."
+      },
+      "isolated_learned_runtime_file": {
+        "passed": 12,
+        "wall_s": 0.63,
+        "reason": "Cold module-import order works before the expert-branch sentinel is installed."
+      },
+      "real_ruckig_velocity_fixture_repair": {
+        "passed": 4,
+        "wall_s": 10.65,
+        "ruckig": "0.15.3",
+        "interpreter": "Anaconda Python3.9 -B with existing real cp39 Ruckig target",
+        "scope": "Current v3 teacher/student positives retain original route/q/DT/coarse901 and strict velocity assertions. Exact archival stationary64ULP rejection and original captured strictvelocity negative are separate passing negative tests; not physics acceptance.",
+        "paired_diagnostic": {
+          "name": "FINAL_CURRENT_CONTRACT.json",
+          "bytes": 2509,
+          "sha256": "7bccdae9d9806ec27cb382883aa0424175c44d2fd6b9273249957fdb8101b3b5"
+        },
+        "cloud_retest": "pending"
+      },
+      "combined_after_code10": {
+        "passed": 149,
+        "wall_s": 20.34,
+        "ruckig": "0.15.3",
+        "scope": "All fresh-expert/gravity/learned-runtime fixture files, formal schedule/seal and metadata admission, plus current-v3 velocity teacher/student and preserved negative cases. Public production modules include the exact CODE10 transport overrides."
+      }
+    },
+    "code10_transport": {
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "identical_production_files_to_commit": "3d2376b",
+      "production_files": 3,
+      "physical_function_ast_check": {
+        "sim/ausc_policy/m2_given_contact_pilot_native_audit.py": {
+          "changed_function_ast": [
+            "BufferedGzipText.__init__",
+            "attach"
+          ],
+          "unchanged_function_asts": 17
+        },
+        "sim/ausc_policy/m2_given_contact_evaluation.py": {
+          "changed_function_ast": [
+            "_read_native_events"
+          ],
+          "unchanged_function_asts": 109
+        },
+        "sim/ausc_policy/m2_rebuild_paired_eval.py": {
+          "changed_function_ast": [
+            "attach_analytic"
+          ],
+          "unchanged_function_asts": 33
+        }
+      },
+      "protected_neutral_functions_unchanged": [
+        "NativeAudit._append",
+        "_physical_native",
+        "_command_gates"
+      ],
+      "owner_reported_linux_raw_byte_equivalence": {
+        "rows": 26943,
+        "decoded_bytes": 1183032328,
+        "sha256": "b6fcd058a14284af08cecbbd7eb547b61b6c0e5a9a3f5ebd8da2bf1608778ea8",
+        "scope": "Original Linux transport-only fixture; no raw file download or physical/model qualification."
+      },
+      "whole_job_cap_bytes": 100000000,
+      "all24_frozen_slots": "pending",
+      "public_focused_tests": {
+        "passed": 47,
+        "wall_s": 5.95,
+        "interpreter": "Python3.11 -B",
+        "files": [
+          "tests/test_ausc_native_audit_transport.py",
+          "tests/test_ausc_given_contact_pilot_native_audit.py",
+          "tests/test_ausc_rebuild_paired_eval.py"
+        ],
+        "private_operator_tests_distributed": false,
+        "full_cloud_retest": "pending"
+      }
+    }
+  },
+  "excluded_operator_tests": [
+    {
+      "path": "tests/test_ausc_rebuild_eval_chain.py",
+      "category": "test_candidates",
+      "bytes": 10185,
+      "git_blob": "3fef30fd22a943cfec47c36496da97676bc10cbb",
+      "sha256": "e4a5d3bcc7dfcd5c236b5799044570fdba43e5d367b835e3a7d8f38f387e05bc",
+      "reason": "Tests only the intentionally non-distributed per-run scripts.rebuild_eval_chain_20261105 operator. Fixture execution reproduced its absence. Keep the operator and its test in the private experiment source; public library/native/physical tests remain distributed."
+    }
+  ],
+  "dependency_audit": {
+    "initial_selected_test_files": 66,
+    "remaining_selected_test_files": 67,
+    "method": "AST Import/ImportFrom and dynamic import/path string scan, including function bodies; resolved the parameterized renderer imports; directly executed missing fixtures rather than relying on collection.",
+    "excluded_private_operator_tests": [
+      "tests/test_ausc_rebuild_eval_chain.py"
+    ],
+    "supplemental_frozen_files": [
+      {
+        "path": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+        "reason": "tests/test_ausc_given_contact_recovery.py calls the reusable current-contract recovery exporter inside fixtures; preserve original TRAIN-only, source, physical and setter-ledger gates."
+      },
+      {
+        "path": "sim/ausc_policy/layered_runtime_equivalence_probe.py",
+        "reason": "tests/test_ausc_layered_runtime_equivalence_probe.py imports this reusable original-owner software-equivalence probe inside fixtures; preserve its original ownership, header, source and no-physics contracts."
+      },
+      {
+        "path": "reports/ausc_policy/recovery_bootstrap_20261105/wam_sdk_cpu_schema_paths.pth",
+        "reason": "Exact frozen 1,224-byte reference recipe used by test_wam_sdk_cpu_bootstrap_install.py. Generic SDK install paths, not credentials or raw data. This fixture is not automatically installed or portable qualification."
+      },
+      {
+        "path": "sim/auscultation_expert_layout_v1/render_expert.py",
+        "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions."
+      },
+      {
+        "path": "sim/auscultation_training/render_expert.py",
+        "reason": "Parameterized fixture in tests/test_ausc_policy_scene_store.py needs the frozen scene_ref replay_scene/replay_stage API and immutable scene-reference hash checks; public prior version lacked these functions."
+      },
+      {
+        "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+        "reason": "Generic formal training template read by the distributed schedule/seal test. All actual seals/input bindings remain null. Two stale handoff labels are separately adapted to the current v3 runtime contract; numerical schedule and admission remain unchanged."
+      },
+      {
+        "path": "tests/test_ausc_policy_fresh_expert.py",
+        "reason": "Exact frozen fresh-expert companion tests: valid JSON geometry fixture, current profile/observed-query interfaces, and strict original local-plane/compact capture regressions omitted from the prior public selection."
+      },
+      {
+        "path": "tests/test_ausc_policy_gravity_feedforward.py",
+        "reason": "Existing public/frozen gravity test baseline explicitly recorded for the current collision-profile fixture adaptation; original prestep-failure persistence and safety assertions remain unchanged."
+      }
+    ],
+    "other_private_operator_references_in_remaining_selected_tests": [],
+    "native_physical_library_tests_removed": false,
+    "fixture_execution": {
+      "passed": 127,
+      "deselected": 28,
+      "wall_s": 24.27,
+      "command": [
+        "/tmp/wam-paired-eval-venv/bin/python",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_ausc_layered_runtime_equivalence_probe.py",
+        "tests/test_wam_sdk_cpu_bootstrap_install.py",
+        "tests/test_ausc_given_contact_recovery.py",
+        "tests/test_ausc_given_contact_lossless_mapping.py::test_current_raw_mapping_accepts_producer_metadata_without_payload",
+        "tests/test_ausc_given_contact_lossless_mapping.py::test_current_condition_record_matches_public_producer_and_preserves_every_field",
+        "tests/test_ausc_given_contact_lossless_mapping.py::test_checkpoint_headers_route_historical_outputs_and_new_plans_to_distinct_roots",
+        "tests/test_ausc_policy_scene_store.py::test_renderers_use_scene_reference_resolver_and_track_reference_bytes",
+        "-k",
+        "not test_ausc_given_contact_recovery or labels or provenance or export or sidecar"
+      ],
+      "pre_fix_failures": [
+        "Private eval-operator test asserted intentionally excluded operator exists.",
+        "Recovery exporter and software equivalence probe were not distributed.",
+        "SDK bootstrap static reference recipe was absent.",
+        "Both public renderers lacked frozen scene-reference replay APIs."
+      ],
+      "interpreter_note": "Initial unflagged probe run had one positive owned-interpreter fixture reject. The existing fixture models platform and executable but requires actual sys.dont_write_bytecode; rerunning with -B passed. CI now uses -B; no gate or test was altered."
+    }
+  },
+  "selection_counts": {
+    "source_candidates": 75,
+    "test_candidates": 68,
+    "configuration_candidates": 2,
+    "documentation_candidates": 10,
+    "cpu_bootstrap_candidate": 1,
+    "test_support_candidates": 1,
+    "total_files": 157,
+    "frozen_reference_bytes": 3386086,
+    "prepared_bytes": 3390889
+  },
+  "configuration_adaptations": [
+    {
+      "path": "configs/ausc_policy/m2_given_contact_act_formal_v1.json",
+      "base_source_commit": "cf551566c0285a086d197553cee3299f4444f464",
+      "base_git_blob": "7c1eb385782b7abd7e1f6500ae4a3f3359b3394f",
+      "base_sha256": "a74ea62512b714a02fb9ceba7ba6dfdc961c7a728abb1095ed0d5ffe0dd0637c",
+      "prepared_sha256": "83721b0027aca2dd409c4ab7cf1b40577e7dcf9be240015450ae31b7b128e29b",
+      "reason": "Only task_contract.handoff_policy_id and fixture_spec.task_contract.handoff_policy_id update from archival v2 to the current required v3. Numerical schedule, null seals/bindings and original runtime/physical gates remain unchanged; this template cannot train without actual admission."
+    }
+  ],
+  "documentation_adaptations": [
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "base_source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "base_git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "base_sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "prepared_sha256": "d6daf986b017ecaf4f7568a69de43c602974811a29cec37cd9edd10c216073bd",
+      "reason": "Public title and logical evidence names; marks original private operator validation as non-distributed and supplies the distributed three-file test/parameterized helper commands. All original experimental transport sizes, hashes and acceptance-boundary statements retained."
+    }
+  ],
+  "source_overrides": [
+    {
+      "path": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 15662,
+      "git_blob": "888e67b1d1843782a7d1609aab5a4f5e83881bff",
+      "sha256": "90fa7e0b242fa6b2d71537a2d8a642fec845414b1384f6e956e858bd9857eda8",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 186738,
+      "git_blob": "efd74a46448b73b85c471588e81c52464beab07c",
+      "sha256": "b915366160ed096df6ac958f59ad2221b966f4b19b57080fc91ae304fbf94a6d",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 44698,
+      "git_blob": "f4b54dc61b6bde010e17ccaf43ee913b1551b122",
+      "sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_native_audit_transport.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 5726,
+      "git_blob": "e24c1addb2a3851d3ed9d055234224b1e06c283e",
+      "sha256": "6752fc0f563180088def7bc0cf6e6fa7848ed33d8bf01945a1b69ab3652f02f0",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "tests/test_ausc_rebuild_paired_eval.py",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 17759,
+      "git_blob": "22a145b09aede4cefc7148bf1ce28876a8ec9b1c",
+      "sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58",
+      "scope": "Exact reviewed CODE10 bytes; no local production/test edits."
+    },
+    {
+      "path": "docs/native_audit_xz_transport_20261106.md",
+      "source_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+      "source_epoch": "CODE10_lossless_audit_transport",
+      "bytes": 4573,
+      "git_blob": "55b3c7be7867086e044638d1daf78199dce864bb",
+      "sha256": "c3bb97a9f0ba17226704ba95edf3c61b6f7969a4de09200d49bdf1d4f67e6ab2",
+      "scope": "Exact reviewed CODE10 bytes; public documentation adaptation is separately hash-bound."
+    }
+  ],
+  "source_commit_scope": "Source8 baseline. The six per-file CODE10 transport overrides below are pinned to ad8707e; three are production files. Source8 archive SHA applies only to the baseline, not the mixed current selection.",
+  "current_production_source_pins_match": true,
+  "production_source_identity": {
+    "total": 75,
+    "source8_exact": 72,
+    "code10_exact": 3,
+    "code10_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+    "local_production_edits": false,
+    "selected_model_numerical_source_overrides": []
+  }
+}

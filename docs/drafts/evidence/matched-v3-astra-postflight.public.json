@@ -1,0 +1,42 @@
+{
+  "schema": "wam_matched_recording_postflight_v1",
+  "scenario_id": "p001030-p000476_a001231_f0023-r3",
+  "arm": "astra",
+  "physical_qualified": true,
+  "original_qualification": {
+    "bytes": 4085,
+    "sha256": "f00f95efcd8bebdffad7047ffbf397ee10eda3d18fc0aad4ba25eab75212ff7d",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-astra/output/p001030-p000476_a001231_f0023-r3/MATCHED_NATIVE_QUALIFICATION.json"
+  },
+  "original_owner_terminal": {
+    "bytes": 5517,
+    "sha256": "fffb4e81fb71c2a365a2c6225d51f0fb7f7445f852b56fe8b18bddd4d0f1bcda",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-astra/result.json"
+  },
+  "original_arm_qualifications": {
+    "bytes": 9737,
+    "sha256": "16746a6d01444eadc69e6dea0028779f96c34dcf5669d77f7d7bdd16a57aaa7c",
+    "logical_name": "diagnostics/rebuilt-eval-chain-20261106-v3/astra-QUALIFICATIONS.json"
+  },
+  "prepostflight_video_receipt": {
+    "bytes": 2182,
+    "sha256": "e4ed3709260eb21e8cee157b6b819b77ee444fe4725ad5642424633ae6530df8",
+    "logical_name": "deliverables/rebuilt-matched-videos-20261106-v1/astra-VIDEO.json"
+  },
+  "staged_video": {
+    "bytes": 658017,
+    "sha256": "eea1cf26db62ded7f762c9c5585187313f5c0d9cc78c1a6ccd47cf8eaa5c8b10",
+    "logical_name": "deliverables/rebuilt-matched-videos-20261106-v1/astra.mp4"
+  },
+  "whole_benchmark_pending": true,
+  "source_worker_closed": true,
+  "model_id": "gpt-6-astra",
+  "motor_actor": "analytic_GivenContactExpert",
+  "learned_motor_policy": false,
+  "source_record": {
+    "logical_name": "rebuilt-matched-videos-20261106-v1/astra-QUALIFIED-VIDEO.json",
+    "bytes": 1603,
+    "sha256": "af7c7b1ffdd515b652c9b62238796cc0d3d9e04bcc19b233022e6706ea6d2171",
+    "public_path": null
+  }
+}

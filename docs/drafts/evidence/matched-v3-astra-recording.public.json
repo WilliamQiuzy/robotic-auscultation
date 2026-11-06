@@ -1,0 +1,76 @@
+{
+  "schema": "wam_matched_actual_recording_v1",
+  "scenario_id": "p001030-p000476_a001231_f0023-r3",
+  "arm": "astra",
+  "actual_recording": true,
+  "new_render": false,
+  "source_video": {
+    "bytes": 658017,
+    "sha256": "eea1cf26db62ded7f762c9c5585187313f5c0d9cc78c1a6ccd47cf8eaa5c8b10",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-astra/output/p001030-p000476_a001231_f0023-r3/actual_fresh_expert.mp4"
+  },
+  "staged_video": {
+    "bytes": 658017,
+    "sha256": "eea1cf26db62ded7f762c9c5585187313f5c0d9cc78c1a6ccd47cf8eaa5c8b10",
+    "logical_name": "deliverables/rebuilt-matched-videos-20261106-v1/astra.mp4"
+  },
+  "frames": {
+    "bytes": 101940,
+    "sha256": "573fe6fc0f3a7d00b3600c2fb70342d0d7eaa6a9d05fcd72954c910687abc377",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-astra/output/p001030-p000476_a001231_f0023-r3/video_frames.json"
+  },
+  "worker": {
+    "bytes": 702,
+    "sha256": "855bf40ad24475fdf6482d93edc896484f960a9f38cc36bb2b824ec66388c969",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-astra/output/p001030-p000476_a001231_f0023-r3.result.json"
+  },
+  "run_result": {
+    "bytes": 579723,
+    "sha256": "96d692016771fcb1ddfd3b2d97c65f20dd502d00309dde7b351d08b6adbe40e9",
+    "logical_name": "runs/ausc_policy/rebuilt-frozen-eval-20261106-v3-astra/output/p001030-p000476_a001231_f0023-r3/fresh_expert_result.json"
+  },
+  "physical_qualified": null,
+  "original_worker_physical_reported": true,
+  "qualification_pending": true,
+  "model_id": "gpt-6-astra",
+  "model_request_count": 3,
+  "admitted_decision_count": 3,
+  "native_skill_dispatch_count": 3,
+  "motor_actor": "analytic_GivenContactExpert",
+  "ffprobe": {
+    "programs": [],
+    "streams": [
+      {
+        "width": 640,
+        "height": 360,
+        "r_frame_rate": "10/1",
+        "nb_frames": "1122"
+      }
+    ],
+    "format": {
+      "duration": "112.200000"
+    }
+  },
+  "native_frame_stride": 24,
+  "physics_hz": 240,
+  "whole_benchmark_pending": true,
+  "simulation_time_playback": true,
+  "api_wait_in_video": false,
+  "source_record": {
+    "logical_name": "rebuilt-matched-videos-20261106-v1/astra-VIDEO.json",
+    "bytes": 2182,
+    "sha256": "e4ed3709260eb21e8cee157b6b819b77ee444fe4725ad5642424633ae6530df8"
+  },
+  "public_assets": {
+    "astra.mp4": {
+      "path": "assets/matched-v3-astra.mp4",
+      "bytes": 658017,
+      "sha256": "eea1cf26db62ded7f762c9c5585187313f5c0d9cc78c1a6ccd47cf8eaa5c8b10"
+    },
+    "astra-poster.png": {
+      "path": "assets/matched-v3-astra-poster.png",
+      "bytes": 87570,
+      "sha256": "eaac81f97af9e2ecba6a66e25c9ba9b536d19c14beab7c2446e3502c5b9119d3"
+    }
+  }
+}

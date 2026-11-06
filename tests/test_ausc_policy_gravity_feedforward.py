@@ -418,7 +418,10 @@ def test_run_probe_saves_prestep_failure_independently_of_trace_and_in_final_res
         freshly_generated=True, geometry_artifacts={}, world_from_left_base=np.eye(4).tolist(), plans=[])
     monkeypatch.setattr(sys, 'platform', 'linux'); monkeypatch.setenv('AUSC_OWNED_RUN', '1')
     monkeypatch.setattr(fresh, 'read_plans', lambda *args: ([object()], metadata))
-    monkeypatch.setattr(contact_collision, 'ContactCollisionChecker', lambda *args: SimpleNamespace(static_bundle={}))
+    def collision_checker(*args, profile):
+        assert profile == 'full'
+        return SimpleNamespace(static_bundle={}, profile=profile)
+    monkeypatch.setattr(contact_collision, 'ContactCollisionChecker', collision_checker)
     monkeypatch.setattr(fresh, 'FreshContactEnv', lambda *args, **kwargs: env)
     monkeypatch.setattr(fresh, 'FreshExpert', Controller)
     monkeypatch.setattr(fresh, '_VideoRecorder', Recorder)

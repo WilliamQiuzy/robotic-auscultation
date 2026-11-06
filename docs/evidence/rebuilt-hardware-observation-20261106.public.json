@@ -1,0 +1,21 @@
+{
+  "schema": "ausc-postrun-hardware-observation-public-v1",
+  "source_record": {
+    "logical_name": "rebuilt-hardware-observation-20261106-v1/SUMMARY.json",
+    "bytes": 1439,
+    "sha256": "f9543e6045785051557f6481d479cd1565153a87fdb87ef76073a5034f1d5dc8",
+    "public_path": null
+  },
+  "observed_utc": "2026-11-06T09:38:25.047492+00:00",
+  "observation_scope": "Post-run hardware observation on the same replacement Pod; this is not an owner-generated execution receipt or a controlled speed comparison",
+  "gpus": [
+    {
+      "name": "NVIDIA A40",
+      "memory_total_MiB": 46068,
+      "driver_version": "595.91.07"
+    }
+  ],
+  "cpu_quota": "765000 100000",
+  "memory_limit_bytes": 49999998976,
+  "runtime_affinity_claimed": false
+}

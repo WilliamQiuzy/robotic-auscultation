@@ -1,0 +1,374 @@
+{
+  "schema": "rebuilt_act_offline_public_extract_v1",
+  "source_summary": {
+    "logical_name": "rebuilt-act-selected-20261106-v1/summary.json",
+    "bytes": 224418,
+    "sha256": "d04f0298a436d951c468d80e6ebbb8b301dae85748965650571dc5fe849d7729",
+    "created_utc": "2026-11-06T02:43:22.831404+00:00"
+  },
+  "actual_completed_training": true,
+  "completed_steps": 20000,
+  "selected_step": 4500,
+  "selection": "earliest minimum full-selection-VAL H20 raw-target MAE",
+  "metric": {
+    "horizon": 20,
+    "stored_unit": "rad",
+    "figure_unit": "mrad",
+    "figure_conversion": 1000,
+    "space": "raw absolute joint-target prediction MAE; not measured tracking/contact"
+  },
+  "scope": {
+    "train": {
+      "episode_count": 14,
+      "episode_ids": [
+        "rebuilt-expert-capture-20261105-v2-p001120-p000474_a001230_f0000-r3",
+        "rebuilt-expert-capture-20261105-v2-p001120-p000474_a001230_f0000-l3",
+        "rebuilt-expert-capture-20261105-v2-p001120-p000476_a001231_f0023-r3",
+        "rebuilt-expert-capture-20261105-v2-p001120-p000476_a001231_f0023-l3",
+        "rebuilt-expert-capture-20261105-v2-p000758-p000474_a001230_f0000-r3",
+        "rebuilt-expert-capture-20261105-v2-p000758-p000476_a001231_f0023-r3",
+        "rebuilt-expert-capture-20261105-v2-p000758-p000476_a001231_f0023-l3",
+        "rebuilt-expert-capture-20261105-v2-p001031-p000474_a001230_f0000-r3",
+        "rebuilt-expert-capture-20261105-v2-p001031-p000476_a001231_f0023-r3",
+        "rebuilt-expert-capture-20261105-v2-p001031-p000476_a001231_f0023-l3",
+        "rebuilt-expert-capture-20261105-v2-p000833-p000474_a001230_f0000-r3",
+        "rebuilt-expert-capture-20261105-v2-p000833-p000474_a001230_f0000-l3",
+        "rebuilt-expert-capture-20261105-v2-p000833-p000476_a001231_f0023-r3",
+        "rebuilt-expert-capture-20261105-v2-p000833-p000476_a001231_f0023-l3"
+      ],
+      "subject_ids": [
+        "p000758",
+        "p000833",
+        "p001031",
+        "p001120"
+      ],
+      "window_count": 7558
+    },
+    "validation": {
+      "episode_count": 4,
+      "episode_ids": [
+        "rebuilt-expert-capture-20261105-v2-p000923-p000474_a001230_f0000-r3",
+        "rebuilt-expert-capture-20261105-v2-p000923-p000474_a001230_f0000-l3",
+        "rebuilt-expert-capture-20261105-v2-p000923-p000476_a001231_f0023-r3",
+        "rebuilt-expert-capture-20261105-v2-p000923-p000476_a001231_f0023-l3"
+      ],
+      "subject_ids": [
+        "p000923"
+      ],
+      "window_count": 2193
+    }
+  },
+  "dataset_plan": {
+    "planned_slots": 20,
+    "positive_expert_episodes": 18,
+    "train_positive_episodes": 14,
+    "selection_validation_positive_episodes": 4,
+    "geometric_unavailable_slots": 2,
+    "scope": "Rebuilt TRAIN/selection data only; not the independent frozen eight-scenario comparison. Planned/absence counts are experiment-owner supplied; episode/window counts are in the bound training summary."
+  },
+  "selected_metrics": {
+    "train": {
+      "act_h20_mae_rad": 0.005664017778829986,
+      "hold_h20_mae_rad": 0.15206406101703535,
+      "constant_velocity_h20_mae_rad": 0.13828226127464352
+    },
+    "validation": {
+      "act_h20_mae_rad": 0.02652257141895285,
+      "hold_h20_mae_rad": 0.1500954356998217,
+      "constant_velocity_h20_mae_rad": 0.13649159327522697
+    }
+  },
+  "evaluations": [
+    {
+      "step": 500,
+      "train_act_h20_mae_rad": 0.02273321722926501,
+      "validation_act_h20_mae_rad": 0.04047877038939183
+    },
+    {
+      "step": 1000,
+      "train_act_h20_mae_rad": 0.013081190626967762,
+      "validation_act_h20_mae_rad": 0.032560522933899744
+    },
+    {
+      "step": 1500,
+      "train_act_h20_mae_rad": 0.012502543490759068,
+      "validation_act_h20_mae_rad": 0.030741056906590056
+    },
+    {
+      "step": 2000,
+      "train_act_h20_mae_rad": 0.011604900872447744,
+      "validation_act_h20_mae_rad": 0.03195499438765784
+    },
+    {
+      "step": 2500,
+      "train_act_h20_mae_rad": 0.009559993715448935,
+      "validation_act_h20_mae_rad": 0.028305345891326914
+    },
+    {
+      "step": 3000,
+      "train_act_h20_mae_rad": 0.010704806449028935,
+      "validation_act_h20_mae_rad": 0.028971077421307476
+    },
+    {
+      "step": 3500,
+      "train_act_h20_mae_rad": 0.009425377706602721,
+      "validation_act_h20_mae_rad": 0.02816380069673223
+    },
+    {
+      "step": 4000,
+      "train_act_h20_mae_rad": 0.007688692155633736,
+      "validation_act_h20_mae_rad": 0.027113459623126872
+    },
+    {
+      "step": 4500,
+      "train_act_h20_mae_rad": 0.005664017778829986,
+      "validation_act_h20_mae_rad": 0.02652257141895285
+    },
+    {
+      "step": 5000,
+      "train_act_h20_mae_rad": 0.010441084888875008,
+      "validation_act_h20_mae_rad": 0.029735142403101582
+    },
+    {
+      "step": 5500,
+      "train_act_h20_mae_rad": 0.009262455998486054,
+      "validation_act_h20_mae_rad": 0.02915345280174275
+    },
+    {
+      "step": 6000,
+      "train_act_h20_mae_rad": 0.007606970984036445,
+      "validation_act_h20_mae_rad": 0.027962173546387963
+    },
+    {
+      "step": 6500,
+      "train_act_h20_mae_rad": 0.006868588501631807,
+      "validation_act_h20_mae_rad": 0.028054156743894644
+    },
+    {
+      "step": 7000,
+      "train_act_h20_mae_rad": 0.006456980654479528,
+      "validation_act_h20_mae_rad": 0.02784359659212471
+    },
+    {
+      "step": 7500,
+      "train_act_h20_mae_rad": 0.007287638311719704,
+      "validation_act_h20_mae_rad": 0.028561163456725467
+    },
+    {
+      "step": 8000,
+      "train_act_h20_mae_rad": 0.007537488173394593,
+      "validation_act_h20_mae_rad": 0.0284504442580203
+    },
+    {
+      "step": 8500,
+      "train_act_h20_mae_rad": 0.007388458315727396,
+      "validation_act_h20_mae_rad": 0.028996004158475922
+    },
+    {
+      "step": 9000,
+      "train_act_h20_mae_rad": 0.00781944633081632,
+      "validation_act_h20_mae_rad": 0.029006782121478333
+    },
+    {
+      "step": 9500,
+      "train_act_h20_mae_rad": 0.007951538433041491,
+      "validation_act_h20_mae_rad": 0.029519133215723373
+    },
+    {
+      "step": 10000,
+      "train_act_h20_mae_rad": 0.006120289066509905,
+      "validation_act_h20_mae_rad": 0.02933140709184153
+    },
+    {
+      "step": 10500,
+      "train_act_h20_mae_rad": 0.007123831583950993,
+      "validation_act_h20_mae_rad": 0.029457718958397695
+    },
+    {
+      "step": 11000,
+      "train_act_h20_mae_rad": 0.007108445646502762,
+      "validation_act_h20_mae_rad": 0.029446105602586543
+    },
+    {
+      "step": 11500,
+      "train_act_h20_mae_rad": 0.006769363713927317,
+      "validation_act_h20_mae_rad": 0.02908022983351256
+    },
+    {
+      "step": 12000,
+      "train_act_h20_mae_rad": 0.006363945496072931,
+      "validation_act_h20_mae_rad": 0.029253192229333765
+    },
+    {
+      "step": 12500,
+      "train_act_h20_mae_rad": 0.006483344066971989,
+      "validation_act_h20_mae_rad": 0.0289549905653341
+    },
+    {
+      "step": 13000,
+      "train_act_h20_mae_rad": 0.0050443120075373896,
+      "validation_act_h20_mae_rad": 0.028918510246434558
+    },
+    {
+      "step": 13500,
+      "train_act_h20_mae_rad": 0.005613449074667959,
+      "validation_act_h20_mae_rad": 0.029762040400508442
+    },
+    {
+      "step": 14000,
+      "train_act_h20_mae_rad": 0.00606158510123436,
+      "validation_act_h20_mae_rad": 0.029135598706246792
+    },
+    {
+      "step": 14500,
+      "train_act_h20_mae_rad": 0.0050702711404985185,
+      "validation_act_h20_mae_rad": 0.02789731754874416
+    },
+    {
+      "step": 15000,
+      "train_act_h20_mae_rad": 0.005900645106990748,
+      "validation_act_h20_mae_rad": 0.029126327475385683
+    },
+    {
+      "step": 15500,
+      "train_act_h20_mae_rad": 0.005653832960065554,
+      "validation_act_h20_mae_rad": 0.02849010824995771
+    },
+    {
+      "step": 16000,
+      "train_act_h20_mae_rad": 0.005031672302817573,
+      "validation_act_h20_mae_rad": 0.02949586855575925
+    },
+    {
+      "step": 16500,
+      "train_act_h20_mae_rad": 0.005610750390356188,
+      "validation_act_h20_mae_rad": 0.02946880270596013
+    },
+    {
+      "step": 17000,
+      "train_act_h20_mae_rad": 0.006601734142945093,
+      "validation_act_h20_mae_rad": 0.03031748426534748
+    },
+    {
+      "step": 17500,
+      "train_act_h20_mae_rad": 0.004299712050014444,
+      "validation_act_h20_mae_rad": 0.0282718870883316
+    },
+    {
+      "step": 18000,
+      "train_act_h20_mae_rad": 0.0058754898731714295,
+      "validation_act_h20_mae_rad": 0.029620732140289333
+    },
+    {
+      "step": 18500,
+      "train_act_h20_mae_rad": 0.004996090419576106,
+      "validation_act_h20_mae_rad": 0.028999272797858286
+    },
+    {
+      "step": 19000,
+      "train_act_h20_mae_rad": 0.004904961578669385,
+      "validation_act_h20_mae_rad": 0.02919140469688901
+    },
+    {
+      "step": 19500,
+      "train_act_h20_mae_rad": 0.004651535134115777,
+      "validation_act_h20_mae_rad": 0.028692681961640272
+    },
+    {
+      "step": 20000,
+      "train_act_h20_mae_rad": 0.004092254212584998,
+      "validation_act_h20_mae_rad": 0.02925974529678455
+    }
+  ],
+  "cpu_equivalence": {
+    "passed": true,
+    "comparisons": {
+      "train": {
+        "metric_atol": 1e-07,
+        "metric_rtol": 1e-05,
+        "passed": true,
+        "prediction_atol": 1e-06,
+        "prediction_max_abs_rad": 1.40102618839677e-06,
+        "prediction_rtol": 1e-05
+      },
+      "validation": {
+        "metric_atol": 1e-07,
+        "metric_rtol": 1e-05,
+        "passed": true,
+        "prediction_atol": 1e-06,
+        "prediction_max_abs_rad": 1.541128807236447e-06,
+        "prediction_rtol": 1e-05
+      }
+    }
+  },
+  "sources": {
+    "training_complete": {
+      "name": "COMPLETE.json",
+      "bytes": 236386,
+      "sha256": "96ea177b0ad31f52463b8a9afc0f61ab33e01db752a4cb499538be868cd8fbe9"
+    },
+    "owner": {
+      "name": "result.json",
+      "bytes": 2894,
+      "sha256": "a0b220cb97cb30ce37b6b9fba0bd9879b17e5d7fea3574d128f15d833d443368"
+    },
+    "checkpoint": {
+      "name": "best_expanded_pilot.pt",
+      "bytes": 10667201,
+      "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e"
+    },
+    "dataset": {
+      "name": "COMPLETE.json",
+      "bytes": 235793,
+      "sha256": "09ade89538f50183224e3b32f33b38d3056d7f1ea2505784a21a4cffc442834c"
+    },
+    "cpu_equivalence": {
+      "name": "CPU_EQUIVALENCE.json",
+      "bytes": 8623,
+      "sha256": "92dd2d96b072e4ec7072c204b32add47a85984a8520ee7a3f386f2723dca9fbe"
+    }
+  },
+  "state_only": true,
+  "learned_motor_scope": "L2 approach; unchanged analytic L3 contact/hold/release/home",
+  "native_result_scope": "At the02:43:22UTC offline-summary cutoff, no native physical verdict was supplied. Later native-smoke observations are separate evidence; this source does not bind them. All24 frozen method slots remain pending.",
+  "raw_arrays_or_weights_transferred": false,
+  "broad_generalization_claim": false,
+  "formal_test_payloads_opened": false,
+  "sanitization": "Selected scalar aggregate metrics and logical-name/bytes/SHA references only. Raw source paths, endpoints, per-run configurations, raw arrays and weights are not distributed.",
+  "model_configuration": {
+    "chunk_size": 20,
+    "dim_feedforward": 1024,
+    "dim_model": 256,
+    "dropout": 0.1,
+    "n_action_steps": 10,
+    "n_decoder_layers": 1,
+    "n_encoder_layers": 2,
+    "n_heads": 4,
+    "n_obs_steps": 1,
+    "pretrained_backbone_weights": null,
+    "temporal_ensemble_coeff": null,
+    "use_vae": false,
+    "vision_backbone": "resnet18"
+  },
+  "model_configuration_note": "Original ACT architecture fields are preserved; state_only=true and learned_motor_scope define actual input/control scope. The vision_backbone configuration field does not establish an image input.",
+  "owner_timing_handoff": {
+    "provenance": "Experiment-owner supplied original owner clocks; these fields are separate from the bound offline summary, not independently downloaded receipts.",
+    "collection": {
+      "started_utc": "2026-11-05T23:41:48.211862+00:00",
+      "ended_utc": "2026-11-06T02:08:14.960204+00:00",
+      "elapsed_s": 8786.748342,
+      "completed": true,
+      "gpu_released": true,
+      "qualified_data_episodes": 18,
+      "declared_slots": 20
+    },
+    "training": {
+      "started_utc": "2026-11-06T02:14:24.883529+00:00",
+      "ended_utc": "2026-11-06T02:30:35.986116+00:00",
+      "elapsed_s": 971.102587,
+      "normal_owner": true,
+      "gpu_released": true
+    },
+    "scope": "Whole collection/training owner wall time; not one-point throughput, native physical motion speed or future Astra inference latency."
+  }
+}

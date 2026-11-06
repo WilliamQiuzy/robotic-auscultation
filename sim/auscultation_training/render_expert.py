@@ -19,6 +19,7 @@ import math
 import os
 from pathlib import Path
 import subprocess
+from sim.ausc_policy.scene_store import replay_scene,replay_stage
 
 
 def validate_replay_timing(rows, indices):
@@ -349,7 +350,7 @@ def main():
     out = (args.output or root / "results" / ("video_" + name)).resolve()
     if out == inputs or inputs in out.parents:
         parser.error("--output must be outside the immutable episode directory")
-    source = inputs / "training_scene.usdc"
+    source = replay_scene(inputs)
     trace = inputs / "expert_trace.jsonl"
     replay = inputs / "expert_replay.npz"
     outcome_path = inputs / "outcome.json"
@@ -358,6 +359,9 @@ def main():
     # matched to the posture auditor, not a second read of a mutable pathname.
     replay_bytes = replay.read_bytes()
     input_hashes = {source.name: sha256(source), replay.name: hashlib.sha256(replay_bytes).hexdigest()}
+    if (inputs/'scene_ref.json').exists():
+        input_files.append(inputs/'scene_ref.json')
+        input_hashes['scene_ref.json']=sha256(inputs/'scene_ref.json')
     rows, input_hashes[trace.name] = read_hashed_json(trace, lines=True)
     outcome, input_hashes[outcome_path.name] = read_hashed_json(outcome_path)
     presentation = replay_presentation(outcome, rows)
@@ -417,7 +421,7 @@ def main():
         fps = 15
 
         # Flatten to an anonymous layer before edits; source files remain read-only.
-        original = Usd.Stage.Open(str(source))
+        original = replay_stage(inputs)
         stage = Usd.Stage.Open(original.Flatten())
         del original
         for path in ("/Render", "/Replicator", "/Orchestrator"):

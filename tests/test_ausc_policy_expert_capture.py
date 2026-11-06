@@ -282,7 +282,8 @@ def test_run_probe_owns_capture_and_revokes_for_any_cleanup_failure(tmp_path,mon
     monkeypatch.setattr(fresh,'FreshContactEnv',RunEnv);monkeypatch.setattr(fresh,'FreshExpert',Controller)
     monkeypatch.setattr(fresh,'_VideoRecorder',Recorder)
     monkeypatch.setattr(fresh,'read_plans',lambda *args:([object()],metadata))
-    monkeypatch.setattr(contact_collision,'ContactCollisionChecker',lambda *args:SimpleNamespace(static_bundle={}))
+    monkeypatch.setattr(contact_collision,'ContactCollisionChecker',
+        lambda *args,**kwargs:SimpleNamespace(static_bundle={},profile=kwargs.get('profile','full')))
     monkeypatch.setattr(fresh,'require_geometry_artifacts',lambda *args:{})
     original_write=fresh._write
     def write(path,value):

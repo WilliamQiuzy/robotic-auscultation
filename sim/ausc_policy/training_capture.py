@@ -37,6 +37,8 @@ Integration contract:
   benchmarking and a native integration probe remain separate requirements.
 
 RGB: full-FOV 256x144 JPEG quality 85, no native camera modification.
+Input dimensions are explicit: direct native 256x144 needs no resize; declared
+640x360 sources retain the original BOX RGB / nearest valid-depth downsample.
 Depth: nearest sampled metric optical Z, uint32 units of 0.0001 m, separate
 bool validity; rounding error <=0.00005 m. Temporal storage XORs each
 quantized frame with its predecessor, with absolute keyframes at index 0 and
@@ -46,6 +48,10 @@ invalid pixels become 0 with validity false, never a normalized depth image.
 Numbers are lossless little-endian float64/int64 in one compressed NPZ per
 record. Both files stream: <uint32 length,uint32 CRC32,payload> frames, RGB
 payload JPEG and numeric payload NPZ. No per-physics JSONL/raw frame folders.
+New collectors may explicitly opt into ``NUMERIC_CONTAINER_CODEC``: one
+deterministic gzip member around the unchanged numeric framed bytes. Its
+receipt binds decoded size/SHA/count; artifact sizes and budgets remain the
+actual stored bytes. Legacy recordings have no container declaration.
 """
 from copy import deepcopy
 import hashlib
@@ -63,12 +69,13 @@ import numpy as np
 from PIL import Image
 
 from . import m2_contract
-from .m2_capture import APPROVED_CAMERA_SHA256, TARGETS
+from .m2_capture import APPROVED_CAMERA_SHA256, TARGETS, image_size
 from .storage_policy import EPISODE_LIMIT_BYTES
 from ..auscultation_vla_v2.hall import HallCalibration, HallPacket
 
 SCHEMA = 'm2_compact_single_target_rgbd256x144_state17_hall20_v3'
 ADAPTIVE_SCHEMA = 'm2_compact_single_target_rgbd256x144_state17_hall20_v4'
+GIVEN_ADAPTIVE_SCHEMA = 'm2_given_compact_raw_target_audit_v5'
 TERMINAL_SCHEMA = 'm2_compact_terminal_native_ticks_v1'
 POLICY_SIZE = (256, 144)
 NATIVE_SIZE = (640, 360)
@@ -80,6 +87,11 @@ DEPTH_KEYFRAME_INTERVAL = 20
 HEADER = struct.Struct('<II')
 RECEIPT_RESERVE = 8192
 MAX_RECORD_BYTES = 2_000_000
+NUMERIC_CONTAINER_CODEC = 'framed_npz_gzip_single_member_v1'
+_NUMERIC_GZIP_HEADER = b'\x1f\x8b\x08\x00\x00\x00\x00\x00\x02\x03'
+# A fresh empty gzip member is 20 bytes; after a record's sync flush the
+# remaining finish block/trailer is smaller. Reserve the full bound throughout.
+NUMERIC_CONTAINER_FINISH_RESERVE = 20
 MAX_FRAMES = (2**63-1)//12-1  # Final native step count must also fit signed int64.
 QUALIFICATIONS = dict(training_eligible=False, physical_qualification=False,
                       artifact_hashes_verified=False)
@@ -89,6 +101,13 @@ ACTION_FIELDS = {'q_command','action_issued_at_s','action_endpoint_at_s',
 TICK_FIELDS = {'episode_id','target_id','step_count','physics_row','time_s','phase',
                'control_owner','measured_q','q_command','command_issued_at_s',
                'command_readback_at_s','command_source_id','observation_source_id'}
+
+
+def _scaled_intrinsics(camera, size):
+    original=camera['intrinsics']
+    sx,sy=size[0]/original['width'],size[1]/original['height']
+    result={key:original[key]*scale for key,scale in (('fx',sx),('fy',sy),('cx',sx),('cy',sy))}
+    return dict(result,width=size[0],height=size[1])
 
 
 def _json_bytes(value):
@@ -144,6 +163,11 @@ def _framed(payload):
     if not 0 < len(payload) <= MAX_RECORD_BYTES:
         raise ValueError('Encoded frame exceeds bounded record size')
     return HEADER.pack(len(payload), zlib.crc32(payload))+payload
+
+
+def _require_numeric_container_codec(codec):
+    if codec is not None and (type(codec) is not str or codec != NUMERIC_CONTAINER_CODEC):
+        raise ValueError('Unsupported numeric container codec version')
 
 
 def _require_episode_metadata(meta):
@@ -212,9 +236,15 @@ class CompactTrainingCapture:
     close checks record completeness, not task success or physics acceptance.
     Source bindings/counts supplied by the caller are attestations only; all
     eligibility flags remain false. No flush promises power-loss durability.
+    ``numeric_container_codec=None`` preserves legacy storage. The explicit
+    ``NUMERIC_CONTAINER_CODEC`` option only compresses unchanged framed bytes;
+    it does not change acquisition, precision, timestamps or terminal evidence.
     """
     def __init__(self, output, *, metadata, camera_bytes, calibration_bytes,
-                 code_bindings, expected_frames=None, max_frames=None, limit_bytes=EPISODE_LIMIT_BYTES):
+                 code_bindings, expected_frames=None, max_frames=None, limit_bytes=EPISODE_LIMIT_BYTES,
+                 native_image_size=NATIVE_SIZE, numeric_container_codec=None):
+        _require_numeric_container_codec(numeric_container_codec)
+        self.native_image_size=image_size(native_image_size)
         _require_episode_metadata(metadata)
         if type(limit_bytes) is not int or not RECEIPT_RESERVE < limit_bytes <= EPISODE_LIMIT_BYTES:
             raise ValueError('Byte limit must be <=100000000 and reserve a close receipt')
@@ -236,25 +266,31 @@ class CompactTrainingCapture:
         if meta['target_source'] == 'gt_plus_measured_noise': required.append('noise_model')
         for key in required: _hash(code.get(key),key)
         code.update(writer=_sha(__file__), action_contract=_sha(m2_contract.__file__))
+        if meta['target_source']=='given_contact_pose':
+            from . import m2_given_contact_intent as intent
+            if duration_mode!='adaptive': raise ValueError('Given raw target acquisition requires adaptive native audit')
+            code.update(raw_intent_dispatcher=_sha(intent.__file__))
+            from . import m2_given_contact_handoff as handoff
+            if meta.get('handoff_policy_id')==handoff.POLICY_ID:code['interior_handoff']=_sha(handoff.__file__)
         meta.update(QUALIFICATIONS)
         camera = json.loads(camera_bytes)
-        intrinsics = camera['intrinsics']
-        sx,sy = POLICY_SIZE[0]/intrinsics['width'],POLICY_SIZE[1]/intrinsics['height']
         # Camera JSON uses pixel-boundary/principal-center coordinates. Full
         # FOV resize scales them directly; no cropped/recentered intrinsics.
-        policy_intrinsics = {key:intrinsics[key]*scale for key,scale in
-                             (('fx',sx),('fy',sy),('cx',sx),('cy',sy))}
-        policy_intrinsics.update(width=POLICY_SIZE[0],height=POLICY_SIZE[1])
+        policy_intrinsics = _scaled_intrinsics(camera,POLICY_SIZE)
+        direct=self.native_image_size==POLICY_SIZE
         self._manifest = dict(schema=SCHEMA if duration_mode == 'fixed' else ADAPTIVE_SCHEMA,metadata=meta,code_bindings=code,
             camera_sha256=APPROVED_CAMERA_SHA256,calibration_sha256=self.calibration.sha256,
-            policy_image_size=list(POLICY_SIZE),native_image_size=list(NATIVE_SIZE),
+            policy_image_size=list(POLICY_SIZE),native_image_size=list(self.native_image_size),
+            native_intrinsics=_scaled_intrinsics(camera,self.native_image_size),image_input_contract='explicit_native_size_v1',
             policy_intrinsics=policy_intrinsics,camera_transform_unchanged=True,
             capture_hz=20,hall_adc_nominal_hz=100,depth_unit_m=DEPTH_UNIT_M,
             depth_storage_dtype=DEPTH_DTYPE.str,depth_max_m=DEPTH_MAX_M,
             depth_codec=DEPTH_CODEC,depth_keyframe_interval=DEPTH_KEYFRAME_INTERVAL,
-            depth_semantics='metric_optical_z',depth_resize='nearest pixel center; no invalid interpolation',
+            depth_semantics='metric_optical_z',depth_resize=('identity; direct native policy resolution' if direct else
+                'nearest pixel center; no invalid interpolation'),
             depth_invalid='zero with false validity; raw invalid sentinel value is not retained',
-            rgb_encoding='JPEG quality85 subsampling0; full-FOV BOX resize',
+            rgb_encoding=('JPEG quality85 subsampling0; direct native policy resolution' if direct else
+                'JPEG quality85 subsampling0; full-FOV BOX resize'),
             numeric_encoding='framed ZIP-deflated NPZ; little-endian float64/int64; no pickle',
             hall_downsampling='latest causally received packet; no averaging',
             hall_batch_window='first observation includes episode start; later receive times strictly after prior observation with 1e-9s tolerance',
@@ -264,15 +300,26 @@ class CompactTrainingCapture:
             duration_mode=duration_mode,expected_frames=expected_frames,max_frames=bound,
             native_clock='episode-local 240 Hz steps; one-based step count, not zero-based row index',
             limit_bytes=limit_bytes,**QUALIFICATIONS)
+        if meta['target_source']=='given_contact_pose':
+            self._manifest.update(schema=GIVEN_ADAPTIVE_SCHEMA,
+                action_semantics_id=intent.ACTION_SEMANTICS_ID,
+                action_semantics='q_command is applied endpoint audit only; raw setter labels live in bound outer native audit')
         self._files = FILES if duration_mode == 'fixed' else FILES+('terminal.json',)
         if duration_mode == 'adaptive':
             self._manifest.update(terminal_schema=TERMINAL_SCHEMA,h20_eligible=False,
                 terminal_observation='last native 20 Hz observation; action fields absent',
                 terminal_tick_sources='native_backend/state_adapter/action_source bindings; caller attestations',
                 terminal_audit_scope='suffix only; full-episode intervening event/physics audit still required')
+        if 'observation_contract' in meta:
+            m2_contract.require_observation_contract(meta)
+            self._manifest['observation_contract']=deepcopy(meta['observation_contract'])
+        if numeric_container_codec is not None:
+            self._manifest['numeric_container_codec'] = numeric_container_codec
         manifest = _json_bytes(self._manifest)
         initial = len(manifest)+len(camera_bytes)+len(calibration_bytes)
-        if initial+RECEIPT_RESERVE > limit_bytes: raise ValueError('Metadata exceeds byte budget')
+        self._numeric_finish_reserve = NUMERIC_CONTAINER_FINISH_RESERVE if numeric_container_codec else 0
+        if initial+RECEIPT_RESERVE+self._numeric_finish_reserve > limit_bytes:
+            raise ValueError('Metadata exceeds byte budget')
         self.output = Path(output)
         self._count = 0
         self._last_hall_time = -np.inf
@@ -286,6 +333,13 @@ class CompactTrainingCapture:
         self._native_endpoint = None
         self._terminal_observation = False
         self._terminal_evidence = None
+        # Raw DEFLATE plus an explicit gzip header/trailer avoids zlib's
+        # platform-dependent OS header. Sync flushes retain inter-record history.
+        self._numeric_compressor = zlib.compressobj(9,zlib.DEFLATED,-15) if numeric_container_codec else None
+        self._numeric_finished = False
+        self._numeric_logical_bytes = 0
+        self._numeric_logical_sha = hashlib.sha256()
+        self._numeric_logical_crc = 0
         self._rgb = self._numeric = self._terminal = None
         self.output.mkdir(parents=True,exist_ok=False)
         try:
@@ -312,6 +366,10 @@ class CompactTrainingCapture:
         if self._count >= self._manifest['max_frames']: raise ValueError('Extra frame exceeds predeclared maximum count')
         if target_source != self._manifest['metadata']['target_source']:
             raise ValueError('Frame target source differs from bound estimate provenance')
+        if target_source == 'given_contact_pose':
+            ref = self._manifest['metadata']['reference_sha256']
+            if target_estimate_source_id != 'given-contact-'+ref:
+                raise ValueError('Frame given reference source changed')
         estimate_time = _scalar(target_estimate_time_s,'target estimate timestamp')
         if not 0 <= estimate_time <= t or t-estimate_time > .05+1e-9:
             raise ValueError('Target estimate must be causal and at most one frame old')
@@ -356,20 +414,24 @@ class CompactTrainingCapture:
         if not np.isfinite([decoded.hall_voltage_v,decoded.spring_force_estimate_n,decoded.displacement_estimate_m]).all():
             raise ValueError('Hall calibration produced nonfinite voltage/force/displacement')
         image = np.asarray(rgb)
-        if image.shape not in ((360,640,3),(360,640,4)) or image.dtype != np.uint8:
-            raise ValueError('RGB must be native 640x360 uint8 RGB/RGBA')
+        width,height=self.native_image_size
+        if image.shape not in ((height,width,3),(height,width,4)) or image.dtype != np.uint8:
+            raise ValueError('RGB must match declared native image size and uint8 RGB/RGBA')
         depth = np.asarray(depth_m)
         validity = np.asarray(depth_valid)
-        if depth.shape != (360,640) or depth.dtype.kind not in 'fiu': raise ValueError('Native metric depth shape/type mismatch')
+        if depth.shape != (height,width) or depth.dtype.kind not in 'fiu': raise ValueError('Native metric depth shape/type mismatch')
         if validity.shape != depth.shape or validity.dtype != bool: raise ValueError('Explicit bool depth validity required')
         truth = np.isfinite(depth)&(depth>0)
         if not np.array_equal(validity,truth): raise ValueError('Depth validity disagrees with positive finite metric depth')
         if not truth.any() or np.any(depth[truth].astype(np.float64) > DEPTH_MAX_M):
             raise ValueError('Valid depth is empty or outside metric uint32 range; no saturation permitted')
-        ys = ((np.arange(POLICY_SIZE[1])+.5)*NATIVE_SIZE[1]/POLICY_SIZE[1]).astype(int)
-        xs = ((np.arange(POLICY_SIZE[0])+.5)*NATIVE_SIZE[0]/POLICY_SIZE[0]).astype(int)
-        small_depth = depth[np.ix_(ys,xs)]
-        valid = validity[np.ix_(ys,xs)]
+        if self.native_image_size==POLICY_SIZE:
+            small_depth,valid=depth,validity
+        else:
+            ys = ((np.arange(POLICY_SIZE[1])+.5)*height/POLICY_SIZE[1]).astype(int)
+            xs = ((np.arange(POLICY_SIZE[0])+.5)*width/POLICY_SIZE[0]).astype(int)
+            small_depth = depth[np.ix_(ys,xs)]
+            valid = validity[np.ix_(ys,xs)]
         quantized = np.zeros(valid.shape,dtype=DEPTH_DTYPE)
         values = np.rint(small_depth[valid].astype(np.float64)/DEPTH_UNIT_M)
         if not valid.any() or np.any(values < 1): raise ValueError('Valid depth underflows metric quantization')
@@ -379,8 +441,10 @@ class CompactTrainingCapture:
             raise ValueError('Temporal depth state is missing its preceding frame')
         depth_code = quantized if keyframe else np.bitwise_xor(quantized,self._previous_depth)
         jpeg = io.BytesIO()
-        Image.fromarray(image[:,:,:3]).resize(POLICY_SIZE,resample=Image.Resampling.BOX).save(
-            jpeg,format='JPEG',quality=85,subsampling=0)
+        encoded_image=Image.fromarray(image[:,:,:3])
+        if self.native_image_size!=POLICY_SIZE:
+            encoded_image=encoded_image.resize(POLICY_SIZE,resample=Image.Resampling.BOX)
+        encoded_image.save(jpeg,format='JPEG',quality=85,subsampling=0)
         rgb_payload = jpeg.getvalue()
         data = dict(index=np.int64(self._count),episode_id=episode_id,target_id=target_id,
             observed_at_s=np.float64(t),state17=state,measured_q=q,
@@ -422,12 +486,26 @@ class CompactTrainingCapture:
                 sample = dict(sample,action=None)
             try: rgb,numeric,last,quantized = self._encode(**sample,terminal=terminal)
             except TypeError as error: raise ValueError('Missing/invalid recording modality: '+str(error)) from error
+            compressor = None
+            stored_numeric = numeric
+            if self._numeric_compressor is not None:
+                # Compression must not advance the committed history when a
+                # record fails its physical budget check before any write.
+                compressor = self._numeric_compressor.copy()
+                stored_numeric = compressor.compress(numeric)+compressor.flush(zlib.Z_SYNC_FLUSH)
+                if self._count == 0: stored_numeric = _NUMERIC_GZIP_HEADER+stored_numeric
             current = sum(path.stat().st_size for path in self.output.iterdir() if path.is_file())
-            if current+len(rgb)+len(numeric)+RECEIPT_RESERVE > self._manifest['limit_bytes']:
+            if (current+len(rgb)+len(stored_numeric)+RECEIPT_RESERVE+self._numeric_finish_reserve >
+                    self._manifest['limit_bytes']):
                 raise ValueError('Single-target episode byte budget exceeded; no successful truncated recording')
-            for stream,payload in ((self._rgb,rgb),(self._numeric,numeric)):
+            for stream,payload in ((self._rgb,rgb),(self._numeric,stored_numeric)):
                 if stream.write(payload) != len(payload): raise OSError('Short capture write')
                 stream.flush()
+            if compressor is not None:
+                self._numeric_compressor = compressor
+                self._numeric_logical_bytes += len(numeric)
+                self._numeric_logical_sha.update(numeric)
+                self._numeric_logical_crc = zlib.crc32(numeric,self._numeric_logical_crc)
             self._previous_depth = quantized
             self._last_hall_time = last
             self._last_observed_time = float(sample['observed_at_s'])
@@ -467,6 +545,18 @@ class CompactTrainingCapture:
 
     def _finish(self):
         if self._closed: return self._receipt
+        if self._numeric_compressor is not None and not self._numeric_finished:
+            self._numeric_finished = True
+            if self._numeric is not None:
+                try:
+                    footer = self._numeric_compressor.flush(zlib.Z_FINISH)
+                    if self._count == 0: footer = _NUMERIC_GZIP_HEADER+footer
+                    footer += struct.pack('<II',self._numeric_logical_crc,self._numeric_logical_bytes & 0xffffffff)
+                    if len(footer) > self._numeric_finish_reserve:
+                        raise ValueError('Numeric container finish exceeds reserved bytes')
+                    if self._numeric.write(footer) != len(footer): raise OSError('Short numeric container finish write')
+                    self._numeric.flush()
+                except Exception as error: self._failed = 'numeric container close: '+str(error)[:2048]
         for stream in (self._rgb,self._numeric,self._terminal):
             if stream is not None:
                 try: stream.close()
@@ -497,6 +587,12 @@ class CompactTrainingCapture:
             final_native_step_count=None if self._native_endpoint is None else self._native_endpoint[0],
             final_native_time_s=None if self._native_endpoint is None else self._native_endpoint[1],
             limit_bytes=self._manifest['limit_bytes'],total_bytes=0,**QUALIFICATIONS)
+        if self._numeric_compressor is not None:
+            receipt['numeric_container'] = dict(codec=NUMERIC_CONTAINER_CODEC,
+                uncompressed_bytes=self._numeric_logical_bytes,
+                uncompressed_sha256=self._numeric_logical_sha.hexdigest(),frame_count=self._count)
+        if self._manifest['metadata']['target_source']=='given_contact_pose':
+            receipt['action_semantics_id']=self._manifest['action_semantics_id']
         if self._manifest['duration_mode'] == 'adaptive':
             receipt.update(complete_pairs=self._count-int(self._terminal_observation),
                 terminal_observations=int(self._terminal_observation),h20_eligible=False,
@@ -540,7 +636,7 @@ class CompactTrainingCapture:
         self._native_endpoint = (final_native_step_count,evidence['final_native_time_s'])
         payload = _json_bytes(evidence)
         current = sum(path.stat().st_size for path in self.output.iterdir() if path.is_file())
-        if current+len(payload)+RECEIPT_RESERVE > self._manifest['limit_bytes']:
+        if current+len(payload)+RECEIPT_RESERVE+self._numeric_finish_reserve > self._manifest['limit_bytes']:
             raise ValueError('Terminal native payload exceeds single-target episode byte budget')
         if self._terminal.write(payload) != len(payload): raise OSError('Short terminal native evidence write')
         self._terminal.flush()
@@ -606,6 +702,72 @@ def _read_frame(stream):
     if len(data) != length or zlib.crc32(data) != expected_crc:
         raise ValueError('Recording integrity: truncated/corrupt frame payload')
     return data
+
+
+def _numeric_container_binding(manifest, receipt):
+    """Bind declared decoding size to the original count and per-frame cap."""
+    if 'numeric_container_codec' not in manifest:
+        if 'numeric_container' in receipt:
+            raise ValueError('Recording integrity: numeric container declaration mismatch')
+        return None
+    codec = manifest['numeric_container_codec']
+    value = receipt.get('numeric_container')
+    if (codec != NUMERIC_CONTAINER_CODEC or type(codec) is not str or not isinstance(value,dict) or
+            set(value) != {'codec','uncompressed_bytes','uncompressed_sha256','frame_count'} or
+            value['codec'] != codec or type(value['frame_count']) is not int or
+            value['frame_count'] != receipt['frames'] or type(value['uncompressed_bytes']) is not int or
+            not receipt['frames']*(HEADER.size+1) <= value['uncompressed_bytes'] <=
+                receipt['frames']*(HEADER.size+MAX_RECORD_BYTES)):
+        raise ValueError('Recording integrity: unsupported numeric container codec/count/size')
+    try: _hash(value['uncompressed_sha256'],'numeric container uncompressed bytes')
+    except ValueError as error: raise ValueError('Recording integrity: '+str(error)) from error
+    return value
+
+
+class _NumericGzipReader:
+    """One bounded read at a time; EOF verifies the entire single member.
+
+    This private stream is only consumed by the original framed-record reader.
+    It never pre-expands a complete capture or accepts gzip concatenation.
+    """
+    def __init__(self, stream, binding):
+        self.stream = stream
+        self.binding = binding
+        self.decoder = zlib.decompressobj(31)
+        self.pending = b''
+        self.count = 0
+        self.digest = hashlib.sha256()
+        self.verified = False
+
+    def read(self, length):
+        if type(length) is not int or not 0 < length <= MAX_RECORD_BYTES:
+            raise ValueError('Recording integrity: unbounded numeric container read')
+        result = bytearray()
+        try:
+            while len(result) < length and not self.verified:
+                if self.decoder.eof:
+                    if self.decoder.unused_data or self.pending or self.stream.read(1):
+                        raise ValueError('extra gzip member or trailing bytes')
+                    if (self.count != self.binding['uncompressed_bytes'] or
+                            self.digest.hexdigest() != self.binding['uncompressed_sha256']):
+                        raise ValueError('uncompressed byte count/hash mismatch')
+                    self.verified = True
+                    break
+                if not self.pending:
+                    self.pending = self.stream.read(64*1024)
+                    if not self.pending: raise ValueError('truncated gzip stream before complete EOF')
+                # The independently validated original frame/count bound also
+                # limits the declaration. +1 detects expansion beyond it.
+                remaining = self.binding['uncompressed_bytes']-self.count
+                decoded = self.decoder.decompress(self.pending,min(length-len(result),remaining+1))
+                self.pending = self.decoder.unconsumed_tail
+                if len(decoded) > remaining: raise ValueError('numeric container expansion exceeds bounded size')
+                self.count += len(decoded)
+                self.digest.update(decoded)
+                result.extend(decoded)
+            return bytes(result)
+        except (ValueError,zlib.error) as error:
+            raise ValueError('Recording integrity: invalid numeric gzip container: '+str(error)) from error
 
 
 def _read_numeric_payload(payload):
@@ -694,7 +856,7 @@ def _read_bundle(output):
     root = Path(output)
     receipt = json.loads((root/'receipt.json').read_text())
     if receipt.get('completed') is not True: raise RuntimeError('Recording is incomplete')
-    v4 = receipt.get('schema') == ADAPTIVE_SCHEMA
+    v4 = receipt.get('schema') in (ADAPTIVE_SCHEMA,GIVEN_ADAPTIVE_SCHEMA)
     files = FILES+('terminal.json',) if v4 else FILES
     names = {p.name for p in root.iterdir()}
     if names != set(files)|{'receipt.json'} or any(p.is_symlink() or not p.is_file() for p in root.iterdir()):
@@ -707,9 +869,43 @@ def _read_bundle(output):
         if (root/name).stat().st_size != expected.get('bytes') or _sha(root/name) != expected.get('sha256'):
             raise ValueError('Recording integrity: artifact hash/size changed: '+name)
     manifest = json.loads((root/'manifest.json').read_text())
+    try:
+        native_size=image_size(manifest['native_image_size'])
+        camera=json.loads((root/'approved_camera.json').read_text())
+        if (_sha(root/'approved_camera.json')!=APPROVED_CAMERA_SHA256 or
+                manifest.get('policy_image_size')!=list(POLICY_SIZE) or
+                manifest.get('policy_intrinsics')!=_scaled_intrinsics(camera,POLICY_SIZE) or
+                manifest.get('depth_semantics')!='metric_optical_z' or
+                manifest.get('camera_transform_unchanged') is not True):
+            raise ValueError('camera/policy image contract differs')
+        # Preserve legacy 640x360 recordings; direct-native recordings require
+        # the explicit new declaration, not a silently changed old manifest.
+        if manifest.get('image_input_contract')=='explicit_native_size_v1':
+            direct=native_size==POLICY_SIZE
+            if (manifest.get('native_intrinsics')!=_scaled_intrinsics(camera,native_size) or
+                    manifest.get('depth_resize')!=('identity; direct native policy resolution' if direct else
+                        'nearest pixel center; no invalid interpolation') or
+                    manifest.get('rgb_encoding')!=('JPEG quality85 subsampling0; direct native policy resolution' if direct else
+                        'JPEG quality85 subsampling0; full-FOV BOX resize')):
+                raise ValueError('declared native image size/intrinsics/codec differs')
+        elif native_size!=NATIVE_SIZE or 'image_input_contract' in manifest:
+            raise ValueError('unknown native image input contract')
+    except (ValueError,TypeError,KeyError) as error:
+        raise ValueError('Recording integrity: native image contract: '+str(error)) from error
     try: _require_episode_metadata(manifest['metadata'])
     except (ValueError,TypeError,KeyError) as error:
         raise ValueError('Recording integrity: malformed episode provenance: '+str(error)) from error
+    given=manifest['metadata']['target_source']=='given_contact_pose'
+    if given or manifest.get('schema')==GIVEN_ADAPTIVE_SCHEMA:
+        from .m2_given_contact_intent import ACTION_SEMANTICS_ID
+        if (not given or manifest.get('schema')!=GIVEN_ADAPTIVE_SCHEMA or
+                manifest.get('action_semantics_id')!=ACTION_SEMANTICS_ID or
+                receipt.get('action_semantics_id')!=ACTION_SEMANTICS_ID):
+            raise ValueError('Recording integrity: wrong given raw target semantics/schema')
+        _hash(manifest['code_bindings'].get('raw_intent_dispatcher'),'raw intent dispatcher')
+        from .m2_given_contact_handoff import POLICY_ID
+        if manifest['metadata'].get('handoff_policy_id')==POLICY_ID:
+            _hash(manifest['code_bindings'].get('interior_handoff'),'interior handoff')
     frames = receipt['frames']
     mode = manifest.get('duration_mode')
     duration_valid = (type(frames) is int and (0 <= frames if v4 else 0 < frames) and
@@ -761,7 +957,7 @@ def _read_bundle(output):
             abs(receipt['final_native_time_s']-(frames+1)*.05) <= 1e-9)
     else:
         duration_valid = False
-    if (manifest.get('schema') not in (SCHEMA,ADAPTIVE_SCHEMA) or
+    if (manifest.get('schema') not in (SCHEMA,ADAPTIVE_SCHEMA,GIVEN_ADAPTIVE_SCHEMA) or
             receipt.get('schema') != manifest.get('schema') or not duration_valid or
             manifest.get('depth_storage_dtype') != DEPTH_DTYPE.str or
             manifest.get('depth_codec') != DEPTH_CODEC or
@@ -769,6 +965,7 @@ def _read_bundle(output):
             manifest.get('depth_unit_m') != DEPTH_UNIT_M or manifest.get('depth_max_m') != DEPTH_MAX_M or
             any(manifest.get(key) is not False or receipt.get(key) is not False for key in QUALIFICATIONS)):
         raise ValueError('Recording integrity: unsupported contract or false qualification')
+    _numeric_container_binding(manifest,receipt)
     return root,receipt,manifest,terminal
 
 
@@ -857,10 +1054,12 @@ def iter_training_records(output):
     are not signatures; independent trusted source hashes remain necessary.
     """
     root,receipt,manifest,_ = _read_bundle(output)
-    v4 = manifest['schema'] == ADAPTIVE_SCHEMA
+    v4 = manifest['schema'] in (ADAPTIVE_SCHEMA,GIVEN_ADAPTIVE_SCHEMA)
     calibration = HallCalibration((root/'calibration.json').read_bytes()) if v4 else None
     last_hall = -np.inf
-    with (root/'rgb.mjpeg').open('rb') as rgb, (root/'numeric.bin').open('rb') as numeric:
+    with (root/'rgb.mjpeg').open('rb') as rgb, (root/'numeric.bin').open('rb') as numeric_file:
+        binding = _numeric_container_binding(manifest,receipt)
+        numeric = numeric_file if binding is None else _NumericGzipReader(numeric_file,binding)
         previous_depth = None
         for index in range(receipt['frames']):
             image = _read_frame(rgb)
@@ -893,4 +1092,7 @@ def iter_training_records(output):
                     raise ValueError('Recording integrity: RGB format mismatch')
                 data['rgb'] = np.asarray(decoded).copy()
             yield data
-        if rgb.read(1) or numeric.read(1): raise ValueError('Recording integrity: trailing frames')
+        # Check both independently: numeric EOF must consume the gzip trailer
+        # and validate its size/hash even if the RGB stream has extra bytes.
+        extra_rgb,extra_numeric = rgb.read(1),numeric.read(1)
+        if extra_rgb or extra_numeric: raise ValueError('Recording integrity: trailing frames')

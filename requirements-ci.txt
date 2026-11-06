@@ -12,3 +12,6 @@ rtree==1.4.1
 imageio==2.37.3
 imageio-ffmpeg==0.6.0
 pytest==9.1.1
+
+# Exact native trajectory generator used by the STOP/jerk regressions.
+ruckig==0.15.3

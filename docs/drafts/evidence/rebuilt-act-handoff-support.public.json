@@ -1,0 +1,171 @@
+{
+  "schema": "ausc-act-handoff-support-public-v1",
+  "scope": "TRAIN/selection-only descriptive CPU diagnosis; not a causal repair or a frozen-outcome diagnosis",
+  "source_records": {
+    "TRAIN-SUPPORT-SUMMARY.json": {
+      "logical_name": "rebuilt-act-train-support-20261106-v1/SUMMARY.json",
+      "bytes": 9718,
+      "sha256": "4ad688dbbf8262a06ef4b1301ea6136bb2dd738d2cd37135673af68854781c53",
+      "public_path": null
+    },
+    "AXIS-SUPPORT.json": {
+      "logical_name": "rebuilt-act-train-support-20261106-v1/AXIS_SUPPORT.json",
+      "bytes": 2208,
+      "sha256": "6007f941b415f40a1d585fe597c62def68b6233f5f5ffa151056dc7850a53c07",
+      "public_path": null
+    },
+    "TRIGGER-SUPPORT.json": {
+      "logical_name": "rebuilt-act-train-support-20261106-v1/TRIGGER_NECESSARY_SUPPORT.json",
+      "bytes": 3299,
+      "sha256": "592113df79c8c7be7475b2724c5dace477156f2bb508271ade73a2b4473247be",
+      "public_path": null
+    }
+  },
+  "necessary_pose_support": {
+    "schema": "wam_rebuilt_act_trigger_necessary_support_v4",
+    "trigger_bounds": {
+      "tangent_m": 0.002,
+      "gap_error_m": 0.001,
+      "full_rotation_rad": 0.06981317007977318,
+      "speed_m_s": 0.01
+    },
+    "handoff_source": {
+      "bytes": 17919,
+      "sha256": "759e8e4843cbc6621ae1077a72122a31f39e66d4a739647c870f041de7c84db7",
+      "logical_name": "sim/ausc_policy/m2_given_contact_handoff.py"
+    },
+    "dataset_arrays": {
+      "train": {
+        "bytes": 12457110,
+        "sha256": "891b1579d9d986c649bdfeedfd2bcde905b947d0698061292d8bd956f831ec29",
+        "logical_name": "datasets/rebuilt-act-export-20261105-v2/dataset/train.npz"
+      },
+      "validation": {
+        "bytes": 3615590,
+        "sha256": "4a9c3c440122df5bd33b6565731811268e709a68bfc522f782f4e2193619d247",
+        "logical_name": "datasets/rebuilt-act-export-20261105-v2/dataset/validation.npz"
+      }
+    },
+    "index": {
+      "bytes": 23425389,
+      "sha256": "15e7c29ba0467f8f43575f428476876fca2578a02482e5b4de9691f706e9cc61",
+      "logical_name": "datasets/rebuilt-act-export-20261105-v2/dataset/index.json"
+    },
+    "valid_h20_origin_windows": {
+      "train": {
+        "samples": 7558,
+        "tangent_minimum_m": 0.0051323422139027365,
+        "tangent_necessary_condition_count": 0,
+        "full_rotation_necessary_condition_count": 4887,
+        "both_necessary_pose_conditions_count": 0
+      },
+      "validation": {
+        "samples": 2193,
+        "tangent_minimum_m": 0.005134049633416499,
+        "tangent_necessary_condition_count": 0,
+        "full_rotation_necessary_condition_count": 1425,
+        "both_necessary_pose_conditions_count": 0
+      }
+    },
+    "same_episode_windows": {
+      "rebuilt-expert-capture-20261105-v2-p001120-p000474_a001230_f0000-r3": {
+        "samples": 552,
+        "tangent_minimum_m": 0.005650240287728102,
+        "tangent_necessary_condition_count": 0,
+        "full_rotation_necessary_condition_count": 349,
+        "both_necessary_pose_conditions_count": 0
+      },
+      "rebuilt-expert-capture-20261105-v2-p000923-p000474_a001230_f0000-r3": {
+        "samples": 548,
+        "tangent_minimum_m": 0.005605436133043632,
+        "tangent_necessary_condition_count": 0,
+        "full_rotation_necessary_condition_count": 349,
+        "both_necessary_pose_conditions_count": 0
+      }
+    },
+    "closed_smoke_query_states": {
+      "p001120-r3": {
+        "samples": 92,
+        "tangent_minimum_m": 0.0063907438860544286,
+        "tangent_necessary_condition_count": 0,
+        "full_rotation_necessary_condition_count": 19,
+        "both_necessary_pose_conditions_count": 0
+      },
+      "p000923-r3": {
+        "samples": 95,
+        "tangent_minimum_m": 0.008816657897920766,
+        "tangent_necessary_condition_count": 0,
+        "full_rotation_necessary_condition_count": 12,
+        "both_necessary_pose_conditions_count": 0
+      }
+    },
+    "frame": "Encoded uncompressed TCP relative to prescribed reference. This is descriptive, not exact native trigger reconstruction.",
+    "limitation": "These two pose conditions are necessary only; actual trigger also checks commanded and observed actual poses, gap, speed, phase and fresh native grid. No causal learning claim. No model inference/frozen reads/physical or source change.",
+    "no_frozen_reads": true,
+    "no_model_inference": true
+  },
+  "axis_support": {
+    "schema": "wam_rebuilt_act_given_reference_axis_support_v3",
+    "parent_pose_support": {
+      "bytes": 6965,
+      "sha256": "789ae83ba33fdb7310462820a6a6f5d7533f6e4c52597c2aa72d97d54a23589c",
+      "logical_name": "diagnostics/rebuilt-act-train-support-20261106-v1/POSE_SUPPORT.json"
+    },
+    "cases": [
+      {
+        "case": "p001120-r3",
+        "teacher_window_axis_error_near_distance_band": {
+          "count": 94,
+          "minimum_deg": 0.0007968795930607251,
+          "median_deg": 0.01023768102004601,
+          "maximum_deg": 0.023462932651694107
+        },
+        "student_query_axis_error_near_distance_band": {
+          "count": 10,
+          "minimum_deg": 4.141691209506781,
+          "median_deg": 4.999553529420211,
+          "maximum_deg": 6.135009205125302
+        },
+        "closest_query": {
+          "index": 49,
+          "time_s": 25.349999999998882,
+          "distance_m": 0.028544838330211826,
+          "tool_axis_error_to_given_reference_deg": 5.111442848612364
+        },
+        "final_query_axis_error_to_given_reference_deg": 22.141037007786892
+      },
+      {
+        "case": "p000923-r3",
+        "teacher_window_axis_error_near_distance_band": {
+          "count": 94,
+          "minimum_deg": 0.0009947408314293206,
+          "median_deg": 0.0125243362478132,
+          "maximum_deg": 0.03053747135799572
+        },
+        "student_query_axis_error_near_distance_band": {
+          "count": 7,
+          "minimum_deg": 3.319057406912315,
+          "median_deg": 5.441414873877174,
+          "maximum_deg": 5.6953963710642075
+        },
+        "closest_query": {
+          "index": 50,
+          "time_s": 25.649999999998865,
+          "distance_m": 0.015419403897187227,
+          "tool_axis_error_to_given_reference_deg": 4.537130241508356
+        },
+        "final_query_axis_error_to_given_reference_deg": 14.796008532192161
+      }
+    ],
+    "definition": "acos(relative_TCP_rotation_column2 dot target_reference_z); goal-axis deviation, distinct from full SO3 orientation error and from actual fitted-skin-plane flatness at contact",
+    "descriptive_distance_band_m": [
+      0.025,
+      0.035
+    ],
+    "not_an_acceptance_gate": true,
+    "model_inference": false,
+    "frozen_reads": false,
+    "source_or_model_or_physical_changes": false
+  },
+  "same_train_episode_min_window_distance_m": 0.02657178771287972
+}
