@@ -378,10 +378,11 @@ def test_neutral_observer_preserves_explicit_stop_profile_after_handoff(tmp_path
 
 def test_neutral_observer_keeps_original_l2_profile_without_a_stop_transition(tmp_path,monkeypatch):
     m,audit,c,_,_=stop_profile_fixture(tmp_path,monkeypatch)
-    c.trajectory.input.max_jerk=[1.5]*7;c.control_owner='ACT_L2';c.l2_handoffs=[]
+    l2_jerk=m.runtime.handoff.PLANNING_LIMITS['jerk']
+    c.trajectory.input.max_jerk=[l2_jerk]*7;c.control_owner='ACT_L2';c.l2_handoffs=[]
     snapshot=m._interpolator(c)
     assert snapshot['planning_profile']=='l2' and snapshot['stop_profile_transition_sha256'] is None
-    assert c.trajectory.input.max_jerk==[1.5]*7
+    assert c.trajectory.input.max_jerk==[l2_jerk]*7
     audit.close()
 
 
