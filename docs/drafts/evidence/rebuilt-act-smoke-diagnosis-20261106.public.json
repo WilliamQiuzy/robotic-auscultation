@@ -1,0 +1,181 @@
+{
+  "schema": "rebuilt_act_smoke_cpu_diagnosis_public_extract_v1",
+  "source_summary": {
+    "name": "rebuilt-act-smoke-diagnosis-20261105-v1/SUMMARY.json",
+    "bytes": 14142,
+    "sha256": "0f5dcbd63e220d41845274df565dd9d2cb268801fce57ba119f572b8e8203c8f"
+  },
+  "complete": true,
+  "all_actual_request_count": 187,
+  "all_actual_response_elements": 26180,
+  "all_singleton_replay": {
+    "byte_identical": true,
+    "max_absolute_h20_difference": 0.0
+  },
+  "same_runtime_batch_replay": {
+    "allclose": true,
+    "atol": 1e-06,
+    "exact_equal": false,
+    "max_absolute_h20_difference": 5.60410475358708e-07,
+    "original_infer_batch_size": 64,
+    "rtol": 1e-05
+  },
+  "selected_step": 4500,
+  "cases": [
+    {
+      "id": "p001120-r3",
+      "cohort": "train",
+      "request_count": 92,
+      "physical_qualified": false,
+      "source_hashes_verified": true,
+      "failure_reason": "R3: command posture rejected: posture_joint_envelope",
+      "min_actual_tcp_goal_distance_m": 0.02854410210756775,
+      "final_actual_tcp_goal_distance_m": 0.16553518117492705,
+      "issued_command_joint6_range": {
+        "joint": 6,
+        "lower_rad": -0.7330381224401702,
+        "max_rad": -4.021356744488003e-06,
+        "min_rad": -0.7330280940859769,
+        "upper_rad": 0.7330381224401702
+      },
+      "encoder": {
+        "clock_atol_s": 1e-08,
+        "frames": 184,
+        "full_reference_sha256": "f77580967107f1419bddb1213cd7283a79e2db348648059d9db84069937de88e",
+        "max_absolute_state17_difference": 0.0,
+        "max_history_clock_error_s": 0.0,
+        "max_native_q_difference": 0.0,
+        "state_atol": 1e-12
+      },
+      "final_attempt": {
+        "completed": false,
+        "executed_ticks": 8,
+        "requested_ticks": 12,
+        "last_successful_command_violations": [],
+        "last_successful_joint6_lower_margin_rad": 1.0028354193281075e-05,
+        "proposal_violations": [
+          {
+            "command_rad": -0.7369287459712338,
+            "joint": 6,
+            "lower_excess_rad": 0.0038906235310636195,
+            "lower_rad": -0.7330381224401702,
+            "upper_excess_rad": 0.0,
+            "upper_rad": 0.7330381224401702
+          }
+        ],
+        "rejected_command_limit": "Rejected in original _block posture precheck before the next native physics tick; raw proposal is not claimed as issued command",
+        "rejected_command_recorded": false
+      },
+      "references": {
+        "cpu_trace": {
+          "name": "pilot_cpu_ipc.jsonl",
+          "bytes": 1432452,
+          "sha256": "1840366d1c6b00d3b6339a26ba38f5b59e9cec6726ef25cfcbafc701a7b52aae"
+        },
+        "native_trace": {
+          "name": "given_control_native.jsonl.gz",
+          "bytes": 55895067,
+          "sha256": "41a00f9b0a496d80cc3184a1c14656863ed8362e92b86e24b92ec5d8d1cdf7c1"
+        },
+        "original_authentication": {
+          "name": "smoke-p001120-r3-AUTHENTICATION.json",
+          "bytes": 922,
+          "sha256": "efc9100d67a036d362aa2bd4411c888941c6ccc03f9da3887e5a486bda6f8654"
+        }
+      },
+      "same_train_teacher_comparison": {
+        "original_physical_validation": true,
+        "same_full_reference_sha256": true,
+        "same_scene_sha256": true,
+        "command_joint6_range": {
+          "joint": 6,
+          "l2_max_rad": -4.021356744488003e-06,
+          "l2_min_rad": -0.43066662962600144,
+          "max_rad": 0.0,
+          "min_rad": -0.4393167198500194
+        },
+        "run_result": {
+          "name": "COMPLETE.json",
+          "bytes": 569008,
+          "sha256": "7f1ab023917b4fdb0573f893be51d5ee0ccea38757f51b9b4d2cad27aee2c206"
+        }
+      }
+    },
+    {
+      "id": "p000923-r3",
+      "cohort": "selection_validation",
+      "request_count": 95,
+      "physical_qualified": false,
+      "source_hashes_verified": true,
+      "failure_reason": "R3: command posture rejected: posture_joint_envelope",
+      "min_actual_tcp_goal_distance_m": 0.015370813070810655,
+      "final_actual_tcp_goal_distance_m": 0.1642201057350873,
+      "issued_command_joint6_range": {
+        "joint": 6,
+        "lower_rad": -0.7330381224401702,
+        "max_rad": -4.021356744488003e-06,
+        "min_rad": -0.7330212284613273,
+        "upper_rad": 0.7330381224401702
+      },
+      "encoder": {
+        "clock_atol_s": 1e-08,
+        "frames": 190,
+        "full_reference_sha256": "edf22db6e6c695a4f2a067f88ce35264c4123ce6e6b29a383fb60093036a7d5a",
+        "max_absolute_state17_difference": 0.0,
+        "max_history_clock_error_s": 0.0,
+        "max_native_q_difference": 0.0,
+        "state_atol": 1e-12
+      },
+      "final_attempt": {
+        "completed": false,
+        "executed_ticks": 11,
+        "requested_ticks": 12,
+        "last_successful_command_violations": [],
+        "last_successful_joint6_lower_margin_rad": 1.6893978842857926e-05,
+        "proposal_violations": [
+          {
+            "command_rad": -0.7357798711220271,
+            "joint": 6,
+            "lower_excess_rad": 0.002741748681856948,
+            "lower_rad": -0.7330381224401702,
+            "upper_excess_rad": 0.0,
+            "upper_rad": 0.7330381224401702
+          }
+        ],
+        "rejected_command_limit": "Rejected in original _block posture precheck before the next native physics tick; raw proposal is not claimed as issued command",
+        "rejected_command_recorded": false
+      },
+      "references": {
+        "cpu_trace": {
+          "name": "pilot_cpu_ipc.jsonl",
+          "bytes": 1481089,
+          "sha256": "9265791b7b14a9df593d04ae48f48b0890ebeb366701f1ecce220ebd11a8527e"
+        },
+        "native_trace": {
+          "name": "given_control_native.jsonl.gz",
+          "bytes": 57665594,
+          "sha256": "6fb58ff7e7c1069f913d3014a8086d603b5f7810b5fa448e45c13d33fc55310a"
+        },
+        "original_authentication": {
+          "name": "smoke-p000923-r3-AUTHENTICATION.json",
+          "bytes": 922,
+          "sha256": "0261cde53472ea7590ec55facab51a4bd8d8006db55afcfc8afc33a6ea909a83"
+        }
+      }
+    }
+  ],
+  "physical_qualified_count": 0,
+  "physical_failure_not_pipeline_corruption": true,
+  "changes_or_fixes_applied": false,
+  "training_or_source_mutations": false,
+  "frozen_outcomes_consulted": false,
+  "cuda_initialized": false,
+  "limitation": "Diagnosis of two reused TRAIN/selection negatives only; no frozen outcomes, physical relaxation, full collision replay, repair or usable-policy claim",
+  "diagnostic_script": {
+    "name": "diagnose.py",
+    "bytes": 15862,
+    "sha256": "b801b7a820032c57867627fd60f50c691a3b53e83b437c9dff0a03e4842a0799"
+  },
+  "sanitization": "Explicit aggregate diagnostics and logical-name/bytes/SHA references only. No raw native arrays, state histories, images, command traces, weights, private paths or network endpoints transferred.",
+  "command_scope_note": "Final H20/proposal targets beyond the posture bound are not the exact next interpolated command. The original pre-physics command-posture check rejected continuation after8/12 and11/12 prefix ticks. Exact rejected interpolated commands were not recorded; last issued commands were legal. No issued-command violation or relaxed gate is claimed."
+}

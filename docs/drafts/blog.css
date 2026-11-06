@@ -45,6 +45,8 @@
 .exp-chart{margin:var(--spacing-400) 0}
 .exp-chart img{display:block;width:100%;height:auto;border-radius:var(--radius-lg)}
 .exp-chart figcaption{margin-top:var(--spacing-200);color:var(--muted)}
+.exp-plot-scroll{overflow-x:auto;border-radius:var(--radius-lg);background:white}
+.exp-plot-scroll img{min-width:800px}
 .exp-principle{padding-block:var(--spacing-500) var(--spacing-600);max-width:680px}
 .exp-principle .eyebrow{margin-bottom:var(--spacing-200)}
 .exp-principle p:last-child{margin:0}

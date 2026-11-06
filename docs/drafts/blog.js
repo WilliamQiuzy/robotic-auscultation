@@ -56,6 +56,6 @@ if('IntersectionObserver' in window){
  const nav=new IntersectionObserver(entries=>{const entry=entries.find(e=>e.isIntersecting);if(!entry)return;const href='#'+entry.target.id;
   document.querySelectorAll('.desktop-nav a,.exp-toc a,.mobile-menu nav a').forEach(a=>{if(a.getAttribute('href')===href)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current');});
  },{rootMargin:'-15% 0px -55% 0px',threshold:0});
- for(const id of ['question','diagnostics','recording','hall','preload','depth','current-work','next-steps','evidence'])nav.observe(document.getElementById(id));
+ for(const id of ['question','diagnostics','recording','hall','preload','depth','offline-act','native-smokes','system-roles','current-work','next-steps','evidence'])nav.observe(document.getElementById(id));
 }else principle.querySelectorAll('.word').forEach(word=>word.classList.add('is-active'));
 reduced.addEventListener('change',event=>{if(event.matches){document.documentElement.classList.remove('js-motion');document.querySelectorAll('.reveal').forEach(el=>el.classList.add('is-visible'));principle.querySelectorAll('.word').forEach(word=>word.classList.add('is-active'));}});

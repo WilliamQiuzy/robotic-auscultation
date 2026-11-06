@@ -1,0 +1,88 @@
+{
+  "schema": "rebuilt_act_training_figure_v1",
+  "source_summary": {
+    "logical_name": "rebuilt-act-selected-20261106-v1/summary.json",
+    "bytes": 224418,
+    "sha256": "d04f0298a436d951c468d80e6ebbb8b301dae85748965650571dc5fe849d7729",
+    "created_utc": "2026-11-06T02:43:22.831404+00:00"
+  },
+  "inputs_and_outputs": {
+    "plot_script": {
+      "name": "analysis/plot_rebuilt_act_training.py",
+      "bytes": 5005,
+      "sha256": "c678f20f2f35247540a0b344a29f834c640b63922108e84405bc827ae95b8de1"
+    },
+    "scalar_extract": {
+      "name": "evidence/rebuilt-act-offline-20261106.public.json",
+      "bytes": 12583,
+      "sha256": "1402e6b0eb9c0cee745519ac31642092f74a80b67da82083170ec0b26c96814a"
+    },
+    "png": {
+      "name": "assets/rebuilt-act-training-20261106.png",
+      "bytes": 175364,
+      "sha256": "29cb3be4bb8f2e0e9be92453a9c338ad0118026255e6ba69de3c6cc6469a183c"
+    },
+    "svg": {
+      "name": "assets/rebuilt-act-training-20261106.svg",
+      "bytes": 23384,
+      "sha256": "6f56ac40489907555c00935de81e15254a67ba74c4842b1ef91c11f39acf5573"
+    }
+  },
+  "series": {
+    "train_points": 40,
+    "selection_validation_points": 40,
+    "optimizer_steps": [
+      500,
+      1000,
+      1500,
+      2000,
+      2500,
+      3000,
+      3500,
+      4000,
+      4500,
+      5000,
+      5500,
+      6000,
+      6500,
+      7000,
+      7500,
+      8000,
+      8500,
+      9000,
+      9500,
+      10000,
+      10500,
+      11000,
+      11500,
+      12000,
+      12500,
+      13000,
+      13500,
+      14000,
+      14500,
+      15000,
+      15500,
+      16000,
+      16500,
+      17000,
+      17500,
+      18000,
+      18500,
+      19000,
+      19500,
+      20000
+    ],
+    "selected_step": 4500
+  },
+  "transformation": "Each scalar full_chunk_mae_rad is preserved exactly in the public extract; figure values multiply it by1000 for mrad. All40 points per series; straight joins, no smoothing/error bars/resampling.",
+  "scope": "Offline absolute joint-target H20 prediction MAE only; not measured tracking, contact or native qualification. Same rebuilt TRAIN/selection cohort; no controlled comparison with historical metrics.",
+  "privacy": "No raw observations, training arrays, checkpoint weights, credentials, endpoints or absolute private source paths were downloaded/distributed.",
+  "verification": {
+    "source_summary_bytes_and_sha256_verified": true,
+    "earliest_full_validation_minimum_verified": true,
+    "all_80_curve_values_match_source": true,
+    "svg_marker_counts_verified": true,
+    "all_24_frozen_method_slots_pending": true
+  }
+}

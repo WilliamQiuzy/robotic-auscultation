@@ -1,0 +1,139 @@
+{
+  "schema": "rebuilt_act_native_smoke_public_extract_v1",
+  "source_records": [
+    {
+      "name": "ACT_PIPELINE_AUTHENTICATION.json",
+      "bytes": 2002,
+      "sha256": "1a00e983ef704f470f31235e99ebc9cf00fba0afe37313c8825467cf618d5a08"
+    },
+    {
+      "name": "ACT_SMOKE_DIAGNOSTICS.json",
+      "bytes": 4886,
+      "sha256": "3d565d35373aed88692c3b85b855e382ce9159b6ca440eb58d74cc26a1bed53c"
+    }
+  ],
+  "scope": "Two TRAIN/selection R3 diagnostic native episodes using the newly selected ACT checkpoint. Separate from historical ACT0/2 and from all8 frozen comparison scenarios.",
+  "fixed_denominator": 2,
+  "authenticated_count": 2,
+  "closed_trace_verified_count": 2,
+  "model_exercised_count": 2,
+  "physical_qualified_count": 0,
+  "cases": [
+    {
+      "id": "p001120-r3",
+      "cohort": "train",
+      "target_id": "R3",
+      "source_episode_id": "rebuilt-expert-capture-20261105-v2-p001120-p000474_a001230_f0000-r3",
+      "authentication": {
+        "authenticated": true,
+        "closed_trace_verified": true,
+        "model_exercised": true,
+        "execution_status": "model_exercised",
+        "model_response_count": 92,
+        "query_attempts": 92,
+        "attempted_actions": 907,
+        "executed_actions": 907,
+        "executed_native_ticks": 10880,
+        "native_rows": 11144,
+        "zero_tick_actions": 0,
+        "native_terminal_errors": [],
+        "reported_errors": [],
+        "reported_failure_reason": "R3: command posture rejected: posture_joint_envelope",
+        "stop_reason": null,
+        "physical_qualified": false
+      },
+      "physical_qualified": false,
+      "physical_error": "ValueError: Original physical pilot qualification failed",
+      "references": {
+        "authentication_receipt": {
+          "name": "smoke-p001120-r3-AUTHENTICATION.json",
+          "bytes": 922,
+          "sha256": "efc9100d67a036d362aa2bd4411c888941c6ccc03f9da3887e5a486bda6f8654"
+        },
+        "pilot_qualification": {
+          "name": "smoke-p001120-r3-PILOT.json",
+          "bytes": 1413,
+          "sha256": "98e591a9117aecd3088b3cb46bf4a052fd1afca216091979174e67feb174606f"
+        },
+        "receipt": {
+          "name": "smoke-p001120-r3-NATIVE.json",
+          "bytes": 1718,
+          "sha256": "6ea6bc57613ded764c474b7e6424a781c318e379c4c875a9132eddac12d07395"
+        },
+        "native_run": {
+          "name": "fresh_expert_result.json",
+          "bytes": 1885500,
+          "sha256": "14f23d723a88529e504a34365541cbf2195c7a2373da4908238bd0172f8242b4"
+        }
+      }
+    },
+    {
+      "id": "p000923-r3",
+      "cohort": "selection_validation",
+      "target_id": "R3",
+      "source_episode_id": "rebuilt-expert-capture-20261105-v2-p000923-p000474_a001230_f0000-r3",
+      "authentication": {
+        "authenticated": true,
+        "closed_trace_verified": true,
+        "model_exercised": true,
+        "execution_status": "model_exercised",
+        "model_response_count": 95,
+        "query_attempts": 95,
+        "attempted_actions": 935,
+        "executed_actions": 935,
+        "executed_native_ticks": 11219,
+        "native_rows": 11483,
+        "zero_tick_actions": 0,
+        "native_terminal_errors": [],
+        "reported_errors": [],
+        "reported_failure_reason": "R3: command posture rejected: posture_joint_envelope",
+        "stop_reason": null,
+        "physical_qualified": false
+      },
+      "physical_qualified": false,
+      "physical_error": "ValueError: Original physical pilot qualification failed",
+      "references": {
+        "authentication_receipt": {
+          "name": "smoke-p000923-r3-AUTHENTICATION.json",
+          "bytes": 922,
+          "sha256": "0261cde53472ea7590ec55facab51a4bd8d8006db55afcfc8afc33a6ea909a83"
+        },
+        "pilot_qualification": {
+          "name": "smoke-p000923-r3-PILOT.json",
+          "bytes": 1413,
+          "sha256": "0eb23485af9f75363249270713c81fc094e61e217276ab3963ab18306d09ffda"
+        },
+        "receipt": {
+          "name": "smoke-p000923-r3-NATIVE.json",
+          "bytes": 1718,
+          "sha256": "2490bc2da81535dd50f78705d2a9821e8526e8dd9324605b38a1edac0276bcf9"
+        },
+        "native_run": {
+          "name": "fresh_expert_result.json",
+          "bytes": 1942106,
+          "sha256": "94bfd4574d53e28bac6d28235d09b93bbc0ff38553ee7babaa02a384c3a87c00"
+        }
+      }
+    }
+  ],
+  "model": {
+    "checkpoint": {
+      "name": "best_expanded_pilot.pt",
+      "bytes": 10667201,
+      "sha256": "7d46ed55c36baa0408fb706ed35a25a1bc125137bda1ed0e229130a7e0473f9e"
+    },
+    "complete": {
+      "name": "COMPLETE.json",
+      "bytes": 236386,
+      "sha256": "96ea177b0ad31f52463b8a9afc0f61ab33e01db752a4cb499538be868cd8fbe9"
+    }
+  },
+  "diagnostic_only": true,
+  "formal_acceptance": false,
+  "test_payloads_opened": false,
+  "training_eligible": false,
+  "frozen_outcomes_consulted": false,
+  "physical_pass_prerequisite": false,
+  "interpretation": "The actual model was exercised and both closed traces authenticated. Both original physical qualifiers rejected posture_joint_envelope; no native physical success is established. The unchanged frozen comparison proceeds after authenticated safely closed diagnostic outcomes; all24 frozen method slots remain pending in this draft.",
+  "sanitization": "Only selected aggregate counters/status and logical-name/bytes/SHA references. Original absolute paths and non-qualification setup flags are omitted; no raw native rows, observations or weights downloaded."
+}
