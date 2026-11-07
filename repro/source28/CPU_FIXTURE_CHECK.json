@@ -1,0 +1,38 @@
+{
+  "schema": "wam_source28_public_cpu_fixture_check_v1",
+  "scope": "PARTIAL_INSPECTION_CPU_CAPSULE",
+  "status": "PASS_WITH_EXPLICIT_SKIP",
+  "code_commit": "d932993b13030da7873d04a4a9471df99bb836ec",
+  "selected_original_files": 244,
+  "external_inspection_artifacts": 2,
+  "selected_original_cpu_test_files": 12,
+  "command": "python -I -B repro/source28/verify_capsule.py --fixtures",
+  "python": "3.11.15",
+  "platform": "macOS arm64",
+  "packages": {
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "pytest": "9.2.0",
+    "torch": "2.15.0"
+  },
+  "passed": 305,
+  "skipped": 1,
+  "failed": 0,
+  "skip_reasons": [
+    "tests/test_ausc_act_posture_head.py:115: Official ACT integration requires the pinned LeRobot virtualenv"
+  ],
+  "loaded_project_test_modules_inside_capsule": 125,
+  "elapsed_seconds": 10.34,
+  "adapter_test_command": "python -B -m unittest demo_tests.test_source28_capsule -v",
+  "adapter_tests_passed": 6,
+  "physical_qualification": false,
+  "official_act_integration": false,
+  "training_executed": false,
+  "original_archive_bridge_executed": false,
+  "external_operator_main_executed": false,
+  "raw_data_or_weights_included": false,
+  "explicit_entry_imports_inside_capsule": 17,
+  "explicit_entry_import_check": "Separate -I -B Python process with only this capsule and its tests added as project roots; imported every SOURCE_SELECTION entry_point and checked exact __file__",
+  "source_selection_sha256": "0f2200dd4fbc4f4fed95a915fcfdba22c3611f6075c049e941dcdc167c43c299",
+  "public_verifier_sha256": "7d26401e720641d8a21157945c44d43b381cf66daefdc14a460d65f8e46df623"
+}
