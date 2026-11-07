@@ -1,0 +1,60 @@
+{
+  "schema": "wam_act5_public_status_v1",
+  "as_of_utc": "2026-11-07T04:43:00Z",
+  "model": "ACT5",
+  "completed_steps": 20000,
+  "selected_step": 19000,
+  "full_native_counts": {
+    "train": 8373,
+    "selection_validation": 2345
+  },
+  "first_launch": {
+    "infrastructure_aborts": 4,
+    "physical_episodes": 0,
+    "cause": "Validated runtime STOP option retained in exact scene-authoring projection"
+  },
+  "legacy_stop_development": "running; no final qualification verdict",
+  "new_stop_native_qualification": "pending",
+  "fresh_evaluation_started": false,
+  "fresh_identities_exposed": false,
+  "model_qualified": false,
+  "state_only": true,
+  "RGBD_neural_inputs": false,
+  "Hall_neural_input": false,
+  "expert_l2_fallback": false,
+  "physics_gates_changed": false,
+  "source26_commit": "05e972ca184383a525aff293fc9f3590e546da9c",
+  "native_runtime27_commit": "8e4b361d07bf716bf6bab5a613546e6ed1ee2415",
+  "original_receipt_digests": {
+    "training_complete": {
+      "bytes": 471093,
+      "sha256": "f6a6c8f1956fd067e708580b1eee3b24d624967015b11ece8482b2459c2b4b37"
+    },
+    "selected_weights": {
+      "bytes": 10762689,
+      "sha256": "8258390271fb23719b718468181e71a864c07fb1b8cc2d3584e4f1af2cbd6384"
+    },
+    "original_cpu_equivalence": {
+      "bytes": 12449,
+      "sha256": "2d975906dc3fdbeaa9920b9bba76689d6c2312334275e01085f330e6bb9e1a5b"
+    },
+    "composed_cpu_wrapper": {
+      "bytes": 60077,
+      "sha256": "ec583a8d687f6078eebd5c5c7c06c4631cda82e3005abec31415abc681960e95"
+    },
+    "native27_manifest": {
+      "bytes": 285350,
+      "sha256": "e9582a7332fd64a1e36b948285564531204c4ae6238990f915ff9c1626f9022b"
+    }
+  },
+  "public_files": {
+    "assets/act-recovery-iteration5-training-20261107.png": {
+      "bytes": 129811,
+      "sha256": "f52d9f83dfc33ab2f9ddcaa286f5020d97e46e1b5e201ad9022e8255c50d9390"
+    },
+    "evidence/act-recovery-iteration5-training-20261107.public.json": {
+      "bytes": 16209,
+      "sha256": "5502589a4f678349430506956e5e28cfaacc787de2c461eed42944622c8691b5"
+    }
+  }
+}
