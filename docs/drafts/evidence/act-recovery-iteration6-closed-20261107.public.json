@@ -1,0 +1,112 @@
+{
+  "schema": "act6_closed_development_public_v1",
+  "snapshot_utc": "2026-11-07T10:30:00Z",
+  "terminal_digest": {
+    "bytes": 70976,
+    "sha256": "4ef2a399f0ae3473dd96c57ea17de7c763f006d0d4e297f956c3404d6e81c6de"
+  },
+  "training_owner_digest": {
+    "bytes": 8157,
+    "sha256": "0b6d1943fa936296f955946f80dea635a23677e826efde177d9825c2b892b494"
+  },
+  "smoke_owner_digest": {
+    "bytes": 3465,
+    "sha256": "72f4a9ef13ad9fd34a7f20696ad1c8970f54505112f95f956a017c75c7582e8d"
+  },
+  "selected_step": 18000,
+  "selected_weights_digest": {
+    "bytes": 10843905,
+    "sha256": "822bbaf5298695a3ceeb3ab00e741e49a220bca7d458824e20beabb9ef542efe"
+  },
+  "declared_cases": 4,
+  "executed_cases": 4,
+  "qualified_cases": 2,
+  "normal_training_owner": true,
+  "normal_smoke_owner": true,
+  "protocol_errors": [],
+  "cases": [
+    {
+      "subject_id": "p001120",
+      "split": "train",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "executed": true,
+      "passed": true,
+      "infrastructure_error": false,
+      "physics_steps": 24656,
+      "native_digest": {
+        "bytes": 2532595,
+        "sha256": "fb2ada0aab07520363f99771050e1cad01b75715705cd8be246c938c2928a12b"
+      },
+      "qualification_digest": {
+        "bytes": 3261,
+        "sha256": "28ad134d245558c04e3291f299872fb9ea3cd0b535ac498d0adbdbf2857a180f"
+      },
+      "failure_reason": null
+    },
+    {
+      "subject_id": "p001120",
+      "split": "train",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "executed": true,
+      "passed": false,
+      "infrastructure_error": false,
+      "physics_steps": 29041,
+      "native_digest": {
+        "bytes": 4901262,
+        "sha256": "0770bd228bb80c784884d92acc24af9a55d5315698044db37b42799f0b2cf58f"
+      },
+      "qualification_digest": {
+        "bytes": 1434,
+        "sha256": "73a06a2a83efc5c83aa72ab81ddf02b80bcbc04f9274ecad66c14a47b68606f9"
+      },
+      "failure_reason": "Original L2 120 second deadline; no contact hold"
+    },
+    {
+      "subject_id": "p000923",
+      "split": "validation",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "R3",
+      "executed": true,
+      "passed": false,
+      "infrastructure_error": false,
+      "physics_steps": 29041,
+      "native_digest": {
+        "bytes": 4893512,
+        "sha256": "b1cd96a59e5f71a11a47335091f760bb9b56a768bc6ce2f370276af4dc1228e9"
+      },
+      "qualification_digest": {
+        "bytes": 1434,
+        "sha256": "093df9caaeaae4d1449242e3ff0be3f27ae7a7b78638993b66e2a546465b7b9b"
+      },
+      "failure_reason": "Original L2 120 second deadline; no contact hold"
+    },
+    {
+      "subject_id": "p000923",
+      "split": "validation",
+      "pose_id": "p000474_a001230_f0000",
+      "target_id": "L3",
+      "executed": true,
+      "passed": true,
+      "infrastructure_error": false,
+      "physics_steps": 29373,
+      "native_digest": {
+        "bytes": 3073672,
+        "sha256": "4478093492f0c137d4bc36ca7dd25473b14f5437037496884bae205f413738ef"
+      },
+      "qualification_digest": {
+        "bytes": 3276,
+        "sha256": "c843e5b814ee32e02462c62c3fcbf815ef611db46272d9bf496834039fb26873"
+      },
+      "failure_reason": null
+    }
+  ],
+  "expert_l2_fallback": false,
+  "physics_gates_changed": false,
+  "model_qualified": false,
+  "formal_acceptance": false,
+  "fresh_executed": false,
+  "fresh_identities_unexposed": 8,
+  "scope": "Known TRAIN/selection VAL only; state-only ACT L2 with analytic L3; no new identity or real hardware acceptance"
+}
