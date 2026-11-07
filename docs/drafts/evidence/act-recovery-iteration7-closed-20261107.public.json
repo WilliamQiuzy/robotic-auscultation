@@ -25,7 +25,6 @@
       1000
     ],
     "full_cpu_equivalence_candidates": [
-      500,
       1000
     ],
     "owner_closed_normally": true,
@@ -140,7 +139,10 @@
     "queries": 12,
     "query_selection": "fixed adjacent pairs at or before 24 s, at or before 60 s, and final eligible pair for each failed TRAIN target",
     "original_full_mesh_and_posture_checks": true,
-    "retained_measured_q_v_a_and_three_command_seam": true,
+    "measured_H2_and_joint_position_retained": true,
+    "interpolator_command_position_velocity_acceleration_retained": true,
+    "three_command_seam_retained": true,
+    "measured_joint_acceleration_used": false,
     "prefix_cells": 10,
     "computed_prefix_s": 0.5,
     "oracle_accepted_queries": 12,
@@ -156,7 +158,7 @@
     "physics_qualified": false,
     "validation_histories_opened": false,
     "fresh_payloads_opened": false,
-    "limitation": "Unexecuted CPU oracle setters and original full-mesh command previews from actual TRAIN q/v/a; not measured future success or new training demonstrations.",
+    "limitation": "Unexecuted CPU oracle setters and original full-mesh command previews using actual TRAIN measured H2/joint position and retained interpolator command q/v/a plus the three command seam; not measured future success or new training demonstrations.",
     "cases": [
       {
         "case": "p001120-r3",
@@ -693,7 +695,14 @@
         "TRAIN": 7.49876586,
         "selection_VAL": 12.40504221
       },
-      "global_fit_better_than_ACT6": false
+      "global_fit_better_than_ACT6": false,
+      "candidates_saved": [
+        500,
+        1000
+      ],
+      "full_cpu_equivalence_candidates": [
+        1000
+      ]
     },
     "source_artifact_digests": {
       "training_root_complete": {
