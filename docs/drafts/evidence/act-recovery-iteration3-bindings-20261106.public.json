@@ -1,0 +1,105 @@
+{
+  "schema": "ausc_act_iteration3_public_bindings_v1",
+  "scope": "ACT3 development negative; original physics and posture gates unchanged; no fresh identity payload exposed",
+  "source23_commit": "26962fdc3c2e866c647be4b151314ee796bcff91",
+  "references": {
+    "source_archive": {
+      "logical_name": "ACT3/source23/runtime_archive",
+      "sha256": "67afa123f441938750ef0a1ab6700bc03d00853a704a826718d197c3893c33e8"
+    },
+    "source_manifest": {
+      "logical_name": "ACT3/source23/SOURCE_MANIFEST.json",
+      "bytes": 284304,
+      "sha256": "17099fb13c44590a7bd108402dfe9708a91ac625b387b8f171e880e7d4f36175"
+    },
+    "training_complete": {
+      "logical_name": "ACT3/training/COMPLETE.json",
+      "bytes": 290928,
+      "sha256": "ee7d3f125719300bbed6b6fe998b1a8225edcc7581ba6477af9efcc665c68636"
+    },
+    "selected_checkpoint": {
+      "logical_name": "ACT3/training/selected_weights",
+      "bytes": 10677505,
+      "sha256": "2ec6df6bbe3939bd2e616c53b27e7411c195d067f006cf4b2ff403d004cba216"
+    },
+    "cpu_equivalence": {
+      "logical_name": "ACT3/training/CPU_EQUIVALENCE.json",
+      "bytes": 12439,
+      "sha256": "8301ce63dfb052594d1ff693cc80d3d7b0b171a92e47dfc0ebe32f584e9e2bd9",
+      "passed": true
+    },
+    "closed_dev_owner": {
+      "logical_name": "ACT3/development/OWNER.json",
+      "bytes": 3374,
+      "sha256": "c11200880e7a34f55f80eb910d3e318e39acea3f86663f1dd414f2c7273f77d5",
+      "normal_closed": true
+    },
+    "development_negative": {
+      "logical_name": "ACT3/development/NEEDS_REPAIR.json",
+      "bytes": 5010,
+      "sha256": "022898657fb7eb94ff68c8ada49454faa7a4ebafc956b226f3fa13cfd449c7c3"
+    },
+    "cpu_posture_diagnosis": {
+      "logical_name": "ACT3/diagnostics/COMPLETE.json",
+      "sha256": "4ec8be3bc1de374807e31a024a92206f1d784b544a9eef495c86d1541a31e915"
+    },
+    "independent_reference_verification": {
+      "logical_name": "ACT3/diagnostics/REFERENCE_VERIFICATION.json",
+      "sha256": "174f3f70ae2fac72931659c8b733334fa0c8833ccb69897071dee6547a703c30",
+      "verified_references": 239
+    }
+  },
+  "public_files": {
+    "assets/act-recovery-iteration3-l3-negative-20261106.mp4": {
+      "bytes": 88643,
+      "sha256": "699a7474cc67bc6a02648491b2a1983545dc651571558fc4631b6b9341ee45f3"
+    },
+    "assets/act-recovery-iteration3-l3-negative-20261106-poster.png": {
+      "bytes": 62860,
+      "sha256": "e563885da8426b53a5e09cedd2ce41ad3b4b94626b795b0f86a079ae1a2ac411"
+    },
+    "assets/act-recovery-iteration3-l3-posture-diagnosis-20261106.png": {
+      "bytes": 198712,
+      "sha256": "2cbb20fbf859372dbc74108e42026e3586609d45a6686d5946deb53119292669"
+    },
+    "evidence/act-recovery-iteration3-20261106.public.json": {
+      "bytes": 261612,
+      "sha256": "9ff83dd3870b711b0396e638f04552c20fa1e9e8b6e2184d46312846259d732b"
+    },
+    "evidence/act-recovery-iteration3-posture-20261106.public.json": {
+      "bytes": 3302,
+      "sha256": "efe251bb4437eb70b62c2058673f0ad6285f2ec2dde5d2d0b93df9bb9a6a60be"
+    }
+  },
+  "underlying_dev_failures": [
+    {
+      "role": "TRAIN",
+      "target": "R3",
+      "physical_success": false,
+      "category": "posture_joint_envelope"
+    },
+    {
+      "role": "TRAIN",
+      "target": "L3",
+      "physical_success": false,
+      "category": "posture_joint_envelope"
+    },
+    {
+      "role": "selection_VAL",
+      "target": "R3",
+      "physical_success": false,
+      "category": "mesh_clearance",
+      "required_m": 0.003,
+      "reported_minimum_m": 0.002999369900189177,
+      "native_ticks": 4041,
+      "secondary_audit_finalize_error_retained": true
+    },
+    {
+      "role": "selection_VAL",
+      "target": "L3",
+      "physical_success": false,
+      "category": "posture_joint_envelope"
+    }
+  ],
+  "provenance_note": "Full source, owner, equivalence and diagnostic receipts remain with the experiment owner; these logical references bind the owner-verified bytes and hashes. Public result/scalar files are exact copies. No arrays, raw states or weights are distributed."
+}

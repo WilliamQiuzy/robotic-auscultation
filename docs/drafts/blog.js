@@ -17,6 +17,7 @@ window.matchMedia('(min-width:801px)').addEventListener('change',event=>{if(even
 document.documentElement.classList.add('js-video');
 for(const video of document.querySelectorAll('.exp-recording video')){
  const box=video.closest('.video-box');
+ if(!box)continue;
  const message=box.querySelector('#recording-message,[data-recording-message]');
  const retry=box.querySelector('#recording-retry,[data-recording-retry]');
  let loadingTimer;
@@ -57,6 +58,6 @@ if('IntersectionObserver' in window){
  const nav=new IntersectionObserver(entries=>{const entry=entries.find(e=>e.isIntersecting);if(!entry)return;const href='#'+entry.target.id;
   document.querySelectorAll('.desktop-nav a,.exp-toc a,.mobile-menu nav a').forEach(a=>{if(a.getAttribute('href')===href)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current');});
  },{rootMargin:'-15% 0px -55% 0px',threshold:0});
- for(const id of ['comparison','recordings','offline-act','native-smokes','system-roles','hardware-gap','engineering','evidence']){const section=document.getElementById(id);if(section)nav.observe(section);}
+ for(const id of ['comparison','recordings','offline-act','native-smokes','system-roles','hardware-gap','engineering','evidence','coverage','prefix','recovery','training','native-negative','student-states','iteration3','evaluation']){const section=document.getElementById(id);if(section)nav.observe(section);}
 }else principle.querySelectorAll('.word').forEach(word=>word.classList.add('is-active'));
 reduced.addEventListener('change',event=>{if(event.matches){document.documentElement.classList.remove('js-motion');document.querySelectorAll('.reveal').forEach(el=>el.classList.add('is-visible'));principle.querySelectorAll('.word').forEach(word=>word.classList.add('is-active'));}});
