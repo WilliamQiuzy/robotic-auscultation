@@ -2,6 +2,17 @@
 
 The current reproducible numerical baseline is **state-only official LeRobot ACT**. The public simulation code already contains the robot, expert and control interfaces; the new `demo` runner provides a portable numerical reference. Licensed SMPL/HuMMan assets, exported training arrays, original native run bundles and learned weights are obtained separately. This release is a recorded demo and source release, not a one-command download of the original complete simulator environment.
 
+The November 6 [handoff and recovery extension](act_handoff_recovery_v1.md)
+adds an explicitly typed seventh `action_is_pad` array and actual recovery data
+through the native library workflow. The six-array portable example below
+remains a separate legacy contract. Neither prepared data nor offline training
+establishes successful Isaac contact; the [experiment notebook](drafts/act-recovery-20261106.html)
+records actual phase status and native results.
+
+For the later source26/ACT5 treatment, use the independent [CPU capsule and native
+reproduction guide](SOURCE26_REPRODUCTION.md). The repository root remains the
+historical source19 snapshot; the source26 selection does not replace it.
+
 ## Task and data flow
 
 ```

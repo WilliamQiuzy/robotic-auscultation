@@ -1,0 +1,257 @@
+# Inspect source26, run CPU fixtures, and understand the native rerun
+
+The independent [source26 capsule](../repro/source26/) exposes the ACT5 treatment
+code and nine original CPU test files. **It is a partial public selection, not a
+complete simulator installation or a qualified experiment owner.** The repository
+root remains the historical source19 implementation; its source8, source17 and
+source19 inventories, tests, evidence hashes and results retain their meanings.
+Do not overlay source26 modules onto that root with `PYTHONPATH`.
+
+| Route | What you can reproduce | What is required |
+|---|---|---|
+| Public inspection / CPU fixtures | Selected exact source bytes, synthetic numerical/provenance and rejection checks | This checkout, Python 3.11, NumPy, SciPy, pytest; PyTorch for head tests |
+| Original-owner historical rerun | The original frozen V3 preparation, training and native evaluation workflow | Complete original code/runtime archives, bound historical data/receipts, licensed assets and matching Linux environment |
+| New experiment | New qualified data, model and evaluation with new lineage | Independently licensed inputs, explicit versioned contracts and new freezes/owners; no reuse of historical qualification claims |
+
+Source26 is original commit `05e972ca184383a525aff293fc9f3590e546da9c`.
+Its full runtime `SOURCE_MANIFEST.json` was 287,532 bytes, SHA-256
+`315f021e76f4e606f4a327b053abc22bacf8a1b8c649d35b4bd8ba9e644c743d`.
+That full manifest and archive are **not** bundled. The capsule's
+[`SOURCE_SELECTION.json`](../repro/source26/SOURCE_SELECTION.json) is explicitly
+`PARTIAL_PUBLIC_CAPSULE`: each original file has its relative path, byte count,
+SHA-256, scope and dependency provenance. `CODE_COMMIT` names the original commit;
+it does not certify the partial tree as the full runtime.
+
+The capsule contains 188 project Python files, 42 test/helper Python files, one
+already-public OpenArm URDF XML and three already-public configuration files.
+Every selected original file is an exact Git blob and matches the original
+source26 manifest. The nine selected test files import 33 helpers; the helpers
+are copied for imports and are not additionally selected as test suites.
+`verify_capsule.py` and `demo_tests/test_source26_capsule.py` are new **public
+adapters**, separately listed in the selection, not original source26 bytes.
+
+## Run the public CPU checks
+
+From a fresh checkout, use an environment outside the capsule. The versions below
+match this repository's existing CPU dependency pins; the capsule needs only this
+small subset. PyTorch is needed for numerical head/gradient checks. No LeRobot,
+Isaac SDK, GPU, FCL or native Ruckig installation is required for these fixtures.
+
+```sh
+python3.11 -m venv .venv-source26
+.venv-source26/bin/python -m pip install numpy==2.4.2 scipy==1.17.1 pytest==9.1.1
+.venv-source26/bin/python -m pip install torch==2.14.1 --index-url https://download.pytorch.org/whl/cpu
+.venv-source26/bin/python -I -B repro/source26/verify_capsule.py
+.venv-source26/bin/python -I -B repro/source26/verify_capsule.py --fixtures
+python3 -B -m unittest demo_tests.test_source26_capsule -v
+```
+
+The adapter verifies the selected bytes, starts a clean `-I -B` Python subprocess
+with its working directory set to the capsule, explicitly selects only the nine
+test files, prints all skip reasons (`-rs`), and checks actual loaded `sim`,
+`auscultation`, `scripts` and test-helper module paths. Project imports must
+resolve inside the capsule. Neither the old root nor a private checkout supplies
+fallback modules. Standard third-party packages still come from your environment.
+
+The local isolated check recorded **211 passed, 1 skipped**, with 117 loaded
+project/test modules confined to the capsule. The [CPU fixture receipt](../repro/source26/CPU_FIXTURE_CHECK.json)
+records this bounded check; CI repeats the same selector and prints skip reasons.
+
+The official ACT single-forward integration test deliberately skips unless run
+inside the original pinned LeRobot virtualenv. Keep that reason visible; generic
+PyTorch head tests are not that integration check. These fixtures include injected
+trajectory/verifier interfaces and synthetic states. A pass does not establish
+native FCL/Ruckig behavior, physics execution, owner qualification, measured
+settling, cumulative retry-budget acceptance, model performance or contact success.
+
+The explicit text dependencies retain their original provenance. The URDF keeps
+Enactic's Apache-2.0 notice, but none of its referenced meshes are copied. The
+camera file is the historical approved simulator configuration, including scalar
+projection summaries. The Hall file is physics-anchored with measured rest and
+hardstop endpoints and **no bench-weight verification**; it is not wholly
+synthetic. The identity config contains IDs and split seed only. Two geometry
+compatibility constants and the URDF's autogenerated comment retain already-public
+historical home paths. They are historical identities, not current server addresses
+or login instructions.
+
+## What source26 changes, and what the counts mean
+
+This treatment retains prescribed 3D goals, state17/H2, H20/E10, official ACT L2,
+analytic L3 and the original physical gates. It adds explicit V3 conditional
+computational supervision, the V2 smooth posture-box parameterization (softness
+0.010 rad, unchanged physical inset 0.001 rad), and opt-in STOP residual handling.
+The head guarantees a separable target joint box, not full motion feasibility.
+
+| Source | Recorded inventory | Meaning |
+|---|---|---|
+| Native bank | 8,373 TRAIN origins; 2,345 selection-VAL origins | Actual admitted expert demonstrations; unchanged normalization and admission |
+| Planned ideal tracking | 35,108 origins; 679,360 computed cells | Unexecuted command previews; generated histories, not extra physical demos |
+| Genuine student oracle | 20 accepted origins / 21 attempted slots; 398 computed cells | Actual current student H2 followed by computed expert targets; no measured future trajectory |
+| Static conditional continuation | 854 accepted / 1,024 attempted slots; 17,080 computed cells | Generated static H2 with q/v/a seam, not measured DART or native execution |
+
+The merged auxiliary export has **35,982 origins, 934 source records and 1,109
+attempt slots**. Those are different units, not new physical demonstration counts.
+The conditional denominator comes from 16 TRAIN bodies × two known poses × R3/L3
+× four anchors × four frozen perturbations. The 170 rejections include 64 slots
+from four unavailable canonical cases; preserve all their reasons. The ordered
+V2 parent stays unchanged. Native and computational sources remain separate;
+selection uses the full native selection-VAL population only.
+
+The [preparation receipt summary](drafts/evidence/act-recovery-v3-preparation-20261107.public.json)
+records preparation at its own timestamp, including pending statuses. ACT5
+training was subsequently running while this capsule was prepared. This guide
+adds no completed training, four-case DEV pass or fresh-identity success claim.
+The [experiment notebook](drafts/act-recovery-20261106.html) retains the closed
+negative earlier treatments and explicitly pending later phases.
+
+## Historical V3 preparation on the original installation
+
+The following is the original-library API sequence, **not a command to turn the
+partial capsule into the full historical runtime**. Use the complete original
+source26 code root and its independently configured environments. Keep the original
+native bank, V2 parent, TRAIN16 freeze, posture-profile receipt and source20,
+source23 and source24 archives at their original bound configured paths. V3
+validators authenticate their exact bytes and earlier owners; arbitrary substitute
+arrays, generic meshes or `pip install lerobot` cannot satisfy those contracts.
+
+Set these variables to your actual locally installed, hash-bound original inputs
+and fresh output paths. There are no usable run IDs or receipt substitutes in this
+example. `AUSC_ORACLE_RUNS_JSON` is your JSON list of `{complete, frozen_request}`
+full references for the actual closed source24 oracle runs. A full reference has
+`path`, `bytes`, and `sha256` describing the real file.
+
+```sh
+cd "$AUSC_ORIGINAL_SOURCE26_ROOT"
+CUDA_VISIBLE_DEVICES='' "$AUSC_CPU_PYTHON" -B - <<'PY'
+import json, os
+from pathlib import Path
+from sim.ausc_policy import m2_given_contact_runtime as rt
+from sim.ausc_policy import m2_act_recovery_scope as scope
+from sim.ausc_policy import m2_act_conditional_supervision as producer
+from sim.ausc_policy import m2_act_conditional_data as data
+
+allowed = scope.TRAIN16_IDS
+request = producer.freeze_request(
+    os.environ['AUSC_NEW_REQUEST'],
+    rt.reference(os.environ['AUSC_CANONICAL_SCENE_MANIFEST']),
+    allowed_train_ids=allowed,
+    seed=int(os.environ['AUSC_FROZEN_SEED']),
+    scales_rad=json.loads(os.environ['AUSC_FROZEN_RADII_JSON']),
+    suffix_policy=os.environ['AUSC_FROZEN_SUFFIX_POLICY'])
+generated = producer.generate(request, os.environ['AUSC_NEW_GENERATION'],
+                              allowed_train_ids=allowed, production=True)
+exported = data.export_from_parent(
+    os.environ['AUSC_NEW_AUXILIARY_EXPORT'],
+    oracle_runs=json.loads(Path(os.environ['AUSC_ORACLE_RUNS_JSON']).read_text()),
+    conditional_complete_ref=generated, allowed_train_ids=allowed)
+data.load_preparation(exported, allowed)  # authenticates exported bytes/lineage
+print(json.dumps(exported))
+PY
+```
+
+Freeze the seed, all four radii and one of `producer.POLICIES` before preview
+outcomes. The recorded conditional preparation used seed 20261107 and joint L2
+radii `[0.015, 0.04, 0.08, 0.12]` rad. Keep the bound suffix policy from the original
+request for an exact rerun. `production=True` uses the original full posture,
+collision and finite-difference checks and rejects injected fixture factories.
+All 64 cases and 1,024 outcomes remain in the ledger. An explicit subset is
+incomplete and cannot become a production training preparation.
+
+This sequence intentionally loads the exact V2 parent from `data.PARENT_COMPLETE`.
+It does not regenerate that parent, the real bank, or the genuine negative student
+queries. Their original owner/source/geometry/array bindings must already exist.
+Inspect every `OUTCOMES.json`, generation `METADATA.json`, export `COMPLETE.json`
+and ordered-parent proof before optimization.
+
+## Original owner training, selection, and actual evaluation
+
+Construct a fresh config from `m2_act_auxiliary_train.SCHEDULE` with schema
+`CONFIG_SCHEMA_V3`, an absolute `base`, the exact `NATIVE_DATASET`, the exported
+auxiliary full reference and exact `TRAIN16_SCOPE` as `evaluation_cohort`.
+Build `posture_head` with `m2_act_posture_head.pinned_spec(native_normalization(config),
+version=2)`. If using replacement GPU binding, obtain and validate a fresh local
+binding through `rebuild_gpu_binding`; copied machine identifiers are not valid.
+Use a fresh owner run ID and preserve the existing guard. Do not create
+`AUSC_OWNED_RUN`, owner markers or completion receipts yourself.
+
+```sh
+# Validate your concrete config and its original input bindings first.
+CUDA_VISIBLE_DEVICES='' "$AUSC_CPU_PYTHON" -B - <<'PY'
+import os
+from sim.ausc_policy import m2_given_contact_runtime as rt
+from sim.ausc_policy import m2_act_auxiliary_train as train
+train.validate_config(rt.read_bound(rt.reference(os.environ['AUSC_TRAIN_CONFIG'])))
+PY
+"$AUSC_ACT_PYTHON" -u -B -m sim.ausc_policy.run \
+  --config "$AUSC_TRAIN_CONFIG" --run-id "$AUSC_NEW_TRAIN_RUN"
+```
+
+The original schedule is 20,000 updates, batch64, full native selection-VAL every
+500 updates, earliest minimum masked raw target MAE and actual selected CPU/CUDA
+equivalence. V3 batch/weight groups are native32/0.50, planned8/0.125,
+conditional8/0.125 and oracle16/0.25. Normalization comes only from the real native
+TRAIN bank. The official upstream LeRobot commit is
+`eb7a54c6ff4983fc86075442bf4fa61503e7b5d1`; its original `modeling_act.py` SHA-256 is
+`83d954f79ccd3eaa6774dbea92524939c8ac08359bb355ba7cd37b8601e1e3af`.
+The unchanged strict official environment/dependency inventory is also required.
+A successful pip install alone is not that environment equivalence.
+
+After selected-model and CPU equivalence artifacts close successfully, run the
+four frozen TRAIN/selection development cases through the original owner and full
+qualifier. **All four must pass the actual gate before exposing fresh identities.**
+A software test, offline MAE or CPU-only counterfactual is not this gate. Preserve
+negative episodes and run IDs rather than retrying a negative case in place.
+
+Only then prepare the fixed fresh comparison: eight identities × two known poses
+× R3/L3 = 32 planned scenarios, matched expert and ACT arms. Bind the pretraining
+identity freeze in the case ledger, keep every failed or unavailable preparation,
+and use the original paired helper:
+
+```sh
+"$AUSC_CPU_PYTHON" -B -m sim.ausc_policy.m2_rebuild_paired_eval --prepare \
+  --complete "$AUSC_TRAIN_COMPLETE" --cases "$AUSC_FROZEN_FRESH_CASES" \
+  --expert-act-only --parallelism 3 --output "$AUSC_NEW_COMPARISON" \
+  --run-id "$AUSC_NEW_EVAL_RUN"
+# PREPARED.json lists each ordinary original-owner batch config.
+"$AUSC_ACT_PYTHON" -u -B -m sim.ausc_policy.run \
+  --config "$AUSC_PREPARED_BATCH_CONFIG" --run-id "$AUSC_NEW_BATCH_RUN"
+# Repeat with the other prepared arm, using its own fresh owner run ID.
+"$AUSC_CPU_PYTHON" -B -m sim.ausc_policy.m2_rebuild_paired_eval --qualify \
+  --config "$AUSC_ACTUAL_CASE_CONFIG" --output "$AUSC_ACTUAL_CASE_OUTPUT"
+# Qualify every actual case in both arms, retaining negatives, then summarize.
+"$AUSC_CPU_PYTHON" -B -m sim.ausc_policy.m2_rebuild_paired_eval --summarize \
+  --prepared "$AUSC_PAIRED_PREPARED" --expert-output "$AUSC_EXPERT_OUTPUT_ROOT" \
+  --act-output "$AUSC_ACT_OUTPUT_ROOT" --output "$AUSC_NEW_SUMMARY"
+```
+
+`--prepare` executes **no simulator or model**. The original `run` owner clears
+`PYTHONPATH` and changes directory to its code root; this is why the capsule is
+independent and not an overlay. Native execution requires matching Linux Isaac
+SDK, NVIDIA runtime, original configured body/robot/geometry assets, native FCL
+and Ruckig. The partial public tree cannot supply those requirements. Report all
+32 planned slots separately from CPU-prepared and actually executed denominators;
+planner timeout is not proof of geometric impossibility.
+
+Every physical pass still requires the original 240 Hz evidence and unchanged
+contact, hold, force/Hall, compression, posture/joint/collision/derivative,
+unloading and home predicates. See the [handoff/evaluation contract](act_handoff_recovery_v1.md)
+and [paired helper guide](m2_rebuild_paired_eval_v1.md). No source or physics guard
+is relaxed to make a historical run portable.
+
+## New inputs require a new experiment lineage
+
+Use your own properly licensed inputs to build and independently qualify a new
+runtime/data export, freeze identities before selection, and record new code,
+asset, dataset, owner and checkpoint hashes. The published V3 historical validators
+intentionally reject arbitrary new banks, cohorts, parents and archive paths.
+Define a separately reviewed protocol version for those inputs; do not edit
+historical constants, fabricate historical receipts or label your new results as
+the original ACT5 run. The [portable training guide](TRAINING.md) offers a separate
+six-array numerical demo contract; it is not a V3/native-physics substitute.
+
+This release concerns state-only ACT L2 with analytic L3, given a 3D goal. RGB-D
+and Hall are not neural policy inputs. It establishes no acoustic, learned visual
+localization, continuous ten-point, unseen-pose, real-hardware or clinical result.
+No body meshes, SMPL/HuMMan coefficients/pose arrays, raw captures, USD/NPZ bundles,
+weights, original runtime archives, machine environments or credentials are added
+by the capsule.

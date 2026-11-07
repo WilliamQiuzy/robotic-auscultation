@@ -1,0 +1,114 @@
+{
+  "case_alias": "Development L3 closed case",
+  "caveat": "Optimistic one-joint braking bound; positive reserve does not establish motion feasibility. No fresh held-out payload opened.",
+  "counts": {
+    "act_l2_native_rows": 3252,
+    "all_applied_setter_ids": 271,
+    "applied_history_wait_ticks": 24,
+    "applied_motion_cells": 269,
+    "applied_motion_native_ticks": 3228,
+    "completed_action_ledger_entries": 269,
+    "fully_applied_motion_cells": 269,
+    "inference_requests": 28,
+    "issued_motion_actions": 270,
+    "native_rows": 3492,
+    "partially_applied_motion_cells": 0,
+    "raw_setter_receipt_count": 272,
+    "zero_applied_motion_actions": 1
+  },
+  "decode_max_error_rad": 0.0,
+  "diagnostic_only": true,
+  "first_lost_optimistic_reserve": {
+    "reserve_mrad": -0.14217971090467463,
+    "time_s": 14.187499999999515
+  },
+  "first_rejected_tick": {
+    "applied": false,
+    "joint": 3,
+    "margin_mrad": -0.38327188275100177,
+    "time_s": 14.55
+  },
+  "first_unsafe_raw_target": {
+    "J3_margin_mrad": -2.0579504042688157,
+    "prefix_index": 0,
+    "query_index": 24,
+    "time_s": 12.95
+  },
+  "label_audits": [
+    {
+      "bank": "native-train",
+      "minimum_margin_by_joint_mrad": [
+        25.988362491685013,
+        3.490658503988664,
+        3.490658503988664,
+        112.20165290744654,
+        89.40373123455747,
+        12.442042274878663,
+        382.62084435368007
+      ],
+      "not_representable_with_1mrad_head_margin": 0,
+      "outside_posture_cells": 0,
+      "valid_raw_cells": 161380
+    },
+    {
+      "bank": "native-validation",
+      "minimum_margin_by_joint_mrad": [
+        82.32800572347276,
+        3.490658503988664,
+        9.675022054068894,
+        277.1310952559647,
+        3.490658503988664,
+        145.30130525804452,
+        506.9444558392859
+      ],
+      "not_representable_with_1mrad_head_margin": 0,
+      "outside_posture_cells": 0,
+      "valid_raw_cells": 45380
+    },
+    {
+      "bank": "ideal-valid-supervised-cells",
+      "minimum_margin_by_joint_mrad": [
+        4.760641884987926,
+        3.49065850398865,
+        3.490658503988664,
+        109.37163037924869,
+        3.490658503988664,
+        3.490658503988664,
+        382.5593707056185
+      ],
+      "not_representable_with_1mrad_head_margin": 0,
+      "outside_posture_cells": 0,
+      "valid_raw_cells": 679360
+    },
+    {
+      "bank": "ideal-complete-raw-schedules",
+      "minimum_margin_by_joint_mrad": [
+        4.760641884987926,
+        3.490658503988664,
+        3.490658503988664,
+        109.37163037924869,
+        3.490658503988664,
+        3.490658503988664,
+        382.5593707056185
+      ],
+      "not_representable_with_1mrad_head_margin": 0,
+      "outside_posture_cells": 0,
+      "valid_raw_cells": 35168
+    }
+  ],
+  "model_inference_executed": false,
+  "native_demonstration_eligible": false,
+  "parent_batch_closure_required_for_future_training": true,
+  "physical_qualification": false,
+  "physics_executed": false,
+  "query25_26_27_J3_reserve_mrad": {
+    "25": 145.25112722260818,
+    "26": 41.42008278909494,
+    "27": -12.604605274682365
+  },
+  "schema": "act3_posture_diagnosis_public_scalars_v1",
+  "training_accepted": false,
+  "training_eligible": false,
+  "unique_full_posture_profiles": 1,
+  "unique_joint_boxes": 1
+}

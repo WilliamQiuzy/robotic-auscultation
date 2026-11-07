@@ -1,0 +1,227 @@
+{
+  "schema": "ausc_act_recovery_diagnosis_v1",
+  "status": "data_contract_verified_native_qualification_running",
+  "as_of_utc": "2026-11-06T18:03:48.020047+00:00",
+  "source_refs": {
+    "COVERAGE_nominal.json": {
+      "bytes": 2482,
+      "sha256": "eaa4a0ac14ecc55d9d7f5561e357e140876a5dbf273131e79c7f9060399f2bd1"
+    },
+    "OFFICIAL_MASK_LOSS.json": {
+      "bytes": 1445,
+      "sha256": "2a733e5aef7fe5c8455c04d567fea4555724c0d4241fa5490011f9a14bf526e2"
+    },
+    "LEGACY_SUBSET.json": {
+      "bytes": 1391,
+      "sha256": "10775f1983dcabecd8dea89bf37bd7f6a7db277fa079f77a4adeb59ea6aa8749"
+    },
+    "COHORT_FREEZE.json": {
+      "bytes": 1474,
+      "sha256": "f7ff36152de8b987596880512621c5ce8c9ec149eae20b07dca71d4f613a4ff8"
+    },
+    "native-numeric-tests.log": {
+      "bytes": 99,
+      "sha256": "371cb9a4656b45ee151550435c48b18c34a2dddddf2263efcbb3a31b8802e096"
+    }
+  },
+  "coverage": {
+    "train": {
+      "distance_bands": {
+        "10": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "100": {
+          "axis_error_max_deg": 7.3013304478219165,
+          "windows": 5183
+        },
+        "20": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "35": {
+          "axis_error_max_deg": 0.040887067823687936,
+          "windows": 1566
+        },
+        "60": {
+          "axis_error_max_deg": 0.10937534110514237,
+          "windows": 4131
+        }
+      },
+      "future_length_histogram": {
+        "1": 28,
+        "10": 28,
+        "11": 28,
+        "12": 28,
+        "13": 28,
+        "14": 28,
+        "15": 28,
+        "16": 28,
+        "17": 28,
+        "18": 28,
+        "19": 28,
+        "2": 28,
+        "20": 7558,
+        "3": 28,
+        "4": 28,
+        "5": 28,
+        "6": 28,
+        "7": 28,
+        "8": 28,
+        "9": 28
+      },
+      "goal_distance_minimum_m": 0.025392978084746574,
+      "interpretation": "Encoded uncompressed TCP vs prescribed reference, not measured contact-plane flatness. Origins inside the instantaneous handoff trigger are not required; policy is never queried there.",
+      "tangent_minimum_m": 0.0019096493642175771,
+      "tangent_within_2mm": 7,
+      "valid_future_cells": 156480,
+      "windows": 8090
+    },
+    "validation": {
+      "distance_bands": {
+        "10": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "100": {
+          "axis_error_max_deg": 6.952818224361526,
+          "windows": 1508
+        },
+        "20": {
+          "axis_error_max_deg": null,
+          "windows": 0
+        },
+        "35": {
+          "axis_error_max_deg": 0.04818322155590708,
+          "windows": 455
+        },
+        "60": {
+          "axis_error_max_deg": 0.04818322155590708,
+          "windows": 1209
+        }
+      },
+      "future_length_histogram": {
+        "1": 8,
+        "10": 8,
+        "11": 8,
+        "12": 8,
+        "13": 8,
+        "14": 8,
+        "15": 8,
+        "16": 8,
+        "17": 8,
+        "18": 8,
+        "19": 8,
+        "2": 8,
+        "20": 2193,
+        "3": 8,
+        "4": 8,
+        "5": 8,
+        "6": 8,
+        "7": 8,
+        "8": 8,
+        "9": 8
+      },
+      "goal_distance_minimum_m": 0.025406314394519472,
+      "interpretation": "Encoded uncompressed TCP vs prescribed reference, not measured contact-plane flatness. Origins inside the instantaneous handoff trigger are not required; policy is never queried there.",
+      "tangent_minimum_m": 0.001987581622423722,
+      "tangent_within_2mm": 1,
+      "valid_future_cells": 45380,
+      "windows": 2345
+    }
+  },
+  "original_tangent_minimum_m": {
+    "train": 0.0051323422139027365,
+    "validation": 0.005134049633416499
+  },
+  "legacy_subset": {
+    "passed": true,
+    "comparisons": {
+      "train": {
+        "added_short_windows": 532,
+        "legacy_arrays_bit_identical": {
+          "actions": true,
+          "histories": true,
+          "observation_times": true,
+          "origins": true,
+          "states": true,
+          "velocities": true
+        },
+        "legacy_windows": 7558,
+        "new_windows": 8090
+      },
+      "validation": {
+        "added_short_windows": 152,
+        "legacy_arrays_bit_identical": {
+          "actions": true,
+          "histories": true,
+          "observation_times": true,
+          "origins": true,
+          "states": true,
+          "velocities": true
+        },
+        "legacy_windows": 2193,
+        "new_windows": 2345
+      }
+    }
+  },
+  "official_mask_loss": {
+    "passed": true,
+    "valid_lengths": [
+      1,
+      10,
+      20
+    ],
+    "actual_official_loss": 1.6131067276000977,
+    "changed_masked_suffix_loss": 1.6131067276000977,
+    "absolute_difference": 0.0,
+    "parameters": 2658823,
+    "parameter_updates": 0,
+    "physics_executed": false
+  },
+  "fresh_evaluation_plan": {
+    "subject_ids": [
+      "p000519",
+      "p000843",
+      "p000893",
+      "p000455",
+      "p000864",
+      "p000540",
+      "p000570",
+      "p000891"
+    ],
+    "subject_count": 8,
+    "pose_count": 2,
+    "target_ids": [
+      "R3",
+      "L3"
+    ],
+    "planned_cases_per_system": 32,
+    "systems": [
+      "expert",
+      "act"
+    ],
+    "native_test_status": "not_started",
+    "independent_from_training_and_checkpoint_selection": true
+  },
+  "model_input": {
+    "state_only": true,
+    "raw_state": 17,
+    "history_frames": 2,
+    "total_features": 34,
+    "raw_action_horizon": 20,
+    "execution_prefix": 10,
+    "rgb_input": false,
+    "depth_input": false,
+    "hall_input": false
+  },
+  "boundaries": {
+    "learned_policy_success_established": false,
+    "continuous_tenpoint_established": false,
+    "unseen_pose_established": false,
+    "patient_motion_established": false,
+    "acoustic_feedback": false,
+    "real_hardware": false
+  },
+  "interpretation": "The same18qualified current-geometry native captures now retain real short future prefixes. Every original full H20 window remains bit identical in all6numerical arrays. Recovery collection and new ACT training/evaluation are separate pending stages; this entry makes no new learned-policy success claim."
+}

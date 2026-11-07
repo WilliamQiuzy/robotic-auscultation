@@ -17,23 +17,37 @@ window.matchMedia('(min-width:801px)').addEventListener('change',event=>{if(even
 document.documentElement.classList.add('js-video');
 for(const video of document.querySelectorAll('.exp-recording video')){
  const box=video.closest('.video-box');
+ if(!box)continue;
  const message=box.querySelector('#recording-message,[data-recording-message]');
  const retry=box.querySelector('#recording-retry,[data-recording-retry]');
- let loadingTimer;
+ let loadingTimer,awaitingPlayback=!video.paused;
+ function clearDeadline(){clearTimeout(loadingTimer);loadingTimer=undefined;}
+ // Metadata is enough for an idle poster and native controls. Requested
+ // playback needs future frames; do not force buffering for metadata preload.
+ function available(){return video.readyState>=3||(!awaitingPlayback&&video.readyState>=1);}
  function state(value){
   box.dataset.state=value;box.setAttribute('aria-busy',String(value==='loading'));
   retry.hidden=value!=='error';
   message.textContent=value==='error'?'The recording could not load. Try again, or open the actual file below.':'Loading the actual recording…';
-  if(value==='ready'||value==='error')clearTimeout(loadingTimer);
+  if(value!=='loading')clearDeadline();
+  // Repeated waiting/loadeddata events must not postpone the same stall.
+  else if(loadingTimer===undefined)loadingTimer=setTimeout(()=>{
+   loadingTimer=undefined;state(!video.error&&available()?'ready':'error');
+  },15000);
  }
- function load(){clearTimeout(loadingTimer);state('loading');loadingTimer=setTimeout(()=>{if(video.readyState===0)state('error');},15000);}
- video.addEventListener('loadedmetadata',()=>{if(video.readyState>=2)state('ready');});
+ function readiness(){state(video.error?'error':available()?'ready':'loading');}
+ video.addEventListener('loadstart',()=>{awaitingPlayback=!video.paused;clearDeadline();readiness();});
+ video.addEventListener('loadedmetadata',readiness);
+ video.addEventListener('loadeddata',readiness);
+ video.addEventListener('play',()=>{awaitingPlayback=true;readiness();});
  video.addEventListener('canplay',()=>state('ready'));
- video.addEventListener('playing',()=>state('ready'));
- video.addEventListener('waiting',()=>state('loading'));
+ video.addEventListener('playing',()=>{awaitingPlayback=true;state('ready');});
+ video.addEventListener('waiting',()=>{awaitingPlayback=true;state('loading');});
+ video.addEventListener('pause',()=>{awaitingPlayback=false;readiness();});
+ video.addEventListener('ended',()=>{awaitingPlayback=false;readiness();});
  video.addEventListener('error',()=>state('error'));
- retry.addEventListener('click',()=>{load();video.load();});
- load();if(video.error)state('error');else if(video.readyState>=2)state('ready');
+ retry.addEventListener('click',()=>{awaitingPlayback=false;clearDeadline();state('loading');video.load();});
+ readiness();
 }
 const reduced=window.matchMedia('(prefers-reduced-motion:reduce)');
 const principle=document.querySelector('[data-word-reveal]');
@@ -57,6 +71,6 @@ if('IntersectionObserver' in window){
  const nav=new IntersectionObserver(entries=>{const entry=entries.find(e=>e.isIntersecting);if(!entry)return;const href='#'+entry.target.id;
   document.querySelectorAll('.desktop-nav a,.exp-toc a,.mobile-menu nav a').forEach(a=>{if(a.getAttribute('href')===href)a.setAttribute('aria-current','location');else a.removeAttribute('aria-current');});
  },{rootMargin:'-15% 0px -55% 0px',threshold:0});
- for(const id of ['comparison','recordings','offline-act','native-smokes','system-roles','hardware-gap','engineering','evidence']){const section=document.getElementById(id);if(section)nav.observe(section);}
+ for(const id of ['comparison','recordings','offline-act','native-smokes','system-roles','hardware-gap','engineering','evidence','coverage','prefix','recovery','training','native-negative','student-states','iteration3','iteration4','v3-preparation','evaluation']){const section=document.getElementById(id);if(section)nav.observe(section);}
 }else principle.querySelectorAll('.word').forEach(word=>word.classList.add('is-active'));
 reduced.addEventListener('change',event=>{if(event.matches){document.documentElement.classList.remove('js-motion');document.querySelectorAll('.reveal').forEach(el=>el.classList.add('is-visible'));principle.querySelectorAll('.word').forEach(word=>word.classList.add('is-active'));}});

@@ -10,6 +10,7 @@ from .m2_given_contact_pose import TASK_ID, require_route, observation_contract,
 from .m2_given_contact_intent import ACTION_SEMANTICS_ID, validate_native_intents, raw_cell
 
 DATASET_SCHEMA = 'm2_given_contact_act_dataset_v2'
+MASKED_DATASET_SCHEMA = 'm2_given_contact_act_masked_dataset_v1'
 NORMALIZATION_SCHEMA = 'm2_given_contact_act_normalization_v2'
 CHECKPOINT_SCHEMA = 'm2_given_contact_act_state17_history2_raw_target_h20_e10_v2'
 DEPLOYMENT_SCHEMA = 'm2_given_contact_act_deployment_v2'
@@ -17,7 +18,7 @@ ADMISSION_SCHEMA = 'm2_given_contact_act_admission_v2'
 PROTOCOL_SCHEMA = 'm2_given_contact_act_protocol_v2'
 
 
-def assemble_samples(records, native_audit, metadata):
+def assemble_samples(records, native_audit, metadata, *, allow_truncated=False):
     from .m2_given_contact_pose import NATIVE_SOURCE
     ref = require_route(metadata)
     records = list(records)
@@ -32,36 +33,53 @@ def assemble_samples(records, native_audit, metadata):
         need(endpoint < len(native_audit) and np.array_equal(
             np.asarray(row['q_command']),np.asarray(native_audit[endpoint]['q_command'])),
             'Compact applied endpoint differs from actual native command audit')
-    result = shared.assemble_samples(records, native_audit, metadata, phase_source=NATIVE_SOURCE, route=TASK_ID)
-    keep = []; actions = []
+    result = shared.assemble_samples(records, native_audit, metadata, phase_source=NATIVE_SOURCE, route=TASK_ID,
+        allow_truncated=allow_truncated)
+    keep = []; actions = []; masks=[]
     for i, window in enumerate(result['derived_index']['windows']):
         first = window['inclusive_native_ticks'][0]+1
-        owner_span=native_audit[window['history_native_ticks'][0]:window['inclusive_native_ticks'][1]+1]
+        end=first-1 if allow_truncated else window['inclusive_native_ticks'][1]
+        owner_span=native_audit[window['history_native_ticks'][0]:end+1]
         # Shared L2 provenance is insufficient: teacher/student ownership must
         # remain the same over BOTH real history frames and all future cells.
         actual_owners={event['actual_control_owner'] for event in owner_span}
         raw_owners={event['raw_intent']['setter']['control_owner']
                     for event in owner_span if event.get('raw_intent') is not None}
         if len(actual_owners)!=1 or actual_owners!=raw_owners: continue
-        cells = [raw_cell(native_audit, first+k*12, metadata) for k in range(20)]
-        if any(value is None for value in cells): continue
-        keep.append(i); actions.append(np.asarray(cells)-result['origins'][i])
+        horizon=window.get('valid_future_cells',20);cells=[]
+        for k in range(horizon):
+            events=native_audit[first+k*12:first+(k+1)*12]
+            if any(event['actual_control_owner']!=next(iter(actual_owners)) for event in events):break
+            value=raw_cell(native_audit,first+k*12,metadata)
+            if value is None:break
+            cells.append(value)
+        if not cells or (not allow_truncated and len(cells)!=20):continue
+        block=np.zeros((20,7));block[:len(cells)]=np.asarray(cells)-result['origins'][i]
+        keep.append(i); actions.append(block)
         window.update(action_semantics_id=ACTION_SEMANTICS_ID,
             actual_control_owner=next(iter(actual_owners)),
-            raw_intent_native_ticks=[first,first+239], future_label_times='cell end t+(k+1)*.05')
+            raw_intent_native_ticks=[first,first+12*len(cells)-1], future_label_times='cell end t+(k+1)*.05')
+        if allow_truncated:
+            masks.append(np.arange(20)>=len(cells))
+            window.update(valid_future_cells=len(cells),action_record_indices=window['action_record_indices'][:len(cells)],
+                inclusive_native_ticks=[first-1,first+12*len(cells)-1])
     for key in shared.ARRAY_KEYS: result[key] = result[key][keep]
     result['actions'] = np.asarray(actions,dtype=float).reshape((-1,20,7))
     result['derived_index']['windows'] = [result['derived_index']['windows'][i] for i in keep]
-    result.update(schema=DATASET_SCHEMA, task_id=TASK_ID, observation_contract=observation_contract(),
+    result.update(schema=MASKED_DATASET_SCHEMA if allow_truncated else DATASET_SCHEMA, task_id=TASK_ID, observation_contract=observation_contract(),
                   reference_sha256=ref.sha256, action_semantics_id=ACTION_SEMANTICS_ID,
                   metric_space='raw target-space MAE; not measured tracking')
+    if allow_truncated:result['action_is_pad']=np.asarray(masks,dtype=bool).reshape(-1,20)
     return result
 
 
 def require_samples(samples):
-    need(samples.get('schema') == DATASET_SCHEMA and samples.get('task_id') == TASK_ID and
+    need(samples.get('schema') in (DATASET_SCHEMA,MASKED_DATASET_SCHEMA) and samples.get('task_id') == TASK_ID and
          samples.get('observation_contract') == observation_contract() and
          samples.get('action_semantics_id') == ACTION_SEMANTICS_ID, 'Given-contact dataset route/action semantics mismatch')
+    need((samples['schema']==MASKED_DATASET_SCHEMA)==('action_is_pad' in samples),
+         'Explicit version required for masked futures')
+    shared.valid_action_mask(samples)
 
 
 def fit_normalization(samples, *, split):

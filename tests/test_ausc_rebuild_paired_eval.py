@@ -88,6 +88,19 @@ def test_explicit_two_pose_three_arm_protocol_preserves_scope_and_scene(tmp_path
     assert len(episodes)==3
 
 
+def test_two_arm_repair_comparison_has_no_astra_job_and_keeps_all_cases(tmp_path,monkeypatch):
+    m,source,model,complete,cases=setup(tmp_path,monkeypatch)
+    ref=m.prepare(model['complete']['path'],source['path'],tmp_path/'two-arm',
+        astra_settings=m.DEFAULT_ASTRA,arms=('expert','act'))
+    prepared=rt.read_bound(ref);protocol,_=m.load_protocol(prepared['protocol'])
+    assert set(prepared['batches'])=={'expert','act'}
+    assert prepared['planned_arm_denominator']==16
+    assert protocol['planned_arm_denominator']==16
+    assert protocol['fixed_denominator']==8
+    assert protocol['schema']==m.FRESH_FROZEN_SCHEMA
+    assert protocol['cases']==cases
+
+
 @pytest.mark.parametrize('fault',['selection_leak','train_scope','missing_case','duplicate_pose','target_subset','changed_config'])
 def test_scope_and_fixed_case_admission_fail_closed_before_output(tmp_path,monkeypatch,fault):
     m,source,model,complete,cases=setup(tmp_path,monkeypatch);value=rt.read_bound(source)

@@ -1,0 +1,65 @@
+{
+  "schema": "wam_source26_public_cpu_fixture_check_v1",
+  "scope": "Partial public CPU fixtures only",
+  "checked_utc": "2026-11-07T03:43:11.503358+00:00",
+  "original_code_commit": "05e972ca184383a525aff293fc9f3590e546da9c",
+  "original_runtime_manifest_sha256": "315f021e76f4e606f4a327b053abc22bacf8a1b8c649d35b4bd8ba9e644c743d",
+  "source_selection": {
+    "file": "SOURCE_SELECTION.json",
+    "bytes": 168279,
+    "sha256": "16a84d81695e511ffc541b39754797a17a2bf2a5006ca1920c5b6c9ed76781d8"
+  },
+  "selected_original_files": 234,
+  "selected_original_bytes": 4213950,
+  "file_counts": {
+    "project_python": 188,
+    "test_and_helper_python": 42,
+    "kinematic_urdf_text": 1,
+    "configuration_text": 3
+  },
+  "commands": [
+    "python -B -m unittest demo_tests.test_source26_capsule -v",
+    "python -I -B repro/source26/verify_capsule.py --fixtures"
+  ],
+  "adapter_tests": {
+    "passed": 4
+  },
+  "original_selected_tests": {
+    "files": 9,
+    "passed": 211,
+    "skipped": 1,
+    "failed": 0,
+    "elapsed_seconds": 8.87
+  },
+  "skips": [
+    {
+      "test": "tests/test_ausc_act_posture_head.py::test_official_act_single_forward_loss_and_prediction_use_the_head",
+      "reason": "Official ACT integration requires the pinned LeRobot virtualenv"
+    }
+  ],
+  "import_boundary": {
+    "loaded_project_and_test_modules": 117,
+    "all_resolve_inside_capsule": true,
+    "isolated_python": true,
+    "private_or_old_root_fallback": false
+  },
+  "libraries": {
+    "python": "3.11.15",
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "pytest": "9.2.0",
+    "torch": "2.15.0"
+  },
+  "limitations": [
+    "Original official-ACT forward integration was skipped, not passed",
+    "Fixtures use synthetic states and injected trajectory/verifier interfaces",
+    "No actual FCL/Ruckig native SDK or physics qualification",
+    "No original-owner run, training, DEV or fresh-identity evaluation executed by this check"
+  ],
+  "claims": {
+    "full_runtime_closure": false,
+    "owner_qualified": false,
+    "native_physics_executed": false,
+    "model_accepted": false
+  }
+}

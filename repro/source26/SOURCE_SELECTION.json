@@ -1,0 +1,3180 @@
+{
+  "schema": "wam_source26_public_selection_v1",
+  "scope": "PARTIAL_PUBLIC_CAPSULE",
+  "code_commit": "05e972ca184383a525aff293fc9f3590e546da9c",
+  "original_runtime_manifest_sha256": "315f021e76f4e606f4a327b053abc22bacf8a1b8c649d35b4bd8ba9e644c743d",
+  "original_runtime_manifest_bytes": 287532,
+  "selection_method": "AST local imports and package parents for the explicit entries and selected tests; selected owner/paired dynamic dispatch and external file reads reviewed separately. Not a full runtime closure.",
+  "entry_points": [
+    "sim/ausc_policy/m2_act_auxiliary_data.py",
+    "sim/ausc_policy/m2_act_auxiliary_train.py",
+    "sim/ausc_policy/m2_act_chunk_data.py",
+    "sim/ausc_policy/m2_act_conditional_data.py",
+    "sim/ausc_policy/m2_act_conditional_supervision.py",
+    "sim/ausc_policy/m2_act_planned_supervision.py",
+    "sim/ausc_policy/m2_act_posture_head.py",
+    "sim/ausc_policy/m2_student_oracle_proposals.py",
+    "sim/ausc_policy/m2_stop_residual_trajectory.py",
+    "sim/ausc_policy/run.py",
+    "sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+    "sim/ausc_policy/m2_rebuild_paired_eval.py"
+  ],
+  "selected_cpu_tests": [
+    "tests/test_ausc_act_auxiliary_data.py",
+    "tests/test_ausc_act_auxiliary_train.py",
+    "tests/test_ausc_act_chunk_data.py",
+    "tests/test_ausc_act_conditional_v3.py",
+    "tests/test_ausc_act_planned_supervision.py",
+    "tests/test_ausc_act_posture_head.py",
+    "tests/test_ausc_act_posture_train.py",
+    "tests/test_ausc_stop_residual_trajectory.py",
+    "tests/test_ausc_student_oracle_proposals.py"
+  ],
+  "files": [
+    {
+      "file": "auscultation/mechanical_sensor/force_feedback/force_sensor.py",
+      "bytes": 22671,
+      "sha256": "09f656f179301728ec955d7aea385c13a8968589359974c15b91c6f40261abce",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_vla_v2/hall.py"
+      ]
+    },
+    {
+      "file": "configs/ausc_policy/m2_identity_split_20260930.json",
+      "bytes": 5888,
+      "sha256": "0e50ebce15f6e2816a914494cdf721acc6029db7d59cd0c9caeab0685a523699",
+      "scope": "identity_labels_config",
+      "dependency_provenance": [
+        "Original identity IDs/split seed only; no subject shape/pose arrays",
+        "Read by unchanged CPU fixture helper or original identity admission"
+      ]
+    },
+    {
+      "file": "scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+      "bytes": 30443,
+      "sha256": "c980785fe5ff50d4f0f344f370d70f27f272ea5b4eff7eef86f1f193e83adb65",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py"
+      ]
+    },
+    {
+      "file": "scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+      "bytes": 178741,
+      "sha256": "a80a3b5dad34356e57b91a30e9fc34ca5784145294844eecd234e829b5937377",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/__init__.py",
+      "bytes": 101,
+      "sha256": "a4aeb51694a4e7799fd5b355fe00a913795aa0ee8cae72458d46f2d7cbd63cb2",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/__init__.py",
+        "local import or package parent of sim/ausc_policy/act_baseline.py",
+        "local import or package parent of sim/ausc_policy/act_runtime.py",
+        "local import or package parent of sim/ausc_policy/approved_camera.py",
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/astra_sensors.py",
+        "local import or package parent of sim/ausc_policy/astra_service.py",
+        "local import or package parent of sim/ausc_policy/astra_supervisor.py",
+        "local import or package parent of sim/ausc_policy/body_placement.py",
+        "local import or package parent of sim/ausc_policy/contact_collision.py",
+        "local import or package parent of sim/ausc_policy/contact_entry.py",
+        "local import or package parent of sim/ausc_policy/contact_geometry_audit.py",
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/cpu_scene_variant.py",
+        "local import or package parent of sim/ausc_policy/edge_timing.py",
+        "local import or package parent of sim/ausc_policy/evaluation_audit.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/finite_head.py",
+        "local import or package parent of sim/ausc_policy/fit_refinement.py",
+        "local import or package parent of sim/ausc_policy/fit_refinement_run.py",
+        "local import or package parent of sim/ausc_policy/force_feedback.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_epoch.py",
+        "local import or package parent of sim/ausc_policy/geometry_export.py",
+        "local import or package parent of sim/ausc_policy/geometry_ik_hints.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/gravity_feedforward.py",
+        "local import or package parent of sim/ausc_policy/hall_adc_boundary.py",
+        "local import or package parent of sim/ausc_policy/history_fit.py",
+        "local import or package parent of sim/ausc_policy/history_prepare.py",
+        "local import or package parent of sim/ausc_policy/history_runtime.py",
+        "local import or package parent of sim/ausc_policy/isaac_batch.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/ausc_policy/isaac_run.py",
+        "local import or package parent of sim/ausc_policy/layered_scene_authoring.py",
+        "local import or package parent of sim/ausc_policy/m2_act.py",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_act_chunk_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_act_pilot.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_act_posture_head.py",
+        "local import or package parent of sim/ausc_policy/m2_act_recovery_scope.py",
+        "local import or package parent of sim/ausc_policy/m2_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_contract.py",
+        "local import or package parent of sim/ausc_policy/m2_estimate_provider.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_admission.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_intent.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pose.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_train.py",
+        "local import or package parent of sim/ausc_policy/m2_identity.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_capture_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/m2_retarget.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/m2_sensors.py",
+        "local import or package parent of sim/ausc_policy/m2_stage.py",
+        "local import or package parent of sim/ausc_policy/m2_stool_layout.py",
+        "local import or package parent of sim/ausc_policy/m2_stop_residual_trajectory.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/ausc_policy/m2_student_recovery_prefix.py",
+        "local import or package parent of sim/ausc_policy/motion_hints.py",
+        "local import or package parent of sim/ausc_policy/motion_preview.py",
+        "local import or package parent of sim/ausc_policy/native_contact_evidence.py",
+        "local import or package parent of sim/ausc_policy/native_lifecycle.py",
+        "local import or package parent of sim/ausc_policy/native_measurements.py",
+        "local import or package parent of sim/ausc_policy/native_usd_preflight.py",
+        "local import or package parent of sim/ausc_policy/observed_placement.py",
+        "local import or package parent of sim/ausc_policy/observed_reconstruction.py",
+        "local import or package parent of sim/ausc_policy/observed_seated_poses.py",
+        "local import or package parent of sim/ausc_policy/passive_preload.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py",
+        "local import or package parent of sim/ausc_policy/prefix.py",
+        "local import or package parent of sim/ausc_policy/process_guard.py",
+        "local import or package parent of sim/ausc_policy/rebuild_gpu_binding.py",
+        "local import or package parent of sim/ausc_policy/render_settling_probe.py",
+        "local import or package parent of sim/ausc_policy/retainer_contact.py",
+        "local import or package parent of sim/ausc_policy/retainer_failure.py",
+        "local import or package parent of sim/ausc_policy/retainer_geometry.py",
+        "local import or package parent of sim/ausc_policy/retainer_witness.py",
+        "local import or package parent of sim/ausc_policy/run.py",
+        "local import or package parent of sim/ausc_policy/runtime_cost.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of sim/ausc_policy/sdk_mdl.py",
+        "local import or package parent of sim/ausc_policy/stool_geometry.py",
+        "local import or package parent of sim/ausc_policy/storage_policy.py",
+        "local import or package parent of sim/ausc_policy/surface_anchors.py",
+        "local import or package parent of sim/ausc_policy/tool_geometry_review.py",
+        "local import or package parent of sim/ausc_policy/tool_protrusion.py",
+        "local import or package parent of sim/ausc_policy/training_camera.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py",
+        "local import or package parent of sim/ausc_policy/velocity_feedforward.py",
+        "local import or package parent of sim/ausc_policy/velocity_probe.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_chunk_data.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_planned_supervision.py",
+        "local import or package parent of tests/test_ausc_act_posture_head.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_admission.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_controller.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_native_audit.py",
+        "local import or package parent of tests/test_ausc_given_contact_pose.py",
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py",
+        "local import or package parent of tests/test_ausc_given_contact_scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_given_processing_source_envelope.py",
+        "local import or package parent of tests/test_ausc_policy_compact_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_isaac_batch.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act_controller.py",
+        "local import or package parent of tests/test_ausc_policy_m2_contract.py",
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py",
+        "local import or package parent of tests/test_ausc_policy_m2_estimate_provider.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py",
+        "local import or package parent of tests/test_ausc_policy_scene_store.py",
+        "local import or package parent of tests/test_ausc_policy_training_capture.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py",
+        "local import or package parent of tests/test_ausc_student_oracle_proposals.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/act_baseline.py",
+      "bytes": 39388,
+      "sha256": "23e091758d77ae24800b0e44eb690f94d5edb2477ea97a99700254953ba3c924",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/act_runtime.py",
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/history_fit.py",
+        "local import or package parent of sim/ausc_policy/history_prepare.py",
+        "local import or package parent of sim/ausc_policy/history_runtime.py",
+        "local import or package parent of sim/ausc_policy/velocity_probe.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/act_runtime.py",
+      "bytes": 23288,
+      "sha256": "1712563c48aba2d67878fb9ac4dc987ac780484efc6ae51e32b1389a9ffc207e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/history_runtime.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/approved_camera.py",
+      "bytes": 4720,
+      "sha256": "e4e6ba181cabfcea9f2ce1fdca5448e9ed362c73ce961ecbefc6456ed1d162c1",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/astra_native.py",
+      "bytes": 16036,
+      "sha256": "7447e9e3b47ab7b1660c90753fdb3a287130bfd49b7b89c414cadef496f508bc",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/astra_sensors.py",
+      "bytes": 13898,
+      "sha256": "83499630615bca364e7db876bf4d78f7b931ea4d00a002291db4611e51142881",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/astra_service.py",
+      "bytes": 6234,
+      "sha256": "bc3d6b2b77c28af9d5c868cb8ec9cf7413a3800e0ad43b734a7b45655cca944c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/astra_supervisor.py",
+      "bytes": 10670,
+      "sha256": "19b4437d6de10940b3285d36193674fb2ac16fae736db5e07686a3f2e02062e1",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/astra_sensors.py",
+        "local import or package parent of sim/ausc_policy/astra_service.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/body_placement.py",
+      "bytes": 28721,
+      "sha256": "2a2887cb94561f65b59a3c2af90031966c9b3f0ee22262be3bc51c9112ab050f",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_retarget.py",
+        "local import or package parent of sim/ausc_policy/observed_seated_poses.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/contact_collision.py",
+      "bytes": 19366,
+      "sha256": "1c74e2b5f9242132c3300d230d4ee50ec51dc4f30a11a9bf7f74b27d3be5015b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of tests/test_ausc_policy_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/contact_entry.py",
+      "bytes": 2156,
+      "sha256": "27b8bccc459787bc65b57d862b3b874d722351cca1989cf2f371f5fcf36ce216",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/contact_geometry_audit.py",
+      "bytes": 9611,
+      "sha256": "1c0329e2908357e9ff01fcb625eafceef0fb6d3e61fad15e820a823fb48666fe",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/controller.py",
+      "bytes": 29016,
+      "sha256": "564078663a2affcaae883dcce264c590db3a4e5add477b345b0cc4cab9602a97",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/cpu_scene_variant.py",
+      "bytes": 12819,
+      "sha256": "d2ab59d7663ccf9a130f1698fd80a24be5801fdb2d233c6f68a7cc6029733faf",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/stool_geometry.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/edge_timing.py",
+      "bytes": 2939,
+      "sha256": "2a3c200662867104c18a80960193fde69c3c6c1e4da24bb541181b73872891c1",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/evaluation_audit.py",
+      "bytes": 2420,
+      "sha256": "eda72917b8e1580db44affb6a0e356ec384894a01b718f54a71886db662dd296",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/expert_capture.py",
+      "bytes": 45451,
+      "sha256": "a3352f8883498710299f16c019f6d3417b61174fe590debaa79652c8c8817778",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_policy_compact_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/finite_head.py",
+      "bytes": 21100,
+      "sha256": "c563923ded866c9832a5a418fbdf0d1b61a3f62c63fbdff2c68b1721d35f927c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fit_refinement.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/fit_refinement.py",
+      "bytes": 13025,
+      "sha256": "510015ef9f1caea2a9f9490718f756a2ee4dc40dce698c3908b419b15c14d831",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fit_refinement_run.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/fit_refinement_run.py",
+      "bytes": 1804,
+      "sha256": "dc8b6218e3f7711106711eeac87391cdf27c49e98fe5493d4189bbc0bb0944d3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_plan.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/force_feedback.py",
+      "bytes": 4188,
+      "sha256": "da7687ab8bdbb0747bf1296a89ef7004d4826b3b5897b9ffa03b233efff3c0fb",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/fresh_expert.py",
+      "bytes": 92788,
+      "sha256": "f713a614c374b0ffa2d8986954a74d5e9af40af63d308bb9c681f04b20f11cc7",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/render_settling_probe.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_native_audit.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_policy_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py",
+        "local import or package parent of tests/test_ausc_policy_scene_store.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/geometry_contact_probe.py",
+      "bytes": 8684,
+      "sha256": "e723e633770aac8eebf759f35db58f954eddceb2037762fc1dcaae99bd58b513",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/geometry_epoch.py",
+      "bytes": 5157,
+      "sha256": "2b33d274efe7d8c7b8dcdae130f2a10eb1c71909b4b379f921b86b114c3dca38",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/contact_collision.py",
+        "local import or package parent of sim/ausc_policy/cpu_scene_variant.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/finite_head.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_ik_hints.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/layered_scene_authoring.py",
+        "local import or package parent of sim/ausc_policy/m2_act.py",
+        "local import or package parent of sim/ausc_policy/m2_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_contract.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pose.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_identity.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/m2_retarget.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/m2_sensors.py",
+        "local import or package parent of sim/ausc_policy/m2_stool_layout.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/ausc_policy/observed_reconstruction.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py",
+        "local import or package parent of sim/ausc_policy/render_settling_probe.py",
+        "local import or package parent of sim/ausc_policy/retainer_witness.py",
+        "local import or package parent of sim/ausc_policy/run.py",
+        "local import or package parent of sim/ausc_policy/stool_geometry.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_policy_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act.py",
+        "local import or package parent of tests/test_ausc_policy_m2_contract.py",
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py",
+        "local import or package parent of tests/test_ausc_policy_training_capture.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/geometry_export.py",
+      "bytes": 4445,
+      "sha256": "c2afd7160ee335903a77479ebeb8218e4ec00b6e50af4c5b554d9ddbf95e6423",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/geometry_ik_hints.py",
+      "bytes": 10378,
+      "sha256": "59a30e5f224d3712aa18f55ae2f83ca855751c2768f68a1f3e6865b459478c9f",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_plan.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/geometry_plan.py",
+      "bytes": 10815,
+      "sha256": "4abe27ec89b595dd0649f0ff76e87d5e146ec71d48e33273700949e4a3806c1d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/geometry_qualification.py",
+      "bytes": 22217,
+      "sha256": "bb3cb8d2196a90a6c8f2f4bfb2100fe1fbbac49a6aa0ae8d0522d24d603a2ac5",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_policy_scene_store.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/gravity_feedforward.py",
+      "bytes": 13162,
+      "sha256": "993e429ed8facef729eca643ed5c690ca97e6c1863ad2ef2596b8179e3b77842",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/velocity_feedforward.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/hall_adc_boundary.py",
+      "bytes": 1891,
+      "sha256": "a273e91e5141200419392cfbdf4de1667e06e68a5efb6c426eb9683504d0f4c9",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_sensors.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/history_fit.py",
+      "bytes": 12308,
+      "sha256": "77d18d4547bf2646fe67e0ece6dd844c7befa3392e90a8bca091f415eb3ccc7d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/history_runtime.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/history_prepare.py",
+      "bytes": 7198,
+      "sha256": "32c6a361865721593f4e32a82a43c72190cd6341957c26ceb208b03e4ae7d671",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/history_fit.py",
+        "local import or package parent of sim/ausc_policy/history_runtime.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/history_runtime.py",
+      "bytes": 11782,
+      "sha256": "dbb042dfecc5054809675b24d63215ac986c6cda02d3588f08a5afd20ff9ddeb",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/ausc_policy/isaac_run.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/isaac_batch.py",
+      "bytes": 9043,
+      "sha256": "14b6c0ffa6608cca3cc80aa668a61f6a240cf01175109782529d1f079c213cf7",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_policy_isaac_batch.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/isaac_case.py",
+      "bytes": 13867,
+      "sha256": "d6dd570421bc3153a573b5a0ea53052e2a4cd76b6aed414836775f314ee9e1e7",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/tool_geometry_review.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/isaac_run.py",
+      "bytes": 11394,
+      "sha256": "bccccb4a3bcdac8b843a96f368ffd31477c26c1b3d1d5c11d4fff21bb86d3ae8",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/layered_scene_authoring.py",
+      "bytes": 41264,
+      "sha256": "73887aa5a75f4c62ac542cc63bcfd627ff266d35dd3f86213333fc0e4505f7c6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act.py",
+      "bytes": 49153,
+      "sha256": "71a5441cc03fd164279773590c60ecc060d3730bb4a452465bcf835b39146b3e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_act_pilot.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_auxiliary_data.py",
+      "bytes": 39513,
+      "sha256": "16e405fba69bd2c2fa15c6a1aca261fb91711bd614572906ea6849e07f33894d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_act_chunk_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_chunk_data.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_auxiliary_train.py",
+      "bytes": 49885,
+      "sha256": "1631a61fec5e0b33401cc8562d8cc7a6bdd06eac36ba4ee454f112d62108c0cf",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_chunk_data.py",
+      "bytes": 20773,
+      "sha256": "b366f3d2098a301509f00a9e60919e0ed45ce6f2dc56da22c2df1b6843cce070",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_data.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_conditional_data.py",
+      "bytes": 21370,
+      "sha256": "36d216c155faa75e62abbbd5cd9c5745d65a21aee3f0fe7a51404f2d8a951785",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_supervision.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_conditional_supervision.py",
+      "bytes": 28241,
+      "sha256": "9ec2ed0f92279482432bbcc1cc95ac5fa01a6b3e594a80c065a79e3847787e36",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_data.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_controller.py",
+      "bytes": 23132,
+      "sha256": "9532e4572801a416c21bcf903d377657bf5686fd85392b8bb1d25882a5b55ad3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act_controller.py",
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_pilot.py",
+      "bytes": 14092,
+      "sha256": "d30d71036cec8e6417006c909e23a81141ef64daf9be349ced7be59c8be3c719",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_planned_supervision.py",
+      "bytes": 10736,
+      "sha256": "c79d423653f03b8c30e5e9ba9c4ff49858874d74e11431153db3f53a849b90c8",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_supervision.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_posture_head.py",
+      "bytes": 9547,
+      "sha256": "59eadedf4c0f9e6bd3b73289d38be5ee99670322e7c395be44075aeb39c7af58",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_recovery_scope.py",
+      "bytes": 6217,
+      "sha256": "8cfd5b78e498e35f655c750201c7f65b0679f532a6c70eeef894c1b755e5d657",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_capture.py",
+      "bytes": 28034,
+      "sha256": "4a9040fa239b911f753825db6c5c5d61766f3bddc97610adc8cd0f018f7c6109",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_sensors.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/render_settling_probe.py",
+        "local import or package parent of sim/ausc_policy/training_camera.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py",
+        "local import or package parent of tests/test_ausc_policy_expert_capture.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_contract.py",
+      "bytes": 14322,
+      "sha256": "dfced4d4929b7272391f3193f9834a30e65044f7cabb5c47272e0d2c549cfd4b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/layered_scene_authoring.py",
+        "local import or package parent of sim/ausc_policy/m2_act.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_estimate_provider.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pose.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_stage.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_pose.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act_controller.py",
+        "local import or package parent of tests/test_ausc_policy_m2_contract.py",
+        "local import or package parent of tests/test_ausc_policy_m2_estimate_provider.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_policy_training_capture.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_estimate_provider.py",
+      "bytes": 10649,
+      "sha256": "7e7498060ff71ed8c2804d533d633fd8d5a6826a4c895df7ea59741d393e64a5",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_policy_m2_estimate_provider.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_act.py",
+      "bytes": 8351,
+      "sha256": "c452ac690dec105d19dd501de5e074eda7ad3955c7001710c49aa9ca4991b1fd",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_admission.py",
+      "bytes": 16926,
+      "sha256": "86788a03f34e7a9a1271c4e36c96f8871e506926657720a88f5e915bcfa8cb00",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_controller.py",
+      "bytes": 54351,
+      "sha256": "a34880a1f7c0e5917cf2e7dc00b403340496836e87a801ce2d4acf18a52bd42d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_controller.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_dataset.py",
+      "bytes": 114309,
+      "sha256": "25fafd304e2a2b06c7a9422b0045ff6b1a82b0a1854a0d338cbf2614e90d9096",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_capture_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_stop_residual_trajectory.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_given_processing_source_envelope.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_deployment.py",
+      "bytes": 65469,
+      "sha256": "b8f400595acb303aa9467b3894c7f6994535dd493522b6530e8ede64aa05b584",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_evaluation.py",
+      "bytes": 187682,
+      "sha256": "ec37a8ff6e5b96bff9f0183bf698164a2925e9daee7c0b111f8f571c045f93f5",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/m2_student_recovery_prefix.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of sim/ausc_policy/tool_geometry_review.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_native_audit.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+      "bytes": 18296,
+      "sha256": "106cd180ca786673a644ac120feb3e1f900328bb26313861432cf25d49235c9e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/m2_student_recovery_prefix.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+      "bytes": 23962,
+      "sha256": "14e8d5b79c537f6653bac56c46c9ae8d835fffc14943465f5b5bfeb601f11b68",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_capture_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+      "bytes": 30235,
+      "sha256": "4e7f2b476927d266d9a49b1c1cc617a73ebf54ecab4c725ec1d2c68515267cbb",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/isaac_batch.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_handoff.py",
+      "bytes": 18500,
+      "sha256": "0ce411e8747b445701ac089942a1b5fa2af3900f432ec7ce4a3b4ab9e87091ed",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_stop_residual_trajectory.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_intent.py",
+      "bytes": 9083,
+      "sha256": "52de6dc03046768420d315db187150e92955f5a0466de5da6cf31253d9f9723b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pose.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+      "bytes": 68953,
+      "sha256": "9cfe5d8503278ec78a9366cac62d1b7ea75254641b6fcea7e191ba1d33ad5ae9",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+      "bytes": 29769,
+      "sha256": "dc184bdd0ab3959363d5261117613cf7fa866abf8aa8d85e827693b07130555f",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_native_audit.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+      "bytes": 16074,
+      "sha256": "70a2999c28ba28ec23a69ef2fbf35e61709c7338d6d0178cd3d5cc51580a8ff8",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_pilot_train.py",
+      "bytes": 14241,
+      "sha256": "b47a42e1625d1da4084ce46ae3eb46ca5d251dc3705c116b62fa297e08a78d98",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_pose.py",
+      "bytes": 11453,
+      "sha256": "1481f0407b7bcc95e1271b79a8b027637e536cb8468ae5d8443faea823f1af3a",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act.py",
+        "local import or package parent of sim/ausc_policy/m2_contract.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_stage.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_pose.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_recovery.py",
+      "bytes": 30156,
+      "sha256": "bbfadbb830a6083cad966cccf45058f91815e7f57317c5008ba79d7e561b1a00",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_runtime.py",
+      "bytes": 54053,
+      "sha256": "dbb078d9fe980c23c00804ff9055c29ea0caf58daca44e5c5e64f284846f5847",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_act_posture_head.py",
+        "local import or package parent of sim/ausc_policy/m2_act_recovery_scope.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_act.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_admission.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_val_scenarios.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_train.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_capture_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py",
+        "local import or package parent of sim/ausc_policy/m2_student_recovery_prefix.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_chunk_data.py",
+        "local import or package parent of tests/test_ausc_act_planned_supervision.py",
+        "local import or package parent of tests/test_ausc_act_posture_head.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_native_audit.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py",
+        "local import or package parent of tests/test_ausc_student_oracle_proposals.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_train.py",
+      "bytes": 28042,
+      "sha256": "9465fc315aef336b4fafa9bd923ca457c4c02caf7451a8bde6c16aca1dc01377",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_given_contact_admission.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_admission.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_identity.py",
+      "bytes": 5215,
+      "sha256": "eea7a4c6bbe5508507e54d649479d7eb1e4b76fe651469163db80adf2d5cf9d4",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/observed_seated_poses.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_pilot_config.py",
+      "bytes": 22935,
+      "sha256": "b782e26565f239bb8b9887fb1e1ae24c67ffa63a5e24f066e9903b3ed5b10e57",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/layered_scene_authoring.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_capture_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_scene_store.py",
+        "local import or package parent of tests/test_ausc_policy_m2_estimate_provider.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_pilot_deployment.py",
+      "bytes": 26631,
+      "sha256": "216055653e0ef805251a7e82ca001c28b7f9f4527705cf3f2c12d774ffca85a0",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_rebuild_capture_dataset.py",
+      "bytes": 28938,
+      "sha256": "a467a38370eb3672e271056c5483ae3792136c63c17a0c2c25599d62204d859f",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_data.py",
+        "local import or package parent of sim/ausc_policy/m2_act_recovery_scope.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "bytes": 49430,
+      "sha256": "529c8a2043f05b06e0015df1f66d70d7bcef698d7860725c3d48a42312e5945a",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/isaac_batch.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_retarget.py",
+      "bytes": 23343,
+      "sha256": "b284cf148606e1a15ea30d9b2630d82d7df91fcf338d50419ae936d5dd3e6ab2",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/observed_reconstruction.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_sensor_probe.py",
+      "bytes": 9477,
+      "sha256": "cf57de9a64ec5c19ab9d7dd5622a48acab974262d6739c94098df829359396e8",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_sensors.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_policy_expert_capture.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_sensors.py",
+      "bytes": 21023,
+      "sha256": "e48cc1c85e690c1b4e2248cc66e6552fa014fd777e95a32632f1d012798484eb",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_stage.py",
+      "bytes": 6137,
+      "sha256": "b1c58e32493f3c4763acbb8f14631adbade4213cadb3afa0ea63829c6e8b7e70",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_act_pilot.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_contract.py",
+        "local import or package parent of sim/ausc_policy/m2_estimate_provider.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pose.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_policy_compact_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act_controller.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_stool_layout.py",
+      "bytes": 11607,
+      "sha256": "908e03ede178b893a8e64c42f192fdb94d5eaa9688b6503a8336a52cb8bedba3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_stop_residual_trajectory.py",
+      "bytes": 25258,
+      "sha256": "105aac7fef8ac9a66f0739a862753f607290bc454df8f25496cfea3d2d9b5e4d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_native_audit.py",
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_student_oracle_proposals.py",
+      "bytes": 11637,
+      "sha256": "b507ed21c339d2ca371ccb9b08472aeca4a1de2abb89080b45cf9ac1fb594e5e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/m2_student_recovery_prefix.py",
+      "bytes": 13474,
+      "sha256": "c26c7f0eab1b6288213b9a0f304e5202d9f188c6428a7777afd9caf1be2249e8",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/motion_hints.py",
+      "bytes": 2962,
+      "sha256": "dce593896c35a07183c02fcfa9385ecf08f355ba545333788f370cd74467dc83",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/motion_preview.py",
+      "bytes": 8112,
+      "sha256": "28c7399dc6212b20c246efa315f2893bd59eaf1edb2e3c6b0d9b4cdcd31a0501",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/native_contact_evidence.py",
+      "bytes": 4939,
+      "sha256": "ad187edb8cf39eee65bd4598cb826c59341873944f93d114e4898d7a4ff18201",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/env.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/native_lifecycle.py",
+      "bytes": 4395,
+      "sha256": "1955e1d8f10c2797fa9deb8a12800d04da40a0241650fdb51d2f9eae96d56df4",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of tests/test_ausc_policy_scene_store.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/native_measurements.py",
+      "bytes": 2910,
+      "sha256": "cc015145b1208050f56ba22e408e770fd14151e4f6124309edfcf00813f22898",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/native_usd_preflight.py",
+      "bytes": 12284,
+      "sha256": "03f583ae256985cd5881600f792af59130467526a6e33277acd8571846387aa4",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/observed_placement.py",
+      "bytes": 9037,
+      "sha256": "d7589e9a2b844c125d7109d3565da639e7de6c60364e113360361b6f907fbb60",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_retarget.py",
+        "local import or package parent of sim/ausc_policy/observed_reconstruction.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/observed_reconstruction.py",
+      "bytes": 27102,
+      "sha256": "2728dfa2b84268277689063b804998c0f0abea921240135730f900bfc4e5a217",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/observed_seated_poses.py",
+      "bytes": 18228,
+      "sha256": "614bf713cb89cb25fb56457a18c7824ab150f72d7276028927f0ff6e77633a75",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_retarget.py",
+        "local import or package parent of sim/ausc_policy/observed_reconstruction.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/passive_preload.py",
+      "bytes": 9715,
+      "sha256": "1399d7b7e26e70687b26d82436bbfc8296307f9df91196d2eec44b2dce4ecc0c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_native.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/render_settling_probe.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/patient_scene.py",
+      "bytes": 13378,
+      "sha256": "74ca4e8a01ce624a7c5788d9933c3e08e20b07379e57e94bd9eef21f4899c2e3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/layered_scene_authoring.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/prefix.py",
+      "bytes": 9062,
+      "sha256": "fe3db2aacb2013027015b19d4a80042eb670fc5aaeeee54fae148df5b3b965d3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/process_guard.py",
+      "bytes": 18184,
+      "sha256": "35305b9151a1da5046023c4462acbfb50aadc2d997b073f4acabc356bd16dc5d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/isaac_batch.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_admission.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_pilot_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_train.py",
+        "local import or package parent of sim/ausc_policy/rebuild_gpu_binding.py",
+        "local import or package parent of sim/ausc_policy/run.py",
+        "local import or package parent of sim/ausc_policy/tool_geometry_review.py",
+        "local import or package parent of tests/test_ausc_given_contact_admission.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py",
+        "local import or package parent of tests/test_ausc_policy_isaac_batch.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/rebuild_gpu_binding.py",
+      "bytes": 8640,
+      "sha256": "23e17f822d4794c4860cdde5272b43ddafac517c963ee19d6e57fb353cc14945",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_act_auxiliary_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_runtime.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/render_settling_probe.py",
+      "bytes": 19883,
+      "sha256": "59c265dca5f1af72d783dd46728b233595c355c5394592f656d59c6c9bb2fe6c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/retainer_contact.py",
+      "bytes": 3227,
+      "sha256": "9934fafbb88cf2f2a36463366864bf4650ad02111a2bbf0aabaa323cebe045cf",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/contact_collision.py",
+        "local import or package parent of sim/ausc_policy/contact_geometry_audit.py",
+        "local import or package parent of sim/ausc_policy/fit_refinement_run.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_epoch.py",
+        "local import or package parent of sim/ausc_policy/geometry_ik_hints.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/ausc_policy/native_contact_evidence.py",
+        "local import or package parent of sim/ausc_policy/retainer_failure.py",
+        "local import or package parent of sim/ausc_policy/retainer_witness.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/retainer_failure.py",
+      "bytes": 7737,
+      "sha256": "ed9be9f4c676fba6fa3def9ab76d7c8422821e6f9bfea943971e4db96db41ae3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/native_contact_evidence.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/retainer_geometry.py",
+      "bytes": 13080,
+      "sha256": "4d2a7f34fd980527929cee2b0114aa1d90d2bab5ea57a18093b564d259ccaaf6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/retainer_witness.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/retainer_witness.py",
+      "bytes": 18239,
+      "sha256": "b332913b0dcf56453a229ec5edeef518a568c76b446c3b5e3c01309735684209",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_epoch.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/run.py",
+      "bytes": 6225,
+      "sha256": "16f5f5729042eb3a40c2ea8f55606c64ea323ea5ad0568f096774ae21afc0434",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "explicit source26 entry / original owner or paired entry",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/runtime_cost.py",
+      "bytes": 8822,
+      "sha256": "0faec9faaf8b45420f290b1465a3aaf543f8d46365f3f38ced47796c224105b3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/scene_store.py",
+      "bytes": 68575,
+      "sha256": "1d39234f8227fc5ca75f6cc2c4f3796029b120db0424317a7afc1499102f79a6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/completed_authoring_checkpoint_v1.py",
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/layered_scene_authoring.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_deployment.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_lossless_mapping.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/native_lifecycle.py",
+        "local import or package parent of sim/ausc_policy/native_usd_preflight.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/env.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/sdk_mdl.py",
+      "bytes": 6932,
+      "sha256": "db682a3161fff9ac46239fdc9ab9d93c753ed6b5f3f48475a33a67a86dd1d964",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/stool_geometry.py",
+      "bytes": 11198,
+      "sha256": "4b9ef3ae00a141a9d6256689ef06e5bbe8472f13ff2f3f3fba451121f5c7f9b9",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_stool_layout.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/storage_policy.py",
+      "bytes": 4419,
+      "sha256": "728170d0040fd9bf9fe6000d5791536284fcb5066025eeacbc234749f44466af",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of scripts/experiments/wam_runpod_20261027/given_formal_collection_lossless_v1.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/scene_store.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/surface_anchors.py",
+      "bytes": 4927,
+      "sha256": "c62815818883152bae5b8e3d25f2d6dfe80c94097d821fd6b61e86f3a7836e27",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/body_placement.py",
+        "local import or package parent of sim/ausc_policy/cpu_scene_variant.py",
+        "local import or package parent of sim/ausc_policy/m2_retarget.py",
+        "local import or package parent of sim/ausc_policy/observed_seated_poses.py",
+        "local import or package parent of sim/ausc_policy/patient_scene.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/tool_geometry_review.py",
+      "bytes": 4942,
+      "sha256": "b501628ceebcc1045026f8c472eef379eb320b2d51962f14ace689cdabd3cd13",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/tool_protrusion.py",
+      "bytes": 4759,
+      "sha256": "ddb9ff4ff5a385844eac1be75264d8fd6472e025171c5c09559a8d6617656f36",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_epoch.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/retainer_geometry.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/training_camera.py",
+      "bytes": 12514,
+      "sha256": "663d569675257390b9dd5effabe644e452cea310966ce4a1bd7c1ac817695a7c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/render_settling_probe.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/training_capture.py",
+      "bytes": 70016,
+      "sha256": "385069835b2b8dce1094c6afbc79e83c1b990409025193c5a6ea978e17a1b738",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_act.py",
+        "local import or package parent of sim/ausc_policy/m2_act_pilot.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_policy_compact_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/velocity_feedforward.py",
+      "bytes": 18494,
+      "sha256": "9eee1a1043f6e77b1094aefe840dd1805670becd89d983412fb4c58e7f6cd8f3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py"
+      ]
+    },
+    {
+      "file": "sim/ausc_policy/velocity_probe.py",
+      "bytes": 9416,
+      "sha256": "9c5572102df5c80fb6b79630652c67731f6f65db1fb632090f26ea5902ddc609",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/history_prepare.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/__init__.py",
+      "bytes": 62,
+      "sha256": "f87b8f6adfe99eae98d04c4b480fa1ca050edeeacb85d23fd0883f5211cf27cf",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/ausc_policy/m2_act_pilot.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/__init__.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_episode.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/collision.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/dataset.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/env.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/kinematics.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/low_elbow_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/phase_manager.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/pose_ik.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/posture.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/revalidate_plans.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/scene.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/targets.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/tool_frames.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/audit_episode.py",
+      "bytes": 9065,
+      "sha256": "bee857fcae46f6829fc8c118f3d39a31e2d2a68d18d8660845b68003988c96b5",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_skill_v1/audits.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/audit_low_elbow.py",
+      "bytes": 16231,
+      "sha256": "3d03e955214f87125d0927dc02ce6e2c03e707f65031bc7c0897420d59fb186b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_skill_v1/audits.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/collision.py",
+      "bytes": 4558,
+      "sha256": "13458908ee496a6d7ad8c370e779e10ac17aeaf9d90af9f23543e9f4c2359b89",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/revalidate_plans.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/curobo_expert_v1/fast_collision.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_planner.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/controller.py",
+      "bytes": 29994,
+      "sha256": "2c9dc0632f8bc541bc74610e12728f0129281b2947cffb6c3fd30ac9e361ec32",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_episode.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/low_elbow_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_pi05_v6/observed_supervisor.py",
+        "local import or package parent of sim/auscultation_skill_v1/audits.py",
+        "local import or package parent of sim/auscultation_skill_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/withdrawal.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_controller.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_planner.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/dataset.py",
+      "bytes": 20278,
+      "sha256": "b39ca527ea55daebd4764bc2f543fea1c3e4416c65f57173bfcaf6ebcb8eb3f0",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_episode.py",
+        "local import or package parent of sim/auscultation_skill_v1/trace_binding.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/env.py",
+      "bytes": 9050,
+      "sha256": "62d015d711ca40d24a206390c4e06ae095865626ff1119d2975d49082e24d625",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/auscultation_pi05_v6/runtime_dynamics.py",
+        "local import or package parent of sim/auscultation_repair_v3/physics_profile.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_contact.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/kinematics.py",
+      "bytes": 13644,
+      "sha256": "d34f67ba9922ed2e5eab7a29a71cc1934c3e2ace3a1b447bbc7af42a4d355a63",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/ausc_policy/m2_act_pilot.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_contract.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_episode.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/revalidate_plans.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_pi05_v6/derive_task_dataset.py",
+        "local import or package parent of sim/auscultation_pi05_v6/execution.py",
+        "local import or package parent of sim/auscultation_vla_v2/multimodal.py",
+        "local import or package parent of sim/curobo_expert_v1/robot_bridge.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_planner.py",
+        "local import or package parent of tests/test_ausc_policy_m2_contract.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/low_elbow_controller.py",
+      "bytes": 13883,
+      "sha256": "f6986ef957d706d4cc8daff770082fd0c8b41a16de5a3982fb0cd3eb689d1f5e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/expert_quality_20260924/candidate_controller.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/openarm_v10_follower_stetho.urdf",
+      "bytes": 30485,
+      "sha256": "953a3eb21fbe121291a696c29acfd5c76e6d8dd121f31f15f162a9515eca9e77",
+      "scope": "kinematic_text_dependency",
+      "dependency_provenance": [
+        "m2_contract import constructs OpenArmKinematics; default URDF parsed as XML",
+        "Existing public Apache-2.0 OpenArm description, notice retained; referenced mesh files not copied"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/phase_manager.py",
+      "bytes": 11824,
+      "sha256": "b20aec1a5b92f46623a2f339f2a675dee8e3fb8684071a3a7c58ec52a56bd03d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_episode.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/controller.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_pi05_v6/observed_supervisor.py",
+        "local import or package parent of sim/auscultation_skill_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/withdrawal.py",
+        "local import or package parent of tests/test_ausc_given_contact_controller.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act_controller.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+      "bytes": 18167,
+      "sha256": "0b0566acd4facc53a68bfe3af97932840e0e80c20223a4534126d84c3058e5d3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+      "bytes": 22531,
+      "sha256": "02a2fb8de676148273fc0ea928195e1dd5eb2fb72b760f9794b37050f6f453b5",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/low_elbow_controller.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/pose_ik.py",
+      "bytes": 6301,
+      "sha256": "55b55ef7b8fe81b19fcde51edeefc6e542736db36630a784806d3bbf8b0cfc2b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/low_elbow_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/auscultation_skill_v1/curve.py",
+        "local import or package parent of sim/curobo_expert_v1/withdrawal.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/posture.py",
+      "bytes": 5874,
+      "sha256": "adef5c183f3e251b066cfb289ccd2c99065c31f7d8741a0b4be7e27a614a1b89",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/contact_collision.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_pilot_config.py",
+        "local import or package parent of sim/ausc_policy/m2_sensor_probe.py",
+        "local import or package parent of sim/ausc_policy/m2_student_oracle_proposals.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/low_elbow_controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_planner.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/revalidate_plans.py",
+      "bytes": 5385,
+      "sha256": "1e2384339d0efc10a758dfeb1f131747cb7c7bc6ffe401895368eb6a44e5b621",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_planner.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/run_sequence.py",
+      "bytes": 7860,
+      "sha256": "6e3e42774a6a4afc327c85f5da68e219022454d920675783408c2a987f988dd6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/scene.py",
+      "bytes": 4217,
+      "sha256": "4f91c4e440b5ee1099093d2d62b60083fcb40de8589a9bf48aded14ee66b501d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/collision.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/env.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/revalidate_plans.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/run_sequence.py",
+        "local import or package parent of sim/curobo_expert_v1/fast_collision.py",
+        "local import or package parent of sim/curobo_expert_v1/robot_bridge.py",
+        "local import or package parent of sim/curobo_expert_v1/static_world.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/targets.py",
+      "bytes": 5348,
+      "sha256": "4cbfa42a526b010310ca8387561436be8eab95248b07aecd699d3b5f0a537889",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/geometry_plan.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/audit_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/controller.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_low_elbow.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/pose_ik.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_expert_layout_v1/tool_frames.py",
+      "bytes": 1120,
+      "sha256": "3dd6a5af8911f1b2772e67eef7a8c0406fa06eb8ff646b88fa3bc92d1b332a94",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_expert_layout_v1/kinematics.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/plan_contact_pose.py",
+        "local import or package parent of sim/auscultation_expert_layout_v1/pose_ik.py",
+        "local import or package parent of sim/curobo_expert_v1/robot_bridge.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/__init__.py",
+      "bytes": 69,
+      "sha256": "4fddf65b1fc0b99b4ddd0e8e50eee35bf803ceaad8e12ac98d560c192a0a449e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_stop_residual_trajectory.py",
+        "local import or package parent of sim/auscultation_pi05_v6/__init__.py",
+        "local import or package parent of sim/auscultation_pi05_v6/action_contract.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_pi05_v6/derive_task_dataset.py",
+        "local import or package parent of sim/auscultation_pi05_v6/dynamics_contract.py",
+        "local import or package parent of sim/auscultation_pi05_v6/execution.py",
+        "local import or package parent of sim/auscultation_pi05_v6/export_joint_dataset.py",
+        "local import or package parent of sim/auscultation_pi05_v6/hall_conditions.py",
+        "local import or package parent of sim/auscultation_pi05_v6/live_capture.py",
+        "local import or package parent of sim/auscultation_pi05_v6/observed_supervisor.py",
+        "local import or package parent of sim/auscultation_pi05_v6/phase_contract.py",
+        "local import or package parent of sim/auscultation_pi05_v6/render_warmup.py",
+        "local import or package parent of sim/auscultation_pi05_v6/runtime_dynamics.py",
+        "local import or package parent of sim/auscultation_pi05_v6/supervision.py",
+        "local import or package parent of sim/auscultation_pi05_v6/task_observation.py",
+        "local import or package parent of sim/auscultation_pi05_v6/teacher_timing.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/action_contract.py",
+      "bytes": 1621,
+      "sha256": "d21e73ec9e530b0a3785debb9e78cd42648f4de45880221317ba982aa44b7596",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/export_joint_dataset.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/collect_demo.py",
+      "bytes": 25365,
+      "sha256": "65d5dfd0006b18d87eefaf52febf2952d258aca10d7d0b54bebeed951f885acd",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/derive_task_dataset.py",
+      "bytes": 13661,
+      "sha256": "d92ae5ba32d3ab0f29dbc98b77c522747146fbd489805a40c430c0f07c5bd4a6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/history_prepare.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/dynamics_contract.py",
+      "bytes": 19576,
+      "sha256": "2c622501c39c78fdcbb3ec072ea04517b36bf94522f08891d789b4b19356728a",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/runtime_dynamics.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/execution.py",
+      "bytes": 4987,
+      "sha256": "d143e2e659d47e5d97108869a9b7d104d98213586d809a0f4f5157e3079e98d3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_act_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_act_planned_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_stop_residual_trajectory.py",
+        "local import or package parent of sim/ausc_policy/motion_preview.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/export_joint_dataset.py",
+      "bytes": 29694,
+      "sha256": "1f4da9baf7fcde2f9d7a92fc18f816632687565cb7097e857a8c4b37b68358ba",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/derive_task_dataset.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/hall_conditions.py",
+      "bytes": 1052,
+      "sha256": "9309a26548aeaf8cb284de4e26ee66306883c78634a2898fb0457e13c7f690a3",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/m2_sensors.py",
+        "local import or package parent of sim/auscultation_pi05_v6/live_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/live_capture.py",
+      "bytes": 3763,
+      "sha256": "ec8df413783b6a7357250d607ffc8571fd91284bdd184670e354e00c2a35c67c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/observed_supervisor.py",
+      "bytes": 17096,
+      "sha256": "c493be864050f479c21c112cf68e76aa377f8d101419416ded245df767371ed4",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/phase_contract.py",
+      "bytes": 4231,
+      "sha256": "a6d7edb5723c09fd5e4976155bc0d6587869776ebb262adcb761e51c2ce358b2",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/history_prepare.py",
+        "local import or package parent of sim/auscultation_pi05_v6/export_joint_dataset.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/render_warmup.py",
+      "bytes": 3327,
+      "sha256": "852c3a70fadbdf7010921b8633346dad7ec97192335fb16bb92639065fb0099b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/live_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/runtime_dynamics.py",
+      "bytes": 2757,
+      "sha256": "14f72d6b34d85d66c87c627eab8b7079a61f907ebf28324a8aee32522102c9d6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/supervision.py",
+      "bytes": 895,
+      "sha256": "d872f5d4256f6d4030d29dab3204015cee6378bc3286b4bcef0462e35e83ee49",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_pi05_v6/observed_supervisor.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/task_observation.py",
+      "bytes": 4726,
+      "sha256": "542fe25980121464a0258ac4884e1ff19deae98fa20ba368fdf6043d39e04b5f",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/auscultation_pi05_v6/derive_task_dataset.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_pi05_v6/teacher_timing.py",
+      "bytes": 995,
+      "sha256": "e295ea51b4d8e3eb8304a194b3925f33deafcf35285eab8b24695df3f5212b99",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_repair_v3/__init__.py",
+      "bytes": 66,
+      "sha256": "fb4885e72f915a1a267523d2090b4237addff3dc5390deec941bc54ba1e47c34",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_repair_v3/__init__.py",
+        "local import or package parent of sim/auscultation_repair_v3/metrics.py",
+        "local import or package parent of sim/auscultation_repair_v3/physics_profile.py",
+        "local import or package parent of sim/auscultation_repair_v3/teardown.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_repair_v3/metrics.py",
+      "bytes": 1640,
+      "sha256": "9ff046bb44a523ce4181a01611771d49f1d997a81b67a9d12775bddfd95a3f5c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_repair_v3/physics_profile.py",
+      "bytes": 3257,
+      "sha256": "25be1d1587c5acf005a008b121d091f6a3804e17cd44baf1f70d704d2cf03e87",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_repair_v3/teardown.py",
+      "bytes": 782,
+      "sha256": "836ce5d61ed5c5bcdd8f54ef0458d87d00cb46784fb65f995f9cdbe1b7d4c361",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/__init__.py",
+      "bytes": 75,
+      "sha256": "4bee493c6705f26bf9cf3533ad4afb2b65a9064fda21c651e855a2cc10dd21d2",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/auscultation_skill_v1/__init__.py",
+        "local import or package parent of sim/auscultation_skill_v1/audits.py",
+        "local import or package parent of sim/auscultation_skill_v1/certified_collision.py",
+        "local import or package parent of sim/auscultation_skill_v1/controller.py",
+        "local import or package parent of sim/auscultation_skill_v1/curve.py",
+        "local import or package parent of sim/auscultation_skill_v1/executor.py",
+        "local import or package parent of sim/auscultation_skill_v1/media_teardown.py",
+        "local import or package parent of sim/auscultation_skill_v1/observations.py",
+        "local import or package parent of sim/auscultation_skill_v1/trace_binding.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/audits.py",
+      "bytes": 2695,
+      "sha256": "65b9e918c7da07a1f32961a2cd1a5990f1a06997efee825ccef9db2dc1b8178b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/certified_collision.py",
+      "bytes": 12231,
+      "sha256": "41d547f3e8ab4ead5e5ed66af44651b417cfd82189e469bcb0ece37baf8a07fa",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/geometry_contact_probe.py",
+        "local import or package parent of sim/ausc_policy/geometry_qualification.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/controller.py",
+      "bytes": 17639,
+      "sha256": "8f0b079c9ecf3d425c8cd8b3b41930985a50d695b8b023a6b561b3fb8d4c0daa",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/curve.py",
+      "bytes": 6527,
+      "sha256": "cf553ae9738e9f53b01114db4dc320161302359e51ef0431312cf4739ed559d2",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_skill_v1/controller.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/executor.py",
+      "bytes": 8582,
+      "sha256": "a92e3f6c5704a2c5704e59b054899de4577a30b3babb955aedc4bd41cf24d9b9",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/m2_act_conditional_supervision.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_controller.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_dataset.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_evaluation.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_handoff.py",
+        "local import or package parent of sim/ausc_policy/m2_given_contact_recovery.py",
+        "local import or package parent of sim/ausc_policy/m2_stop_residual_trajectory.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_skill_v1/controller.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/media_teardown.py",
+      "bytes": 5521,
+      "sha256": "b23546f15afc7b8359b8bfc7606b6d2626a9782a27b0a879666ad31aaed04ce8",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/auscultation_pi05_v6/collect_demo.py",
+        "local import or package parent of sim/auscultation_vla_v2/live_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/observations.py",
+      "bytes": 5358,
+      "sha256": "8808649a039a80453f73cd753b0741431eeab788517c0a3523fcb615e4e6807c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_skill_v1/controller.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_skill_v1/trace_binding.py",
+      "bytes": 5228,
+      "sha256": "da3b151070a9bd6b463c575bf580e7da00794994785e16b1c7904a6894c4a46b",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_skill_v1/audits.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/__init__.py",
+      "bytes": 82,
+      "sha256": "18c9f9f03cc0119fbe07fc8bd53335c53927edf5bcce10cbd77fb6843a25ca44",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/export_joint_dataset.py",
+        "local import or package parent of sim/auscultation_vla_v2/__init__.py",
+        "local import or package parent of sim/auscultation_vla_v2/action_contract.py",
+        "local import or package parent of sim/auscultation_vla_v2/body_tracking.py",
+        "local import or package parent of sim/auscultation_vla_v2/chunks.py",
+        "local import or package parent of sim/auscultation_vla_v2/hall.py",
+        "local import or package parent of sim/auscultation_vla_v2/live_capture.py",
+        "local import or package parent of sim/auscultation_vla_v2/multimodal.py",
+        "local import or package parent of sim/auscultation_vla_v2/observations.py",
+        "local import or package parent of sim/auscultation_vla_v2/rigid_registration.py",
+        "local import or package parent of sim/auscultation_vla_v2/tracking.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/action_contract.py",
+      "bytes": 2854,
+      "sha256": "7f5d47ea4dd7e06c021e0d9235ac25dd94bf6f5d014ac17aa722c05edbab9322",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_vla_v2/chunks.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/body_tracking.py",
+      "bytes": 5964,
+      "sha256": "67129d55413f073398ab327d5fbedbbf14298cd12a95a2d7bc04c8d4f2b6fb25",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_vla_v2/live_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/calibration/veo6_tared_snapshot.json",
+      "bytes": 3374,
+      "sha256": "ce6bcda3bef2282e07be0f44686dc007756ede57cdfcd732d35e28c1d469d054",
+      "scope": "provisional_hall_config",
+      "dependency_provenance": [
+        "Original physics-anchored rest and hardstop calibration; measured endpoints, no bench-weight verification; not wholly synthetic",
+        "Read by unchanged CPU fixture helper or original identity admission"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/chunks.py",
+      "bytes": 5324,
+      "sha256": "88c6403f65660f8b23f1bdcbd020e80b4472cfac946130448f04b70661366cf6",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_vla_v2/multimodal.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/hall.py",
+      "bytes": 7933,
+      "sha256": "8ccf46f67d32d6229175ab31d14e5a7ef55d175b29da9ddf39a27e935c1f1b6e",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/astra_sensors.py",
+        "local import or package parent of sim/ausc_policy/controller.py",
+        "local import or package parent of sim/ausc_policy/expert_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_capture.py",
+        "local import or package parent of sim/ausc_policy/m2_sensors.py",
+        "local import or package parent of sim/ausc_policy/training_capture.py",
+        "local import or package parent of sim/auscultation_pi05_v6/derive_task_dataset.py",
+        "local import or package parent of sim/auscultation_pi05_v6/hall_conditions.py",
+        "local import or package parent of sim/auscultation_vla_v2/live_capture.py",
+        "local import or package parent of sim/auscultation_vla_v2/multimodal.py",
+        "local import or package parent of sim/auscultation_vla_v2/observations.py",
+        "local import or package parent of tests/test_ausc_policy_training_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/live_capture.py",
+      "bytes": 5778,
+      "sha256": "f69a637169234639adaac783ed7e53da1f76e28db2c7fdcf21317cc50ee0394d",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/live_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/multimodal.py",
+      "bytes": 4379,
+      "sha256": "712507a4bd7de1e15eb173c4ac1b5b3a71571cc4479180b97f9e2b10ad48d2f1",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/export_joint_dataset.py",
+        "local import or package parent of sim/auscultation_pi05_v6/live_capture.py",
+        "local import or package parent of sim/auscultation_vla_v2/live_capture.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/observations.py",
+      "bytes": 6657,
+      "sha256": "2efe854433f76bbfefa175d61ff4bd36c494652c9340157c62be3d84d3349185",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_pi05_v6/live_capture.py",
+        "local import or package parent of sim/auscultation_vla_v2/body_tracking.py",
+        "local import or package parent of sim/auscultation_vla_v2/live_capture.py",
+        "local import or package parent of sim/auscultation_vla_v2/multimodal.py",
+        "local import or package parent of sim/auscultation_vla_v2/tracking.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/rigid_registration.py",
+      "bytes": 6106,
+      "sha256": "23517bad457e57f0799d8e54d5d0de16804b1054bea32d21cae4038341f4b315",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_vla_v2/body_tracking.py"
+      ]
+    },
+    {
+      "file": "sim/auscultation_vla_v2/tracking.py",
+      "bytes": 23269,
+      "sha256": "332c5464c1ea9e7e51072c8d6adcf91dce9d74660501977bb6af8e4153390576",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_vla_v2/body_tracking.py",
+        "local import or package parent of sim/auscultation_vla_v2/multimodal.py"
+      ]
+    },
+    {
+      "file": "sim/camera_framing_20260923/recommended_camera.json",
+      "bytes": 8126,
+      "sha256": "aeac00eb5a963520e869c60efff52a300484bd1c4a49232067a669c525ad07f0",
+      "scope": "historical_camera_config",
+      "dependency_provenance": [
+        "Original approved simulated camera transform/intrinsics and scalar projection summary; helper reads this exact configuration, no images/mesh/body parameters bundled",
+        "Read by unchanged CPU fixture helper or original identity admission"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/controller.py",
+      "bytes": 11260,
+      "sha256": "b261a3be3e621cebe4fcdb486fb449e2166931e5ab2eb64b258f1324768234ac",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/auscultation_skill_v1/controller.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/curobo_backend.py",
+      "bytes": 16349,
+      "sha256": "83eec3471210fdb56e302d63556f4c1fe1034b354dca0f8c4698a7abd29b1ffb",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/planner_service.py",
+        "local import or package parent of sim/curobo_expert_v1/preflight.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/fast_collision.py",
+      "bytes": 4801,
+      "sha256": "0a624115673c654aeb1ea582f01558d8ab50b1083bda371f1f5e708f41be3225",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/contact_collision.py",
+        "local import or package parent of sim/auscultation_skill_v1/certified_collision.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/planner_service.py",
+      "bytes": 4782,
+      "sha256": "ada754f1a5dfe6bb1fb4c0ad433cc601aa3fb078efc8a151fd750aa2b8be7769",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/preflight.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/preflight.py",
+      "bytes": 2307,
+      "sha256": "249b419b211653d1b16cad28a496bea99ae55e775608b060c1ecf543a0f6c855",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/planner_service.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/robot_bridge.py",
+      "bytes": 31686,
+      "sha256": "f9dfdc9553cd9e6c1aee380886a652a7ee91e97588626c22d6f495d33deeb2d5",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/planner_service.py",
+        "local import or package parent of sim/curobo_expert_v1/preflight.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/static_containment.py",
+      "bytes": 4086,
+      "sha256": "8cf80474457d365b212ca38c4b018f101af3001aced7bb6b1e54a4a0bbe9b4e1",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/static_world.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/static_world.py",
+      "bytes": 16809,
+      "sha256": "5f8a070d3ece75d3b3ed9c3ad799be7cec46b25ba7634995f166b8fd1862b0ac",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/contact_collision.py",
+        "local import or package parent of sim/ausc_policy/fresh_expert.py",
+        "local import or package parent of sim/ausc_policy/isaac_case.py",
+        "local import or package parent of sim/curobo_expert_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/robot_bridge.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/timing.py",
+      "bytes": 4635,
+      "sha256": "7d8aa10bb5c61ae59acf2cf6053f2698df9702af33a1c88ac64532f9ae72a351",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/controller.py"
+      ]
+    },
+    {
+      "file": "sim/curobo_expert_v1/withdrawal.py",
+      "bytes": 13929,
+      "sha256": "190309db75d77201f2a7d0d1b624bbc91c9e287ea058d93818f98c2d6d56b343",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/controller.py"
+      ]
+    },
+    {
+      "file": "sim/expert_quality_20260924/candidate_controller.py",
+      "bytes": 11565,
+      "sha256": "5526848b0e22a7ec83921d1024b3029754b380d2fb0a08535a1237888666c9ab",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/curobo_expert_v1/controller.py"
+      ]
+    },
+    {
+      "file": "sim/expert_quality_20260924/candidate_planner.py",
+      "bytes": 14227,
+      "sha256": "fca7e0be0bf8753c0857e36807f20d96f63e9bb85f7c2677b22a168f5a79da3c",
+      "scope": "project_source",
+      "dependency_provenance": [
+        "local import or package parent of sim/ausc_policy/edge_timing.py",
+        "local import or package parent of sim/curobo_expert_v1/controller.py",
+        "local import or package parent of sim/curobo_expert_v1/timing.py",
+        "local import or package parent of sim/expert_quality_20260924/candidate_controller.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_auxiliary_data.py",
+      "bytes": 18790,
+      "sha256": "5399032660fe5fd295b953266483c7334648543b5a1c282127d5c960ec9866e8",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_chunk_data.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_planned_supervision.py",
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_auxiliary_train.py",
+      "bytes": 25704,
+      "sha256": "7efc9999a4db9344f8a951a45a364aa57e00fe5584baf2ec86ae4546614e99d0",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_chunk_data.py",
+      "bytes": 6891,
+      "sha256": "963c5138930fae318a91f6893d36468741aa0ea4f96e4633ca94e7cab1148b87",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_conditional_v3.py",
+      "bytes": 31833,
+      "sha256": "6ed01d2b89e16018694587240f51d1daba3fabd7bb2b1ac41fdc60aec9275b15",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_planned_supervision.py",
+      "bytes": 9937,
+      "sha256": "9c68df611e3fadb7229517de789d95e1901e61b0f8db706cd9449a3c29a40830",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_posture_head.py",
+      "bytes": 9167,
+      "sha256": "38a2e4caf7c8e35495b0184d37f76bde2d581b09e248677ecedf1f6ee7871404",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_act_posture_train.py",
+      "bytes": 7815,
+      "sha256": "802a15e2feaf74e04419bebce74ce345c3de92aa275012d5952e50be0d2aa90d",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_act.py",
+      "bytes": 4120,
+      "sha256": "023892b11e5defd7b400cfce2b08d8c3d07f1e8f1a318742cd2f782d94f82354",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_admission.py",
+      "bytes": 9599,
+      "sha256": "745748838abb98c90c4d8ecd0ec33dadd318a94b168c096eec4e4a1c5975cd74",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_capture.py",
+      "bytes": 19415,
+      "sha256": "ab8af1d16e7d74506ae7f0676e60264508d0636c7fe34a8b0758f6862c2ff130",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_act_planned_supervision.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_student_oracle_proposals.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_controller.py",
+      "bytes": 9280,
+      "sha256": "83e75219cbc88d9748e24381f1c5a165c2342fbb13de90007c60373361edcf4e",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_dataset.py",
+      "bytes": 55922,
+      "sha256": "146c04a1f51eb7997f6864b0ba5e1f2b1e46714986ec45873616a13288ee54ec",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_processing_source_envelope.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_deployment.py",
+      "bytes": 65532,
+      "sha256": "889def313368dbdd4591359c30705bffa24755c4a05dc9c28a5ac1838e4424b5",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_evaluation.py",
+      "bytes": 114745,
+      "sha256": "e48a7ea5cb425eeeae44822aa92dfc483f9346064a3ab9bd755dc10934bda61d",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_expanded_pilot.py",
+      "bytes": 11493,
+      "sha256": "b897237a2daff47e7a1efde40473573ab30be8e5f1b1461a0f36d0679c05d7d2",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_handoff.py",
+      "bytes": 42082,
+      "sha256": "b2e1449ac8a7b9e62e3800d67ab3cf371b3b1e10014eaf46a3333412800fded8",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_planned_supervision.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_lossless_mapping.py",
+      "bytes": 82857,
+      "sha256": "6f6fc5b4028732ab1619133a4afeab1c1ab9ad2deb5b52d20d6d6894981dd313",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_pilot_deployment.py",
+      "bytes": 6676,
+      "sha256": "d13a032475f5d682b8a0f973b5f12a5711836148eb0ad52f2cba2182aaa5883a",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_pilot_native_audit.py",
+      "bytes": 10407,
+      "sha256": "2dc797d2a140b77400156621234bfdb15a6bcd459d1da81a089b6024ba5e6325",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_pose.py",
+      "bytes": 5572,
+      "sha256": "e51e262170743a5d0bbb2f98766a21c01760e471870e4ec052013dd97726efeb",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_auxiliary_data.py",
+        "local import or package parent of tests/test_ausc_act_auxiliary_train.py",
+        "local import or package parent of tests/test_ausc_act_conditional_v3.py",
+        "local import or package parent of tests/test_ausc_act_planned_supervision.py",
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_controller.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_evaluation.py",
+        "local import or package parent of tests/test_ausc_given_contact_expanded_pilot.py",
+        "local import or package parent of tests/test_ausc_given_contact_handoff.py",
+        "local import or package parent of tests/test_ausc_given_contact_lossless_mapping.py",
+        "local import or package parent of tests/test_ausc_given_contact_pilot_deployment.py",
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py",
+        "local import or package parent of tests/test_ausc_given_contact_train.py",
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_runtime.py",
+      "bytes": 29253,
+      "sha256": "5ad4b1312d3420c73e3c1afcdf74b8de5f7a76d206b4606d627070252a3b9b68",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_admission.py",
+        "local import or package parent of tests/test_ausc_given_contact_train.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_scene_store.py",
+      "bytes": 4669,
+      "sha256": "4131612fb98f8cbc07e1c41707e5cde30617949378369089f56a52cb8a98e49c",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_train.py",
+      "bytes": 20844,
+      "sha256": "f981cb57e1b87f3829fa1ddf2fa9eddb2081bad929b59424c30df9313fc4a1f0",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_admission.py",
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_contact_val_scenarios.py",
+      "bytes": 12863,
+      "sha256": "adb4b436ed67bb79b9121f86b84966b7cc8a8b5b8a38daaa3d9276118c06848d",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_given_processing_source_envelope.py",
+      "bytes": 8135,
+      "sha256": "1debf57bf6c00c33ab6e6f81ecc0ac6176e347e8a5474b8430ef5c94692affad",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_runtime.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_compact_expert_capture.py",
+      "bytes": 12475,
+      "sha256": "2214277235552c89c77ded6df83c326fd2f734b49cbe587b94b87779cd352a15",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_expert_capture.py",
+      "bytes": 16990,
+      "sha256": "4389fd595128a13b65eea5e0e33bbcadfbdef6535b539d1dfed444f16901b4c8",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_policy_compact_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_isaac_batch.py",
+      "bytes": 5730,
+      "sha256": "f4c72934d9bd645d1d0b44fa77979c01d08d6612d3285bc45aacd42204324d0d",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_val_scenarios.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_m2_act.py",
+      "bytes": 19912,
+      "sha256": "8c0444e1dcf3afb0add21148ce517a737c20510b960d5fce976814e73ce911cb",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_capture.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_m2_act_controller.py",
+      "bytes": 10987,
+      "sha256": "478cc9c564342af8048c0873bdb7bb5dae576ce9299f4a15a656b556b4e85f32",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_act.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_m2_contract.py",
+      "bytes": 10376,
+      "sha256": "508a5c56137e07ca0872d8c4dea49f12c9fa802cc2083d2f9708c80050c337ea",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_act.py",
+        "local import or package parent of tests/test_ausc_given_contact_pose.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act_controller.py",
+        "local import or package parent of tests/test_ausc_policy_m2_estimate_provider.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_m2_deployment_integration.py",
+      "bytes": 8094,
+      "sha256": "bf04b2c15ccb2f32d63686653f1f28f6f6d742be3f8889ca94779549e11e5680",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_deployment.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_m2_estimate_provider.py",
+      "bytes": 6903,
+      "sha256": "942643566d439e95e8e8a038d0b0bc453da82130a63ed2e02f1237097931a3f6",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_policy_m2_deployment_integration.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_m2_pilot_config.py",
+      "bytes": 18179,
+      "sha256": "3db4a5b9514fbf327a3d85a54e7fe6f363fbd9b8106a3d7b059e203ab172e8bf",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_capture.py",
+        "local import or package parent of tests/test_ausc_given_contact_scene_store.py",
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_retainer_contact.py",
+      "bytes": 7920,
+      "sha256": "542e59cd411db6a77e7ec70da6c4ad42cfa0e7fb5763cb65cd1e81592d1b3c22",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_policy_retainer_witness.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_retainer_witness.py",
+      "bytes": 27084,
+      "sha256": "826c4325dcebe91738b7cc6deb77b208758db77f001759eed29c93bdc501733f",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_scene_store.py",
+      "bytes": 29073,
+      "sha256": "d73961ed0ed3c96760c9146adcf6f130dd11785a3c22741e58e0681a2ca72a51",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_dataset.py",
+        "local import or package parent of tests/test_ausc_given_contact_scene_store.py",
+        "local import or package parent of tests/test_ausc_rebuild_paired_eval.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_sdk_mdl.py",
+      "bytes": 5618,
+      "sha256": "5b2ce55b64e8d17f27280ae034287fbb52bd5c58b3d6a5092537cf25d4f6a346",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_given_contact_scene_store.py",
+        "local import or package parent of tests/test_ausc_policy_m2_pilot_config.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_policy_training_capture.py",
+      "bytes": 51101,
+      "sha256": "381bda980c9ebc3792b7f11758efa0c561f62d52f3a77a45c48f2ef138a88e66",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_policy_compact_expert_capture.py",
+        "local import or package parent of tests/test_ausc_policy_m2_act.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_rebuild_paired_eval.py",
+      "bytes": 18429,
+      "sha256": "48e475677b76af53b1f7cfb86bc9280ec86f47098081b58fe29d0d6b83c4ae19",
+      "scope": "test_helper_only",
+      "dependency_provenance": [
+        "local import or package parent of tests/test_ausc_act_posture_train.py",
+        "local import or package parent of tests/test_ausc_stop_residual_trajectory.py"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_stop_residual_trajectory.py",
+      "bytes": 36517,
+      "sha256": "eed7c018a72981f596911cbd6439e6ad98a37e791dbffc88885d4c0238dd39ab",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "selected CPU fixture test"
+      ]
+    },
+    {
+      "file": "tests/test_ausc_student_oracle_proposals.py",
+      "bytes": 5272,
+      "sha256": "d11eeb582d3c05f1b79d5c8597f020d2ca6696c40eedc6bec66415d0b05f2e62",
+      "scope": "selected_cpu_test",
+      "dependency_provenance": [
+        "selected CPU fixture test"
+      ]
+    }
+  ],
+  "public_adapters": [
+    "verify_capsule.py",
+    "../../demo_tests/test_source26_capsule.py"
+  ],
+  "dynamic_dependency_review": [
+    {
+      "source": "sim/ausc_policy/run.py",
+      "finding": "MODULES selects m2_given_contact_expanded_pilot_train or isaac_batch for this flow; both are included. Other historical registry targets are outside capsule scope. Owner clears PYTHONPATH and chdirs to its code root."
+    },
+    {
+      "source": "sim/ausc_policy/m2_act_auxiliary_train.py",
+      "finding": "CPU equivalence subprocess dispatches the included original expanded trainer. authenticate_oracles intentionally runs the fully bound source20/source23/source24 archive in isolation; those earlier archives are NOT supplied."
+    },
+    {
+      "source": "sim/ausc_policy/isaac_batch.py",
+      "finding": "Native jobs dispatch the included geometry_qualification and original native modules, but still require the external original SDK, configured asset paths and native setup."
+    },
+    {
+      "source": "sim/ausc_policy/m2_act_conditional_supervision.py",
+      "finding": "_code() reads six sibling Python files, all included; prepared scene/plan/patient/geometry and V2 parent are external hash-bound inputs."
+    },
+    {
+      "source": "sim/ausc_policy/isaac_case.py",
+      "finding": "Dynamic force_sensor import is included; local URDF, collision NPZ/meshes, USD, camera and calibration JSON are not a complete asset closure."
+    }
+  ],
+  "excluded_requirements": [
+    "Full source26 runtime inventory and all original source20/source23/source24 archives",
+    "Pinned official LeRobot virtualenv and dependency inventory",
+    "Native bank, V2 auxiliary parent, TRAIN16 freeze and bound original receipts/arrays",
+    "Referenced robot collision/visual meshes, SMPL/HuMMan and native USD assets, remaining runtime configs; only explicit kinematic/camera/provisional Hall/identity text dependencies are included",
+    "Isaac Sim Linux SDK, compatible NVIDIA GPU, full FCL/Ruckig native qualification"
+  ],
+  "privacy_review": {
+    "review": "Each selected Python blob and explicit text dependency reviewed and scanned; no data/binary/vendor/machine configuration copied. Already-public URDF and three hash-bound configuration files are explicitly allowlisted.",
+    "historical_compatibility_paths": "layered_scene_authoring.py retains two already-public historical geometry identity constants under /home/william/wam-vla-v2, paired with /workspace/wam. They are compatibility identities, not current server addresses or login instructions.",
+    "non_loopback_addresses": 0,
+    "credential_patterns": 0,
+    "machine_gpu_uuids": 0,
+    "historical_urdf_comment": "The existing upstream autogenerated xacro comment contains a historical /home/robot source path; it is provenance, not a live location."
+  },
+  "claims": {
+    "full_runtime_closure": false,
+    "owner_qualified": false,
+    "physics_executed": false,
+    "training_result": false
+  }
+}

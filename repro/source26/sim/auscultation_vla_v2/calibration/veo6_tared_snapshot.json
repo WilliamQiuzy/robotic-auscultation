@@ -1,0 +1,67 @@
+{
+  "variant": "veo6_coaxial_hall_axial_gap",
+  "measurement_type": "hall_voltage_to_force",
+  "notes": "VEO6 coaxial axial-gap Hall. Hall voltage is MONOTONIC with contact force (measured direction is inverted vs the design sensing model — press LOWERS the Hall voltage; the sign is irrelevant, only monotonicity matters). Calibration is PHYSICS-ANCHORED (no bench weight): the two Hall endpoints are MEASURED (tare rest + mechanical hard stop) and the force at each is fixed by the to-spec spring. See calibration_basis. Prior points mislabeled the hard stop 5.5 N (stale 4 mm model) and under-read force ~1.6x; corrected to the printed VEO6-realshape 7.25 mm = 8.75 N hard stop.",
+  "signal_pin": "GP28",
+  "supply_v": 3.3,
+  "adc_full_scale": 65535,
+  "calibrated": true,
+  "force_model": {
+    "preload_n": 1.5,
+    "spring_rate_n_per_mm": 1.0,
+    "hard_stop_travel_mm": 7.25,
+    "hard_stop_force_n": 8.75,
+    "rest_face_gap_mm": 8.9
+  },
+  "calibration_points": [
+    {
+      "hall_v": 0.8236,
+      "force_n": 8.75,
+      "displacement_mm": 7.25
+    },
+    {
+      "hall_v": 1.1674,
+      "force_n": 5.5,
+      "displacement_mm": 4.0
+    },
+    {
+      "hall_v": 1.2626,
+      "force_n": 4.6,
+      "displacement_mm": 3.1
+    },
+    {
+      "hall_v": 1.3261,
+      "force_n": 4.0,
+      "displacement_mm": 2.5
+    },
+    {
+      "hall_v": 1.5905,
+      "force_n": 1.5,
+      "displacement_mm": 0.0
+    }
+  ],
+  "target_force_n": 4.0,
+  "target_tolerance_n": 0.5,
+  "max_screened_force_n": 4.6,
+  "hard_limit_force_n": 5.5,
+  "target_update_rate_hz": 100,
+  "max_allowed_latency_ms": 50,
+  "stale_timeout_ms": 200,
+  "tare": {
+    "tared_utc": "2026-06-30T20:27:28Z",
+    "face": "inverted (press lowers Hall)",
+    "rest_raw": 31577,
+    "hardstop_raw": 16355,
+    "method": "rest + mechanical hard-stop (provisional, no external weight)"
+  },
+  "calibration_basis": {
+    "method": "physics-anchored (no bench weight)",
+    "owner_directed": "William, 2026-07-20: fix the force scale + mark calibrated without bench pressing.",
+    "spring": "MISUMI WF6-25 x2 in parallel, k=0.5 N/mm each -> 1.0 N/mm total, preload 1.5 N (per veo6_design_metadata.json purchased_parts_fit — to-spec, deterministic).",
+    "anchors": "two MEASURED Hall endpoints from the tare: rest raw 31577 -> 1.5905 V = 1.5 N (preload, 0 mm compression); mechanical hard stop raw 16355 -> 0.8236 V = 8.75 N (7.25 mm x 1.0 N/mm + 1.5 preload).",
+    "interpolation": "force = 1.5 + 1.0 * compression (spring); intermediate hall_v is linear-interpolated between the two measured endpoints. Operating points (4.0/4.6/5.5 N) derived this way.",
+    "correction_vs_prior": "prior calibration labeled the measured hard stop 5.5 N (stale hard_stop_travel=4 mm force model) -> UNDER-READ force ~1.6x (controller would reach real ~8.75 N thinking it was 5.5 N). Fixed to realshape 8.75 N. The correction is strictly in the SAFE direction: at the 5.5 N hard limit the controller now trips at hall_v 1.1674 (was 0.8236), i.e. a larger gap / lower real force.",
+    "residual_assumption": "the operating-range hall_v->force curve is linear-interpolated between the two endpoints, NOT bench-verified; the true Hall curve is nonlinear. A single known-weight bench point near 4 N would tighten operating-range accuracy. Acceptable per owner for supervised bring-up.",
+    "not_bench_pressed": true
+  }
+}

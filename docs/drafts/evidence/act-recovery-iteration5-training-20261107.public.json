@@ -1,0 +1,612 @@
+{
+  "schema": "wam_act5_public_training_scalars_v1",
+  "model": "ACT5",
+  "source26_commit": "05e972ca184383a525aff293fc9f3590e546da9c",
+  "complete_sha256": "f6a6c8f1956fd067e708580b1eee3b24d624967015b11ece8482b2459c2b4b37",
+  "completed_steps": 20000,
+  "selected_step": 19000,
+  "metric_space": "raw target-space H20 MAE; not tracking or contact",
+  "physical_acceptance": false,
+  "evaluations": [
+    {
+      "step": 500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.0387023129574996,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.03920624719132996,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 1000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.0204466801532336,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.028416833516384615,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 1500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.018271319818984662,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.028311844503269082,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 2000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.011461310400128898,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.020129008257845003,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 2500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.017496238461546063,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.025691151948473795,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 3000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.01046057017391573,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01672287823765553,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 3500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.015194588468873449,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.023057063322686987,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 4000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.009407063417215865,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01669969447526873,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 4500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.01157706727164822,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01785667523764291,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 5000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.009514974822120279,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.017981169219481112,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 5500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.010078368794166312,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01559764351662946,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 6000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008443179905119584,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01670789255189279,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 6500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.012275723245618682,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.017642881488844773,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 7000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008964043015267986,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.015465374570076284,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 7500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.007072702499387406,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01509260968473071,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 8000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008505999654621269,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.012625570920185531,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 8500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008285990650577054,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.013971535012489692,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 9000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008098030410967004,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.014697035350954776,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 9500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.010843870968650738,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.013867100524060365,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 10000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.0109172186584285,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.016476050856215136,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 10500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.007288462679378442,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.012488623585757426,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 11000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008616046161183553,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.014085690505398122,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 11500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.011424268633380858,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.016156552526028364,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 12000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.00684064593904727,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.014102716384640139,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 12500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.007576171355275286,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.012973136881616219,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 13000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.007707917676772103,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.013885927020551211,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 13500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008677711532009545,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.012652253970450358,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 14000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.00896529482419556,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.014043198215131685,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 14500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.00962554383179494,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.014733965063126773,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 15000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.0072195096682107895,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.015247539561605052,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 15500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.007514579715982912,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.013362083701553463,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 16000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.006564684090729954,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.011995344748683799,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 16500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.012212526424375045,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.016290905913850667,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 17000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.009871859638745033,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.013718760254979813,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 17500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.006191608725721845,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.012407802080334603,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 18000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008710682445591526,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.012128806801761255,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 18500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.010746875605309644,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.01281535639761112,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 19000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.006733518224202098,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.011689551269993166,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 19500,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.007036895552896095,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.011820574223940535,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    },
+    {
+      "step": 20000,
+      "train": {
+        "sample_count": 8373,
+        "act": 0.008120954344786605,
+        "hold": 0.14471284015982094,
+        "constant_velocity": 0.13113357595215772
+      },
+      "validation": {
+        "sample_count": 2345,
+        "act": 0.013398408529908265,
+        "hold": 0.14630148809765878,
+        "constant_velocity": 0.13271755811047709
+      }
+    }
+  ]
+}

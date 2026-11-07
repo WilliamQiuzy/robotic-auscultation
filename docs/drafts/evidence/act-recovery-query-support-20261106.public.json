@@ -1,0 +1,75 @@
+{
+  "schema": "ausc_act_recovery_query_support_v1",
+  "cases": [
+    {
+      "case": "p001120-r3",
+      "observed_queries": 65,
+      "closest_query": {
+        "time_s": 32.79999999999914,
+        "distance_m": 0.0162205159263991,
+        "tangent_m": 0.015661753769181923,
+        "encoded_reference_normal_m": -0.004220735219376212,
+        "axis_error_deg": 3.5197384268607768
+      },
+      "axis_max_within_60mm_deg": 3.6041534368464996,
+      "source": {
+        "bytes": 1009083,
+        "sha256": "624070ae2ff0d1ba4812191cdad7a2830bc96135aaa6a8e95bc4c97d6f46dea5"
+      }
+    },
+    {
+      "case": "p001120-l3",
+      "observed_queries": 58,
+      "closest_query": {
+        "time_s": 29.499999999998646,
+        "distance_m": 0.021784369668389036,
+        "tangent_m": 0.010715137451809246,
+        "encoded_reference_normal_m": -0.01896693415494089,
+        "axis_error_deg": 3.407593798292856
+      },
+      "axis_max_within_60mm_deg": 3.4388417349412204,
+      "source": {
+        "bytes": 901087,
+        "sha256": "774703bf9cc0665169e9462f3824c36fcd0c3d006abe9173459410e7d87b5e1c"
+      }
+    },
+    {
+      "case": "p000923-r3",
+      "observed_queries": 51,
+      "closest_query": {
+        "time_s": 25.649999999998865,
+        "distance_m": 0.018882912651588386,
+        "tangent_m": 0.018376895682951967,
+        "encoded_reference_normal_m": -0.004342130268130858,
+        "axis_error_deg": 6.126807414460068
+      },
+      "axis_max_within_60mm_deg": 6.126807414460068,
+      "source": {
+        "bytes": 792356,
+        "sha256": "8807d9279dbd38c857b650bff150675414d26408514026ec387fce990496c7c0"
+      }
+    },
+    {
+      "case": "p000923-l3",
+      "observed_queries": 17,
+      "closest_query": {
+        "time_s": 9.049999999999807,
+        "distance_m": 0.42454984828085335,
+        "tangent_m": 0.35290271805607865,
+        "encoded_reference_normal_m": 0.2360132311204765,
+        "axis_error_deg": 45.79609653996325
+      },
+      "axis_max_within_60mm_deg": null,
+      "source": {
+        "bytes": 264183,
+        "sha256": "012ac26cdd66709c2d4280f568517634e05e084187ce83a7fcaa8db6c22f9baf"
+      }
+    }
+  ],
+  "train_axis_envelope_deg": {
+    "35": 1.5935517590481187,
+    "60": 2.0364138904188698
+  },
+  "random_recovery_proposal_axis_max_deg": 1.3841428524811001,
+  "interpretation": "Encoded goal-axis deviation, distinct from physical contact flatness. Proposal states and complete training origins have separate envelopes; no causal sufficiency claim."
+}

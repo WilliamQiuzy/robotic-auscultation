@@ -24,6 +24,7 @@ from . import m2_given_contact_expanded_pilot_train as training
 from . import m2_given_contact_pilot_deployment as bridge
 from . import m2_given_contact_pilot_native_audit as audit
 from . import m2_given_contact_evaluation as neutral
+from . import native_measurements
 from .geometry_epoch import require_current
 
 need=runtime.need
@@ -33,6 +34,7 @@ DESCRIPTOR='matched_scene_eval'
 INPUT_SCHEMA='m2_rebuild_paired_eval_cases_v1'
 PROTOCOL_SCHEMA='m2_rebuild_paired_eval_observation_pipe_v1'
 FROZEN_SCHEMA='m2_rebuild_paired_eval_protocol_v1'
+FRESH_FROZEN_SCHEMA='m2_rebuild_paired_eval_protocol_v2'
 DEPLOYMENT_SCHEMA='m2_rebuild_paired_eval_act_deployment_v1'
 PREPARED_SCHEMA='m2_rebuild_paired_eval_preparation_v1'
 BATCH_SCHEMA='m2_rebuild_paired_eval_batch_v1'
@@ -57,22 +59,45 @@ def _name(value):
     return isinstance(value,str) and 0<len(value)<=80 and all(c in 'abcdefghijklmnopqrstuvwxyz0123456789-_' for c in value)
 
 
+def _cohorts(source):
+    if 'identity_cohort' not in source:return {k:list(v) for k,v in COHORTS.items()}
+    from . import m2_act_recovery_scope
+    result=m2_act_recovery_scope.validate(source['identity_cohort'])
+    frozen=runtime.read_bound(source['identity_cohort'])
+    need(source.get('target_ids')==frozen['target_ids'] and source.get('pose_ids')==frozen['pose_ids'],
+         'Cases differ from pretraining frozen identity/target/pose scope')
+    return result
+
+
+def _arms(protocol):
+    arms=tuple(protocol.get('arms',ARMS))
+    need(arms in (ARMS,('expert','act')),'Only original three-arm or explicit expert/ACT comparison allowed')
+    return arms
+
+
+def _require_training_freeze(source,complete):
+    if 'identity_cohort' in source:
+        need(complete.get('schedule',{}).get('evaluation_cohort')==source['identity_cohort'],
+             'Fresh evaluation cohort must be bound before training, not selected after model outcomes')
+
+
 def validate_cases(value):
     need(value.get('schema')==INPUT_SCHEMA and value.get('complete') is True and
         value.get('model_outcomes_consulted') is False,'Frozen explicit new cases without outcome selection required')
+    inventory=_cohorts(value)
     targets=value.get('target_ids',[]);cohorts=value.get('eval_cohorts',['frozen_evaluation'])
     need(isinstance(targets,list) and 2<=len(targets)<=4 and len(set(targets))==len(targets) and
         set(targets)<=TARGETS,'Explicit root-chosen two through four targets required')
     need(value.get('pose_ids')==list(POSES) and isinstance(cohorts,list) and cohorts and
         len(set(cohorts))==len(cohorts) and set(cohorts)<=set(COHORTS),'Exact two observed poses and explicit evaluation cohorts required')
-    expected={(subject,pose,target) for cohort in cohorts for subject in COHORTS[cohort] for pose in POSES for target in targets}
+    expected={(subject,pose,target) for cohort in cohorts for subject in inventory[cohort] for pose in POSES for target in targets}
     cases=value.get('cases',[])
     need(isinstance(cases,list) and type(value.get('fixed_denominator')) is int and
         value['fixed_denominator']==len(expected)==len(cases),'Every planned evaluation case required; no skip or replacement')
     keys=set();names=set();episodes=set()
     for index,case in enumerate(cases,1):
         cohort=case.get('cohort');subject=case.get('subject_id');split='train' if cohort=='train' else 'validation'
-        need(cohort in cohorts and subject in COHORTS[cohort] and case.get('split')==split,
+        need(cohort in cohorts and subject in inventory[cohort] and case.get('split')==split,
             'Actual declared cohort and original identity split required')
         runtime.shared.require_membership(split,subject)
         key=(subject,case.get('pose_id'),case.get('target_id'))
@@ -102,7 +127,7 @@ def model_binding(ref):
 def sources():
     value=expanded.sources()
     from . import astra_native,astra_supervisor,astra_sensors,approved_camera
-    for module in (sys.modules[__name__],astra_native,astra_supervisor,astra_sensors,approved_camera):
+    for module in (sys.modules[__name__],astra_native,astra_supervisor,astra_sensors,approved_camera,native_measurements):
         path=Path(module.__file__);value['files'][path.name]=runtime.reference(path)
     value['approved_camera']=runtime.reference(approved_camera.CAMERA_FILE)
     need(value['approved_camera']['sha256']==approved_camera.CAMERA_SHA256,'Original approved camera bytes changed')
@@ -138,25 +163,26 @@ def validate_expert_config(config,case):
     return reference
 
 
-def _strata(cases):
+def _strata(cases,cohorts=None):
     return {cohort:dict(subject_ids=list(subjects),scenario_count=sum(c['cohort']==cohort for c in cases),
         tuning_permitted=cohort!='frozen_evaluation',independent_from_optimizer_and_checkpoint_selection=cohort=='frozen_evaluation')
-        for cohort,subjects in COHORTS.items()}
+        for cohort,subjects in (COHORTS if cohorts is None else cohorts).items()}
 
 
 def load_protocol(ref):
     training.full_reference(ref);value=runtime.read_bound(ref)
-    need(value.get('schema')==FROZEN_SCHEMA and all(value.get(k) is v for k,v in FLAGS.items()),'New frozen matched protocol required')
+    need(value.get('schema') in (FROZEN_SCHEMA,FRESH_FROZEN_SCHEMA) and all(value.get(k) is v for k,v in FLAGS.items()),'New frozen matched protocol required')
     source=runtime.read_bound(value['expert_configs']);cases=validate_cases(source)
     model,complete=model_binding(value['model']['complete'])
+    cohorts=_cohorts(source);arms=_arms(value);_require_training_freeze(source,complete)
     need(value.get('cases')==cases and value.get('model')==model and value.get('checkpoint_scope')==complete['scope'] and
-        value.get('cohorts')=={k:list(v) for k,v in COHORTS.items()} and value.get('source_inventory')==sources() and
-        value.get('fixed_denominator')==len(cases) and value.get('planned_arm_denominator')==len(cases)*3 and
-        value.get('strata')==_strata(cases) and value.get('eval_cohorts')==source.get('eval_cohorts',['frozen_evaluation']) and
+        value.get('cohorts')==cohorts and value.get('source_inventory')==sources() and
+        value.get('fixed_denominator')==len(cases) and value.get('planned_arm_denominator')==len(cases)*len(arms) and
+        value.get('strata')==_strata(cases,cohorts) and value.get('eval_cohorts')==source.get('eval_cohorts',['frozen_evaluation']) and
         value.get('target_ids')==source['target_ids'] and value.get('pose_ids')==list(POSES),
         'Frozen cases/model/source/actual checkpoint scope changed')
     limits=value.get('arm_parallelism',{})
-    need(set(limits)==set(ARMS) and all(type(n) is int and 1<=n<=4 for n in limits.values()),
+    need(set(limits)==set(arms) and all(type(n) is int and 1<=n<=4 for n in limits.values()),
         'Explicit frozen per-arm parallelism required')
     return value,complete
 
@@ -188,6 +214,7 @@ def preflight_arm(config,*,output=None):
     need(isinstance(descriptor,dict) and descriptor.get('arm') in ARMS and
         all(descriptor.get(k) is v for k,v in FLAGS.items()),'Explicit matched-scene arm declaration required')
     protocol,complete=load_protocol(descriptor['protocol']);arm=descriptor['arm']
+    need(arm in _arms(protocol),'Arm was not predeclared in this comparison')
     cases=[c for c in protocol['cases'] if c['scenario_id']==descriptor.get('scenario_id')]
     need(len(cases)==1 and cases[0]['preparation_status']=='prepared','Explicit prepared frozen scenario required')
     case=cases[0];original=runtime.read_bound(case['config']);reference=validate_expert_config(original,case)
@@ -204,14 +231,16 @@ def preflight(config,*,output=None):
     return binding
 
 
-def prepare(complete_file,expert_configs_file,output,*,astra_settings,parallelism=1,astra_parallelism=1,run_id='m2-rebuild-paired-20261105-v1'):
+def prepare(complete_file,expert_configs_file,output,*,astra_settings,parallelism=1,astra_parallelism=1,run_id='m2-rebuild-paired-20261105-v1',arms=ARMS):
     need(type(parallelism) is int and 1<=parallelism<=4,'Bounded one through four worker parallelism required')
     need(type(astra_parallelism) is int and 1<=astra_parallelism<=4,'Bounded one through four Astra worker parallelism required')
-    arm_parallelism=dict(expert=parallelism,act=parallelism,astra=astra_parallelism)
+    arms=_arms(dict(arms=arms))
+    arm_parallelism={arm:(astra_parallelism if arm=='astra' else parallelism) for arm in arms}
     need(_name(run_id),'Explicit canonical run id required');output=Path(output).resolve()
     need(not output.exists(),'Fresh matched protocol output required')
     expert_ref=runtime.reference(expert_configs_file);source=runtime.read_bound(expert_ref);cases=validate_cases(source)
     model,complete=model_binding(runtime.reference(complete_file));originals={}
+    cohorts=_cohorts(source);_require_training_freeze(source,complete)
     need(astra_settings==dict(DEFAULT_ASTRA,**astra_settings) and set(astra_settings)==set(DEFAULT_ASTRA) and
         astra_settings['model']=='gpt-6-astra' and astra_settings['schema']==DEFAULT_ASTRA['schema'],
         'Explicit pinned Astra supervisor settings required')
@@ -223,13 +252,14 @@ def prepare(complete_file,expert_configs_file,output,*,astra_settings,parallelis
         if case['preparation_status']!='prepared':continue
         config=runtime.read_bound(case['config']);validate_expert_config(config,case);originals[case['scenario_id']]=config
     need(originals and len({c['base'] for c in originals.values()})==1,'At least one explicitly prepared case and one native base required')
-    protocol=dict(schema=FROZEN_SCHEMA,expert_configs=expert_ref,cases=cases,model=model,checkpoint_scope=deepcopy(complete['scope']),
-        cohorts={k:list(v) for k,v in COHORTS.items()},eval_cohorts=source.get('eval_cohorts',['frozen_evaluation']),
-        target_ids=source['target_ids'],pose_ids=list(POSES),fixed_denominator=len(cases),planned_arm_denominator=3*len(cases),
-        strata=_strata(cases),arm_parallelism=arm_parallelism,source_inventory=sources(),astra_supervisor=deepcopy(astra_settings),run_id=run_id,
+    protocol=dict(schema=FRESH_FROZEN_SCHEMA if 'identity_cohort' in source or arms!=ARMS else FROZEN_SCHEMA,
+        arms=list(arms),expert_configs=expert_ref,cases=cases,model=model,checkpoint_scope=deepcopy(complete['scope']),
+        cohorts=cohorts,eval_cohorts=source.get('eval_cohorts',['frozen_evaluation']),
+        target_ids=source['target_ids'],pose_ids=list(POSES),fixed_denominator=len(cases),planned_arm_denominator=len(arms)*len(cases),
+        strata=_strata(cases,cohorts),arm_parallelism=arm_parallelism,source_inventory=sources(),astra_supervisor=deepcopy(astra_settings),run_id=run_id,
         claim='Bounded simulation diagnostic; frozen identities untouched by optimization or checkpoint selection. No sealed TEST, learned Astra motor, clinical or training-data claim.',**FLAGS)
     output.mkdir(parents=True,exist_ok=False);protocol_ref=runtime.write_new(output/'PROTOCOL.json',protocol);batches={}
-    for arm in ARMS:
+    for arm in arms:
         jobs=[]
         for case in cases:
             if case['preparation_status']!='prepared':continue
@@ -241,12 +271,12 @@ def prepare(complete_file,expert_configs_file,output,*,astra_settings,parallelis
             matched_scene_evaluation=dict(schema=BATCH_SCHEMA,protocol=protocol_ref,arm=arm,fixed_denominator=len(cases)),**FLAGS)
         batches[arm]=runtime.write_new(output/(arm+'-batch.json'),batch)
     return runtime.write_new(output/'PREPARED.json',dict(schema=PREPARED_SCHEMA,protocol=protocol_ref,batches=batches,
-        fixed_denominator=len(cases),planned_arm_denominator=3*len(cases),model=model,arm_parallelism=arm_parallelism,**FLAGS))
+        fixed_denominator=len(cases),planned_arm_denominator=len(arms)*len(cases),model=model,arm_parallelism=arm_parallelism,**FLAGS))
 
 
 def validate_batch(config,jobs):
     descriptor=config['matched_scene_evaluation'];protocol,_=load_protocol(descriptor['protocol']);arm=descriptor.get('arm')
-    need(descriptor.get('schema')==BATCH_SCHEMA and arm in ARMS and descriptor.get('fixed_denominator')==protocol['fixed_denominator'] and
+    need(descriptor.get('schema')==BATCH_SCHEMA and arm in _arms(protocol) and descriptor.get('fixed_denominator')==protocol['fixed_denominator'] and
         all(config.get(k) is v for k,v in FLAGS.items()),'Explicit guarded matched batch required')
     need(config.get('parallelism')==protocol['arm_parallelism'][arm],'Batch parallelism differs from frozen arm resource binding')
     cases=[c for c in protocol['cases'] if c['preparation_status']=='prepared']
@@ -469,6 +499,7 @@ def qualification_value(output,config):
         checks['original_native_physical_recheck']=neutral._physical_native(run,events,meta)
         checks.update(unchanged_physical_gate_passed=True,physics_steps=len(events),native_hz=240,
             final_measured_q=events[-1]['observed_after']['q'],final_subphase=events[-1]['controller_after']['subphase'])
+        native_measurements.add_report(checks,events)  # Descriptive only; cannot alter the original verdict.
         passed=True
     except Exception as failure:error=type(failure).__name__+': '+str(failure)
     return dict(schema=QUALIFICATION_SCHEMA,passed=passed,arm=arm,protocol=protocol_ref,scenario_id=scenario,
@@ -551,15 +582,16 @@ def _outcome(case,arm,root,job,protocol_ref):
 
 def summarize(prepared_file,roots,output):
     prepared_ref=runtime.reference(prepared_file);prepared=runtime.read_bound(prepared_ref)
-    need(prepared.get('schema')==PREPARED_SCHEMA and set(roots)==set(ARMS),'New preparation and all three explicit arm roots required')
-    protocol,_=load_protocol(prepared['protocol']);outcomes=[];jobs={}
-    for arm in ARMS:
+    protocol,_=load_protocol(prepared['protocol']);selected_arms=_arms(protocol)
+    need(prepared.get('schema')==PREPARED_SCHEMA and set(roots)==set(selected_arms),'New preparation and all predeclared arm roots required')
+    outcomes=[];jobs={}
+    for arm in selected_arms:
         batch=runtime.read_bound(prepared['batches'][arm])
         from .isaac_batch import validate_jobs
         validate_jobs(batch);jobs[arm]={job['id']:job for job in batch['jobs']}
     for case in protocol['cases']:
         row={key:deepcopy(case[key]) for key in ('index','scenario_id','subject_id','split','cohort','pose_id','target_id','seed')}
-        row['arms']={arm:_outcome(case,arm,roots[arm],jobs[arm].get(case['scenario_id']),prepared['protocol']) for arm in ARMS}
+        row['arms']={arm:_outcome(case,arm,roots[arm],jobs[arm].get(case['scenario_id']),prepared['protocol']) for arm in selected_arms}
         outcomes.append(row)
     def counts(rows,arm):
         values=[r['arms'][arm] for r in rows];statuses=sorted({v['status'] for v in values})
@@ -567,10 +599,10 @@ def summarize(prepared_file,roots,output):
             qualified_physical_successes=sum(v['qualified_physical_success'] for v in values),
             qualified_physical_success_rate=(sum(v['qualified_physical_success'] for v in values)/len(rows) if rows else None),
             status_counts={status:sum(v['status']==status for v in values) for status in statuses})
-    arms={arm:counts(outcomes,arm) for arm in ARMS}
-    strata={cohort:dict(protocol['strata'][cohort],arms={arm:counts([r for r in outcomes if r['cohort']==cohort],arm) for arm in ARMS}) for cohort in COHORTS}
-    return runtime.write_new(output,dict(schema='m2_rebuild_paired_eval_summary_v1',prepared=prepared_ref,protocol=prepared['protocol'],
-        fixed_denominator=len(outcomes),planned_arm_denominator=len(outcomes)*3,outcomes=outcomes,arms=arms,strata=strata,
+    arms={arm:counts(outcomes,arm) for arm in selected_arms}
+    strata={cohort:dict(protocol['strata'][cohort],arms={arm:counts([r for r in outcomes if r['cohort']==cohort],arm) for arm in selected_arms}) for cohort in protocol['cohorts']}
+    return runtime.write_new(output,dict(schema='m2_rebuild_paired_eval_summary_v2' if protocol['schema']==FRESH_FROZEN_SCHEMA else 'm2_rebuild_paired_eval_summary_v1',prepared=prepared_ref,protocol=prepared['protocol'],
+        fixed_denominator=len(outcomes),planned_arm_denominator=len(outcomes)*len(selected_arms),outcomes=outcomes,arms=arms,strata=strata,
         qualified_physical_result_exists=any(v['qualified_physical_successes']>0 for v in arms.values()),
         qualification_required=True,software_completion_is_physical_success=False,**FLAGS))
 
@@ -581,22 +613,27 @@ def main():
     for name in ('complete','cases','output','astra-settings','deployment','deployment-sha256','config','receipt','prepared',
             'expert-output','act-output','astra-output'):parser.add_argument('--'+name)
     parser.add_argument('--astra-parallelism',type=int,default=1)
+    parser.add_argument('--expert-act-only',action='store_true')
     parser.add_argument('--parallelism',type=int,default=1);parser.add_argument('--run-id',default='m2-rebuild-paired-20261105-v1')
     args=parser.parse_args()
     if args.serve:
         need(args.deployment and args.deployment_sha256,'Bound actual CPU deployment required')
         serve(dict(path=str(Path(args.deployment).resolve()),sha256=args.deployment_sha256));return 0
     if args.prepare:
-        need(args.complete and args.cases and args.output and args.astra_settings,'Actual new ACT COMPLETE/cases/Astra settings/new output required')
-        settings=json.loads(Path(args.astra_settings).read_bytes());settings=settings.get('astra_supervisor',settings)
-        ref=prepare(args.complete,args.cases,args.output,astra_settings=settings,parallelism=args.parallelism,astra_parallelism=args.astra_parallelism,run_id=args.run_id)
+        need(args.complete and args.cases and args.output and (args.astra_settings or args.expert_act_only),'Actual ACT COMPLETE/cases/new output and explicit arm selection required')
+        settings=json.loads(Path(args.astra_settings).read_bytes()) if args.astra_settings else deepcopy(DEFAULT_ASTRA)
+        settings=settings.get('astra_supervisor',settings)
+        ref=prepare(args.complete,args.cases,args.output,astra_settings=settings,parallelism=args.parallelism,
+            astra_parallelism=args.astra_parallelism,run_id=args.run_id,arms=('expert','act') if args.expert_act_only else ARMS)
     elif args.qualify:
         need(args.output and args.config,'Explicit actual config/output required')
         ref=qualify(args.output,args.config,receipt_path=args.receipt);value=runtime.read_bound(ref)
         print(json.dumps(dict(receipt=ref,passed=value['passed'],error=value['error'])),flush=True);return 0 if value['passed'] else 1
     else:
-        need(args.prepared and args.expert_output and args.act_output and args.astra_output and args.output,'Preparation and all actual arm roots required')
-        ref=summarize(args.prepared,dict(expert=args.expert_output,act=args.act_output,astra=args.astra_output),args.output)
+        need(args.prepared and args.expert_output and args.act_output and args.output,'Preparation and actual expert/ACT roots required')
+        roots=dict(expert=args.expert_output,act=args.act_output)
+        if args.astra_output:roots['astra']=args.astra_output
+        ref=summarize(args.prepared,roots,args.output)
     print(json.dumps(ref),flush=True);return 0
 
 

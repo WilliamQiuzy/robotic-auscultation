@@ -1,0 +1,151 @@
+{
+  "schema": "ausc_act_recovery_coverage_oracle_public_v1",
+  "native_dataset": {
+    "artifact": "COMPLETE.json",
+    "bytes": 164297,
+    "sha256": "265495e293b4ba95ca779cdc9693762716a3ea0010c6430ad2fde3b456f30cee"
+  },
+  "real_train_arrays": {
+    "artifact": "train.npz",
+    "bytes": 13967948,
+    "sha256": "1f4f9ad74dee2606bf273e01c191c548e05583fff1304e61fee203d7046869e4"
+  },
+  "native_train_query_origins": 8373,
+  "coverage_by_encoded_goal_radius_m": {
+    "0.06": {
+      "query_origins": 4388,
+      "maximum_encoded_axis_error_deg": 2.9719068606500394
+    },
+    "0.035": {
+      "query_origins": 1662,
+      "maximum_encoded_axis_error_deg": 1.59355175904606
+    }
+  },
+  "oracle_summary": {
+    "artifact": "COMPLETE.json",
+    "bytes": 886,
+    "sha256": "05cc9bc43544d626921df9095170676a1837e3a8279d35dd755082f8793499d3"
+  },
+  "oracle_request": {
+    "artifact": "FROZEN_REQUEST.json",
+    "bytes": 3833,
+    "sha256": "2ffcf68f41d1ffd634d4e97568b831976c71653394bf2eb61c9104eae5bd470d"
+  },
+  "fixed_query_denominator": 6,
+  "accepted_computational_proposals": 6,
+  "oracle_queries": [
+    {
+      "target_id": "R3",
+      "subject_id": "p001120",
+      "physics_row": 3072,
+      "encoded_goal_distance_m": 0.07589011828000503,
+      "encoded_axis_error_deg": 2.7146341095114184,
+      "proposal_accepted": true,
+      "all_240hz_commands_verified": true,
+      "preview_steps": 492,
+      "actions_executed": false,
+      "physics_qualified": false,
+      "training_eligible": false,
+      "proposal_artifact": {
+        "artifact": "query-3072.json",
+        "bytes": 128048,
+        "sha256": "6da646addbaad9af3d9b75646d6fe763cbb161fba649dc55767ad9b1968dddd7"
+      }
+    },
+    {
+      "target_id": "R3",
+      "subject_id": "p001120",
+      "physics_row": 4152,
+      "encoded_goal_distance_m": 0.05827751973135332,
+      "encoded_axis_error_deg": 2.6709290406746087,
+      "proposal_accepted": true,
+      "all_240hz_commands_verified": true,
+      "preview_steps": 408,
+      "actions_executed": false,
+      "physics_qualified": false,
+      "training_eligible": false,
+      "proposal_artifact": {
+        "artifact": "query-4152.json",
+        "bytes": 108237,
+        "sha256": "74ace33cfe20fc4f40bf13ec641d171cff939515b334a1b95c30bde43754fe22"
+      }
+    },
+    {
+      "target_id": "R3",
+      "subject_id": "p001120",
+      "physics_row": 5832,
+      "encoded_goal_distance_m": 0.03440288480635373,
+      "encoded_axis_error_deg": 3.386272087958725,
+      "proposal_accepted": true,
+      "all_240hz_commands_verified": true,
+      "preview_steps": 276,
+      "actions_executed": false,
+      "physics_qualified": false,
+      "training_eligible": false,
+      "proposal_artifact": {
+        "artifact": "query-5832.json",
+        "bytes": 77239,
+        "sha256": "af9a72656c0bbbf5f5466501dcdf0d5dd66fd151179f459aec2b61c6b13f0f41"
+      }
+    },
+    {
+      "target_id": "L3",
+      "subject_id": "p001120",
+      "physics_row": 3120,
+      "encoded_goal_distance_m": 0.07817193397643461,
+      "encoded_axis_error_deg": 2.491125157383305,
+      "proposal_accepted": true,
+      "all_240hz_commands_verified": true,
+      "preview_steps": 444,
+      "actions_executed": false,
+      "physics_qualified": false,
+      "training_eligible": false,
+      "proposal_artifact": {
+        "artifact": "query-3120.json",
+        "bytes": 117468,
+        "sha256": "0c6d5834ab29fdc3f3e73c9c1eff66c501865c0b49dc55b4c4b5bddf3b345fc7"
+      }
+    },
+    {
+      "target_id": "L3",
+      "subject_id": "p001120",
+      "physics_row": 4200,
+      "encoded_goal_distance_m": 0.05927513855093607,
+      "encoded_axis_error_deg": 2.9719068606500394,
+      "proposal_accepted": true,
+      "all_240hz_commands_verified": true,
+      "preview_steps": 372,
+      "actions_executed": false,
+      "physics_qualified": false,
+      "training_eligible": false,
+      "proposal_artifact": {
+        "artifact": "query-4200.json",
+        "bytes": 100488,
+        "sha256": "995686d1bf8a30ba0658389017cad6d36176ffc6148ddb85c0583e1f6218a3e5"
+      }
+    },
+    {
+      "target_id": "L3",
+      "subject_id": "p001120",
+      "physics_row": 5880,
+      "encoded_goal_distance_m": 0.033687125134650144,
+      "encoded_axis_error_deg": 3.418124172001784,
+      "proposal_accepted": true,
+      "all_240hz_commands_verified": true,
+      "preview_steps": 288,
+      "actions_executed": false,
+      "physics_qualified": false,
+      "training_eligible": false,
+      "proposal_artifact": {
+        "artifact": "query-5880.json",
+        "bytes": 80708,
+        "sha256": "4eec2156afccdf7430e595cc760960457a87236f113169e39e8aec1461d979da"
+      }
+    }
+  ],
+  "fresh_evaluation_data_used": false,
+  "actions_executed": false,
+  "physics_qualified": false,
+  "auxiliary_training_used_in_completed_models": false,
+  "interpretation": "Encoded reference-frame axis/goal errors, not skin flatness or penetration. Oracle futures are unexecuted CPU proposals, not native contact successes."
+}

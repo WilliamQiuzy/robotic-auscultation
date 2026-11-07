@@ -1,0 +1,101 @@
+{
+  "schema": "ausc_act_iteration4_public_bindings_v1",
+  "scope": "Closed ACT4 actual 0/4 development result, read only diagnostic and separate V3 CPU preparation.",
+  "public_files": {
+    "evidence/act-recovery-iteration4-20261107.public.json": {
+      "bytes": 259109,
+      "sha256": "31baa08307b34e36c5752fb4b4bdcaae45f0c5582269e6b34072360dfbdc6c82"
+    },
+    "evidence/act-recovery-iteration4-stagnation-20261107.public.json": {
+      "bytes": 32019,
+      "sha256": "d7c2103b1dba8dfcb0f0d8c1edbdf4f440d021d759742ebb75b63d0cfdc22cb5"
+    },
+    "assets/act-recovery-iteration4-r3-negative-20261107.mp4": {
+      "bytes": 838714,
+      "sha256": "18b6967da73a249a9477e683b7731c623651f31db062c4d4c14c19dd06c79506"
+    },
+    "assets/act-recovery-iteration4-l3-negative-20261107.mp4": {
+      "bytes": 108311,
+      "sha256": "07ca1533766b73bb2a8546b850e17be0efe35db413198677602cf9e44ce97811"
+    },
+    "assets/act-recovery-iteration4-r3-negative-20261107-poster.png": {
+      "bytes": 74398,
+      "sha256": "4e9534a3104d57290f13a7d6907a05e7c0ffb6465bc497ee5cf23dd6e5f53885"
+    },
+    "assets/act-recovery-iteration4-r3-stagnation-20261107.png": {
+      "bytes": 348311,
+      "sha256": "e41a99814f1decec8828e961ad09ac36d8005dd85bf7a1dea722268a5acabca9"
+    },
+    "evidence/act-recovery-v3-preparation-20261107.public.json": {
+      "bytes": 5306,
+      "sha256": "dd8feea31409c8592a4a27a73dfa8e95979947f148485c454ae16c1d7898c841"
+    }
+  },
+  "recordings": [
+    {
+      "file": "assets/act-recovery-iteration4-r3-negative-20261107.mp4",
+      "bytes": 838714,
+      "sha256": "18b6967da73a249a9477e683b7731c623651f31db062c4d4c14c19dd06c79506",
+      "case_role": "TRAIN development",
+      "site": "R3",
+      "frames": 1210,
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "duration_s": 121.0,
+      "native_ticks": 29041,
+      "native_sim_seconds": 121.00416666666666,
+      "unedited": true,
+      "learned_policy": true,
+      "expert_l2_fallback": false,
+      "formal_acceptance": false,
+      "camera": "unchanged RobotCam",
+      "controller": "ExpandedGivenACT",
+      "generic_runtime_filename_does_not_identify_policy": true
+    },
+    {
+      "file": "assets/act-recovery-iteration4-l3-negative-20261107.mp4",
+      "bytes": 108311,
+      "sha256": "07ca1533766b73bb2a8546b850e17be0efe35db413198677602cf9e44ce97811",
+      "case_role": "TRAIN development",
+      "site": "L3",
+      "frames": 167,
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "duration_s": 16.7,
+      "native_ticks": 4008,
+      "native_sim_seconds": 16.7,
+      "unedited": true,
+      "learned_policy": true,
+      "expert_l2_fallback": false,
+      "formal_acceptance": false,
+      "camera": "unchanged RobotCam",
+      "controller": "ExpandedGivenACT",
+      "generic_runtime_filename_does_not_identify_policy": true
+    }
+  ],
+  "derived_posters": [
+    {
+      "file": "assets/act-recovery-iteration4-r3-negative-20261107-poster.png",
+      "source_video": "assets/act-recovery-iteration4-r3-negative-20261107.mp4",
+      "source_video_sha256": "18b6967da73a249a9477e683b7731c623651f31db062c4d4c14c19dd06c79506",
+      "requested_time_s": 25,
+      "derivation": "Frame extracted from the unedited source MP4; a poster is not an independent observation."
+    }
+  ],
+  "actual_configuration": {
+    "source": "source24",
+    "native_train_origins": 8373,
+    "native_selection_validation_origins": 2345,
+    "planned_computed_origins": 35108,
+    "full_computed_oracle_origins": 12,
+    "oracle_computed_cells": 239,
+    "bounded_head_version": 1,
+    "softness_rad": 0.001,
+    "physical_inset_rad": 0.001,
+    "cpu_equivalence_passed": true
+  },
+  "interpretation": "All four actual L2 handoff successes and L3 starts are zero. A handoff record is not a successful handoff. Three underlying L2 deadline failures are subsequently shadowed by a 100000000-byte directory cap. Normal owner completion does not establish task success.",
+  "provenance_note": "Actual-result and diagnostic JSON plus MP4/PNG files are exact copies of supplied experiment-owner verified public artifacts. Recording frame counts, native clocks and controller identity were checked by the experiment owner. The derived poster and this manifest add no physics. V3 is a separate summary of owner-verified CPU preparation, not an original receipt copy."
+}

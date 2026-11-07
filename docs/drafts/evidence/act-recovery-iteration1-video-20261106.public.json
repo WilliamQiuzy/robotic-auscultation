@@ -1,0 +1,40 @@
+{
+  "schema": "ausc_act_recovery_negative_video_v1",
+  "video": {
+    "file": "assets/act-recovery-iteration1-r3-negative-20261106.mp4",
+    "bytes": 209297,
+    "sha256": "1b2a00cabbf862dc8c7d40ce0f53799f5b020c7ef77d971ddc5e4772d637f41d"
+  },
+  "poster": {
+    "file": "assets/act-recovery-iteration1-r3-negative-20261106-poster.png",
+    "bytes": 83191,
+    "sha256": "0a03fe87cee2c4b6a7493ad8cef7d04b4c79350280800e70c85e877fbd39ef75"
+  },
+  "source_refs": {
+    "native_result": {
+      "bytes": 1349674,
+      "sha256": "fc715a09e01906778d9d7911f273311a987b83f602a27031148ad1ee3fe96ab1"
+    },
+    "source_video": {
+      "bytes": 209297,
+      "sha256": "1b2a00cabbf862dc8c7d40ce0f53799f5b020c7ef77d971ddc5e4772d637f41d"
+    },
+    "native_frame_index": {
+      "bytes": 29711,
+      "sha256": "1c4c207a04f24c1826b9c6acaf4f3bd83151773cb8b59b9abe4858ba0b7cb92b"
+    }
+  },
+  "checkpoint_sha256": "6d30d54d2ce5f0bd7480d3359209278ead01b63f9634a533017d7c337894d733",
+  "frames": 330,
+  "fps": 10,
+  "width": 640,
+  "height": 360,
+  "video_duration_s": 33.0,
+  "native_simulation_s": 33.02916666666667,
+  "last_rendered_native_row": 7919,
+  "terminal_unrendered_native_ticks": 7,
+  "learned_policy": true,
+  "expert_l2_fallback": false,
+  "physical_qualified": false,
+  "scope": "Actual first-treatment TRAIN development negative. Full recorded frames retained; no replay, new native run or model call."
+}

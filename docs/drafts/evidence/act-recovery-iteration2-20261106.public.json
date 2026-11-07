@@ -1,0 +1,570 @@
+{
+  "schema": "act_native_recovery_iteration2_public_v1",
+  "created_utc": "2026-11-06T21:42:10.074864+00:00",
+  "run_id": "act-student-recovery-train-20261106-v1",
+  "completed_steps": 20000,
+  "selected_step": 16500,
+  "elapsed_training_wall_s": 1041.71815857201,
+  "selected_metrics": {
+    "train": {
+      "act": {
+        "full_chunk_mae_rad": 0.0054038412351519564,
+        "per_horizon_mae_rad": [
+          0.005488969408774459,
+          0.0054552852970943255,
+          0.005392708726514115,
+          0.005307416067938649,
+          0.005230122004684616,
+          0.005198769772911161,
+          0.005204437088012792,
+          0.005252554514470859,
+          0.005310151466583791,
+          0.005409577607856107,
+          0.0055025432551301665,
+          0.005568905036961678,
+          0.005588256861031844,
+          0.0055801820407418365,
+          0.005543737059140653,
+          0.005464264602398642,
+          0.005408496552216343,
+          0.005379212379644379,
+          0.00538695498852889,
+          0.0054232350033729315
+        ]
+      },
+      "constant_velocity": {
+        "full_chunk_mae_rad": 0.13113357595215772,
+        "per_horizon_mae_rad": [
+          0.1371222155130567,
+          0.13646190259103427,
+          0.1358263126749644,
+          0.13516839001050393,
+          0.13447759194579384,
+          0.13374509594068407,
+          0.13298957816674942,
+          0.13223823163225074,
+          0.13154930061528103,
+          0.13094533036668143,
+          0.13041386441814187,
+          0.12992817913784274,
+          0.12947624196539603,
+          0.1290391971038576,
+          0.12858517996668012,
+          0.12800345457003462,
+          0.12730558881835355,
+          0.12660710003588324,
+          0.12592256212317446,
+          0.12526094738607085
+        ]
+      },
+      "evaluated_in": "absolute radians (fixed block origin cancels in error)",
+      "hold": {
+        "full_chunk_mae_rad": 0.14471284015982094,
+        "per_horizon_mae_rad": [
+          0.13853934722036365,
+          0.1392193365246794,
+          0.13989751771517175,
+          0.14057284358352448,
+          0.14124438913146195,
+          0.14191165787755036,
+          0.1425746280572385,
+          0.1432335225844484,
+          0.14388858704480317,
+          0.14453949964791657,
+          0.14518621849709204,
+          0.14582891076860519,
+          0.14646722347637053,
+          0.14710393306873562,
+          0.14773688677394636,
+          0.1483658370387563,
+          0.1489905157913912,
+          0.1496090519344367,
+          0.15022261625575245,
+          0.1508311732900106
+        ]
+      },
+      "horizon": 20,
+      "label_protocol": "real_teacher_prefix_h20_masked_suffix_v1",
+      "metric_space": "raw target-space MAE; not measured tracking",
+      "per_horizon_valid_cells": [
+        8373,
+        8341,
+        8309,
+        8277,
+        8245,
+        8213,
+        8181,
+        8149,
+        8117,
+        8085,
+        8053,
+        8021,
+        7989,
+        7957,
+        7925,
+        7893,
+        7861,
+        7829,
+        7797,
+        7765
+      ],
+      "sample_count": 8373,
+      "selection_metric": "act.full_chunk_mae_rad",
+      "valid_future_cells": 161380
+    },
+    "validation": {
+      "act": {
+        "full_chunk_mae_rad": 0.026640385031542698,
+        "per_horizon_mae_rad": [
+          0.02567416859196749,
+          0.02575683304329857,
+          0.025851341658366268,
+          0.025907762346564136,
+          0.025977463704132397,
+          0.02603055425543361,
+          0.026124040367967817,
+          0.026269658425373977,
+          0.026432986164507028,
+          0.026601470121013618,
+          0.026762398241115915,
+          0.026959845119175405,
+          0.027085897556848162,
+          0.02717093703834215,
+          0.02717442277903915,
+          0.027260933206557744,
+          0.02736436407148554,
+          0.027451341656615905,
+          0.027526438217852202,
+          0.027687216893157784
+        ]
+      },
+      "constant_velocity": {
+        "full_chunk_mae_rad": 0.13271755811047709,
+        "per_horizon_mae_rad": [
+          0.13920489679823217,
+          0.13850877652644095,
+          0.1378364316261491,
+          0.13714367088488083,
+          0.13641298839760796,
+          0.13563717608810177,
+          0.13482771170980865,
+          0.13400884947582803,
+          0.1332570387465375,
+          0.13258256580634425,
+          0.1319778835302215,
+          0.13142722008593313,
+          0.1309121317443888,
+          0.13042534726031166,
+          0.12992056700435398,
+          0.1292889654482735,
+          0.12854198532750813,
+          0.12775071747334513,
+          0.12695156098961946,
+          0.12616655604230656
+        ]
+      },
+      "evaluated_in": "absolute radians (fixed block origin cancels in error)",
+      "hold": {
+        "full_chunk_mae_rad": 0.14630148809765878,
+        "per_horizon_mae_rad": [
+          0.14059740433672674,
+          0.14122371433166891,
+          0.14184776072552818,
+          0.14246892387119658,
+          0.14308676880109633,
+          0.14370141479241275,
+          0.14431294166641578,
+          0.1449214187322508,
+          0.14552702063222417,
+          0.14612996492713382,
+          0.14672865137748956,
+          0.14732366416155446,
+          0.14791257919201595,
+          0.14849914864538816,
+          0.14908308839017834,
+          0.1496641405530651,
+          0.1502421356511538,
+          0.1508167280459931,
+          0.1513879439086817,
+          0.1519562537038789
+        ]
+      },
+      "horizon": 20,
+      "label_protocol": "real_teacher_prefix_h20_masked_suffix_v1",
+      "metric_space": "raw target-space MAE; not measured tracking",
+      "per_horizon_valid_cells": [
+        2345,
+        2337,
+        2329,
+        2321,
+        2313,
+        2305,
+        2297,
+        2289,
+        2281,
+        2273,
+        2265,
+        2257,
+        2249,
+        2241,
+        2233,
+        2225,
+        2217,
+        2209,
+        2201,
+        2193
+      ],
+      "sample_count": 2345,
+      "selection_metric": "act.full_chunk_mae_rad",
+      "valid_future_cells": 45380
+    }
+  },
+  "cuda_cpu_comparisons": {
+    "train": {
+      "metric_atol": 1e-07,
+      "metric_rtol": 1e-05,
+      "passed": true,
+      "prediction_atol": 1e-06,
+      "prediction_max_abs_rad": 1.5065984737550053e-06,
+      "prediction_rtol": 1e-05
+    },
+    "validation": {
+      "metric_atol": 1e-07,
+      "metric_rtol": 1e-05,
+      "passed": true,
+      "prediction_atol": 1e-06,
+      "prediction_max_abs_rad": 1.7805254692859762e-06,
+      "prediction_rtol": 1e-05
+    }
+  },
+  "training_count": 8373,
+  "selection_validation_count": 2345,
+  "qualified_native_episodes": 29,
+  "planned_data_slots": 32,
+  "new_native_student_recovery_episodes": 4,
+  "new_native_student_query_origins": 131,
+  "all_seven_previous_arrays_bit_identical": true,
+  "identity_scope": {
+    "train": [
+      "p000758",
+      "p000833",
+      "p001031",
+      "p001120"
+    ],
+    "validation": [
+      "p000923"
+    ]
+  },
+  "state_only": true,
+  "auxiliary_training_used": false,
+  "learned_component": "ACT L2 approach; original analytic L3",
+  "fresh_heldout_cases_exposed": 0,
+  "physical_development_passes": 0,
+  "physical_development_cases": 4,
+  "model_usable": false,
+  "physics_gates_changed": false,
+  "cases": [
+    {
+      "case_id": "p001120-r3",
+      "subject_id": "p001120",
+      "split": "train",
+      "target_id": "R3",
+      "pose_id": "p000474_a001230_f0000",
+      "physical_pass": false,
+      "native_success": false,
+      "native_ticks": 6953,
+      "simulation_s": 28.970833333333335,
+      "worker_wall_s": 528.240922433004,
+      "native_failure_reason": "R3: command posture rejected: posture_joint_envelope",
+      "underlying_point_log": "POINT_RESULT R3 False command posture rejected: posture_joint_envelope hold_s 0.0",
+      "source_native": {
+        "bytes": 1191748,
+        "sha256": "97b7ac3a0fdbeec3f4dd7a734f1685f5e258acf77396052220302920cef950b1"
+      },
+      "independent_qualification": {
+        "bytes": 1423,
+        "sha256": "9660167a99b74eeb4d1a629c28ab6bc24d32ca574d364e8ec6655601a07ce451"
+      }
+    },
+    {
+      "case_id": "p001120-l3",
+      "subject_id": "p001120",
+      "split": "train",
+      "target_id": "L3",
+      "pose_id": "p000474_a001230_f0000",
+      "physical_pass": false,
+      "native_success": false,
+      "native_ticks": 4173,
+      "simulation_s": 17.3875,
+      "worker_wall_s": 369.13583019698854,
+      "native_failure_reason": "L3: command posture rejected: posture_joint_envelope",
+      "underlying_point_log": "POINT_RESULT L3 False command posture rejected: posture_joint_envelope hold_s 0.0",
+      "source_native": {
+        "bytes": 727430,
+        "sha256": "c4c2d1d9373c52169086ccf31105a5c27754932f72fcca6903bcf9fe21d3123d"
+      },
+      "independent_qualification": {
+        "bytes": 1421,
+        "sha256": "2a2c51f77631e5d78e73467c8ef7c3cfabd20c2fc353ace5e0b1cd9b6a91cff6"
+      }
+    },
+    {
+      "case_id": "p000923-r3",
+      "subject_id": "p000923",
+      "split": "validation",
+      "target_id": "R3",
+      "pose_id": "p000474_a001230_f0000",
+      "physical_pass": false,
+      "native_success": false,
+      "native_ticks": 7568,
+      "simulation_s": 31.533333333333335,
+      "worker_wall_s": 534.2528815680125,
+      "native_failure_reason": "neutral_native_audit_finalize: ValueError('Pilot neutral native audit incomplete; physical acceptance revoked')",
+      "underlying_point_log": "POINT_RESULT R3 False command/observation mesh collision rejected: {'clear': False, 'minimum_distance_m': 0.0029998580621937838, 'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_21', '/World/Patient/SMPLSurface'], 'general_clearance_m': 0.003, 'violations': [{'pair': ['/World/Stethoscope/Carriage/Colliders/DeviceContactRing/sector_21', '/World/Patient/SMPLSurface'], 'distance_m': 0.0029998580621937838, 'required_m': 0.003}]} hold_s 0.0",
+      "source_native": {
+        "bytes": 1294419,
+        "sha256": "5c6333f23f1fac2f4a40bfbdb33a0c0d2a0cba1f056c0c98781c2b6856bb7b3d"
+      },
+      "independent_qualification": {
+        "bytes": 1423,
+        "sha256": "a9e08a0cbf96ffbfb4aeb22b2f23b2eb6f608a10c7b77e583bcb718a1bc99683"
+      }
+    },
+    {
+      "case_id": "p000923-l3",
+      "subject_id": "p000923",
+      "split": "validation",
+      "target_id": "L3",
+      "pose_id": "p000474_a001230_f0000",
+      "physical_pass": false,
+      "native_success": false,
+      "native_ticks": 2892,
+      "simulation_s": 12.05,
+      "worker_wall_s": 294.1027587779972,
+      "native_failure_reason": "L3: Raw ACT chunk outside joint limits",
+      "underlying_point_log": "POINT_RESULT L3 False Raw ACT chunk outside joint limits hold_s 0.0",
+      "source_native": {
+        "bytes": 513854,
+        "sha256": "e18d84514cb5c7e316efde5aba1466544d2f016fed83897e2888ea2fb072338a"
+      },
+      "independent_qualification": {
+        "bytes": 1421,
+        "sha256": "f29ccb95d3e3054f10d776df29bbb7a60d6a362ba912d678d2f84256e410c948"
+      }
+    }
+  ],
+  "curve": [
+    {
+      "step": 500,
+      "train_full_chunk_mae_rad": 0.01682454320954176,
+      "validation_full_chunk_mae_rad": 0.03416352823825254
+    },
+    {
+      "step": 1000,
+      "train_full_chunk_mae_rad": 0.015088263023558719,
+      "validation_full_chunk_mae_rad": 0.03303210838334232
+    },
+    {
+      "step": 1500,
+      "train_full_chunk_mae_rad": 0.012321488897713402,
+      "validation_full_chunk_mae_rad": 0.031646142151694465
+    },
+    {
+      "step": 2000,
+      "train_full_chunk_mae_rad": 0.009738474343233841,
+      "validation_full_chunk_mae_rad": 0.031675866485716984
+    },
+    {
+      "step": 2500,
+      "train_full_chunk_mae_rad": 0.011110186837998071,
+      "validation_full_chunk_mae_rad": 0.030563788574434134
+    },
+    {
+      "step": 3000,
+      "train_full_chunk_mae_rad": 0.008462901682162502,
+      "validation_full_chunk_mae_rad": 0.02997778751025348
+    },
+    {
+      "step": 3500,
+      "train_full_chunk_mae_rad": 0.011548982927326878,
+      "validation_full_chunk_mae_rad": 0.030073076548083732
+    },
+    {
+      "step": 4000,
+      "train_full_chunk_mae_rad": 0.008593944494416944,
+      "validation_full_chunk_mae_rad": 0.028479587199815685
+    },
+    {
+      "step": 4500,
+      "train_full_chunk_mae_rad": 0.00998870902683728,
+      "validation_full_chunk_mae_rad": 0.030182895334053633
+    },
+    {
+      "step": 5000,
+      "train_full_chunk_mae_rad": 0.009057830027804305,
+      "validation_full_chunk_mae_rad": 0.028864640897858954
+    },
+    {
+      "step": 5500,
+      "train_full_chunk_mae_rad": 0.009577949648523433,
+      "validation_full_chunk_mae_rad": 0.03013891944543797
+    },
+    {
+      "step": 6000,
+      "train_full_chunk_mae_rad": 0.008165782138727517,
+      "validation_full_chunk_mae_rad": 0.027436939701343744
+    },
+    {
+      "step": 6500,
+      "train_full_chunk_mae_rad": 0.007790400137075125,
+      "validation_full_chunk_mae_rad": 0.028093136231011694
+    },
+    {
+      "step": 7000,
+      "train_full_chunk_mae_rad": 0.006697782349684453,
+      "validation_full_chunk_mae_rad": 0.027067183138100515
+    },
+    {
+      "step": 7500,
+      "train_full_chunk_mae_rad": 0.010252972820415707,
+      "validation_full_chunk_mae_rad": 0.03103407501760833
+    },
+    {
+      "step": 8000,
+      "train_full_chunk_mae_rad": 0.009277389771187841,
+      "validation_full_chunk_mae_rad": 0.030157194070006776
+    },
+    {
+      "step": 8500,
+      "train_full_chunk_mae_rad": 0.005821161618318182,
+      "validation_full_chunk_mae_rad": 0.028433131661121335
+    },
+    {
+      "step": 9000,
+      "train_full_chunk_mae_rad": 0.00819294281749754,
+      "validation_full_chunk_mae_rad": 0.027617138893256683
+    },
+    {
+      "step": 9500,
+      "train_full_chunk_mae_rad": 0.006979847942329008,
+      "validation_full_chunk_mae_rad": 0.027520140620432645
+    },
+    {
+      "step": 10000,
+      "train_full_chunk_mae_rad": 0.008151746081989075,
+      "validation_full_chunk_mae_rad": 0.030103931193150177
+    },
+    {
+      "step": 10500,
+      "train_full_chunk_mae_rad": 0.00854320558189444,
+      "validation_full_chunk_mae_rad": 0.030452017099656174
+    },
+    {
+      "step": 11000,
+      "train_full_chunk_mae_rad": 0.007978096484609473,
+      "validation_full_chunk_mae_rad": 0.028945664002940914
+    },
+    {
+      "step": 11500,
+      "train_full_chunk_mae_rad": 0.0060133286081609,
+      "validation_full_chunk_mae_rad": 0.02800957902086887
+    },
+    {
+      "step": 12000,
+      "train_full_chunk_mae_rad": 0.006908987217082683,
+      "validation_full_chunk_mae_rad": 0.02843514244956033
+    },
+    {
+      "step": 12500,
+      "train_full_chunk_mae_rad": 0.00943011846632011,
+      "validation_full_chunk_mae_rad": 0.03141311710437131
+    },
+    {
+      "step": 13000,
+      "train_full_chunk_mae_rad": 0.008318501342993712,
+      "validation_full_chunk_mae_rad": 0.029873498969522357
+    },
+    {
+      "step": 13500,
+      "train_full_chunk_mae_rad": 0.0074226212363972645,
+      "validation_full_chunk_mae_rad": 0.029288856762697213
+    },
+    {
+      "step": 14000,
+      "train_full_chunk_mae_rad": 0.0052499258708677025,
+      "validation_full_chunk_mae_rad": 0.02800254434566758
+    },
+    {
+      "step": 14500,
+      "train_full_chunk_mae_rad": 0.007004962745631355,
+      "validation_full_chunk_mae_rad": 0.0289179152742939
+    },
+    {
+      "step": 15000,
+      "train_full_chunk_mae_rad": 0.004134903480891529,
+      "validation_full_chunk_mae_rad": 0.027329511540320626
+    },
+    {
+      "step": 15500,
+      "train_full_chunk_mae_rad": 0.005455422399786514,
+      "validation_full_chunk_mae_rad": 0.02699315815636664
+    },
+    {
+      "step": 16000,
+      "train_full_chunk_mae_rad": 0.0069881992873116975,
+      "validation_full_chunk_mae_rad": 0.02819090490474863
+    },
+    {
+      "step": 16500,
+      "train_full_chunk_mae_rad": 0.0054038412351519564,
+      "validation_full_chunk_mae_rad": 0.026640385031542698
+    },
+    {
+      "step": 17000,
+      "train_full_chunk_mae_rad": 0.007462246929055336,
+      "validation_full_chunk_mae_rad": 0.029592129093450093
+    },
+    {
+      "step": 17500,
+      "train_full_chunk_mae_rad": 0.005970270254997644,
+      "validation_full_chunk_mae_rad": 0.027964440409907795
+    },
+    {
+      "step": 18000,
+      "train_full_chunk_mae_rad": 0.005128217387957767,
+      "validation_full_chunk_mae_rad": 0.027382476564657716
+    },
+    {
+      "step": 18500,
+      "train_full_chunk_mae_rad": 0.006484227255239029,
+      "validation_full_chunk_mae_rad": 0.028595777672296773
+    },
+    {
+      "step": 19000,
+      "train_full_chunk_mae_rad": 0.005832390630995355,
+      "validation_full_chunk_mae_rad": 0.02734079434598859
+    },
+    {
+      "step": 19500,
+      "train_full_chunk_mae_rad": 0.004972823273430689,
+      "validation_full_chunk_mae_rad": 0.02744569969405445
+    },
+    {
+      "step": 20000,
+      "train_full_chunk_mae_rad": 0.004750271245394261,
+      "validation_full_chunk_mae_rad": 0.02795022147668014
+    }
+  ],
+  "trained_receipt": {
+    "bytes": 276951,
+    "sha256": "ba6233f8f41673e6bc8ce7603e557aadfd2782bffe12239025a2c65e03c83d62"
+  },
+  "checkpoint": {
+    "bytes": 10669697,
+    "sha256": "42e1a7f549fe29b65bc90c156fdf16a784f12cd25aa2481f1dd6dd59c1a07517"
+  },
+  "development": {
+    "bytes": 5043,
+    "sha256": "ef820713060da990f424cdad2737daee5da49e929c9a64e7a0fae72ac5ed57d2"
+  }
+}

@@ -1,0 +1,124 @@
+{
+  "schema": "ausc_act_recovery_public_source_selection_v1",
+  "private_source_commit": "6a3cbcc048751217cfcb98ee04133f1b962d6216",
+  "runtime_archive_sha256": "fd463c00731e014980f793e64ae580efa5be44af4f7b8026d777f1c36b6786c4",
+  "files": [
+    {
+      "file": "sim/ausc_policy/m2_act.py",
+      "bytes": 49153,
+      "sha256": "71a5441cc03fd164279773590c60ecc060d3730bb4a452465bcf835b39146b3e",
+      "source_git_blob": "0f4a771b57050b05e8002bd025ae6d1ff9de6ea9",
+      "superseded_public_sha256": "b953f533e3589a806e8fa54eff9feeb789e784294d22dc56453d9be0335c7c74"
+    },
+    {
+      "file": "sim/ausc_policy/m2_act_recovery_scope.py",
+      "bytes": 2788,
+      "sha256": "684f7fdcbdd384967f6b35d6ae1b2ee93e4fda014b5154c2cbbfbd5ff4b2e925",
+      "source_git_blob": "bd83480d5f0d9902489b572018f16b567c2d3aad",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_act.py",
+      "bytes": 8351,
+      "sha256": "c452ac690dec105d19dd501de5e074eda7ad3955c7001710c49aa9ca4991b1fd",
+      "source_git_blob": "8f8b3380dc76bc5c961db95f5d928cdde02ab78d",
+      "superseded_public_sha256": "2d9b49667020927e08f5e9a336d73202b5fa356716623ad50beeeb657dc5b5d0"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_dataset.py",
+      "bytes": 112573,
+      "sha256": "a2b9214b443bf3e005dbfc371a3cf592899abfe000eaf2faf3485eaec9703ee4",
+      "source_git_blob": "4cf40bf9457fc84119ce2076b133d465ca484412",
+      "superseded_public_sha256": "07f16a032f28b2708a6dc586dbedeb6f6e16267def7a4f19c3483f8ebe25ca29"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_pilot_deployment.py",
+      "bytes": 16399,
+      "sha256": "a36a4e093a82c784e58a56f8a5bcd5afc015efdfaf124e60a4485fb6d75fa523",
+      "source_git_blob": "063e599a6681983770293e45cf008c5c399a8947",
+      "superseded_public_sha256": "e83d0ed8914a26488877bbb6ad63534a0821a195476d71ac43a70f0580e82c60"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_expanded_pilot_train.py",
+      "bytes": 22512,
+      "sha256": "27069b4a6d5a776b9780db93dc813433ada75bc810c7e32cc370d19feb0fb31f",
+      "source_git_blob": "672d294fe83891dc374c5c1afda39baf930412be",
+      "superseded_public_sha256": "702168fe1989d7af455c3ce2a871a6a44a23ae0ba3818fcafb9d9b0655a20c73"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_masked_dataset.py",
+      "bytes": 10153,
+      "sha256": "022e9488da8a4e284e8827d5d32fe6d2e114ea927cd086ec1d9852d189fbcfc6",
+      "source_git_blob": "8c0039b168ab28c6c69b9aca3a9d3718af573d91",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_recovery.py",
+      "bytes": 26027,
+      "sha256": "296f62fad836b13b021025f1fb9e82d11f015aec8b9e0f40ebbd6bf83bdd62c5",
+      "source_git_blob": "e833a2d601529b62126ac09500a7b0bc1007d6fc",
+      "superseded_public_sha256": "3e0d89603e2d71a9e730637794e20e790d6168db25ab3cd103ee93cc21b192d7"
+    },
+    {
+      "file": "sim/ausc_policy/m2_given_contact_recovery_dataset.py",
+      "bytes": 10149,
+      "sha256": "150b65ec1575a2100bfad2bcf11f23c7e46d7c8f58e44564493a71ddebf404e8",
+      "source_git_blob": "275cf72b2d2f24229a5c9f3724f813b8f0d29198",
+      "superseded_public_sha256": "8b83207e1a9312079e57c3ddae2d2fd31db9dddc21c643f59782a31f86cdd470"
+    },
+    {
+      "file": "sim/ausc_policy/m2_rebuild_paired_eval.py",
+      "bytes": 46802,
+      "sha256": "79837f73962925adbc38b8084cc072224fd2682c13cf7be532842bee4e35e86f",
+      "source_git_blob": "d4d96bf50a41e6034380491e4f28588276fe343e",
+      "superseded_public_sha256": "eb13a60bd40017ff2b018ebf9ff02bdba9ce8b5bf67aba680acece620ecd0fda"
+    },
+    {
+      "file": "sim/ausc_policy/native_measurements.py",
+      "bytes": 2910,
+      "sha256": "cc015145b1208050f56ba22e408e770fd14151e4f6124309edfcf00813f22898",
+      "source_git_blob": "98f3fdcafb4291e5f71f9b2a7d1d8cae8e2a8851",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "tests/test_ausc_act_recovery_scope.py",
+      "bytes": 2513,
+      "sha256": "0d72191419950648c2d919559684d69c36e8d7d4ae515b7111ab293598e93f91",
+      "source_git_blob": "8d1a0aaade6a361b898a2fa8bcb436fa3fc027b7",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "tests/test_ausc_given_contact_masked.py",
+      "bytes": 9032,
+      "sha256": "f5e53a018026100d237d3c6b9a2e47e1506be73dc66467b3a37a2a5c070658e8",
+      "source_git_blob": "a7e17430bdd455098b0881e8cddda95b3268ff39",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "tests/test_ausc_given_contact_recovery.py",
+      "bytes": 24137,
+      "sha256": "8c6a7ed2451d7146fcc6387d3ef6b4ed79aaca047bcb6e62e973d22824eb3f59",
+      "source_git_blob": "85964d50005048616977b805b81e0153ace199de",
+      "superseded_public_sha256": "b6ae92bc1795b6638cf8eb6a31353d187f0483319a52c52878943b1e16fea945"
+    },
+    {
+      "file": "tests/test_ausc_native_measurements.py",
+      "bytes": 2005,
+      "sha256": "7cbdb1912996f8ec6b2602cc15b3342405293abee73b03428f6747adae8ddb83",
+      "source_git_blob": "97c6c81547a9df0a9c6d5712dbad55d11258dd32",
+      "superseded_public_sha256": null
+    },
+    {
+      "file": "tests/test_ausc_rebuild_paired_eval.py",
+      "bytes": 18429,
+      "sha256": "48e475677b76af53b1f7cfb86bc9280ec86f47098081b58fe29d0d6b83c4ae19",
+      "source_git_blob": "49e2b6c62f2e06bb0f435b788bdeb9beadd32ac0",
+      "superseded_public_sha256": "1f92eb98dc28754be4b7bd4edf0f0790bc4cdc419ee1a3575e83d2e515bccf58"
+    }
+  ],
+  "operator_scripts_and_tests_distributed": false,
+  "credentials_raw_arrays_weights_distributed": false,
+  "changes": "Typed real-prefix masks, actual DART oracle/ledger repairs, explicit pretraining identity scope and descriptive native contact reports. Original physical acceptance unchanged.",
+  "historical_source8_manifest_unchanged": true,
+  "publication_status": "prepared_not_published"
+}

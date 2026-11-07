@@ -1,0 +1,38 @@
+{
+  "schema": "actual_act_iteration2_recording_public_v1",
+  "source_case": "p001120-pose1-R3",
+  "source_role": "TRAIN development negative",
+  "checkpoint": {
+    "bytes": 10669697,
+    "sha256": "42e1a7f549fe29b65bc90c156fdf16a784f12cd25aa2481f1dd6dd59c1a07517"
+  },
+  "native": {
+    "bytes": 1191748,
+    "sha256": "97b7ac3a0fdbeec3f4dd7a734f1685f5e258acf77396052220302920cef950b1"
+  },
+  "source_frame_index": {
+    "bytes": 26003,
+    "sha256": "c8657d6305d810e5f0d3614aadbdf9d6fb96338f731d5b0b0b1aacc7544129e4"
+  },
+  "actual_selected_policy": true,
+  "expert_l2_fallback": false,
+  "frames": 289,
+  "width": 640,
+  "height": 360,
+  "fps": 10,
+  "encoded_duration_s": 28.9,
+  "native_simulation_s": 28.970833333333335,
+  "trailing_unrendered_ticks": 17,
+  "frame_index_all_verified": true,
+  "video": {
+    "bytes": 199285,
+    "sha256": "5dd526ad9e7eb33cc597a9d5b6187edf043dc263b602d9134859b5e29134f2d7"
+  },
+  "poster": {
+    "bytes": 82380,
+    "sha256": "20b5afc5e3491b621743029725d4f5763e192d57b671eb43eba6602bdf6c52ad"
+  },
+  "physics_pass": false,
+  "heldout_recording": false,
+  "interpretation": "Complete unedited actual native camera video of failed ACT development. No physical contact completion or learned skill qualification."
+}
