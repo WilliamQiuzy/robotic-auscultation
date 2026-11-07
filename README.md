@@ -1,6 +1,6 @@
 # Robotic Auscultation
 
-**[Watch the interactive simulation demo](https://williamqiuzy.github.io/robotic-auscultation/)** · [中文](README.zh-CN.md) · [Train ACT](docs/TRAINING.md) · [Source26 CPU fixtures / native rerun](docs/SOURCE26_REPRODUCTION.md) · [Evaluation & benchmark](docs/BENCHMARK.md) · [Astra integration](docs/ASTRA.md)
+**[Watch the interactive simulation demo](https://williamqiuzy.github.io/robotic-auscultation/)** · [中文](README.zh-CN.md) · [Train ACT](docs/TRAINING.md) · [Source26 CPU fixtures / native rerun](docs/SOURCE26_REPRODUCTION.md) · [Source28 code / CPU fixtures](docs/SOURCE28_REPRODUCTION.md) · [ACT repair experiment log](docs/drafts/act-recovery-20261106.html) · [Evaluation & benchmark](docs/BENCHMARK.md) · [Astra integration](docs/ASTRA.md)
 
 <p align="center"><a href="https://williamqiuzy.github.io/robotic-auscultation/"><img src="docs/drafts/assets/matched-v3-expert-poster.png" width="760" alt="Actual Isaac Sim analytic expert episode; this is not a learned-policy success"></a></p>
 

@@ -1,6 +1,6 @@
 # 听诊机器人：从仿真专家到学习策略
 
-**[在线项目演示](https://williamqiuzy.github.io/robotic-auscultation/)** · [English](README.md) · [训练方法](docs/TRAINING.md) · [评测协议](docs/BENCHMARK.md) · [Astra 接入](docs/ASTRA.md)
+**[在线项目演示](https://williamqiuzy.github.io/robotic-auscultation/)** · [English](README.md) · [训练方法](docs/TRAINING.md) · [评测协议](docs/BENCHMARK.md) · [Astra 接入](docs/ASTRA.md) · [source28 代码与 CPU 检查](docs/SOURCE28_REPRODUCTION.md) · [ACT 修复实验记录](docs/drafts/act-recovery-20261106.html)
 
 我们希望让 OpenArm 在 Isaac Sim 中学会对坐姿人体背部的十个听诊点，完成接近、贴合、保持、卸力、撤离和返回。这个 GitHub 项目公开仿真与控制代码、训练入口、实验视频和可检查的量化结果。
 
