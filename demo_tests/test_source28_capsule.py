@@ -2,7 +2,10 @@
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -21,8 +24,40 @@ class Source28Capsule(unittest.TestCase):
         self.assertTrue(ADAPTER.is_file(), 'Independent source28 capsule verifier required')
         spec = importlib.util.spec_from_file_location('source28_public_verifier', ADAPTER)
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        previous = sys.dont_write_bytecode
+        try:
+            sys.dont_write_bytecode = True
+            spec.loader.exec_module(module)
+        finally:
+            sys.dont_write_bytecode = previous
         return module
+
+    def test_normal_python_import_preserves_bytecode_flag_and_closed_inventory(self):
+        env = dict(os.environ)
+        env.pop('PYTHONDONTWRITEBYTECODE', None)
+        env.pop('PYTHONPYCACHEPREFIX', None)
+        result = subprocess.run([sys.executable, '-c', '''
+import sys
+from demo_tests.test_source28_capsule import Source28Capsule, CAPSULE
+assert not sys.dont_write_bytecode, 'Regression must start with normal non-B Python'
+for previous in (False, True):
+    sys.dont_write_bytecode = previous
+    verifier = Source28Capsule().verifier()
+    assert sys.dont_write_bytecode is previous, 'Adapter changed caller bytecode policy'
+    assert verifier.verify(CAPSULE) == (244, 2)
+'''], cwd=ROOT, env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_policy_ci_runs_source28_adapter_and_isolated_original_fixtures(self):
+        workflow = (ROOT / '.github/workflows/tests.yml').read_text()
+        marker = '      - name: Verify source28 partial capsule and selected CPU fixtures\n'
+        self.assertIn(marker, workflow)
+        start = workflow.index(marker)
+        self.assertGreater(start, workflow.index('      - name: Verify source26'))
+        self.assertLess(start, workflow.index('\n  perception:'))
+        step = workflow[start:workflow.index('\n  perception:')]
+        self.assertIn('python -B -m unittest demo_tests.test_source28_capsule -v\n', step)
+        self.assertIn('python -I -B repro/source28/verify_capsule.py --fixtures\n', step)
 
     def fixture(self, root, verifier):
         body = b'value = 28\n'

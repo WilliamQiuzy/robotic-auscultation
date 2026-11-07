@@ -22,9 +22,9 @@
     "tests/test_ausc_act_posture_head.py:115: Official ACT integration requires the pinned LeRobot virtualenv"
   ],
   "loaded_project_test_modules_inside_capsule": 125,
-  "elapsed_seconds": 10.34,
+  "elapsed_seconds": 10.4,
   "adapter_test_command": "python -B -m unittest demo_tests.test_source28_capsule -v",
-  "adapter_tests_passed": 6,
+  "adapter_tests_passed": 8,
   "physical_qualification": false,
   "official_act_integration": false,
   "training_executed": false,
@@ -34,5 +34,26 @@
   "explicit_entry_imports_inside_capsule": 17,
   "explicit_entry_import_check": "Separate -I -B Python process with only this capsule and its tests added as project roots; imported every SOURCE_SELECTION entry_point and checked exact __file__",
   "source_selection_sha256": "0f2200dd4fbc4f4fed95a915fcfdba22c3611f6075c049e941dcdc167c43c299",
-  "public_verifier_sha256": "7d26401e720641d8a21157945c44d43b381cf66daefdc14a460d65f8e46df623"
+  "public_verifier_sha256": "7d26401e720641d8a21157945c44d43b381cf66daefdc14a460d65f8e46df623",
+  "ci_integration_validation": {
+    "default_unittest": {
+      "command": "python -m unittest discover -s demo_tests -v",
+      "passed": 57,
+      "failed": 0
+    },
+    "default_pytest": {
+      "command": "python -m pytest -q demo_tests",
+      "passed": 57,
+      "subtests_passed": 32,
+      "failed": 0
+    },
+    "bytecode_regression": "Normal non-B child starts with bytecode enabled; verifies exact inventory and caller flag restoration for both False and True",
+    "source28_capsule_caches_created": false,
+    "policy_workflow": ".github/workflows/tests.yml",
+    "policy_workflow_source28_commands": [
+      "python -B -m unittest demo_tests.test_source28_capsule -v",
+      "python -I -B repro/source28/verify_capsule.py --fixtures"
+    ],
+    "github_actions_run_executed": false
+  }
 }

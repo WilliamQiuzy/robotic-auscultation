@@ -59,8 +59,14 @@ root or source26 with `PYTHONPATH`.** The adapter checks every actually loaded
 `sim`, `auscultation`, `scripts` and original test-helper module path and fails
 if another checkout supplied one. It selects only the 12 listed suites and prints
 skip reasons. The recorded local run was **305 passed, 1 skipped**, with 125 loaded
-project/test modules confined to source28. Six public adapter tests also passed. All 17 explicit entry modules also
-imported successfully from their exact capsule paths in a separate isolated check.
+project/test modules confined to source28. Eight public adapter tests also passed.
+All 17 explicit entry modules also imported successfully from their exact capsule
+paths in a separate isolated check.
+The adapter test import suppresses bytecode only while loading the verifier and
+restores the caller's bytecode policy, so normal non-`-B` discovery also preserves
+the closed capsule inventory. The [policy CI workflow](../.github/workflows/tests.yml)
+is configured to run these adapter checks and the isolated original CPU fixtures
+after source26, using the existing job dependency pins.
 
 The explicit skip is the official ACT forward integration, which requires the
 original pinned LeRobot virtualenv. These CPU fixtures use synthetic states,
