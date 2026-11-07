@@ -18,6 +18,30 @@
       "file": "COMPLETE.json",
       "bytes": 1045,
       "sha256": "09c0fb4a6bb322bf744dfc225a2d244ffb765295e4cf4739f4d5b79d04eadcb7"
+    },
+    "source25_cpu_counterfactual": {
+      "logical_name": "source25/diagnostics/act-stop-residual-full-cpu-qualification-20261106-v1/COMPLETE.json",
+      "file": "COMPLETE.json",
+      "bytes": 5428,
+      "sha256": "42ed58ec0ba36fd0d3687615ad613dab9b01459daf240694fc69918cfd3675d5"
+    },
+    "source25_manifest": {
+      "logical_name": "source25/SOURCE_MANIFEST.json",
+      "file": "SOURCE_MANIFEST.json",
+      "bytes": 287026,
+      "sha256": "719349708f434f1b39ec4b1f297c7719b58f76f37bcc96244dd1721c2b7d6c69"
+    },
+    "exported_data": {
+      "logical_name": "act-conditional-full-chunks-20261107-v1/COMPLETE.json",
+      "file": "COMPLETE.json",
+      "bytes": 1202,
+      "sha256": "d84afc9f705f25de34bc2aeb253ee79b43a52981ad6fdc57e3f19265da47b075"
+    },
+    "export_proof": {
+      "logical_name": "act-conditional-data-export-20261107-v1/COMPLETE.json",
+      "file": "COMPLETE.json",
+      "bytes": 1893580,
+      "sha256": "5e7fd554b4f631bce866fbd431d20eeaca09ea47136bf075fd44e5cbdb707b66"
     }
   },
   "original_failed_states": {
@@ -26,12 +50,24 @@
     "checks": [
       "full geometry",
       "finite differences",
-      "settling",
+      "numerical stationary tail",
       "replay"
     ],
     "counterfactual": true,
     "physical_qualification": false,
-    "proves_old_cumulative_budget": false
+    "proves_old_cumulative_budget": false,
+    "source_commit": "ad5a3ecd958ee6c2e2ee399623232f2414e894b6",
+    "source_version": "source25",
+    "numerical_stationary_tail": {
+      "identical_commands": 3,
+      "constant_tail_ticks": 24
+    },
+    "measured_settling_verified": false,
+    "actual_native_preview_live_verified": false,
+    "actual_physics_executed": false,
+    "actual_native_output_restored": false,
+    "actual_cumulative_retry_budget_qualified": false,
+    "source26_counterfactual_rerun": false
   },
   "new_genuine_train_queries": {
     "slots": 9,
@@ -72,13 +108,7 @@
     "origins": 35120,
     "sources": 72,
     "slots": 76,
-    "preservation_required": "exact ordered prefix"
-  },
-  "expected_auxiliary_after_export": {
-    "origins": 35982,
-    "sources": 934,
-    "slots": 1109,
-    "status": "export and official integration pending final verification"
+    "preserved_exact_ordered_prefix": true
   },
   "bounded_head": {
     "version": 2,
@@ -109,10 +139,37 @@
   "physics_executed": false,
   "fresh_identities_exposed": false,
   "pending": [
-    "final export and official integration verification",
+    "official CPU integration",
     "training",
     "four actual development cycles",
     "fresh eight identity / 32 scenario evaluation"
   ],
-  "input_boundary": "State only ACT L2 with analytic L3 after a proper handoff, given a 3D goal. RGB, depth and Hall are not neural inputs. No audio, multimodal, unseen-pose, continuous ten-point or hardware result."
+  "input_boundary": "State only ACT L2 with analytic L3 after a proper handoff, given a 3D goal. RGB, depth and Hall are not neural inputs. No audio, multimodal, unseen-pose, continuous ten-point or hardware result.",
+  "exported_auxiliary": {
+    "origins": 35982,
+    "sources": 934,
+    "slots": 1109,
+    "passed": true,
+    "wall_seconds": 557.367,
+    "measured_demonstrations": false,
+    "native_train_origins": 8373,
+    "native_selection_validation_origins": 2345,
+    "planned": {
+      "origins": 35108,
+      "computed_cells": 679360
+    },
+    "oracle": {
+      "origins": 20,
+      "slots": 21,
+      "computed_cells": 398
+    },
+    "conditional": {
+      "origins": 854,
+      "slots": 1024,
+      "computed_cells": 17080
+    }
+  },
+  "official_cpu_integration": {
+    "status": "running"
+  }
 }

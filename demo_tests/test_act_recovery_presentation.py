@@ -201,6 +201,42 @@ class ACT4Presentation(unittest.TestCase):
             self.assertNotIn('/opt/', raw)
             self.assertIsNone(re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', raw))
 
+    def test_original_failed_state_checks_bind_source25_and_only_a_numerical_tail(self):
+        e = json.loads((DRAFT / 'evidence/act-recovery-v3-preparation-20261107.public.json').read_text())
+        states = e['original_failed_states']
+        self.assertEqual(states.get('source_commit'), 'ad5a3ecd958ee6c2e2ee399623232f2414e894b6')
+        self.assertIn('numerical stationary tail', states['checks'])
+        self.assertNotIn('settling', states['checks'])
+        self.assertEqual(states['numerical_stationary_tail'], {'identical_commands': 3, 'constant_tail_ticks': 24})
+        for key in ['measured_settling_verified', 'actual_native_preview_live_verified', 'actual_physics_executed',
+                    'actual_native_output_restored', 'actual_cumulative_retry_budget_qualified', 'source26_counterfactual_rerun']:
+            self.assertIs(states[key], False, key)
+        refs = e['original_receipt_references']
+        q = refs['source25_cpu_counterfactual']
+        self.assertEqual((q['bytes'], q['sha256']), (5428, '42ed58ec0ba36fd0d3687615ad613dab9b01459daf240694fc69918cfd3675d5'))
+        manifest = refs['source25_manifest']
+        self.assertEqual((manifest['bytes'], manifest['sha256']), (287026, '719349708f434f1b39ec4b1f297c7719b58f76f37bcc96244dd1721c2b7d6c69'))
+        self.assertIn('Source25’s CPU counterfactual checks', self.html)
+        self.assertNotIn('Source26’s CPU counterfactual checks', self.html)
+        self.assertIn('numerical stationary tail', self.html)
+        self.assertIn('measured settling', self.html)
+
+    def test_closed_cpu_export_does_not_complete_integration_training_or_physics(self):
+        e = json.loads((DRAFT / 'evidence/act-recovery-v3-preparation-20261107.public.json').read_text())
+        export = e.get('exported_auxiliary', {})
+        self.assertIs(export.get('passed'), True)
+        self.assertEqual((export['origins'], export['sources'], export['slots']), (35982, 934, 1109))
+        self.assertEqual(export['oracle'], {'origins': 20, 'slots': 21, 'computed_cells': 398})
+        self.assertTrue(e['preserved_parent_auxiliary']['preserved_exact_ordered_prefix'])
+        self.assertEqual(e['official_cpu_integration']['status'], 'running')
+        self.assertFalse(e['training_started'])
+        self.assertFalse(e['physics_executed'])
+        self.assertNotIn('final export and official integration verification', e['pending'])
+        refs = e['original_receipt_references']
+        self.assertEqual(refs['exported_data']['sha256'], 'd84afc9f705f25de34bc2aeb253ee79b43a52981ad6fdc57e3f19265da47b075')
+        self.assertEqual(refs['export_proof']['sha256'], '5e7fd554b4f631bce866fbd431d20eeaca09ea47136bf075fd44e5cbdb707b66')
+        self.assertIn('official CPU integration is running', self.html)
+
 
 if __name__ == '__main__':
     unittest.main()

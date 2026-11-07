@@ -27,8 +27,8 @@
       "sha256": "e41a99814f1decec8828e961ad09ac36d8005dd85bf7a1dea722268a5acabca9"
     },
     "evidence/act-recovery-v3-preparation-20261107.public.json": {
-      "bytes": 3420,
-      "sha256": "82ff6f2a9d54623490182b9e71132efa084ab1da8677a592c8b28c4897ad5740"
+      "bytes": 5306,
+      "sha256": "dd8feea31409c8592a4a27a73dfa8e95979947f148485c454ae16c1d7898c841"
     }
   },
   "recordings": [
