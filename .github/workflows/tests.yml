@@ -38,6 +38,12 @@ jobs:
           python -B -m unittest demo_tests.test_source26_capsule -v
           python -I -B repro/source26/verify_capsule.py --fixtures
 
+      - name: Verify source28 partial capsule and selected CPU fixtures
+        # Independent tree; retain original skip reasons and import boundary checks.
+        run: |
+          python -B -m unittest demo_tests.test_source28_capsule -v
+          python -I -B repro/source28/verify_capsule.py --fixtures
+
   perception:
     name: point tracking and robot safety logic
     runs-on: ubuntu-24.04
