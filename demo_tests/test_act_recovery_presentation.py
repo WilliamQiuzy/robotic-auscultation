@@ -397,5 +397,91 @@ class ACT7Presentation(unittest.TestCase):
                     self.assertIn(target.fragment, all_ids)
 
 
+class MeasuredTeacherRecoveryPresentation(unittest.TestCase):
+    def setUp(self):
+        self.html = (DRAFT / 'act-recovery-20261106.html').read_text()
+        self.path = DRAFT / 'evidence/act-recovery-measured-teacher-20261107.public.json'
+
+    def evidence(self):
+        self.assertTrue(self.path.is_file(), 'The measured recovery milestone needs a public evidence ledger.')
+        return json.loads(self.path.read_text())
+
+    def test_four_qualified_recoveries_are_one_known_body_training_data(self):
+        e = self.evidence()
+        d = e['demonstration_bank']
+        self.assertEqual((d['fixed_prefix_cuts'], d['independently_physics_qualified'], d['clean_training_windows']), (4, 4, 58))
+        self.assertEqual(d['prefix_source'], 'ACT8_TRAIN_runs')
+        self.assertEqual(d['bodies'], ['p001120'])
+        self.assertEqual((d['body_role'], d['targets']), ('known_TRAIN', ['R3', 'L3']))
+        self.assertEqual(d['execution'], 'actual_Isaac_prefix_replay_then_expert_recomputed_from_measured_state')
+        self.assertFalse(d['new_body_diversity'] or d['population_generalization'] or d['ACT9_inference'])
+        self.assertTrue(d['full_original_physics_checker_unchanged'])
+        self.assertIn('58 clean new recovery training windows', self.html)
+        self.assertIn('one known TRAIN body', self.html)
+
+    def test_reader_repair_retains_zero_window_negative_and_original_simulation(self):
+        r = self.evidence()['qualification_reader']
+        self.assertEqual(r['V1'], {'status': 'failed', 'admitted_windows': 0})
+        self.assertEqual(r['V2']['checks'], ['original_STOP', 'input_digest', 'output_digest', 'object_identity', 'owner_identity', '240Hz_commands', 'full_original_checker'])
+        self.assertEqual(r['format_problem'], 'missing_duplicate_neutral_observer_fields')
+        self.assertFalse(r['missing_simulation'] or r['new_simulation_claimed_by_reader_repair'])
+        self.assertIn('V1 admitted zero windows', self.html)
+        self.assertIn('duplicate neutral observer fields', self.html)
+
+    def test_act9_training_and_own_cpu_equivalence_are_not_a_policy_result(self):
+        a = self.evidence()['ACT9_status_at_update']
+        self.assertEqual((a['completed_steps'], a['selected_step']), (1000, 1000))
+        self.assertEqual(a['selection_rule'], 'fixed_final_step_not_validation_minimum')
+        self.assertTrue(a['own_full_CPU_equivalence_passed'])
+        self.assertEqual(a['known_DEV_fixed_denominator'], 4)
+        self.assertEqual(a['known_DEV_status'], 'running_no_closed_result_reported')
+        self.assertIsNone(a['closed_known_DEV_physical_successes'])
+        self.assertEqual(a['fresh_cases_executed'], 0)
+        self.assertFalse(a['model_qualified'] or a['formal_acceptance'])
+        self.assertIn('ACT9 has no closed physical result in this update', self.html)
+        self.assertIn('not ACT9 inference', self.html)
+
+    def test_actual_expert_video_bytes_timing_and_contact_scalars_are_bound(self):
+        e = self.evidence()
+        v, p = e['verified_media']['video'], e['verified_media']['poster']
+        self.assertEqual((v['bytes'], v['sha256']), (2641376, 'e7a39705cc5179f67a71a2479999655207901bbd8d5539b2b2f60a7b8e8770ca'))
+        self.assertEqual((v['frames'], v['fps'], v['encoded_s']), (1943, 20, 97.15))
+        self.assertEqual((v['recorded_size'], v['display_size']), ([256, 144], [640, 360]))
+        self.assertEqual(v['role'], 'ACT8_command_prefix_then_measured_state_expert_recovery')
+        self.assertEqual(v['time_basis'], 'simulation_time')
+        self.assertTrue(v['full_decode_passed'] and v['all_frames_crc_verified'])
+        self.assertFalse(v['scene_rerendered'] or v['audio'] or v['ACT9_inference'])
+        for asset in [v, p]:
+            raw = (DRAFT / asset['file']).read_bytes()
+            self.assertEqual((len(raw), hashlib.sha256(raw).hexdigest()), (asset['bytes'], asset['sha256']))
+        self.assertEqual(p['source_video_sha256'], v['sha256'])
+        self.assertEqual(p['requested_time_s'], 50)
+        self.assertEqual(struct.unpack('>II', (DRAFT / p['file']).read_bytes()[16:24]), (640, 360))
+        video = next(a for t, a in Elements(self.html).elements if t == 'video' and a.get('id') == 'measured-recovery-video')
+        self.assertIn('controls', video)
+        self.assertEqual(video['preload'], 'metadata')
+        self.assertEqual(video['poster'], p['file'])
+        self.assertIn('expert recovery', video['aria-label'])
+        self.assertNotIn('autoplay', video)
+        c = e['R3_first_cut_actual_contact']
+        self.assertEqual(c, {'normal_peak_N': 4.0242, 'Hall_max_N': 3.9898, 'qualified_hold_s': 3, 'disk_tilt_max_deg': 1.4999, 'forbidden_force_N': 0})
+
+    def test_compact_evidence_has_original_receipt_hashes_without_private_paths(self):
+        e = self.evidence()
+        refs = e['source_artifact_digests']
+        self.assertEqual(refs['qualified_bank'], {'bytes': 2819, 'sha256': 'c2b17bbc2a3fbf54f214991bd606696abfa371126e70dfe5456daf974734112a'})
+        self.assertEqual(refs['ACT9_training_closed'], {'bytes': 2220, 'sha256': '93ecf09940471ed62e23f757f9f885cf9f6efa08b6433a4deed4a84ae90bf6fe'})
+        self.assertEqual(e['ACT9_status_at_update']['source_commit'], 'ac2bc918f733e25f419d73bc83894be7e4d01545')
+        serialized = self.path.read_text()
+        for private in ['/Users/', '/opt/', '/workspace/', 'credential']:
+            self.assertNotIn(private, serialized)
+        self.assertIsNone(re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', serialized))
+        self.assertLess(len(serialized), 12000)
+        elements = Elements(self.html).elements
+        self.assertTrue(any(a.get('href') == '#measured-recovery' for _, a in elements))
+        self.assertLess(self.html.index('id="iteration7"'), self.html.index('id="measured-recovery"'))
+        self.assertLess(self.html.index('id="measured-recovery"'), self.html.index('id="evaluation"'))
+
+
 if __name__ == '__main__':
     unittest.main()

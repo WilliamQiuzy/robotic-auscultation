@@ -1,0 +1,179 @@
+{
+  "schema": "act_recovery_measured_teacher_public_evidence_v1",
+  "updated_date": "2026-11-07",
+  "milestone": "Source32_measured_expert_recovery_demonstrations",
+  "demonstration_bank": {
+    "source_commit": "d1da79b99394163d5d778f59d57e5e42748b0956",
+    "prefix_source": "ACT8_TRAIN_runs",
+    "fixed_prefix_cuts": 4,
+    "independently_physics_qualified": 4,
+    "clean_training_windows": 58,
+    "bodies": [
+      "p001120"
+    ],
+    "body_role": "known_TRAIN",
+    "targets": [
+      "R3",
+      "L3"
+    ],
+    "execution": "actual_Isaac_prefix_replay_then_expert_recomputed_from_measured_state",
+    "full_original_physics_checker_unchanged": true,
+    "native_command_hz": 240,
+    "measured_native_optimization_eligible": true,
+    "new_body_diversity": false,
+    "population_generalization": false,
+    "ACT9_inference": false,
+    "formal_acceptance": false,
+    "label_boundary": "Only qualified expert recovery windows are admitted; student command prefixes, STOP and analytic alignment supply no positive future labels."
+  },
+  "qualification_reader": {
+    "V1": {
+      "status": "failed",
+      "admitted_windows": 0
+    },
+    "V2": {
+      "status": "passed",
+      "profile": "source32_query_recovery_v4_compact_teacher_stop_v2",
+      "checks": [
+        "original_STOP",
+        "input_digest",
+        "output_digest",
+        "object_identity",
+        "owner_identity",
+        "240Hz_commands",
+        "full_original_checker"
+      ]
+    },
+    "format_problem": "missing_duplicate_neutral_observer_fields",
+    "missing_simulation": false,
+    "new_simulation_claimed_by_reader_repair": false,
+    "negative_V1_evidence_retained": true
+  },
+  "unchanged_physics": {
+    "C_protrusion_mm": 5,
+    "B_recess_mm": 1,
+    "TCP_mm": 132,
+    "camera_down_degrees": 7,
+    "body_condition": "static_bare_SMPL",
+    "normal_contact_components": [
+      "B",
+      "C"
+    ],
+    "normal_hold_N": [
+      3.5,
+      4.5
+    ],
+    "continuous_hold_min_s": 3,
+    "total_contact_max_N": 6,
+    "Hall_strict_max_N": 5.5,
+    "stroke_max_mm": 6,
+    "forbidden_force_exact_N": 0,
+    "disk_diameter_mm": 23,
+    "disk_plane_tilt_max_deg": 3,
+    "release_and_home_required": true
+  },
+  "R3_first_cut_actual_contact": {
+    "normal_peak_N": 4.0242,
+    "Hall_max_N": 3.9898,
+    "qualified_hold_s": 3,
+    "disk_tilt_max_deg": 1.4999,
+    "forbidden_force_N": 0
+  },
+  "ACT9_status_at_update": {
+    "source_stage": "Source34",
+    "source_commit": "ac2bc918f733e25f419d73bc83894be7e4d01545",
+    "source_manifest_files": 1690,
+    "completed_steps": 1000,
+    "selected_step": 1000,
+    "selection_rule": "fixed_final_step_not_validation_minimum",
+    "own_full_CPU_equivalence_passed": true,
+    "known_DEV_fixed_denominator": 4,
+    "known_DEV_status": "running_no_closed_result_reported",
+    "closed_known_DEV_physical_successes": null,
+    "fresh_cases_executed": 0,
+    "fresh_payloads_opened": false,
+    "model_qualified": false,
+    "formal_acceptance": false,
+    "status_boundary": "The closed training receipt predates native launch. The later running development status is a snapshot, not a completed physical verdict."
+  },
+  "scope": {
+    "learned_control": "ACT_L2_given_3D_goal_state17_H2",
+    "contact_control": "analytic_L3_with_Hall",
+    "RGBD_recorded": true,
+    "RGBD_neural_inputs": false,
+    "Hall_neural_input": false,
+    "audio": false,
+    "continuous_ten_point_policy": false,
+    "moving_patient": false,
+    "thin_cloth": false,
+    "hardware": false,
+    "population_generalization": false,
+    "raw_arrays_and_weights_remain_on_Linux": true
+  },
+  "source_artifact_digests": {
+    "qualified_bank": {
+      "bytes": 2819,
+      "sha256": "c2b17bbc2a3fbf54f214991bd606696abfa371126e70dfe5456daf974734112a"
+    },
+    "CPU_preparation_control": {
+      "bytes": 14929,
+      "sha256": "10c9e47bd7b36a8ddeec747adf624af2b1cb01ff28b76912f6714a139e0ec007"
+    },
+    "ACT9_training_closed": {
+      "bytes": 2220,
+      "sha256": "93ecf09940471ed62e23f757f9f885cf9f6efa08b6433a4deed4a84ae90bf6fe"
+    },
+    "ACT9_own_full_CPU_equivalence": {
+      "bytes": 13757,
+      "sha256": "a6f6cc75977f52363892fe4694707b160c85b71d2fff88da1593dc2966ad4b04"
+    },
+    "Source32_manifest": {
+      "bytes": 291519,
+      "sha256": "d46d697994cce1dd8ef9674352c87ead09f4b966dd037222c0faf25864b18bd2"
+    },
+    "Source34_manifest": {
+      "bytes": 292497,
+      "sha256": "4473431336b7a6038c5acbfefc65a6807778e2f7048b9935c238b1c01c6cf7c9"
+    }
+  },
+  "verified_media": {
+    "video": {
+      "file": "assets/act-recovery-measured-teacher-r3-20261107.mp4",
+      "bytes": 2641376,
+      "sha256": "e7a39705cc5179f67a71a2479999655207901bbd8d5539b2b2f60a7b8e8770ca",
+      "slot": "r3_first_12mm",
+      "role": "ACT8_command_prefix_then_measured_state_expert_recovery",
+      "recorded_size": [
+        256,
+        144
+      ],
+      "display_size": [
+        640,
+        360
+      ],
+      "display_upscale": "nearest_neighbor",
+      "frames": 1943,
+      "fps": 20,
+      "encoded_s": 97.15,
+      "physical_simulation_s": 97.15833333333333,
+      "time_basis": "simulation_time",
+      "encoded_on": "original_Linux_runtime",
+      "scene_rerendered": false,
+      "audio": false,
+      "ACT9_inference": false,
+      "reported_physical_pass": true,
+      "video_alone_establishes_independent_bank_qualification": false,
+      "full_decode_passed": true,
+      "all_frames_crc_verified": true
+    },
+    "poster": {
+      "file": "assets/act-recovery-measured-teacher-r3-20261107-poster.png",
+      "bytes": 63098,
+      "sha256": "a1acbfeec7ae998230233dbe03183e52a976b20051b742ac039e3191a84d9778",
+      "source_video_sha256": "e7a39705cc5179f67a71a2479999655207901bbd8d5539b2b2f60a7b8e8770ca",
+      "requested_time_s": 50,
+      "scene_rerendered": false,
+      "decoded_RGB_sha256": "17e895d22ab28e254747ed2419ceb5066cc6e3e0a628ac68ee194cbbe6a3a496"
+    }
+  }
+}
