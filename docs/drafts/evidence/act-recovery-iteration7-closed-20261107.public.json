@@ -1,0 +1,782 @@
+{
+  "schema": "act_recovery_iteration7_closed_public_v1",
+  "source_commit": "71abb2bb82e1bf80ca4284842655d4f68af696a5",
+  "closed_utc_minute": "2026-11-07T12:26Z",
+  "outcome": "closed_negative_known_development_not_model_acceptance",
+  "training": {
+    "new_optimizer_updates": 1000,
+    "selected_step": 1000,
+    "selection_rule": "fixed_final_step_not_validation_minimum",
+    "initialization": {
+      "treatment": "ACT6",
+      "selected_step": 18000,
+      "fresh_AdamW": true
+    },
+    "evaluated_steps": [
+      500,
+      1000
+    ],
+    "native_evaluation_origins": {
+      "TRAIN": 8373,
+      "selection_VAL": 2345
+    },
+    "candidates_saved": [
+      500,
+      1000
+    ],
+    "full_cpu_equivalence_candidates": [
+      500,
+      1000
+    ],
+    "owner_closed_normally": true,
+    "raw_target_full_chunk_mae_mrad": {
+      "TRAIN": 8.5029568,
+      "selection_VAL": 12.2472523
+    },
+    "ACT6_reference_mae_mrad": {
+      "TRAIN": 6.233,
+      "selection_VAL": 9.814
+    },
+    "global_fit_improved": false
+  },
+  "data": {
+    "auxiliary_version": "V5",
+    "auxiliary_origins": 35992,
+    "auxiliary_sources": 944,
+    "parent_origins": 35988,
+    "parent_sources": 940,
+    "added_measured_TRAIN_origins": 4,
+    "added_computed_future_cells": 58,
+    "added_origin_target": "old failed ACT6 TRAIN L3",
+    "reserved_query_origins": 2,
+    "reserved_computed_cells": 27,
+    "reserved_queries_optimized": false,
+    "new_physical_demonstrations": 0,
+    "static_conditional_near6_pool_origins": 66
+  },
+  "actual_development": {
+    "physical_successes": 0,
+    "fixed_known_DEV_denominator": 4,
+    "cases": [
+      {
+        "body": "p001120",
+        "role": "TRAIN",
+        "target": "R3",
+        "success": false,
+        "physical_validation": false,
+        "contact_hold": false,
+        "native_ticks": 29041,
+        "native_simulated_s": 121.00416666666666,
+        "failure_reason": "R3: M2 L2 clock/120 second deadline failed",
+        "worker_normal": true
+      },
+      {
+        "body": "p001120",
+        "role": "TRAIN",
+        "target": "L3",
+        "success": false,
+        "physical_validation": false,
+        "contact_hold": false,
+        "native_ticks": 29041,
+        "native_simulated_s": 121.00416666666666,
+        "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+        "worker_normal": true
+      },
+      {
+        "body": "p000923",
+        "role": "selection_VAL",
+        "target": "R3",
+        "success": false,
+        "physical_validation": false,
+        "contact_hold": false,
+        "native_ticks": 29041,
+        "native_simulated_s": 121.00416666666666,
+        "failure_reason": "R3: M2 L2 clock/120 second deadline failed",
+        "worker_normal": true
+      },
+      {
+        "body": "p000923",
+        "role": "selection_VAL",
+        "target": "L3",
+        "success": false,
+        "physical_validation": false,
+        "contact_hold": false,
+        "native_ticks": 29041,
+        "native_simulated_s": 121.00416666666666,
+        "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+        "worker_normal": true
+      }
+    ],
+    "independent_qualifications_completed": 4,
+    "owner_drained_and_released": true,
+    "source29_stable": true,
+    "infrastructure_error": false,
+    "errors": []
+  },
+  "fresh_benchmark": {
+    "identities": 8,
+    "declared_scenarios": 32,
+    "executed_cases": 0,
+    "payloads_opened": false
+  },
+  "scope": {
+    "state_features": 17,
+    "causal_observations": 2,
+    "learned_L2": true,
+    "analytic_L3_Hall": true,
+    "RGBD_recorded": true,
+    "Hall_recorded": true,
+    "RGBD_neural_inputs": false,
+    "Hall_neural_input": false,
+    "physics_gates_changed": false,
+    "acoustic_result": false,
+    "moving_patient_result": false,
+    "full_ten_point_policy_result": false,
+    "real_hardware_result": false
+  },
+  "CPU_command_diagnostic": {
+    "complete": true,
+    "known_TRAIN_bodies": 1,
+    "queries": 12,
+    "query_selection": "fixed adjacent pairs at or before 24 s, at or before 60 s, and final eligible pair for each failed TRAIN target",
+    "original_full_mesh_and_posture_checks": true,
+    "retained_measured_q_v_a_and_three_command_seam": true,
+    "prefix_cells": 10,
+    "computed_prefix_s": 0.5,
+    "oracle_accepted_queries": 12,
+    "oracle_safe_computational_previews": 12,
+    "oracle_V_decreases": 12,
+    "ACT7_V_decreases": 3,
+    "available_native_commands": 1358,
+    "available_native_commands_bit_exact": true,
+    "optimizer_steps": 0,
+    "actions_executed": false,
+    "gpu_launched": false,
+    "training_eligible": false,
+    "physics_qualified": false,
+    "validation_histories_opened": false,
+    "fresh_payloads_opened": false,
+    "limitation": "Unexecuted CPU oracle setters and original full-mesh command previews from actual TRAIN q/v/a; not measured future success or new training demonstrations.",
+    "cases": [
+      {
+        "case": "p001120-r3",
+        "role": "TRAIN",
+        "rows": [
+          {
+            "physics_row": 5592,
+            "time_s": 23.299999999999,
+            "initial_measured": {
+              "V": 3.1511381818519126,
+              "gap_error_mm": -1.0294719642426169,
+              "tangent_mm": 2.892283289507002
+            },
+            "initial_command": {
+              "V": 3.16317402804137,
+              "gap_error_mm": -1.0303246675239,
+              "tangent_mm": 2.8993827670958763
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.08345060236627688,
+                "end_command": {
+                  "V": 3.2466246304076467,
+                  "gap_error_mm": -1.022302050399153,
+                  "tangent_mm": 2.967506123435862
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -3.117181947663115,
+                "end_command": {
+                  "V": 0.04599208037825457,
+                  "gap_error_mm": -0.09204069451207442,
+                  "tangent_mm": 0.3874046511439405
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 5712,
+            "time_s": 23.79999999999897,
+            "initial_measured": {
+              "V": 3.2339498210357176,
+              "gap_error_mm": -1.0199042712800248,
+              "tangent_mm": 2.9622593393965215
+            },
+            "initial_command": {
+              "V": 3.2466246304076467,
+              "gap_error_mm": -1.022302050399153,
+              "tangent_mm": 2.967506123435862
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.001254299769076983,
+                "end_command": {
+                  "V": 3.2478789301767237,
+                  "gap_error_mm": -1.0204789953380047,
+                  "tangent_mm": 2.9708595054298077
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -3.1831750815882223,
+                "end_command": {
+                  "V": 0.06344954881942433,
+                  "gap_error_mm": -0.10426495901459665,
+                  "tangent_mm": 0.4585994641998999
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 14232,
+            "time_s": 59.300000000020226,
+            "initial_measured": {
+              "V": 3.3535781903956243,
+              "gap_error_mm": -0.9927321102530633,
+              "tangent_mm": 3.0777011860595724
+            },
+            "initial_command": {
+              "V": 3.36679313629859,
+              "gap_error_mm": -0.9971849049998198,
+              "tangent_mm": 3.0805294360152384
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": -0.0281904934761803,
+                "end_command": {
+                  "V": 3.33860264282241,
+                  "gap_error_mm": -1.0014448781741625,
+                  "tangent_mm": 3.056606483537681
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -3.228104090824601,
+                "end_command": {
+                  "V": 0.1386890454739892,
+                  "gap_error_mm": -0.1581708811026067,
+                  "tangent_mm": 0.6743026556234648
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 14352,
+            "time_s": 59.800000000020624,
+            "initial_measured": {
+              "V": 3.3222136402649785,
+              "gap_error_mm": -0.9970708793898136,
+              "tangent_mm": 3.0515984675168535
+            },
+            "initial_command": {
+              "V": 3.33860264282241,
+              "gap_error_mm": -1.0014448781741625,
+              "tangent_mm": 3.056606483537681
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.02960181343959789,
+                "end_command": {
+                  "V": 3.3682044562620077,
+                  "gap_error_mm": -0.9972237994503169,
+                  "tangent_mm": 3.081395235974692
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -3.2037803155393854,
+                "end_command": {
+                  "V": 0.13482232728302462,
+                  "gap_error_mm": -0.15757247449818546,
+                  "tangent_mm": 0.6633045833206441
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 28872,
+            "time_s": 120.29999999997275,
+            "initial_measured": {
+              "V": 3.3472308234510186,
+              "gap_error_mm": -0.9940924496595477,
+              "tangent_mm": 3.0718144637857923
+            },
+            "initial_command": {
+              "V": 3.359272853518223,
+              "gap_error_mm": -0.9986912057712883,
+              "tangent_mm": 3.0736875111392266
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.018333838502953892,
+                "end_command": {
+                  "V": 3.377606692021177,
+                  "gap_error_mm": -0.9964272271926824,
+                  "tangent_mm": 3.088520340182515
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -3.2239860452460753,
+                "end_command": {
+                  "V": 0.1352868082721476,
+                  "gap_error_mm": -0.15618218178830093,
+                  "tangent_mm": 0.666014817745052
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 28992,
+            "time_s": 120.7999999999723,
+            "initial_measured": {
+              "V": 3.3639647627953004,
+              "gap_error_mm": -0.9942304607431229,
+              "tangent_mm": 3.082512321938596
+            },
+            "initial_command": {
+              "V": 3.377606692021177,
+              "gap_error_mm": -0.9964272271926824,
+              "tangent_mm": 3.088520340182515
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": -0.02492678865625919,
+                "end_command": {
+                  "V": 3.3526799033649177,
+                  "gap_error_mm": -0.9988219271275766,
+                  "tangent_mm": 3.069224437055115
+                },
+                "native_commands_available": 49,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -3.2304953762087547,
+                "end_command": {
+                  "V": 0.14711131581242234,
+                  "gap_error_mm": -0.16906038021023695,
+                  "tangent_mm": 0.6885634426996324
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          }
+        ],
+        "original_proposal_digest": {
+          "bytes": 3625,
+          "sha256": "1860ae99401931363a0d8f1eeca3f8d11f3c55373e58241fb60bdcc76f1f3785"
+        }
+      },
+      {
+        "case": "p001120-l3",
+        "role": "TRAIN",
+        "rows": [
+          {
+            "physics_row": 5532,
+            "time_s": 23.049999999999013,
+            "initial_measured": {
+              "V": 16.254113655086698,
+              "gap_error_mm": -0.9018363093748587,
+              "tangent_mm": 7.858957927404837
+            },
+            "initial_command": {
+              "V": 16.228058625230567,
+              "gap_error_mm": -0.8988471046794365,
+              "tangent_mm": 7.85369531052484
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 1.9834157210421708,
+                "end_command": {
+                  "V": 18.211474346272738,
+                  "gap_error_mm": -0.8407375855462411,
+                  "tangent_mm": 8.367708087289522
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -11.899331184334782,
+                "end_command": {
+                  "V": 4.3287274408957845,
+                  "gap_error_mm": -0.4521680679057498,
+                  "tangent_mm": 4.061660487663717
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 5652,
+            "time_s": 23.549999999998985,
+            "initial_measured": {
+              "V": 18.268676604198454,
+              "gap_error_mm": -0.8444791077886725,
+              "tangent_mm": 8.3798643522928
+            },
+            "initial_command": {
+              "V": 18.211474346272738,
+              "gap_error_mm": -0.8407375855462411,
+              "tangent_mm": 8.367708087289522
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 1.9781533603532893,
+                "end_command": {
+                  "V": 20.189627706626027,
+                  "gap_error_mm": -0.7926905088615592,
+                  "tangent_mm": 8.845624786025423
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -12.926478570127417,
+                "end_command": {
+                  "V": 5.284995776145321,
+                  "gap_error_mm": -0.4238166076336661,
+                  "tangent_mm": 4.519015494215178
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 14172,
+            "time_s": 59.05000000002003,
+            "initial_measured": {
+              "V": 28.728559402385827,
+              "gap_error_mm": -0.4284640177867685,
+              "tangent_mm": 10.685500079612156
+            },
+            "initial_command": {
+              "V": 28.675767008994825,
+              "gap_error_mm": -0.42553103253267777,
+              "tangent_mm": 10.676083617009844
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.006018883512250994,
+                "end_command": {
+                  "V": 28.681785892507076,
+                  "gap_error_mm": -0.4256637034339046,
+                  "tangent_mm": 10.677189949436324
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -17.54137461021964,
+                "end_command": {
+                  "V": 11.134392398775182,
+                  "gap_error_mm": -0.29498489581371995,
+                  "tangent_mm": 6.6475187280719865
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 14292,
+            "time_s": 59.550000000020425,
+            "initial_measured": {
+              "V": 28.761076158686322,
+              "gap_error_mm": -0.4293032005449962,
+              "tangent_mm": 10.691449840070923
+            },
+            "initial_command": {
+              "V": 28.681785892507076,
+              "gap_error_mm": -0.4256637034339046,
+              "tangent_mm": 10.677189949436324
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": -0.009166310448847526,
+                "end_command": {
+                  "V": 28.67261958205823,
+                  "gap_error_mm": -0.42619100404363286,
+                  "tangent_mm": 10.675388669295467
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -17.29798882882328,
+                "end_command": {
+                  "V": 11.383797063683799,
+                  "gap_error_mm": -0.30647198604966813,
+                  "tangent_mm": 6.720080947563227
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 28812,
+            "time_s": 120.04999999997298,
+            "initial_measured": {
+              "V": 28.767440118045094,
+              "gap_error_mm": -0.4284425389999777,
+              "tangent_mm": 10.692778330970926
+            },
+            "initial_command": {
+              "V": 28.69113571214124,
+              "gap_error_mm": -0.42493166828648854,
+              "tangent_mm": 10.679057784173377
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.00045877002909122666,
+                "end_command": {
+                  "V": 28.69159448217033,
+                  "gap_error_mm": -0.42757570810837353,
+                  "tangent_mm": 10.678721551947305
+                },
+                "native_commands_available": 120,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -17.283914544244674,
+                "end_command": {
+                  "V": 11.407221167896568,
+                  "gap_error_mm": -0.306497510225736,
+                  "tangent_mm": 6.727044059353854
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          },
+          {
+            "physics_row": 28932,
+            "time_s": 120.54999999997253,
+            "initial_measured": {
+              "V": 28.755681846697275,
+              "gap_error_mm": -0.4309770990988879,
+              "tangent_mm": 10.69017129642918
+            },
+            "initial_command": {
+              "V": 28.69159448217033,
+              "gap_error_mm": -0.42757570810837353,
+              "tangent_mm": 10.678721551947305
+            },
+            "oracle_accepted": true,
+            "variants": {
+              "actual_student": {
+                "bit_exact_native_prefix": true,
+                "delta_V": 0.025407671436234125,
+                "end_command": {
+                  "V": 28.717002153606565,
+                  "gap_error_mm": -0.428550428350976,
+                  "tangent_mm": 10.683322832146702
+                },
+                "native_commands_available": 109,
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              },
+              "oracle": {
+                "delta_V": -16.90763635433004,
+                "end_command": {
+                  "V": 11.78395812784029,
+                  "gap_error_mm": -0.31993486013264305,
+                  "tangent_mm": 6.835671090130711
+                },
+                "prefix_cells": 10,
+                "safe_computational_preview": true
+              }
+            },
+            "training_eligible": false
+          }
+        ],
+        "original_proposal_digest": {
+          "bytes": 3625,
+          "sha256": "9fc4914a99007d3da53f3854e9a9902d72c0f327c0ab195bd5360900df80137f"
+        }
+      }
+    ]
+  },
+  "next_controlled_treatment": {
+    "name": "ACT8",
+    "status": "training_closed_native_validation_pending",
+    "native_dynamic_prepose_le12mm_origins": 880,
+    "planned_ideal_tracking_le12mm_origins": 4382,
+    "static_conditional_near6_origins": 66,
+    "proposed_native_corridor_samples_of32": 16,
+    "proposed_planned_corridor_samples_of8": 4,
+    "unchanged_conditional_near6_samples": 4,
+    "unchanged_conditional_full_samples": 4,
+    "unchanged_oracle_samples": 16,
+    "same_architecture_loss_physics": true,
+    "same_ACT6_initialization": true,
+    "planned_new_updates": 1000,
+    "actual_training_claimed": true,
+    "physical_qualification_claimed": false,
+    "source_commit": "8ad4cb7734cf390fe68e9ef6e6f4a57b36866113",
+    "same_parent_numerical_arrays_and_ordered_metadata": true,
+    "new_labels": 0,
+    "training": {
+      "new_optimizer_updates": 1000,
+      "selected_step": 1000,
+      "selection_rule": "fixed_final_step_not_validation_minimum",
+      "evaluated_steps": [
+        500,
+        1000
+      ],
+      "full_cpu_equivalence": true,
+      "owner_closed_normally": true,
+      "raw_target_full_chunk_mae_mrad": {
+        "TRAIN": 7.49876586,
+        "selection_VAL": 12.40504221
+      },
+      "global_fit_better_than_ACT6": false
+    },
+    "source_artifact_digests": {
+      "training_root_complete": {
+        "bytes": 2209,
+        "sha256": "66d5414f232f71b9132ce167aecfae5f21e00bec413729ebed1810567f58c738"
+      },
+      "training_output_complete": {
+        "bytes": 1423199,
+        "sha256": "0eeb32b5528fb561800606bf5eeedcea27518569bded73268515c8809e5a8177"
+      },
+      "full_CPU_equivalence": {
+        "bytes": 13574,
+        "sha256": "63280fbfafe439456d65a6bb849302d66cb4c6640c9197fe097fd513cee3a84b"
+      }
+    }
+  },
+  "primary_seal": {
+    "files": 244,
+    "bytes": 348107637,
+    "independent_copy_verified": false
+  },
+  "source_artifact_digests": {
+    "native_development": {
+      "bytes": 46454,
+      "sha256": "a25795f2e93a4983d24d72dc7f28ec81d0dca53a44cac559f3decef2a013cd32"
+    },
+    "normal_owner_result": {
+      "bytes": 3446,
+      "sha256": "e5c52b392047a15b30654f554de79f672fe41e4e4e6f0e9e8f0a4d08466ad838"
+    },
+    "training_root_complete": {
+      "bytes": 2194,
+      "sha256": "d12996a2eaa12c36ee0b3f2515d615c943b7f63852d3a0d71d5af16149e0f21d"
+    },
+    "training_output_complete": {
+      "bytes": 1235416,
+      "sha256": "d56cd377f3a18f534763957df1c4928f94b60974ee5bd8ac146507e12eb522d4"
+    },
+    "full_CPU_equivalence": {
+      "bytes": 13248,
+      "sha256": "820b003c46e19920886d48a99de00162c776999ae23dc3a13bebcfe2b544bc78"
+    },
+    "CPU_command_diagnostic": {
+      "bytes": 18029,
+      "sha256": "e9e8bc7173c884a1e9bae5f4fa113b3f20de6cfc71a2386fb24adc2c7dfc0405"
+    }
+  },
+  "verified_media": {
+    "video": {
+      "file": "assets/act-recovery-iteration7-train-r3-failed-20261107.mp4",
+      "bytes": 698424,
+      "sha256": "28b5ffdb5633eb2606d73144ca69098013a5782bf1350af3da3ce5f5d49056be",
+      "case": "p001120-r3",
+      "role": "TRAIN",
+      "frames": 1210,
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "encoded_s": 121.0,
+      "native_simulated_s": 121.00416666666666,
+      "trailing_unrendered_ticks": 1,
+      "full_decode_passed": true,
+      "unedited": true,
+      "learned_policy": true,
+      "expert_L2_fallback": false,
+      "physical_success": false,
+      "observer_view_is_neural_input": false
+    },
+    "poster": {
+      "file": "assets/act-recovery-iteration7-train-r3-failed-20261107-poster.png",
+      "bytes": 81813,
+      "sha256": "aa2c6875d8633f30459f066f5aeb7e43117e257194d57921eb28fa2513ab738f",
+      "source_video_sha256": "28b5ffdb5633eb2606d73144ca69098013a5782bf1350af3da3ce5f5d49056be",
+      "requested_time_s": 90
+    },
+    "diagnostic_chart": {
+      "file": "assets/act-recovery-iteration7-failed-train-commands-20261107.png",
+      "bytes": 113644,
+      "sha256": "e5313f013efdd3869a383ac680c1829908e9ea8404825ce2a53e00e487ed5e65",
+      "width": 2040,
+      "height": 870,
+      "tangential_line_mm": 2,
+      "line_is_full_physical_gate": false
+    }
+  }
+}
