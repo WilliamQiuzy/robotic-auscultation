@@ -1,0 +1,95 @@
+{
+  "schema": "act6_train_r3_closed_physical_summary_v1",
+  "subject_id": "p001120",
+  "split": "TRAIN",
+  "target_id": "R3",
+  "selected_step": 18000,
+  "selected_weights_sha256": "822bbaf5298695a3ceeb3ab00e741e49a220bca7d458824e20beabb9ef542efe",
+  "native_result": {
+    "bytes": 2532595,
+    "sha256": "fb2ada0aab07520363f99771050e1cad01b75715705cd8be246c938c2928a12b"
+  },
+  "independent_qualification": {
+    "bytes": 3261,
+    "sha256": "28ad134d245558c04e3291f299872fb9ea3cd0b535ac498d0adbdbf2857a180f"
+  },
+  "native_success": true,
+  "independent_physical_qualification": true,
+  "all_four_dev_qualified": false,
+  "fresh_executed": false,
+  "formal_acceptance": false,
+  "model_qualified": false,
+  "controller": "ACT L2 + analytic L3; no expert L2 fallback",
+  "force_audit": {
+    "contact_force_peak_N": 4.005460682451039,
+    "contact_surface": "membrane_and_device_retainer_v2",
+    "continuous_contact_hold_s": 4.6875,
+    "lip_must_be_exactly_zero": true,
+    "maxima": {
+      "carriage_other_N": 0.0,
+      "compression_m": 0.002525300020352006,
+      "contact_rim_N": 0.0,
+      "diaphragm_N": 0.0,
+      "forbidden_N": 0.0,
+      "frame_N": 0.0,
+      "hall_N": 3.990036685234748,
+      "lip_N": 0.0,
+      "retainer_N": 4.005460682451039
+    },
+    "passed": true,
+    "training_eligible": false
+  },
+  "plane_audit": {
+    "contact_plane_normal_world": [
+      -0.09451571852682264,
+      -0.9928385360948101,
+      -0.07306449340461518
+    ],
+    "contact_plane_radius_m": 0.023,
+    "continuous_force_and_plane_hold_s": 3.0,
+    "maximum_hold_tilt_deg": 1.4997793269779744,
+    "passed": true,
+    "plane_tilt_limit_deg": 3.0,
+    "tilt_relaxed": false
+  },
+  "qualified_combined_hold_s": 3.0,
+  "physics_steps": 24656,
+  "simulation_s": 102.73333333333333,
+  "normal_release_confirm_ticks": 48,
+  "home_settle_ticks": 120,
+  "final_home_max_abs_q_rad": 7.008377167494473e-08,
+  "job_directory_bytes": 57079035,
+  "limit_bytes": 100000000,
+  "within_budget": true,
+  "runtime_cost": {
+    "capture_profile": "diagnostic_video",
+    "controller_wall_s": 1372.2273901290027,
+    "controller_wall_s_per_sim_s": 13.357177710535392,
+    "environment_count": 1,
+    "finalize_and_audit_wall_s": 1.192843286000425,
+    "isaac_startup_wall_s": null,
+    "physical_validation": false,
+    "physics_dt_s": 0.004166666666666667,
+    "physics_steps": 24656,
+    "probe_setup_wall_s": 183.0235112940136,
+    "probe_wall_s": 1556.4437447090168,
+    "probe_wall_s_per_sim_s": 15.150328468939163,
+    "render_capture_encode_wall_s": null,
+    "schema": "isaac_probe_wall_cost_v1",
+    "scope": "Probe ends after audit and before result serialization; earlier Kit startup, result serialization and worker teardown are excluded. Controller interval includes planning, physics, safety and rendering/capture. Unmeasured overheads remain null; not Isaac Lab throughput.",
+    "simulation_s": 102.73333333333333,
+    "training_eligible": false
+  },
+  "video": {
+    "camera": "/World/RobotCam",
+    "fps": 10,
+    "frames": 1027,
+    "height": 360,
+    "width": 640
+  },
+  "video_digest": {
+    "bytes": 609467,
+    "sha256": "5150437d8fa335758a656d81d57be63af5cad8f78f788c0b7f5fdb2f48b9bded"
+  },
+  "training_eligible": false
+}

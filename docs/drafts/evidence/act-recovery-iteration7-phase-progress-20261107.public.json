@@ -1,0 +1,294 @@
+{
+  "schema": "act7_phase_e10_progress_public_v1",
+  "source_digest": {
+    "bytes": 16732,
+    "sha256": "d2575a2692717a7fefcbad55ea2954f7656382b77a2dd9aee9b596260f37a041"
+  },
+  "rows": [
+    {
+      "physics_row": 5760,
+      "time_s": 23.99999999999896,
+      "reserved_diagnostic_only": false,
+      "prefix_cells": 10,
+      "prefix_seconds": 0.5,
+      "initial_command": {
+        "tangent_mm": 4.109797271724771,
+        "gap_error_mm": 0.03988540051793818,
+        "full_rotation_error_deg": 0.4933762307423028,
+        "V": 4.224199248843569
+      },
+      "variants": {
+        "actual_student": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 4.554204413155709,
+            "gap_error_mm": -0.2004354381159,
+            "full_rotation_error_deg": 0.7372693572551002,
+            "V": 5.225368824054447
+          },
+          "delta_V_from_initial_command": 1.001169575210878,
+          "actual_native_command_steps_available": 120,
+          "cpu_replan_vs_native_max_abs_rad": 0.0,
+          "cpu_replan_vs_native_bit_exact": true
+        },
+        "oracle_teacher": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 1.2383457442577688,
+            "gap_error_mm": 0.018278378148606222,
+            "full_rotation_error_deg": 0.1852527585229745,
+            "V": 0.38370914468807527
+          },
+          "delta_V_from_initial_command": -3.840490104155494,
+          "matches_original_teacher_prefix_bit_exact": true
+        },
+        "zero_relative_HOLD": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 4.220228572293848,
+            "gap_error_mm": 0.019087569328554016,
+            "full_rotation_error_deg": 0.6995336740154859,
+            "V": 4.452946635904215
+          },
+          "delta_V_from_initial_command": 0.228747387060646
+        }
+      }
+    },
+    {
+      "physics_row": 5880,
+      "time_s": 24.49999999999893,
+      "reserved_diagnostic_only": false,
+      "prefix_cells": 10,
+      "prefix_seconds": 0.5,
+      "initial_command": {
+        "tangent_mm": 4.554204413155709,
+        "gap_error_mm": -0.2004354381159,
+        "full_rotation_error_deg": 0.7372693572551002,
+        "V": 5.225368824054447
+      },
+      "variants": {
+        "actual_student": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 3.8967102041868458,
+            "gap_error_mm": -0.2212518647202802,
+            "full_rotation_error_deg": 0.6385905478657286,
+            "V": 3.8450399914956734
+          },
+          "delta_V_from_initial_command": -1.380328832558774,
+          "actual_native_command_steps_available": 120,
+          "cpu_replan_vs_native_max_abs_rad": 0.0,
+          "cpu_replan_vs_native_bit_exact": true
+        },
+        "oracle_teacher": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 1.232693450826649,
+            "gap_error_mm": -0.07515380118134143,
+            "full_rotation_error_deg": 0.12369352835815424,
+            "V": 0.38553137975973256
+          },
+          "delta_V_from_initial_command": -4.839837444294715,
+          "matches_original_teacher_prefix_bit_exact": true
+        },
+        "zero_relative_HOLD": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 4.546669102964011,
+            "gap_error_mm": -0.20033188694349585,
+            "full_rotation_error_deg": 0.7366733293630423,
+            "V": 5.208182847888233
+          },
+          "delta_V_from_initial_command": -0.01718597616621409
+        }
+      }
+    },
+    {
+      "physics_row": 14280,
+      "time_s": 59.500000000020385,
+      "reserved_diagnostic_only": false,
+      "prefix_cells": 10,
+      "prefix_seconds": 0.5,
+      "initial_command": {
+        "tangent_mm": 3.6396820406074593,
+        "gap_error_mm": -0.7305082180282495,
+        "full_rotation_error_deg": 0.5196777111020641,
+        "V": 3.8454635957869283
+      },
+      "variants": {
+        "actual_student": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 2.879976268055621,
+            "gap_error_mm": -0.4701718046226898,
+            "full_rotation_error_deg": 0.40461384065913847,
+            "V": 2.2946273520030522
+          },
+          "delta_V_from_initial_command": -1.550836243783876,
+          "actual_native_command_steps_available": 120,
+          "cpu_replan_vs_native_max_abs_rad": 0.0,
+          "cpu_replan_vs_native_bit_exact": true
+        },
+        "oracle_teacher": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 0.12277258515838743,
+            "gap_error_mm": -0.05066431753029607,
+            "full_rotation_error_deg": 0.01070244480540178,
+            "V": 0.006335149987429038
+          },
+          "delta_V_from_initial_command": -3.839128445799499,
+          "matches_original_teacher_prefix_bit_exact": true
+        },
+        "zero_relative_HOLD": {
+          "safe_computational_preview": false,
+          "error": "FinishedStationaryRoundoffError: Finished stationary output exceeds numerical roundoff bound"
+        }
+      }
+    },
+    {
+      "physics_row": 14400,
+      "time_s": 60.00000000002078,
+      "reserved_diagnostic_only": false,
+      "prefix_cells": 10,
+      "prefix_seconds": 0.5,
+      "initial_command": {
+        "tangent_mm": 2.879976268055621,
+        "gap_error_mm": -0.4701718046226898,
+        "full_rotation_error_deg": 0.40461384065913847,
+        "V": 2.2946273520030522
+      },
+      "variants": {
+        "actual_student": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 3.6764806378136283,
+            "gap_error_mm": -0.7581304504134072,
+            "full_rotation_error_deg": 0.560736140265968,
+            "V": 3.9538892498986615
+          },
+          "delta_V_from_initial_command": 1.6592618978956093,
+          "actual_native_command_steps_available": 120,
+          "cpu_replan_vs_native_max_abs_rad": 0.0,
+          "cpu_replan_vs_native_bit_exact": true
+        },
+        "oracle_teacher": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 0.16031278113521524,
+            "gap_error_mm": -0.06011185914813963,
+            "full_rotation_error_deg": 0.020258528456178208,
+            "V": 0.010038482559072633
+          },
+          "delta_V_from_initial_command": -2.2845888694439798,
+          "matches_original_teacher_prefix_bit_exact": true
+        },
+        "zero_relative_HOLD": {
+          "safe_computational_preview": false,
+          "error": "FinishedStationaryRoundoffError: Finished stationary output exceeds numerical roundoff bound"
+        }
+      }
+    },
+    {
+      "physics_row": 28920,
+      "time_s": 120.49999999997257,
+      "reserved_diagnostic_only": true,
+      "prefix_cells": 10,
+      "prefix_seconds": 0.5,
+      "initial_command": {
+        "tangent_mm": 3.6660204709500572,
+        "gap_error_mm": -0.7673759592302445,
+        "full_rotation_error_deg": 0.5719001123125703,
+        "V": 3.948792386160757
+      },
+      "variants": {
+        "actual_student": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 2.914475332239129,
+            "gap_error_mm": -0.5453199193055924,
+            "full_rotation_error_deg": 0.37941041930656294,
+            "V": 2.420915429949053
+          },
+          "delta_V_from_initial_command": -1.5278769562117036,
+          "actual_native_command_steps_available": 120,
+          "cpu_replan_vs_native_max_abs_rad": 0.0,
+          "cpu_replan_vs_native_bit_exact": true
+        },
+        "oracle_teacher": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 0.14625830588407707,
+            "gap_error_mm": -0.05938401430429993,
+            "full_rotation_error_deg": 0.01295761768333457,
+            "V": 0.008874334164913362
+          },
+          "delta_V_from_initial_command": -3.939918051995843,
+          "matches_original_teacher_prefix_bit_exact": true
+        },
+        "zero_relative_HOLD": {
+          "safe_computational_preview": false,
+          "error": "FinishedStationaryRoundoffError: Finished stationary output exceeds numerical roundoff bound"
+        }
+      }
+    },
+    {
+      "physics_row": 29040,
+      "time_s": 120.99999999997212,
+      "reserved_diagnostic_only": true,
+      "prefix_cells": 10,
+      "prefix_seconds": 0.5,
+      "initial_command": {
+        "tangent_mm": 2.914475332239129,
+        "gap_error_mm": -0.5453199193055924,
+        "full_rotation_error_deg": 0.37941041930656294,
+        "V": 2.420915429949053
+      },
+      "variants": {
+        "actual_student": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 3.6029961100357886,
+            "gap_error_mm": -0.7166911997099935,
+            "full_rotation_error_deg": 0.5048971637848592,
+            "V": 3.759041517975006
+          },
+          "delta_V_from_initial_command": 1.3381260880259527,
+          "actual_native_command_steps_available": 1,
+          "cpu_replan_vs_native_max_abs_rad": 0.0,
+          "cpu_replan_vs_native_bit_exact": true
+        },
+        "oracle_teacher": {
+          "safe_computational_preview": true,
+          "end_command": {
+            "tangent_mm": 0.219358149939746,
+            "gap_error_mm": -0.08235725032298274,
+            "full_rotation_error_deg": 0.025519438848363645,
+            "V": 0.018812216167009465
+          },
+          "delta_V_from_initial_command": -2.4021032137820435,
+          "matches_original_teacher_prefix_bit_exact": true
+        },
+        "zero_relative_HOLD": {
+          "safe_computational_preview": false,
+          "error": "FinishedStationaryRoundoffError: Finished stationary output exceeds numerical roundoff bound"
+        }
+      }
+    }
+  ],
+  "actual_student_steps_compared": 601,
+  "all_available_native_commands_bit_exact": true,
+  "teacher_prefix_commands_compared": 720,
+  "all_teacher_prefixes_bit_exact": true,
+  "actual_query_count": 6,
+  "optimization_eligible_query_count": 4,
+  "optimization_eligible_valid_future_cells": 58,
+  "reserved_query_count": 2,
+  "reserved_valid_future_cells": 27,
+  "new_physical_demonstrations": 0,
+  "optimizer_steps": 0,
+  "actions_executed": false,
+  "physics_qualified": false,
+  "fresh_payloads_opened": false,
+  "scope": "Measured TRAIN p001120/known pose1/L3 query states. CPU computed E10 command endpoints; no new physical rollouts. Skin-relative observations converted with bound actual25mm prepose gap. HOLD original safety abstentions preserved."
+}
