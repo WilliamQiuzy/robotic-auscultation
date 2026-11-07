@@ -83,6 +83,18 @@ class ACT3Presentation(unittest.TestCase):
             self.assertEqual(len(b), asset['bytes'])
             self.assertEqual(hashlib.sha256(b).hexdigest(), asset['sha256'])
 
+    def test_secondary_issue_is_not_claimed_as_public_error_text(self):
+        case = next(c for c in self.evidence['cases'] if c['id'] == 'p000923-r3')
+        self.assertEqual(case['error'], 'ValueError: Actual closed successful learned native result without errors required')
+        bindings = json.loads((DRAFT / 'evidence/act-recovery-iteration3-bindings-20261106.public.json').read_text())
+        cause = next(c for c in bindings['underlying_dev_failures'] if c['role'] == 'selection_VAL' and c['target'] == 'R3')
+        self.assertEqual(cause['reported_minimum_m'], 0.002999369900189177)
+        self.assertTrue(cause['secondary_audit_finalize_error_retained'])
+        self.assertTrue('the exact clearance scalar is bound in the' in self.html, 'The public clearance binding must be explicit.')
+        self.assertTrue('The secondary audit finalization issue is recorded in the original Linux receipts;' in self.html, 'Secondary issue provenance must name the original Linux receipts.')
+        self.assertTrue('the public case ledger retains the generic qualification verdict.' in self.html, 'The generic public verdict must not be presented as detailed secondary error text.')
+        self.assertNotIn('the exact scalar and secondary audit finalization error are retained in the evidence', self.html)
+
     def test_local_links_and_privacy_remain_valid_without_publication(self):
         elements = Elements(self.html).elements
         ids = {a['id'] for _, a in elements if 'id' in a}
