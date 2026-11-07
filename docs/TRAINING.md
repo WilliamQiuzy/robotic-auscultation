@@ -9,6 +9,10 @@ remains a separate legacy contract. Neither prepared data nor offline training
 establishes successful Isaac contact; the [experiment notebook](drafts/act-recovery-20261106.html)
 records actual phase status and native results.
 
+For the later source26/ACT5 treatment, use the independent [CPU capsule and native
+reproduction guide](SOURCE26_REPRODUCTION.md). The repository root remains the
+historical source19 snapshot; the source26 selection does not replace it.
+
 ## Task and data flow
 
 ```

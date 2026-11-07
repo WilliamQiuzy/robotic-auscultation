@@ -23,11 +23,15 @@ ledger accounts for actual constant STOP-tail samples without relabeling them
 as L2. Only complete episodes passing original physical/source/reset checks
 enter the new export; every failed attempt remains in its outcome ledger.
 
-The [current source selection](drafts/act-student-recovery-source-selection-20261106.json)
+The [historical source19 root selection](drafts/act-student-recovery-source-selection-20261106.json)
 binds the distributed production/test bytes to the experiment source. Private
 per-run orchestration, credentials, licensed bodies, raw arrays and checkpoints
 are not distributed. Historical source8 and source17 inventories remain intact;
 the source17 public snapshot is commit `64c8c764fc6d27dad32e12b3b1700ed0bd6544f6`.
+
+The later source26 code is isolated in a [partial CPU capsule](SOURCE26_REPRODUCTION.md),
+with its own exact-file inventory and an original-owner reproduction guide. It
+does not relabel the root snapshot or earlier results as source26.
 
 The first repaired ACT completed20,000 steps but passed0/4 actual development
 cycles. The next recovery mode authenticates raw target prefixes from closed
