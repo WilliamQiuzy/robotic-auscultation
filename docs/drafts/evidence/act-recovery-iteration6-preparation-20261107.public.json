@@ -1,0 +1,101 @@
+{
+  "schema": "wam_act6_terminal_preparation_public_v1",
+  "as_of_utc": "2026-11-07T06:22:51.552701+00:00",
+  "model": "ACT6",
+  "treatment": "ACT5 selected19000 warm start, six genuine terminal queries, fresh optimizer,20k new steps and explicit native STOP",
+  "preparation_passed": true,
+  "preparation_elapsed_s": 700.1132536059886,
+  "parent": {
+    "origins": 35982,
+    "sources": 934,
+    "slots": 1109,
+    "exact_ordered_prefix_preserved": true
+  },
+  "exported": {
+    "origins": 35988,
+    "sources": 940,
+    "slots": 1115
+  },
+  "new_queries": {
+    "subject_id": "p001120",
+    "split": "train",
+    "targets": [
+      "R3",
+      "L3"
+    ],
+    "semantic_boundaries": [
+      "at_or_before60s",
+      "at_or_before90s",
+      "last_eligible"
+    ],
+    "attempted": 6,
+    "accepted": 6,
+    "computed_cells": 120,
+    "actions_executed": false,
+    "physics_qualified": false,
+    "future_measured_histories": false
+  },
+  "oracle_group": {
+    "origins": 26,
+    "computed_cells": 518
+  },
+  "sampling_groups": {
+    "native": {
+      "size": 32,
+      "coefficient": 0.5
+    },
+    "planned": {
+      "size": 8,
+      "coefficient": 0.125
+    },
+    "conditional": {
+      "size": 8,
+      "coefficient": 0.125
+    },
+    "oracle": {
+      "size": 16,
+      "coefficient": 0.25
+    }
+  },
+  "initialization": {
+    "origin": "ACT5 selected19000",
+    "state_dict_only": true,
+    "optimizer_imported": false,
+    "scheduler_imported": false,
+    "original26_cpu_export_passed": true,
+    "new28_prediction_equivalence": "pending actual CPU integration"
+  },
+  "state_only": true,
+  "RGBD_neural_inputs": false,
+  "Hall_neural_input": false,
+  "fresh_identities_exposed": false,
+  "normalization_refit": false,
+  "model_qualified": false,
+  "formal_acceptance": false,
+  "physics_gates_changed": false,
+  "expert_l2_fallback": false,
+  "source28_commit": "d932993b13030da7873d04a4a9471df99bb836ec",
+  "original_receipt_digests": {
+    "data_export_control": {
+      "bytes": 94515,
+      "sha256": "06b846a26331a6d004532a13bcb532c4d8c1fff59bff9ba313daf2b7217e3aa2"
+    },
+    "exported_data": {
+      "bytes": 1129,
+      "sha256": "d5ec96f999498dd3133dc8984bc79b44ad2eb00be24f14bc1bebb269045bf7ce"
+    },
+    "original_oracle_query_aggregate": {
+      "bytes": 1294,
+      "sha256": "cbc97aa5b813c60302ef9ee784df87fab5c131f4c75e40df979bfe4ddea5ebb8"
+    },
+    "initialization": {
+      "bytes": 47401,
+      "sha256": "63a65a064605c48f89ecfa8718c1d1a7b0681e91812dcd35c40521b46aa81c0e"
+    },
+    "source28_manifest": {
+      "bytes": 289698,
+      "sha256": "f05a78822bcc6febbaa7f4a7a8de2cabd9aa33daed3d648b90053cb336edb89c"
+    }
+  },
+  "limitation": "This is a CPU data preparation snapshot, not a training or physical result. Computed continuations are auxiliary labels, not successful measured contact demonstrations. Original receipts, arrays, body assets and weights are not included."
+}
