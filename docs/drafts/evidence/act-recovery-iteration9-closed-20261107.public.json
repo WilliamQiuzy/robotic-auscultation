@@ -1,0 +1,231 @@
+{
+  "schema": "act_recovery_iteration9_closed_public_evidence_v1",
+  "updated_date": "2026-11-07",
+  "milestone": "closed_known_development_negative_model_not_accepted",
+  "source_stage": "Source34",
+  "source_commit": "ac2bc918f733e25f419d73bc83894be7e4d01545",
+  "training": {
+    "initialization": {
+      "treatment": "ACT6",
+      "selected_step": 18000,
+      "fresh_AdamW": true,
+      "initial_optimizer_step": 0
+    },
+    "new_updates": 1000,
+    "selected_new_update": 1000,
+    "new_updates_are_lifetime_total": false,
+    "selection_rule": "fixed_final_step_not_validation_minimum",
+    "own_full_CPU_equivalence_passed": true
+  },
+  "model_protocol": {
+    "backbone": "official_ACT",
+    "posture_head": "smooth_posture_head_v2",
+    "state_dimension": 17,
+    "observation_history": 2,
+    "action_horizon": 20,
+    "executed_cells": 10,
+    "learned_motor_stage": "L2_approach",
+    "contact_controller": "analytic_Hall_L3",
+    "given_3D_target": true,
+    "expert_L2_fallback": false,
+    "RGBD_recorded": true,
+    "RGBD_neural_inputs": false,
+    "Hall_neural_input": false,
+    "audio": false
+  },
+  "measured_TRAIN_fit": {
+    "windows": 58,
+    "valid_future_cells": 479,
+    "horizon20_labels": 0,
+    "ACT_MAE_mrad": 2.0598296290110505,
+    "HOLD_MAE_mrad": 21.23748,
+    "constant_velocity_MAE_mrad": 13.66792,
+    "scope": "valid_TRAIN_prefixes_only_not_full_H20_or_heldout_fit",
+    "one_known_TRAIN_body": "p001120",
+    "physical_qualification_from_offline_error": false
+  },
+  "known_development": {
+    "planned": 4,
+    "executed": 4,
+    "independently_physics_qualified": 2,
+    "owner_closed_normally": true,
+    "all_workers_closed_normally": true,
+    "infrastructure_errors": 0,
+    "source34_stable": true,
+    "cases": [
+      {
+        "body": "p001120",
+        "split": "TRAIN",
+        "target": "R3",
+        "physical_pass": true,
+        "release_and_home_passed": true
+      },
+      {
+        "body": "p001120",
+        "split": "TRAIN",
+        "target": "L3",
+        "physical_pass": true,
+        "release_and_home_passed": true
+      },
+      {
+        "body": "p000923",
+        "split": "selection_VAL",
+        "target": "R3",
+        "physical_pass": false,
+        "failure": "original_L2_120_second_deadline"
+      },
+      {
+        "body": "p000923",
+        "split": "selection_VAL",
+        "target": "L3",
+        "physical_pass": false,
+        "failure": "original_L2_120_second_deadline"
+      }
+    ]
+  },
+  "fresh_benchmark": {
+    "identities": 8,
+    "declared_scenarios": 32,
+    "executed_cases": 0,
+    "payloads_opened": false
+  },
+  "model_accepted": false,
+  "unchanged_physics": {
+    "C_protrusion_mm": 5,
+    "B_recess_mm": 1,
+    "TCP_mm": 132,
+    "camera_down_degrees": 7,
+    "body_condition": "static_bare_SMPL",
+    "normal_contact_components": [
+      "B",
+      "C"
+    ],
+    "normal_hold_N": [
+      3.5,
+      4.5
+    ],
+    "continuous_hold_min_s": 3,
+    "total_contact_max_N": 6,
+    "Hall_strict_max_N": 5.5,
+    "stroke_max_mm": 6,
+    "forbidden_force_exact_N": 0,
+    "disk_plane_tilt_max_deg": 3,
+    "release_and_home_required": true,
+    "contact_plane_radius_mm": 23,
+    "contact_plane_diameter_mm": 46
+  },
+  "illustrative_L3_physics": {
+    "normal_contact_peak_N": 4.0273328237466135,
+    "Hall_max_N": 3.988100062117734,
+    "combined_force_and_plane_hold_s": 3.0,
+    "maximum_hold_tilt_deg": 1.9995746361687932,
+    "forbidden_force_N": 0,
+    "release_and_home_passed": true,
+    "reported_plane_radius_m": 0.023,
+    "scope": "one_known_TRAIN_L3_pass_not_model_acceptance"
+  },
+  "limits": {
+    "population_generalization": false,
+    "new_body_diversity": false,
+    "overall_improvement_over_ACT6": false,
+    "algorithm_causal_effect": false,
+    "visual_neural_policy": false,
+    "dynamic_patient": false,
+    "clothing": false,
+    "continuous_ten_point_policy": false,
+    "hardware_validation": false,
+    "whole_project_complete": false
+  },
+  "source_artifact_digests": {
+    "closed_known_development": {
+      "bytes": 50761,
+      "sha256": "8811970c7f75126e5af7a9598c5c29dff0395f616f7103d7eaf483f5157bd195"
+    },
+    "CPU_measured_fit": {
+      "sha256": "2d6c23921bf625a2b6770b1ece1adff0685cd1dd12a33a0af74487a33d5dab0c"
+    },
+    "ACT9_training_closed": {
+      "bytes": 2220,
+      "sha256": "93ecf09940471ed62e23f757f9f885cf9f6efa08b6433a4deed4a84ae90bf6fe"
+    },
+    "ACT9_own_full_CPU_equivalence": {
+      "bytes": 13757,
+      "sha256": "a6f6cc75977f52363892fe4694707b160c85b71d2fff88da1593dc2966ad4b04"
+    },
+    "native_L3_report": {
+      "bytes": 3325996,
+      "sha256": "4c2bac641930c79d46eb6ab5c1a69afd7f9c4097abebffa722b08635d07e9417"
+    },
+    "independent_L3_qualification": {
+      "bytes": 3226,
+      "sha256": "45e01e4b8aff2c1a92b2f0871f5a9030db6076eecadcc058e271a7811b5dd740"
+    }
+  },
+  "verified_media": {
+    "video": {
+      "file": "assets/act-recovery-iteration9-l3-complete-20261107.mp4",
+      "bytes": 646815,
+      "sha256": "b7612f429988c4c3378df1b837f3fcf29998c4bfbfb453fdab70044887c7e456",
+      "role": "actual_ACT9_learned_L2_then_analytic_Hall_L3",
+      "controller": "sim.ausc_policy.m2_given_contact_expanded_pilot_deployment.ExpandedGivenACT",
+      "body": "p001120",
+      "split": "TRAIN",
+      "pose": "p000474_a001230_f0000",
+      "target": "L3",
+      "recorded_size": [
+        640,
+        360
+      ],
+      "frames": 940,
+      "fps": 10,
+      "encoded_s": 94.0,
+      "native_simulation_s": 94.04583333333333,
+      "native_physics_ticks": 22571,
+      "trailing_unrendered_native_ticks": 11,
+      "time_basis": "simulation_time",
+      "full_decode_passed": true,
+      "unedited": true,
+      "scene_rerendered": false,
+      "audio": false,
+      "expert_L2_fallback": false,
+      "illustrates_one_pass_of_four_known_cases": true,
+      "selected_model_sha256": "7523475be10b1ad9edb1b2080513c748d7d3d0dcbc90b19fbefc5539ac27baec",
+      "source_commit": "ac2bc918f733e25f419d73bc83894be7e4d01545"
+    },
+    "poster": {
+      "file": "assets/act-recovery-iteration9-l3-complete-20261107-poster.png",
+      "bytes": 68104,
+      "sha256": "cf591a8754dd723e0ce0f8cbb79888ad2411bc4ef35ae25f72da726d1e2e6f9b",
+      "source_video_sha256": "b7612f429988c4c3378df1b837f3fcf29998c4bfbfb453fdab70044887c7e456",
+      "encoded_frame": 500,
+      "encoded_time_s": 50.0,
+      "scene_rerendered": false,
+      "decoded_RGB_sha256": "07c2d975bdd197e98c00474dc6b40601e0c531fdf739591f3a8018d501e79e64"
+    },
+    "known_development_matrix": {
+      "file": "assets/act-recovery-iteration9-known-development-20261107.png",
+      "bytes": 83242,
+      "sha256": "0de8840fb842952057521018229dd3ac6b969b3a31ffbd5ae57c3ae58aa79077",
+      "dimensions": [
+        1530,
+        828
+      ],
+      "derived_from": "known_development_four_case_scalar_verdicts",
+      "scientific_plot_not_simulation_recording": true
+    }
+  },
+  "selected_model": {
+    "bytes": 11278593,
+    "sha256": "7523475be10b1ad9edb1b2080513c748d7d3d0dcbc90b19fbefc5539ac27baec"
+  },
+  "geometry_reporting_correction": {
+    "historical_field": "Source32_disk_diameter_mm_23",
+    "correction": "The original strict contact_plane_radius_m is 0.023: radius 23 mm, diameter 46 mm. The dated Source32 ledger has a diameter reporting typo and is retained unchanged.",
+    "physical_gate_changed": false,
+    "verified_source_fields": [
+      "m2_pilot_config.contact_plane_radius_m",
+      "m2_given_contact_deployment.contact_plane_radius_m",
+      "layout_scan.contact_plane_radius_m"
+    ]
+  }
+}
