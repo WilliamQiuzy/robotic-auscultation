@@ -1,0 +1,353 @@
+{
+  "schema": "wam_act5_legacy_closed_public_v1",
+  "snapshot_utc": "2026-11-07T06:17:49.519663+00:00",
+  "diagnostic_only": true,
+  "scope": "four known TRAIN/selection-validation DEV cases; legacy STOP diagnostic, not new STOP treatment or fresh identities",
+  "model_weights_sha256": "8258390271fb23719b718468181e71a864c07fb1b8cc2d3584e4f1af2cbd6384",
+  "original_aggregate": {
+    "linux_relative_file": "diagnostics/act5-legacy-stop-development-20261107-v1/NEEDS_REPAIR.json",
+    "bytes": 16028,
+    "sha256": "6306e1c90eabad121bcc697a84a8ac154a19e07edd486ff1a08bbf1fade6a856"
+  },
+  "original_owner": {
+    "bytes": 3401,
+    "linux_relative_file": "runs/ausc_policy/act5-legacy-stop-smoke-20261107-v1/result.json",
+    "sha256": "f23f66c6e6d5b37b1c73ab2cc67a46f95c80891668702a531b0b0f57a92692df"
+  },
+  "normal_closed_drained_released_owner": true,
+  "physical_successes": 0,
+  "fixed_denominator": 4,
+  "actual_physical_episodes": 4,
+  "recorded_completed_cycles_rejected_by_capture_budget": 1,
+  "fresh_identities_exposed": false,
+  "formal_acceptance": false,
+  "model_qualified": false,
+  "physics_gates_changed": false,
+  "expert_l2_fallback": false,
+  "outcomes": [
+    {
+      "id": "p001120-r3",
+      "subject_id": "p001120",
+      "split": "train",
+      "target_id": "R3",
+      "qualification_passed": false,
+      "native_result": {
+        "linux_relative_file": "runs/ausc_policy/act5-legacy-stop-smoke-20261107-v1/output/p001120-r3/COMPLETE.json",
+        "bytes": 4856058,
+        "sha256": "46aa784e36ccd5c5376566ab38e61311319a3f3484cbc51ab0a62a53ffdefe8d"
+      },
+      "qualification": {
+        "bytes": 1411,
+        "linux_relative_file": "diagnostics/act5-legacy-stop-development-20261107-v1/qualifications/p001120-r3.json",
+        "sha256": "f9dd23baaf9990ec589445ac61fc41e7ed484543d59c97eadfb6b3e6f47ced75"
+      },
+      "physics_steps": 29041,
+      "simulation_seconds": 121.00416666666666,
+      "whole_native_success": false,
+      "whole_physical_validation": false,
+      "controller_motion_complete": false,
+      "failure_reason": "Entire compact job directory exceeds 100000000 bytes",
+      "native_errors": [],
+      "l2_handoff_success_count": 0,
+      "learned_policy": true,
+      "expert_l2_fallback": false,
+      "points": [
+        {
+          "target": "R3",
+          "native_point_success": false,
+          "final_phase": "APPROACH",
+          "observed_hold_s": 0.0,
+          "verified_front_contact_hold_s": 0.0,
+          "physical_force_audit_passed": false,
+          "contact_force_peak_N": 0.0,
+          "force_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 9.180286753007749e-08,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 0.0,
+            "lip_N": 0.0,
+            "retainer_N": 0.0
+          },
+          "plane_audit_passed": false,
+          "continuous_force_and_plane_hold_s": 0.0,
+          "maximum_hold_tilt_deg": null,
+          "return_bridge_checks": []
+        }
+      ],
+      "native_selected_checkpoint_matches": true,
+      "executed_controller_class": "sim.ausc_policy.m2_given_contact_expanded_pilot_deployment.ExpandedGivenACT",
+      "state_only": true,
+      "l2_outcomes": [
+        {
+          "target": "R3",
+          "l2_coarse_reached": true,
+          "l2_handoff_success": false,
+          "l3_started": false,
+          "l3_completed": false,
+          "failure_reason": "M2 L2 clock/120 second deadline failed"
+        }
+      ]
+    },
+    {
+      "id": "p001120-l3",
+      "subject_id": "p001120",
+      "split": "train",
+      "target_id": "L3",
+      "qualification_passed": false,
+      "native_result": {
+        "linux_relative_file": "runs/ausc_policy/act5-legacy-stop-smoke-20261107-v1/output/p001120-l3/COMPLETE.json",
+        "bytes": 4874699,
+        "sha256": "931a193f9f8d5b8fe3fd2e988508a53a120a9c80601efbfe9ed543ad0060c9b0"
+      },
+      "qualification": {
+        "bytes": 1411,
+        "linux_relative_file": "diagnostics/act5-legacy-stop-development-20261107-v1/qualifications/p001120-l3.json",
+        "sha256": "165ca83759a6ae07b5936dddc38971c66513fe90df191567f9e822ba69b41a55"
+      },
+      "physics_steps": 29041,
+      "simulation_seconds": 121.00416666666666,
+      "whole_native_success": false,
+      "whole_physical_validation": false,
+      "controller_motion_complete": false,
+      "failure_reason": "Entire compact job directory exceeds 100000000 bytes",
+      "native_errors": [],
+      "l2_handoff_success_count": 0,
+      "learned_policy": true,
+      "expert_l2_fallback": false,
+      "points": [
+        {
+          "target": "L3",
+          "native_point_success": false,
+          "final_phase": "APPROACH",
+          "observed_hold_s": 0.0,
+          "verified_front_contact_hold_s": 0.0,
+          "physical_force_audit_passed": false,
+          "contact_force_peak_N": 0.0,
+          "force_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 9.18081610734589e-08,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 0.0,
+            "lip_N": 0.0,
+            "retainer_N": 0.0
+          },
+          "plane_audit_passed": false,
+          "continuous_force_and_plane_hold_s": 0.0,
+          "maximum_hold_tilt_deg": null,
+          "return_bridge_checks": []
+        }
+      ],
+      "native_selected_checkpoint_matches": true,
+      "executed_controller_class": "sim.ausc_policy.m2_given_contact_expanded_pilot_deployment.ExpandedGivenACT",
+      "state_only": true,
+      "l2_outcomes": [
+        {
+          "target": "L3",
+          "l2_coarse_reached": false,
+          "l2_handoff_success": false,
+          "l3_started": false,
+          "l3_completed": false,
+          "failure_reason": "M2 L2 clock/120 second deadline failed"
+        }
+      ]
+    },
+    {
+      "id": "p000923-r3",
+      "subject_id": "p000923",
+      "split": "validation",
+      "target_id": "R3",
+      "qualification_passed": false,
+      "native_result": {
+        "linux_relative_file": "runs/ausc_policy/act5-legacy-stop-smoke-20261107-v1/output/p000923-r3/COMPLETE.json",
+        "bytes": 969260,
+        "sha256": "63c7462b5e0cc6fc87dbf1163b1d9a6258da2d0be9cdee532a123469920e57b4"
+      },
+      "qualification": {
+        "bytes": 1409,
+        "linux_relative_file": "diagnostics/act5-legacy-stop-development-20261107-v1/qualifications/p000923-r3.json",
+        "sha256": "39a2b3a510623017ae5c6da61ff55755a0968a9d3b5a8a1ceb193c0418734a6c"
+      },
+      "physics_steps": 24630,
+      "simulation_seconds": 102.625,
+      "whole_native_success": false,
+      "whole_physical_validation": false,
+      "controller_motion_complete": true,
+      "failure_reason": "Entire compact job directory exceeds 100000000 bytes",
+      "native_errors": [],
+      "l2_handoff_success_count": 1,
+      "learned_policy": true,
+      "expert_l2_fallback": false,
+      "points": [
+        {
+          "target": "R3",
+          "native_point_success": true,
+          "final_phase": "DONE",
+          "observed_hold_s": 3.0,
+          "verified_front_contact_hold_s": 3.000000000000044,
+          "physical_force_audit_passed": true,
+          "contact_force_peak_N": 4.014601284110162,
+          "force_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.0025714116636663675,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9895022232379733,
+            "lip_N": 0.0,
+            "retainer_N": 4.014601284110162
+          },
+          "plane_audit_passed": true,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 1.499652738525949,
+          "return_bridge_checks": [
+            {
+              "clear": true,
+              "minimum_distance_m": 0.003,
+              "samples": 2
+            }
+          ]
+        }
+      ],
+      "native_selected_checkpoint_matches": true,
+      "executed_controller_class": "sim.ausc_policy.m2_given_contact_expanded_pilot_deployment.ExpandedGivenACT",
+      "state_only": true,
+      "l2_outcomes": [
+        {
+          "target": "R3",
+          "l2_coarse_reached": true,
+          "l2_handoff_success": true,
+          "l3_started": true,
+          "l3_completed": true,
+          "failure_reason": null
+        }
+      ]
+    },
+    {
+      "id": "p000923-l3",
+      "subject_id": "p000923",
+      "split": "validation",
+      "target_id": "L3",
+      "qualification_passed": false,
+      "native_result": {
+        "linux_relative_file": "runs/ausc_policy/act5-legacy-stop-smoke-20261107-v1/output/p000923-l3/COMPLETE.json",
+        "bytes": 4854932,
+        "sha256": "318334c308fd8995c1bab4a6b1325504804e8b8ca2197337a1047308b3097b28"
+      },
+      "qualification": {
+        "bytes": 1411,
+        "linux_relative_file": "diagnostics/act5-legacy-stop-development-20261107-v1/qualifications/p000923-l3.json",
+        "sha256": "9f71b3d9bc253ea4614869982b297fc8a94acca52a8900f8c9d7b8d3b16d3e6a"
+      },
+      "physics_steps": 29041,
+      "simulation_seconds": 121.00416666666666,
+      "whole_native_success": false,
+      "whole_physical_validation": false,
+      "controller_motion_complete": false,
+      "failure_reason": "Entire compact job directory exceeds 100000000 bytes",
+      "native_errors": [],
+      "l2_handoff_success_count": 0,
+      "learned_policy": true,
+      "expert_l2_fallback": false,
+      "points": [
+        {
+          "target": "L3",
+          "native_point_success": false,
+          "final_phase": "APPROACH",
+          "observed_hold_s": 0.0,
+          "verified_front_contact_hold_s": 0.0,
+          "physical_force_audit_passed": false,
+          "contact_force_peak_N": 0.0,
+          "force_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 7.489921927117393e-08,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 0.0,
+            "lip_N": 0.0,
+            "retainer_N": 0.0
+          },
+          "plane_audit_passed": false,
+          "continuous_force_and_plane_hold_s": 0.0,
+          "maximum_hold_tilt_deg": null,
+          "return_bridge_checks": []
+        }
+      ],
+      "native_selected_checkpoint_matches": true,
+      "executed_controller_class": "sim.ausc_policy.m2_given_contact_expanded_pilot_deployment.ExpandedGivenACT",
+      "state_only": true,
+      "l2_outcomes": [
+        {
+          "target": "L3",
+          "l2_coarse_reached": false,
+          "l2_handoff_success": false,
+          "l3_started": false,
+          "l3_completed": false,
+          "failure_reason": "M2 L2 clock/120 second deadline failed"
+        }
+      ]
+    }
+  ],
+  "limitation": "The R3 selection-validation native point completed contact, hold, unload and return, but its whole case failed the unchanged100MB capture cap. Force/plane point audits are not an independent whole-case qualification. Three other cases timed out in L2. No fresh/generalization result.",
+  "raw_vectors_or_weights_included": false,
+  "original_receipts_included": false,
+  "media": {
+    "recorded_cycle": {
+      "file": "act-recovery-iteration5-legacy-r3-recorded-cycle-20261107.mp4",
+      "frames": 1026,
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "encoded_seconds": 102.6,
+      "native_seconds": 102.625,
+      "native_ticks": 24630,
+      "unedited": true,
+      "full_linux_decode_passed": true,
+      "learned_l2": true,
+      "analytic_l3": true,
+      "independent_whole_case_passed": false,
+      "poster_source_seconds": 55
+    },
+    "train_negatives": {
+      "frames_each": 1210,
+      "encoded_seconds_each": 121,
+      "native_ticks_each": 29041,
+      "unedited": true,
+      "full_linux_decode_passed": true
+    }
+  },
+  "public_files": {
+    "assets/act-recovery-iteration5-legacy-r3-recorded-cycle-20261107.mp4": {
+      "bytes": 599914,
+      "sha256": "f9d742f3400f6a3680c3f273a397d8cfe3b2b9ff4ba7d02a698a3850eb04ada4"
+    },
+    "assets/act-recovery-iteration5-legacy-r3-recorded-cycle-20261107-poster.png": {
+      "bytes": 80390,
+      "sha256": "fec0da98e5cd6787da9a4849add856c4597eb4a148771b8149617b76ee514167"
+    },
+    "assets/act-recovery-iteration5-legacy-train-r3-negative-20261107.mp4": {
+      "bytes": 754178,
+      "sha256": "19163c31e2d1341deedc3db958ba6495a4b453fea056c0da472c688da361f4cd"
+    },
+    "assets/act-recovery-iteration5-legacy-train-l3-negative-20261107.mp4": {
+      "bytes": 893347,
+      "sha256": "6f73e0fe6a8b32f1826bc17b68fdb181da8df72cfcdf0920b823ed680f29fd8e"
+    },
+    "assets/act-recovery-iteration5-legacy-late-approach-20261107.svg": {
+      "bytes": 83650,
+      "sha256": "386629bcde3d42ac7f4bc480f72a331c99c713e123ac9275715d9cfb2055f0af"
+    },
+    "assets/act-recovery-iteration5-legacy-late-approach-20261107.png": {
+      "bytes": 155201,
+      "sha256": "97719fe22375f562ef23d0013fff283a2ffc3e2a518744db0a96a31baa020cc1"
+    }
+  }
+}
