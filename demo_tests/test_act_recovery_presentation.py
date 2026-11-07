@@ -1,9 +1,10 @@
-"""ACT3 publication boundaries from supplied closed scalar/media evidence; CPU only."""
+"""ACT recovery publication boundaries from closed scalar/media evidence; CPU only."""
 import hashlib
 from html.parser import HTMLParser
 import json
 from pathlib import Path
 import re
+import struct
 import unittest
 from urllib.parse import unquote, urlsplit
 
@@ -43,8 +44,7 @@ class ACT3Presentation(unittest.TestCase):
         self.assertFalse(e['Hall_neural_input'])
         self.assertFalse(e['fresh_identities_exposed'])
         self.assertFalse(e['physics_gates_changed'])
-        self.assertIn('separate ACT4 treatment is running', self.html)
-        self.assertIn('No ACT4 training or DEV outcome is reported here', self.html)
+        self.assertIn('ACT4 also closed negative', self.html)
 
     def test_actual_act_video_retains_unrendered_terminal_ticks(self):
         r = self.evidence['recording']
@@ -116,6 +116,90 @@ class ACT3Presentation(unittest.TestCase):
             self.assertNotIn('/opt/', serialized)
             self.assertNotIn('/Users/', serialized)
             self.assertIsNone(re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', serialized))
+
+
+class ACT4Presentation(unittest.TestCase):
+    def setUp(self):
+        self.html = (DRAFT / 'act-recovery-20261106.html').read_text()
+
+    def test_current_article_replaces_pending_act4_with_a_closed_negative(self):
+        elements = Elements(self.html).elements
+        self.assertTrue(any(a.get('id') == 'iteration4' for _, a in elements))
+        self.assertTrue(any(a.get('href') == '#iteration4' for _, a in elements))
+        self.assertIn('Four treatments closed negative', self.html)
+        self.assertNotIn('separate ACT4 result pending', self.html)
+        self.assertNotIn('separate ACT4 treatment is running', self.html)
+        self.assertIn('handoff record is not a successful handoff', self.html)
+
+    def test_exact_actual_result_retains_the_handoff_and_shadowed_failure_distinction(self):
+        p = DRAFT / 'evidence/act-recovery-iteration4-20261107.public.json'
+        self.assertTrue(p.is_file(), 'ACT4 must include the exact public result, not a prose-only verdict.')
+        self.assertEqual(hashlib.sha256(p.read_bytes()).hexdigest(), '31baa08307b34e36c5752fb4b4bdcaae45f0c5582269e6b34072360dfbdc6c82')
+        e = json.loads(p.read_text())
+        self.assertEqual((e['completed_steps'], e['selected_step'], len(e['evaluations'])), (20000, 18500, 40))
+        self.assertAlmostEqual(e['raw_target_mae_rad']['train'] * 1000, 7.908001314907445)
+        self.assertAlmostEqual(e['raw_target_mae_rad']['selection_validation'] * 1000, 11.192285613977882)
+        d = e['actual_development']
+        self.assertEqual((d['fixed_denominator'], d['physical_successes'], len(d['outcomes'])), (4, 0, 4))
+        for c in d['outcomes']:
+            self.assertFalse(c['passed'])
+            self.assertEqual(c['l2_handoff_record_count'], 1)
+            self.assertEqual(c['actual_l2_handoff_successes'], 0)
+            self.assertEqual(c['actual_l3_starts'], 0)
+        stops = [c['l2_outcomes'][0]['failure_reason'] for c in d['outcomes']]
+        self.assertEqual(stops.count('M2 L2 clock/120 second deadline failed'), 3)
+        self.assertEqual(stops.count('Stop preview CPU deadline'), 1)
+        self.assertEqual(sum('100000000' in c['failure_reason'] for c in d['outcomes']), 3)
+        self.assertFalse(e['expert_l2_fallback'])
+        self.assertFalse(e['fresh_identities_exposed'])
+        self.assertIn('later 100 MB directory cap', self.html)
+
+    def test_media_and_scalars_are_byte_bound_with_derived_poster_provenance(self):
+        p = DRAFT / 'evidence/act-recovery-iteration4-bindings-20261107.public.json'
+        self.assertTrue(p.is_file(), 'New public files need a downloadable byte/hash manifest.')
+        bindings = json.loads(p.read_text())
+        for name, asset in bindings['public_files'].items():
+            raw = (DRAFT / name).read_bytes()
+            self.assertEqual((len(raw), hashlib.sha256(raw).hexdigest()), (asset['bytes'], asset['sha256']), name)
+        movies = bindings['recordings']
+        self.assertEqual([(v['frames'], v['duration_s']) for v in movies], [(1210, 121.0), (167, 16.7)])
+        self.assertTrue(all(v['unedited'] and v['learned_policy'] and not v['expert_l2_fallback'] for v in movies))
+        poster = bindings['derived_posters'][0]
+        self.assertEqual(poster['source_video_sha256'], movies[0]['sha256'])
+        self.assertEqual(poster['requested_time_s'], 25)
+        self.assertIn('does not establish force or contact', self.html)
+        self.assertIn('Scientific CPU diagnostic', self.html)
+
+    def test_new_diagnostic_keeps_its_native_image_aspect_ratio(self):
+        for tag, attrs in Elements(self.html).elements:
+            if tag == 'img' and 'iteration4' in attrs.get('src', ''):
+                native = struct.unpack('>II', (DRAFT / attrs['src']).read_bytes()[16:24])
+                self.assertEqual((int(attrs['width']), int(attrs['height'])), native)
+
+    def test_v3_is_preparation_and_preserves_generated_vs_measured_sources(self):
+        p = DRAFT / 'evidence/act-recovery-v3-preparation-20261107.public.json'
+        self.assertTrue(p.is_file(), 'Prepared CPU work must have a separate bounded summary.')
+        e = json.loads(p.read_text())
+        self.assertFalse(e['training_started'])
+        self.assertFalse(e['physics_executed'])
+        self.assertFalse(e['fresh_identities_exposed'])
+        self.assertEqual(e['original_failed_states']['cpu_checks_passed'], 12)
+        self.assertEqual(e['new_genuine_train_queries']['accepted'], 8)
+        g = e['conditional_generated_h2']
+        self.assertEqual((g['slots'], g['accepted'], g['rejected'], g['computed_cells']), (1024, 854, 170, 17080))
+        self.assertFalse(g['genuine_dart'])
+        self.assertEqual(g['full_original_checks'], 208318)
+        self.assertEqual(e['preserved_parent_auxiliary']['origins'], 35120)
+        self.assertEqual(e['bounded_head']['physical_inset_rad'], .001)
+        self.assertEqual(e['bounded_head']['softness_rad'], .010)
+        self.assertIn('V3 preparation', self.html)
+        self.assertIn('not genuine DART', self.html)
+        self.assertIn('not a causal ablation', self.html)
+        for p in DRAFT.glob('evidence/act-recovery-*20261107.public.json'):
+            raw = p.read_text()
+            self.assertNotIn('/Users/', raw)
+            self.assertNotIn('/opt/', raw)
+            self.assertIsNone(re.search(r'\b(?:\d{1,3}\.){3}\d{1,3}\b', raw))
 
 
 if __name__ == '__main__':

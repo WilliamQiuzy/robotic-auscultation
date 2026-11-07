@@ -1,0 +1,118 @@
+{
+  "schema": "ausc_act_recovery_v3_preparation_public_v1",
+  "scope": "CPU preparation for a combined treatment after ACT4; no training or physical qualification result.",
+  "provenance_note": "This is a public summary of experiment-owner verified Linux receipts, not a byte-for-byte copy of those original receipts. Receipt references below bind the original bytes. Raw states, arrays, body assets and weights are not distributed.",
+  "source26_commit": "05e972ca184383a525aff293fc9f3590e546da9c",
+  "original_receipt_references": {
+    "source_manifest": {
+      "file": "SOURCE_MANIFEST.json",
+      "bytes": 287532,
+      "sha256": "315f021e76f4e606f4a327b053abc22bacf8a1b8c649d35b4bd8ba9e644c743d"
+    },
+    "conditional_production": {
+      "file": "COMPLETE.json",
+      "bytes": 1579,
+      "sha256": "bcb13d5da124e09755aca32d68649b5140429b7f634a04366aa4357fb152b24d"
+    },
+    "conditional_generation": {
+      "file": "COMPLETE.json",
+      "bytes": 1045,
+      "sha256": "09c0fb4a6bb322bf744dfc225a2d244ffb765295e4cf4739f4d5b79d04eadcb7"
+    }
+  },
+  "original_failed_states": {
+    "attempted": 12,
+    "cpu_checks_passed": 12,
+    "checks": [
+      "full geometry",
+      "finite differences",
+      "settling",
+      "replay"
+    ],
+    "counterfactual": true,
+    "physical_qualification": false,
+    "proves_old_cumulative_budget": false
+  },
+  "new_genuine_train_queries": {
+    "slots": 9,
+    "accepted": 8,
+    "rejected": 1,
+    "computed_cells": 159,
+    "measured_demonstrations": false
+  },
+  "conditional_generated_h2": {
+    "frozen_cases": 64,
+    "train_bodies": 16,
+    "known_poses": 2,
+    "sites": [
+      "R3",
+      "L3"
+    ],
+    "anchors_per_case": 4,
+    "joint_l2_radii_rad": [
+      0.015,
+      0.04,
+      0.08,
+      0.12
+    ],
+    "seed": 20261107,
+    "slots": 1024,
+    "accepted": 854,
+    "rejected": 170,
+    "original_unavailable_slots_in_rejections": 64,
+    "computed_cells": 17080,
+    "full_original_checks": 208318,
+    "wall_seconds": 626.073652,
+    "cpu_workers": 3,
+    "genuine_dart": false,
+    "generated_static_history": true,
+    "measured_demonstrations": false
+  },
+  "preserved_parent_auxiliary": {
+    "origins": 35120,
+    "sources": 72,
+    "slots": 76,
+    "preservation_required": "exact ordered prefix"
+  },
+  "expected_auxiliary_after_export": {
+    "origins": 35982,
+    "sources": 934,
+    "slots": 1109,
+    "status": "export and official integration pending final verification"
+  },
+  "bounded_head": {
+    "version": 2,
+    "softness_rad": 0.01,
+    "physical_inset_rad": 0.001,
+    "physical_joint_box_unchanged": true
+  },
+  "proposed_sampling": {
+    "native": {
+      "batch": 32,
+      "weight": 0.5
+    },
+    "planned": {
+      "batch": 8,
+      "weight": 0.125
+    },
+    "conditional": {
+      "batch": 8,
+      "weight": 0.125
+    },
+    "oracle": {
+      "batch": 16,
+      "weight": 0.25
+    }
+  },
+  "causal_ablation": false,
+  "training_started": false,
+  "physics_executed": false,
+  "fresh_identities_exposed": false,
+  "pending": [
+    "final export and official integration verification",
+    "training",
+    "four actual development cycles",
+    "fresh eight identity / 32 scenario evaluation"
+  ],
+  "input_boundary": "State only ACT L2 with analytic L3 after a proper handoff, given a 3D goal. RGB, depth and Hall are not neural inputs. No audio, multimodal, unseen-pose, continuous ten-point or hardware result."
+}
