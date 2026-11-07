@@ -13,8 +13,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Check matched-result accounting
-        run: node --test demo_tests/matched-results.test.cjs
+      - name: Check result accounting and video loading
+        run: node --test demo_tests/matched-results.test.cjs demo_tests/blog-video.test.cjs
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
