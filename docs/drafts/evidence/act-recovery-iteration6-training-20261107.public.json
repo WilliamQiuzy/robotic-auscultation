@@ -1,0 +1,290 @@
+{
+  "schema": "wam_act6_closed_training_public_v1",
+  "completed_new_optimizer_updates": 20000,
+  "selected_step": 18000,
+  "initialization": "ACT5 selected19000 full state_dict; fresh AdamW step0",
+  "evaluations": [
+    {
+      "step": 500,
+      "train_mae_mrad": 5.9974541141414,
+      "selection_val_mae_mrad": 11.833885496460201
+    },
+    {
+      "step": 1000,
+      "train_mae_mrad": 8.531566550519171,
+      "selection_val_mae_mrad": 13.87919860117678
+    },
+    {
+      "step": 1500,
+      "train_mae_mrad": 11.078830895316349,
+      "selection_val_mae_mrad": 13.932616985745108
+    },
+    {
+      "step": 2000,
+      "train_mae_mrad": 8.541197306149027,
+      "selection_val_mae_mrad": 12.892221881240777
+    },
+    {
+      "step": 2500,
+      "train_mae_mrad": 9.301159450907246,
+      "selection_val_mae_mrad": 13.622553243056824
+    },
+    {
+      "step": 3000,
+      "train_mae_mrad": 5.8491417016683425,
+      "selection_val_mae_mrad": 10.760740115138674
+    },
+    {
+      "step": 3500,
+      "train_mae_mrad": 8.700957022909563,
+      "selection_val_mae_mrad": 12.127111789898414
+    },
+    {
+      "step": 4000,
+      "train_mae_mrad": 8.325391650141533,
+      "selection_val_mae_mrad": 12.691154080194025
+    },
+    {
+      "step": 4500,
+      "train_mae_mrad": 7.413796285466534,
+      "selection_val_mae_mrad": 12.123344901743277
+    },
+    {
+      "step": 5000,
+      "train_mae_mrad": 8.082776399362361,
+      "selection_val_mae_mrad": 13.54968400583335
+    },
+    {
+      "step": 5500,
+      "train_mae_mrad": 9.927277525321593,
+      "selection_val_mae_mrad": 14.233165863639188
+    },
+    {
+      "step": 6000,
+      "train_mae_mrad": 7.716577410444143,
+      "selection_val_mae_mrad": 13.4735335374805
+    },
+    {
+      "step": 6500,
+      "train_mae_mrad": 8.935809801669524,
+      "selection_val_mae_mrad": 11.660596923247327
+    },
+    {
+      "step": 7000,
+      "train_mae_mrad": 7.467601587336292,
+      "selection_val_mae_mrad": 11.55384699758663
+    },
+    {
+      "step": 7500,
+      "train_mae_mrad": 7.796103569628075,
+      "selection_val_mae_mrad": 11.35985917525159
+    },
+    {
+      "step": 8000,
+      "train_mae_mrad": 8.873134257030053,
+      "selection_val_mae_mrad": 11.89270498009891
+    },
+    {
+      "step": 8500,
+      "train_mae_mrad": 9.840108721609592,
+      "selection_val_mae_mrad": 13.76771709379106
+    },
+    {
+      "step": 9000,
+      "train_mae_mrad": 6.005267022036585,
+      "selection_val_mae_mrad": 11.974523131125135
+    },
+    {
+      "step": 9500,
+      "train_mae_mrad": 12.130209956516314,
+      "selection_val_mae_mrad": 12.971411213884528
+    },
+    {
+      "step": 10000,
+      "train_mae_mrad": 8.392586906280451,
+      "selection_val_mae_mrad": 12.577343355378163
+    },
+    {
+      "step": 10500,
+      "train_mae_mrad": 7.22249401822091,
+      "selection_val_mae_mrad": 10.058692634280566
+    },
+    {
+      "step": 11000,
+      "train_mae_mrad": 7.689443794960967,
+      "selection_val_mae_mrad": 11.368297380835916
+    },
+    {
+      "step": 11500,
+      "train_mae_mrad": 9.742589401690715,
+      "selection_val_mae_mrad": 12.839545684397923
+    },
+    {
+      "step": 12000,
+      "train_mae_mrad": 7.340216805595555,
+      "selection_val_mae_mrad": 11.032952050853405
+    },
+    {
+      "step": 12500,
+      "train_mae_mrad": 5.889254858521241,
+      "selection_val_mae_mrad": 10.909487698785021
+    },
+    {
+      "step": 13000,
+      "train_mae_mrad": 6.029259238200958,
+      "selection_val_mae_mrad": 11.64525941813296
+    },
+    {
+      "step": 13500,
+      "train_mae_mrad": 5.921126321248915,
+      "selection_val_mae_mrad": 11.199937854101988
+    },
+    {
+      "step": 14000,
+      "train_mae_mrad": 8.98619999568279,
+      "selection_val_mae_mrad": 12.773194719263394
+    },
+    {
+      "step": 14500,
+      "train_mae_mrad": 8.585288755943317,
+      "selection_val_mae_mrad": 12.609917238835855
+    },
+    {
+      "step": 15000,
+      "train_mae_mrad": 6.2012416132523285,
+      "selection_val_mae_mrad": 14.028670150126494
+    },
+    {
+      "step": 15500,
+      "train_mae_mrad": 6.072866726398959,
+      "selection_val_mae_mrad": 11.98847981266896
+    },
+    {
+      "step": 16000,
+      "train_mae_mrad": 8.14720275444056,
+      "selection_val_mae_mrad": 12.032504367465938
+    },
+    {
+      "step": 16500,
+      "train_mae_mrad": 10.312462353036084,
+      "selection_val_mae_mrad": 15.126494013864601
+    },
+    {
+      "step": 17000,
+      "train_mae_mrad": 7.807251044712393,
+      "selection_val_mae_mrad": 11.48727132863716
+    },
+    {
+      "step": 17500,
+      "train_mae_mrad": 6.544256900844571,
+      "selection_val_mae_mrad": 9.899650772631439
+    },
+    {
+      "step": 18000,
+      "train_mae_mrad": 6.23323209122844,
+      "selection_val_mae_mrad": 9.814430152369082
+    },
+    {
+      "step": 18500,
+      "train_mae_mrad": 8.59211751482724,
+      "selection_val_mae_mrad": 11.559799768335026
+    },
+    {
+      "step": 19000,
+      "train_mae_mrad": 6.275175071257574,
+      "selection_val_mae_mrad": 10.083986825405356
+    },
+    {
+      "step": 19500,
+      "train_mae_mrad": 7.161494973073958,
+      "selection_val_mae_mrad": 11.426142527207345
+    },
+    {
+      "step": 20000,
+      "train_mae_mrad": 8.098155820447419,
+      "selection_val_mae_mrad": 12.124699651360658
+    }
+  ],
+  "native_data": {
+    "train_episodes": 25,
+    "train_identities": 4,
+    "selection_val_episodes": 4,
+    "selection_val_identities": 1,
+    "train_origins": 8373,
+    "selection_val_origins": 2345,
+    "qualified_nominal_episodes": 18,
+    "qualified_recovery_episodes": 11
+  },
+  "auxiliary_data": {
+    "origins": 35988,
+    "sources": 940,
+    "attempted_slots": 1115,
+    "authorized_train_identities": 16,
+    "new_genuine_train_queries": 6,
+    "new_computed_future_cells": 120,
+    "computed_continuations_executed": false,
+    "not_physical_demonstration_counts": true
+  },
+  "state_only": true,
+  "RGBD_neural_inputs": false,
+  "Hall_neural_input": false,
+  "expert_l2_fallback": false,
+  "physics_gates_changed": false,
+  "source28_commit": "d932993b13030da7873d04a4a9471df99bb836ec",
+  "selected_target_mae_mrad": {
+    "train": 6.23323209122844,
+    "selection_validation": 9.814430152369082
+  },
+  "cpu_equivalence_passed": true,
+  "training_owner_normal_drained_released": true,
+  "first_native_attempt": {
+    "native_launches": 0,
+    "physics_episodes": 0,
+    "controller_infrastructure_aborts": 1,
+    "cause": "The external controller attempted JSON decoding of the binary selected checkpoint after successful training and CPU equivalence"
+  },
+  "model_qualified": false,
+  "formal_acceptance": false,
+  "fresh_identities_exposed": false,
+  "original_receipt_digests": {
+    "training_owner": {
+      "bytes": 8157,
+      "sha256": "0b6d1943fa936296f955946f80dea635a23677e826efde177d9825c2b892b494"
+    },
+    "training_complete": {
+      "bytes": 562776,
+      "sha256": "c4b145d38e4374de317cf4c070ed5a74c16cc9a54d6c992b2d75c210a5d672f1"
+    },
+    "selected_weights": {
+      "bytes": 10843905,
+      "sha256": "822bbaf5298695a3ceeb3ab00e741e49a220bca7d458824e20beabb9ef542efe"
+    },
+    "selection": {
+      "bytes": 299637,
+      "sha256": "c1c0ad76d3173ce2fe0d421b18aafb1d068141610266a73e6f0f86b735ef1292"
+    },
+    "cpu_equivalence": {
+      "bytes": 13263,
+      "sha256": "aa73d61b8a4e3fbe4cc03d7454693419e6bd587d094f6ac8d18a7f3b12bb3138"
+    },
+    "post_training_controller_failure": {
+      "bytes": 72535313,
+      "sha256": "43969640301d31cf423f665bd16ba1fb149a4beb4fe2441133f16a6f2e9b4c44"
+    },
+    "safe_traceback": {
+      "bytes": 1360,
+      "sha256": "b4fd8cab71d9264382f069588d5e72bbfca9b80ba6f6c43836464fc2f623156d"
+    }
+  },
+  "limitation": "Prediction results and a completed CPU/CUDA comparison do not establish contact or generalization. The post-training controller abort launched no Native case. Original raw error logs, weights, arrays and body assets are not included.",
+  "as_of_utc": "2026-11-07T08:09:34Z",
+  "public_files": {
+    "assets/act-recovery-iteration6-training-20261107.png": {
+      "bytes": 159473,
+      "sha256": "643f8f41f0f33acbc5810040bd696e18121b5f058a732b8116434217f5e8cc1e"
+    }
+  },
+  "training_closed_utc": "2026-11-07T07:25:29Z",
+  "latest_ACT6_independent_backup_verified": false,
+  "latest_ACT6_primary_archive_sealed": true
+}
