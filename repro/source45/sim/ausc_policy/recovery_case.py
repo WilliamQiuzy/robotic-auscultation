@@ -1,0 +1,244 @@
+"""One isolated actual Isaac stationary-recovery diagnostic, never a VLA test."""
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import tempfile
+
+from .isaac_case import approved_assets, prepare, write
+
+
+def geometry_preflight(bundle, output):
+    """Prospective states only; no measured-state or physics qualification claim."""
+    import numpy as np
+    from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
+    from sim.auscultation_expert_layout_v1.posture import PostureChecker, PostureLimits
+    from sim.auscultation_expert_layout_v1.plan_low_elbow import checked_transfer
+    from sim.auscultation_skill_v1.certified_collision import CertifiedCollisionChecker
+    from sim.curobo_expert_v1.static_world import load_static_world, install_fcl_static_world
+    from .recovery_oracle import StationaryRecoveryOracle
+    from .recovery_run import CASES
+    kin = OpenArmKinematics(); base = np.asarray(bundle.plan['world_from_left_base'])
+    checker = CertifiedCollisionChecker(kin,base,directory=output/'geometry')
+    install_fcl_static_world(checker,load_static_world(output/'static_world'),geometry_dir=output/'geometry')
+    limits = PostureLimits.from_dict(bundle.row['posture_limits'],kin)
+    checker = PostureChecker(checker,base,limits)
+    oracle = StationaryRecoveryOracle(checker,lambda start,goal,rng,deadline:
+        checked_transfer(checker,limits,start,goal,kin,base,rng,deadline),
+        lower=limits.joint_lower_rad,upper=limits.joint_upper_rad)
+    goal = np.asarray(bundle.row['transfer_q'][-1]); cases = []
+    for name,offset in CASES:
+        q = goal.copy(); q[2] += offset
+        query = dict(q=q.tolist(),dq=[0.]*7,command_history=[q.tolist()]*3,hall_load_N=0.,
+            physical_contact_N=0.,compression_m=0.,time_s=.05,physics_row=12,
+            recent_measurements=[dict(q=q.tolist(),q_command=q.tolist(),time_s=i/240,physics_row=i)
+                for i in range(13)])
+        result = oracle.query(query,dict(target='R4',phase='APPROACH',revision=0,q_goal=goal.tolist()))
+        write(output/(name+'-prospective-query.json'),result)
+        cases.append(dict(case_id=name,kind=result['kind'],reason=result.get('reason'),wall_time_s=result['wall_time_s']))
+    report = dict(passed=all(c['kind']=='trajectory' for c in cases),cases=cases,
+        scope='Prospective stationary geometry only, no acquired observations or physical success')
+    write(output/'recovery_geometry_preflight.json',report)
+    if not report['passed']: raise ValueError('Prospective recovery geometry refused; see case receipts')
+
+
+def moving_preflight(config,output):
+    from .moving_recovery_teacher import load_source
+    from .moving_origin import selected_origin
+    index,phase,_=selected_origin(config)
+    outcome,physics=load_source(config)
+    probe=Path(config['braking_probe']['path'])
+    for relative,digest in config['braking_probe']['files'].items():
+        if hashlib.sha256((probe/relative).read_bytes()).hexdigest()!=digest:
+            raise ValueError('Completed native braking probe changed')
+    receipt=json.loads((probe/'result.json').read_text())
+    proposal=json.loads((probe/f'output/action-{index}.json').read_text())
+    if (not receipt['completed'] or not receipt['gpu_released']
+            or not receipt['stage']['process_group_drained'] or receipt['stage']['exit_code']!=0
+            or proposal['kind']!='braking_proposal'):
+        raise ValueError('Actual native braking preflight required')
+    origin=outcome['l2_actions'][index]['physics_row_start']-1
+    if proposal['measured_query']['q']!=physics[origin]['q'] or proposal['measured_query']['phase']!=phase:
+        raise ValueError('Native brake did not use the bound source state')
+    if config.get('oracle_timing','global_cubic')=='checked_edges_v1':
+        from .act_baseline import pinned_json
+        binding=config['oracle_timing_probe'];timing_root=Path(binding['path'])
+        timing_owner=pinned_json(timing_root/'result.json',binding['owner_sha256'])
+        timing_complete=pinned_json(timing_root/'output/COMPLETE.json',binding['complete_sha256'])
+        if (not timing_owner['completed'] or not timing_owner['gpu_released']
+                or not timing_owner['stage']['process_group_drained'] or not timing_complete['same_route']
+                or [(r['strategy'],r['kind']) for r in timing_complete['cases']]
+                    !=[('global_cubic','abstain'),('checked_edges_v1','trajectory')]):
+            raise ValueError('Bound same-route timing repair comparison required')
+        from .moving_origin import timing_validation_mode
+        if timing_validation_mode(config)=='paired_retest':
+            reference=config['stopped_query_reference']
+            expected=Path(timing_owner['config']['source_run'])/'output/history20/oracle_query.json'
+            if Path(reference['path'])!=expected or reference['sha256']!=timing_owner['config']['query_sha256']:
+                raise ValueError('Timing reference differs from actual rejected stopped query')
+            pinned_json(reference['path'],reference['sha256'])
+        else:
+            validate_repair_proof(config)
+    write(output/'moving_preflight.json',dict(passed=True,source_action=index,source_physics_row=origin,
+        source_prefix_steps=origin+1,physics_executed=False,training_dataset_eligible=False))
+
+
+def validate_repair_proof(config):
+    """New origins require completed physical and raw-sensor proof of the fix.
+
+    This is an algorithm reuse prerequisite, never a same-state comparison or
+    a substitution for each new origin's actual motion and sensor audit.
+    """
+    from .act_baseline import pinned_json
+    binding=config['repair_proof'];root=Path(binding['run']);case=root/'output/history20'
+    owner=pinned_json(root/'result.json',binding['owner_sha256'])
+    result=pinned_json(case/'result.json',binding['case_sha256'])
+    audit_root=Path(binding['raw_audit_run'])
+    audit_owner=pinned_json(audit_root/'result.json',binding['raw_owner_sha256'])
+    audit=pinned_json(audit_root/'output'/binding['raw_report'],binding['raw_report_sha256'])
+    for record in (owner,audit_owner):
+        if (not record['completed'] or not record['gpu_released'] or not record['stage']['process_group_drained']
+                or record['stage']['exit_code']!=0):raise ValueError('Repair proof did not finish and release resources')
+    if (owner['config'].get('moving_origin')!='history_free20_v1'
+            or owner['config'].get('oracle_timing')!='checked_edges_v1'
+            or owner['config']['source_run']!=config['source_run']
+            or owner['config']['source_files']!=config['source_files']
+            or not result['case_passed'] or result['training_dataset_eligible']
+            or audit_owner['config']['experiment']!='recovery_sensor_audit'
+            or len(audit_owner['config']['cases'])!=1
+            or audit_owner['config']['cases'][0]['path']!=str(case)
+            or audit_owner['config']['cases'][0]['owner_sha256']!=binding['owner_sha256']
+            or audit_owner['config']['cases'][0]['case_sha256']!=binding['case_sha256']
+            or not audit['passed'] or audit['training_dataset_eligible'] or audit['learned_policy']):
+        raise ValueError('Repair proof is not the same expert fix with complete raw replay')
+    code=Path(__file__).resolve().parents[2]
+    for name in ('edge_timing.py','recovery_oracle.py','moving_brake.py'):
+        path=code/'sim/ausc_policy'/name
+        if hashlib.sha256(path.read_bytes()).hexdigest()!=audit['source_hashes'].get(str(path)):
+            raise ValueError('Repair algorithm changed since actual verification: '+name)
+
+
+def capture(app, errors, released, config, output, bundle, snapshot_sha, binding):
+    import numpy as np
+    from sim.auscultation_repair_v3.physics_profile import make_env, PhysicsProfile
+    from sim.auscultation_expert_layout_v1.kinematics import OpenArmKinematics
+    from sim.auscultation_expert_layout_v1.controller import verify_snapshot
+    from sim.auscultation_skill_v1.certified_collision import CertifiedCollisionChecker
+    from sim.auscultation_pi05_v6.live_capture import LiveCapture
+    from sim.auscultation_pi05_v6.runtime_dynamics import capture_runtime_contract
+    from sim.curobo_expert_v1.static_world import load_static_world
+    from .recovery_teacher import RecoveryTeacher
+    code = Path(__file__).resolve().parents[2]
+    env = sensor = controller = None
+    outcome = dict(success=False,training_accepted=False,points=[],failure_reason='construction incomplete')
+    try:
+        kin = OpenArmKinematics(); base = np.asarray(bundle.plan['world_from_left_base'])
+        with tempfile.TemporaryDirectory(prefix='ausc_recovery_geometry_') as temporary:
+            folder = Path(temporary)
+            for label,name in [('collision_metadata','collision_geometry.json'),('collision_arrays','collision_geometry.npz')]:
+                (folder/name).write_bytes(bundle.inputs[label][1])
+            checker = CertifiedCollisionChecker(kin,base,directory=folder)
+        with approved_assets(Path(config['asset_root'])):
+            env = make_env(output,PhysicsProfile(**config['physics']))
+        if not np.allclose(env.base,base,atol=1e-7,rtol=0):
+            raise ValueError('Actual robot base differs from approved plan')
+        dynamics = capture_runtime_contract(env)
+        sensor = LiveCapture(env,kin,code/'sim/camera_framing_20260923/recommended_camera.json',
+            code/'sim/auscultation_vla_v2/sensor_pilot_annotation.json',output/'sensors',width=640)
+        sensor.warm_up()
+        cls=RecoveryTeacher;extra={}
+        if config['mode']=='moving_oracle_pilot':
+            from .moving_recovery_teacher import MovingRecoveryTeacher
+            cls=MovingRecoveryTeacher;extra['recovery_config']=config
+        if config['mode']=='capture_component':
+            from .capture_teacher import CaptureTeacher
+            cls=CaptureTeacher;extra['capture_config']=config
+        controller = cls(env,kin,checker,sensor=sensor,perturbation_rad=config['perturbation_rad'],**extra,
+            generator_policy='revised_shortcut',speed_scale=.7,
+            static_world_bundle=load_static_world(output/'static_world'),static_geometry_dir=output/'geometry')
+        outcome = controller.run([(bundle.target,bundle.row)])
+        outcome['dynamics_recipe_sha256'] = dynamics['recipe_sha256']
+        verify_snapshot(output/'input_snapshot',verify_sources=True)
+    except Exception as error:
+        outcome.update(success=False,training_accepted=False,failure_reason=type(error).__name__+': '+str(error))
+        print('RECOVERY_FAILURE',outcome['failure_reason'],flush=True)
+    finally:
+        outcome.update(requested_points=['R4'],input_snapshot='input_snapshot/manifest.json',
+            input_snapshot_manifest_sha256=snapshot_sha,collision_regeneration_sha256=binding,
+            expert_demonstration=True,learned_policy=False,training_dataset_eligible=False,
+            training_accepted=False,m0_passed=False,sensor_frames=0 if sensor is None else len(sensor.rows),
+            layout_family='approved_farther_lower_seat_camera7deg',case_id=config['case_id'])
+        if controller is not None:
+            outcome['oracle_receipt'] = controller.oracle_receipt
+            if hasattr(controller,'moving_receipt'): outcome['moving_recovery']=controller.moving_receipt
+            if hasattr(controller,'capture_receipt'): outcome['capture_component']=controller.capture_receipt
+        try:
+            if env is not None: env.save('expert')
+            if controller is not None: write(output/'control_commands.json',controller.control_rows)
+            write(output/'outcome.json',outcome)
+        finally:
+            if sensor is not None: sensor.release(errors,released)
+    return outcome
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--config',type=Path,required=True)
+    parser.add_argument('--output',type=Path,required=True)
+    parser.add_argument('--preflight-only',action='store_true')
+    args = parser.parse_args()
+    if sys.platform != 'linux' or os.environ.get('AUSC_OWNED_RUN') != '1':
+        raise RuntimeError('Original guarded Linux owner required')
+    config = json.loads(args.config.read_text())
+    from .recovery_run import validate_case
+    validate_case(config)
+    bundle,snapshot_sha,binding = prepare(config,args.output)
+    from .recovery_teacher import RecoveryTeacher  # import before Kit; no construction
+    if args.preflight_only:
+        if config['mode']=='moving_oracle_pilot': moving_preflight(config,args.output)
+        elif config['mode']=='capture_component':
+            from .capture_teacher import CaptureTeacher
+            from .capture_probe import load_geometry_case
+            load_geometry_case(config)
+        else: geometry_preflight(bundle,args.output)
+        print('RECOVERY_PREFLIGHT_OK',flush=True); return 0
+    from isaacsim import SimulationApp
+    app = SimulationApp({'headless':True,'fast_shutdown':False})
+    from sim.auscultation_skill_v1.media_teardown import run_scoped_capture,require_complete_teardown
+    report = dict(execution_completed=False,case_passed=False,m0_passed=False,training_dataset_eligible=False)
+    try:
+        outcome,receipt = run_scoped_capture(app,capture,config,args.output,bundle,snapshot_sha,binding)
+        write(args.output/'teardown.json',receipt)
+        require_complete_teardown(receipt,annotators=2,products=1)
+        from sim.auscultation_skill_v1.audits import audit_saved
+        from .evaluation_audit import interpret
+        from sim.auscultation_repair_v3.metrics import motion_metrics
+        original = audit_saved(args.output)
+        audit = interpret(original,outcome,expert_evaluation=True)
+        write(args.output/'evaluation_audit.json',audit)
+        from sim.auscultation_pi05_v6.audit_observed_supervisor import audit_episode
+        replay = audit_episode(args.output)
+        write(args.output/'observed_supervisor_replay.json',replay)
+        rows = [json.loads(line) for line in (args.output/'expert_trace.jsonl').open()]
+        if len(rows)<9: raise RuntimeError('Insufficient executed physics')
+        dynamics = motion_metrics([r['time_s'] for r in rows],[r['q'] for r in rows],[r['dq'] for r in rows])
+        write(args.output/'measured_dynamics.json',dynamics)
+        smooth = dynamics['centered']['acceleration_rad_s2']['max'] <= 2 and dynamics['centered']['jerk_rad_s3']['max'] <= 20
+        report.update(execution_completed=True,case_passed=bool(outcome['success'] and audit['accepted'] and smooth and replay['passed']),
+            physics_audit_accepted=audit['accepted'],smoothness_target_met=smooth,
+            observed_supervisor_replay_passed=replay['passed'],
+            failure_reason=outcome.get('failure_reason'),oracle=outcome.get('oracle_receipt'),
+            sim_duration_s=rows[-1]['time_s']-rows[0]['time_s'],physics_steps=len(rows),sensor_frames=outcome['sensor_frames'],
+            qualification='Expert recovery diagnostic only; dataset qualification not granted')
+    except Exception as error:
+        report.update(error=type(error).__name__,reason=str(error))
+    write(args.output/'result.json',report)
+    print('RECOVERY_RESULT',json.dumps(report),flush=True)
+    sys.stdout.flush(); sys.stderr.flush()
+    os._exit(0 if report['execution_completed'] else 1)
+
+
+if __name__ == '__main__':
+    raise SystemExit(main())

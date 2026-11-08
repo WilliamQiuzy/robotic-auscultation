@@ -1,0 +1,111 @@
+{
+  "schema": "wam_source45_public_cpu_fixture_check_v1",
+  "scope": "PARTIAL_INSPECTION_CPU_CAPSULE",
+  "result_scope": "SYNTHETIC_CPU_ONLY",
+  "status": "PASS_WITH_TWO_EXPLICIT_OFFICIAL_ENVIRONMENT_SKIPS",
+  "checked_at_utc": "2026-11-08T13:08:10Z",
+  "code_commit": "29024f00a8656865fe79242605580278561f463e",
+  "complete_original_source_files": 1724,
+  "selected_original_files": 304,
+  "selected_original_bytes": 5775505,
+  "project_python_files": 242,
+  "original_test_and_helper_files": 57,
+  "original_static_text_dependencies": 5,
+  "source_selection_sha256": "1dcad4b3214d9c83328e22a7587130c32736b0675ebf546f8945c29f22385857",
+  "public_verifier_sha256": "03aa0731b306a7920b7e6af1b548f57b4c11ae5f0e6a0f245355952a6fbfc046",
+  "python": "3.11.15",
+  "platform": "Darwin arm64",
+  "fixture_environment_packages": {
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "pytest": "9.2.0",
+    "ruckig": "0.15.3",
+    "torch": "2.15.0"
+  },
+  "package_scope": "Observed external fixture environment versions only; not the original Official/native dependency lock. Torch is used only by the optional profile.",
+  "project_import_roots": [
+    "repro/source45",
+    "repro/source45/tests"
+  ],
+  "entry_modules_checked": [
+    "sim/ausc_policy/m2_act_refinement_warm_start.py",
+    "sim/ausc_policy/m2_act_refinement_data.py",
+    "sim/ausc_policy/m2_act_refinement_sampling.py",
+    "sim/ausc_policy/m2_act_task_selection.py",
+    "sim/ausc_policy/m2_act_onpolicy_collection.py",
+    "sim/ausc_policy/m2_stop_residual_trajectory.py",
+    "sim/ausc_policy/m2_act_auxiliary_train.py",
+    "sim/ausc_policy/m2_given_contact_evaluation.py",
+    "sim/ausc_policy/fresh_expert.py",
+    "sim/ausc_policy/m2_rebuild_paired_eval.py"
+  ],
+  "profiles": [
+    {
+      "name": "default_without_torch",
+      "command": "python -I -B repro/source45/verify_capsule.py --fixtures",
+      "selected_original_test_functions": 43,
+      "expanded_cases": 133,
+      "passed": 131,
+      "skipped": 2,
+      "failed": 0,
+      "pytest_seconds": 65.5,
+      "wall_seconds": 66.57,
+      "explicit_entry_imports_inside_capsule": 10,
+      "loaded_project_test_modules_inside_capsule": 140,
+      "transcript_sha256": "4f4d0dc4fbc192d0652c50541954babca94ec9582f7d57e989d42a9929b2dc08",
+      "torch_imported": false,
+      "torch_import_check": "PYTHONPROFILEIMPORTTIME=1 in both adapter and isolated child; no torch namespace in import trace"
+    },
+    {
+      "name": "default_plus_optional_cpu_tensors",
+      "command": "python -I -B repro/source45/verify_capsule.py --fixtures --optional-torch",
+      "selected_original_test_functions": 46,
+      "expanded_cases": 150,
+      "passed": 148,
+      "skipped": 2,
+      "failed": 0,
+      "pytest_seconds": 67.62,
+      "wall_seconds": 68.76,
+      "explicit_entry_imports_inside_capsule": 10,
+      "loaded_project_test_modules_inside_capsule": 140,
+      "transcript_sha256": "35778aeeda0ef2829422611c88a41d6ce8107b2df575fa5721cb44d75ac3d5bd",
+      "includes_default_profile": true,
+      "synthetic_tensor_tests_only": true
+    }
+  ],
+  "skip_reasons": [
+    "tests/test_ausc_act_refinement_warm_start.py:267: Pinned official LeRobot environment unavailable; no substitute factory",
+    "tests/test_ausc_act_training_v9.py:347: Pinned official LeRobot environment is Linux-only; no substitute runtime"
+  ],
+  "adapter_tests": {
+    "command": "python -m unittest demo_tests.test_source45_capsule -v",
+    "passed": 5,
+    "failed": 0
+  },
+  "public_demo_regression": {
+    "command": "python -m unittest discover -s demo_tests -v",
+    "passed": 96,
+    "failed": 0
+  },
+  "synthetic_authorization_scope": "Original producer/reader fixture first verifies unmodified deployment authorization and Live Isaac source guards reject it, then scaffolds unavailable authorization/environment leaves. Source kind stays cpu_synthetic_test and physical_qualification stays false.",
+  "first_curation_attempt": {
+    "passed": 120,
+    "skipped": 2,
+    "failed": 12,
+    "reason": "AST-only selection omitted one original static config consumed by scene-store fixtures",
+    "correction": "Added exact original fresh_expert_retainer_tenpoint_near_v4.json, byte-identical to the already-public root; no source/fixture/guard change"
+  },
+  "physical_qualification": false,
+  "official_act_integration": false,
+  "native_isaac_or_physx_world_executed": false,
+  "genuine_native_episode_reader_executed": false,
+  "training_executed": false,
+  "optimization_updates_executed": 0,
+  "original40_or_41_archive_child_executed": false,
+  "operator_or_guarded_owner_executed": false,
+  "full_original_test_suite_executed": false,
+  "toy_20000_update_test_executed": false,
+  "benchmark_or_usable_model_result": false,
+  "raw_data_or_weights_included": false,
+  "github_actions_run_executed": false
+}
