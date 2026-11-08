@@ -1,0 +1,645 @@
+{
+  "schema": "act10_v8_closed_development_public_v1",
+  "dated_UTC": "2026-11-08",
+  "source_commit": "c6590db44ff94448a7da34488b5ceaa7810f1134",
+  "selected_model": {
+    "bytes": 11805569,
+    "sha256": "9de4ffff75bdf01f3855a872bb0315256ee23c240a6c5c3d37221e4cb35c764d"
+  },
+  "training": {
+    "new_updates": 20000,
+    "normal_owner_closed": true,
+    "selected_new_update": 17000,
+    "selection_rule": "earliest_minimum_full_native_validation_masked_raw_H20_MAE",
+    "full_native_populations": {
+      "TRAIN": 8373,
+      "selection_VAL": 2345
+    },
+    "evaluation_every_updates": 500,
+    "selected_validation_raw_H20_MAE_rad": 0.009497999548919436,
+    "final_validation_raw_H20_MAE_rad": 0.011823793857057317,
+    "own_full_CPU_equivalence_passed": true,
+    "normalization_refitted": false,
+    "offline_target_error_is_physical_acceptance": false,
+    "all_full_native_evaluations": [
+      {
+        "step": 500,
+        "train_full_H20_masked_raw_MAE_rad": 0.009471256983205492,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011625571266034777,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 1000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00684673022393638,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010912073955835147,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 1500,
+        "train_full_H20_masked_raw_MAE_rad": 0.006401120780830978,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012179329304078966,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 2000,
+        "train_full_H20_masked_raw_MAE_rad": 0.007975592156765758,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011722659527909511,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 2500,
+        "train_full_H20_masked_raw_MAE_rad": 0.008461148661711462,
+        "validation_full_H20_masked_raw_MAE_rad": 0.013838861045675699,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 3000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00639930168392527,
+        "validation_full_H20_masked_raw_MAE_rad": 0.00994552194227595,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 3500,
+        "train_full_H20_masked_raw_MAE_rad": 0.005336274780738625,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010872075263534835,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 4000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00810486891208782,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012314855873976044,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 4500,
+        "train_full_H20_masked_raw_MAE_rad": 0.00820612190161517,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010880255234371073,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 5000,
+        "train_full_H20_masked_raw_MAE_rad": 0.008341726974231528,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010865031674191677,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 5500,
+        "train_full_H20_masked_raw_MAE_rad": 0.006223648868390879,
+        "validation_full_H20_masked_raw_MAE_rad": 0.01098307992277163,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 6000,
+        "train_full_H20_masked_raw_MAE_rad": 0.0070823522349941275,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012774575634324608,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 6500,
+        "train_full_H20_masked_raw_MAE_rad": 0.008107480441976731,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012647806827886849,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 7000,
+        "train_full_H20_masked_raw_MAE_rad": 0.010809188741575156,
+        "validation_full_H20_masked_raw_MAE_rad": 0.01526478492509911,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 7500,
+        "train_full_H20_masked_raw_MAE_rad": 0.00652482060423877,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010686253171230098,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 8000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00635289038732812,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011809610651548265,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 8500,
+        "train_full_H20_masked_raw_MAE_rad": 0.005249496254968494,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012320470702338826,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 9000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00811929662375608,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011847085522279106,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 9500,
+        "train_full_H20_masked_raw_MAE_rad": 0.007364888121786635,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012679422352081735,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 10000,
+        "train_full_H20_masked_raw_MAE_rad": 0.006808400278420682,
+        "validation_full_H20_masked_raw_MAE_rad": 0.01091474637381689,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 10500,
+        "train_full_H20_masked_raw_MAE_rad": 0.006929520335332793,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010971666197108904,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 11000,
+        "train_full_H20_masked_raw_MAE_rad": 0.009559841174797917,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011611288493764282,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 11500,
+        "train_full_H20_masked_raw_MAE_rad": 0.008499267109951768,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012335582066548436,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 12000,
+        "train_full_H20_masked_raw_MAE_rad": 0.008322740289259216,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011976110957360314,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 12500,
+        "train_full_H20_masked_raw_MAE_rad": 0.006514550865427772,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011707841928279089,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 13000,
+        "train_full_H20_masked_raw_MAE_rad": 0.006144983418450104,
+        "validation_full_H20_masked_raw_MAE_rad": 0.01017703687709561,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 13500,
+        "train_full_H20_masked_raw_MAE_rad": 0.006614915938904888,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011110413415179562,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 14000,
+        "train_full_H20_masked_raw_MAE_rad": 0.006323459737510118,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010696941389020989,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 14500,
+        "train_full_H20_masked_raw_MAE_rad": 0.00655726722281923,
+        "validation_full_H20_masked_raw_MAE_rad": 0.014071817795867147,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 15000,
+        "train_full_H20_masked_raw_MAE_rad": 0.007107367784479788,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011802450561406792,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 15500,
+        "train_full_H20_masked_raw_MAE_rad": 0.0076916293731855165,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012126220365878721,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 16000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00953699636613931,
+        "validation_full_H20_masked_raw_MAE_rad": 0.014096702540589569,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 16500,
+        "train_full_H20_masked_raw_MAE_rad": 0.006908535829960388,
+        "validation_full_H20_masked_raw_MAE_rad": 0.010983272218516337,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 17000,
+        "train_full_H20_masked_raw_MAE_rad": 0.006740563460415603,
+        "validation_full_H20_masked_raw_MAE_rad": 0.009497999548919436,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 17500,
+        "train_full_H20_masked_raw_MAE_rad": 0.007383129450392426,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012018763407452952,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 18000,
+        "train_full_H20_masked_raw_MAE_rad": 0.00874518948618102,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012124703521233977,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 18500,
+        "train_full_H20_masked_raw_MAE_rad": 0.008191074637737071,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012044861097804414,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 19000,
+        "train_full_H20_masked_raw_MAE_rad": 0.006261040007971441,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011444226161618738,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 19500,
+        "train_full_H20_masked_raw_MAE_rad": 0.00789703928394752,
+        "validation_full_H20_masked_raw_MAE_rad": 0.012349663282200078,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      },
+      {
+        "step": 20000,
+        "train_full_H20_masked_raw_MAE_rad": 0.008612754140007204,
+        "validation_full_H20_masked_raw_MAE_rad": 0.011823793857057317,
+        "train_samples": 8373,
+        "validation_samples": 2345
+      }
+    ]
+  },
+  "model_contract": {
+    "structured_state_dimension": 17,
+    "observation_history": 2,
+    "action_horizon": 20,
+    "executed_cells_max": 10,
+    "posture_head": "smooth_posture_head_v2",
+    "attention_heads": 4,
+    "learned_stage": "L2",
+    "contact_stage": "analytic_Hall_L3",
+    "RGBD_recorded": true,
+    "RGBD_neural_input": false,
+    "audio": false,
+    "expert_L2_fallback": false,
+    "body_condition": "static_bare_SMPL",
+    "known_training_poses": [
+      "474",
+      "476"
+    ],
+    "development_pose": "474",
+    "targets": [
+      "R3",
+      "L3"
+    ]
+  },
+  "known_development": {
+    "fixed_denominator": 4,
+    "executed_cases": 4,
+    "independently_qualified": 2,
+    "normal_owner_closed": true,
+    "cases": [
+      {
+        "id": "p001120-r3",
+        "body": "p001120",
+        "split": "TRAIN",
+        "target": "R3",
+        "pose": "474",
+        "physical_pass": true,
+        "native_physics_ticks": 25939,
+        "failure": null
+      },
+      {
+        "id": "p001120-l3",
+        "body": "p001120",
+        "split": "TRAIN",
+        "target": "L3",
+        "pose": "474",
+        "physical_pass": false,
+        "native_physics_ticks": 7038,
+        "failure": "L3: ALIGN posture rejected"
+      },
+      {
+        "id": "p000923-r3",
+        "body": "p000923",
+        "split": "selection_VAL",
+        "target": "R3",
+        "pose": "474",
+        "physical_pass": true,
+        "native_physics_ticks": 25822,
+        "failure": null
+      },
+      {
+        "id": "p000923-l3",
+        "body": "p000923",
+        "split": "selection_VAL",
+        "target": "L3",
+        "pose": "474",
+        "physical_pass": false,
+        "native_physics_ticks": 29041,
+        "failure": "L3: M2 L2 clock/120 second deadline failed"
+      }
+    ],
+    "ACT9_qualified": 2,
+    "ACT9_fixed_denominator": 4,
+    "same_passed_cases_as_ACT9": false,
+    "aggregate_improvement_claim": false,
+    "selection_VAL_used_for_checkpoint_selection": true
+  },
+  "fresh_benchmark": {
+    "declared_scenarios": 32,
+    "tested": 0,
+    "gate_open": false,
+    "payloads_opened": false
+  },
+  "failure_diagnoses": {
+    "TRAIN_L3": {
+      "stage": "analytic_ALIGN_admission_before_motion",
+      "reconstructed_valid_IK_knots": 12,
+      "reconstructed_total_knots": 13,
+      "cause": "CPU_cubic_soft_posture_limit_undershoot",
+      "original_knots_saved": false,
+      "original_command_bit_exact_reconstruction_claim": false,
+      "internal_IK_reserve_candidate_rad": 0.0001,
+      "original_CPU_checker_calls": 563,
+      "original_proposal_elapsed_s": 9.569920689013088,
+      "all_original_CPU_gates_passed": true,
+      "physical_limits_changed": false,
+      "executed_in_Isaac": false,
+      "repair_physically_qualified": false
+    },
+    "selection_VAL_L3": {
+      "stage": "learned_L2_original_120s_deadline",
+      "best_tangential_error_mm": 4.40653695087748,
+      "final_tangential_error_mm": 22.616407880755546,
+      "coarse_tube_mm": 3,
+      "accepted_model_queries": 241,
+      "refused_model_queries": 0,
+      "issued_actions": 2399,
+      "STOP_setters": 0,
+      "coarse_reached": false,
+      "parking_entered": false,
+      "ALIGN_entered": false,
+      "L3_started": false,
+      "final_command_observed_linf_rad": 1.702940626158167e-05,
+      "interpretation": "off_tube_oscillation_with_tight_tracking_not_exact_state_copy_or_setter_refusal",
+      "selection_VAL_labels_exported_or_trained": false
+    }
+  },
+  "data_scope": {
+    "corridor_dynamic_prepose_threshold_mm": 12,
+    "native_Base29_corridor_windows": 880,
+    "native_Base29_corridor_bodies": 4,
+    "measured_recovery_corridor_windows": 53,
+    "measured_recovery_corridor_bodies": 1,
+    "measured_recovery_corridor_body": "p001120",
+    "new_DART_corridor_windows": 0,
+    "new_DART_full_pool_windows": 274,
+    "two_TRAIN_case_probe": {
+      "discarded_valid_near_windows": 121,
+      "full_H20": 83,
+      "partial_H20": 38,
+      "all_17_requalified": false
+    }
+  },
+  "next_experiment": {
+    "name": "ACT11",
+    "intent": "all_17_clean_teacher_postperturb_prefixes_plus_fixed_8_on_policy_TRAIN_intervention_recoveries",
+    "new_enrichment_collected": false,
+    "model_retrained": false,
+    "future_outcome_claim": false
+  },
+  "curve_figure": {
+    "file": "assets/act10-v8-full-native-learning-curve-20261108.png",
+    "bytes": 150254,
+    "sha256": "3e6e0bf037c1822531bb22343765932ac79319e282404a501a18cf305b535bb8",
+    "width": 1440,
+    "height": 768,
+    "actual_evaluation_rows": 40,
+    "metric": "offline_masked_raw_H20_joint_target_MAE_mrad",
+    "physical_acceptance_claim": false
+  },
+  "verified_media": [
+    {
+      "case_id": "p000923-r3",
+      "role": "KNOWN selection-VAL DEV successful rollout: learned ACT approach plus original analytic Hall L3; no fresh-unseen or population proof",
+      "video": {
+        "file": "assets/act10_p000923_r3_complete.mp4",
+        "bytes": 624196,
+        "sha256": "6ab56c00f8a193596a46eaf6ca0786501c9d1ecde67d05023ddbea7064db6eb8",
+        "frames": 1075,
+        "fps": 10,
+        "recorded_size": [
+          640,
+          360
+        ],
+        "encoded_s": 107.5,
+        "native_s": 107.59166666666667,
+        "native_physics_ticks": 25822,
+        "trailing_unrendered_native_ticks": 22,
+        "native_encoded_bytes_identical": true,
+        "full_decode_passed": true,
+        "preencode_RGB_identity_claim": false
+      },
+      "poster": {
+        "file": "assets/act10_p000923_r3_complete_poster.png",
+        "bytes": 81763,
+        "sha256": "18dd3a57de6c7bbcd8cded76fec685ca4d5eda826a756142c807298fe5f2021d",
+        "encoded_frame": 580,
+        "native_time_s": 58.10000000001927,
+        "exact_decoded_frame": true,
+        "decoded_RGB_sha256": "63e013fdcb61f71d55c938ce7de6f86d2c6ebb7b458827c128b793a2c15f55c5",
+        "phase_inferred": false
+      },
+      "source_evidence": {
+        "bytes": 4936,
+        "sha256": "f3710aab0f030395eb988ef20c3f66de64791f98ae5a309d27da2a78ef95b053"
+      },
+      "physical_scalars": {
+        "combined_force_plane_hold_s": 3.0,
+        "maximum_hold_tilt_deg": 1.499610352310488,
+        "plane_tilt_limit_deg": 3.0,
+        "contact_force_peak_N": 4.001228886789555,
+        "continuous_contact_hold_s": 4.745833333333334,
+        "forbidden_maximum_N": {
+          "carriage_other_N": 0.0,
+          "contact_rim_N": 0.0,
+          "diaphragm_N": 0.0,
+          "forbidden_N": 0.0,
+          "frame_N": 0.0,
+          "lip_N": 0.0
+        },
+        "normal_release_confirm_ticks": 48,
+        "normal_release_confirm_s": 0.2,
+        "home_settle_ticks": 120,
+        "home_settle_s": 0.5,
+        "final_subphase": "home_settle",
+        "final_measured_q_absmax_rad": 7.007975000306033e-08,
+        "return_home_segments_motion_complete": [
+          true,
+          true
+        ]
+      }
+    },
+    {
+      "case_id": "p000923-l3",
+      "role": "Genuine failed learned ACT L2 known selection-VAL DEV rollout; no fresh/unseen or contact success claim",
+      "video": {
+        "file": "assets/act10_p000923_l3_complete_failed.mp4",
+        "bytes": 857452,
+        "sha256": "04a0773de1511470dbd6921c1df2f2e81593e7201ad5c03ba1f8d224c2e1840d",
+        "frames": 1210,
+        "fps": 10,
+        "recorded_size": [
+          640,
+          360
+        ],
+        "encoded_s": 121.0,
+        "native_s": 121.00416666666666,
+        "native_physics_ticks": 29041,
+        "trailing_unrendered_native_ticks": 1,
+        "native_encoded_bytes_identical": true,
+        "full_decode_passed": true,
+        "preencode_RGB_identity_claim": false
+      },
+      "poster": {
+        "file": "assets/act10_p000923_l3_last_frame.png",
+        "bytes": 86284,
+        "sha256": "3a5329e66624f007ce7e5d6435f21294c641a3a01fe945b6a3dd9c8265758ae0",
+        "encoded_frame": 1209,
+        "native_time_s": 120.99999999997212,
+        "exact_decoded_frame": true,
+        "decoded_RGB_sha256": "6a1c70135c954ef1bc25a410471173de95827941353c008c71b2dac41b1cda5f",
+        "phase_inferred": false
+      },
+      "source_evidence": {
+        "bytes": 5917,
+        "sha256": "a89430866c9522f58172cabc527a0d18033586bec9dd07fa683a8c054856376b"
+      }
+    },
+    {
+      "case_id": "p001120-l3",
+      "role": "KNOWN TRAIN failed rollout: learned ACT approach followed by analytic ALIGN safety rejection; no ALIGN motion/contact success claimed",
+      "video": {
+        "file": "assets/act10_p001120_l3_complete_failed.mp4",
+        "bytes": 207000,
+        "sha256": "a72ed00fb90b7f529ae0679b7a509192461a4b7744d3c310ff99f44560890d1e",
+        "frames": 293,
+        "fps": 10,
+        "recorded_size": [
+          640,
+          360
+        ],
+        "encoded_s": 29.3,
+        "native_s": 29.325,
+        "native_physics_ticks": 7038,
+        "trailing_unrendered_native_ticks": 6,
+        "native_encoded_bytes_identical": true,
+        "full_decode_passed": true,
+        "preencode_RGB_identity_claim": false
+      },
+      "poster": {
+        "file": "assets/act10_p001120_l3_complete_failed_poster.png",
+        "bytes": 81055,
+        "sha256": "99e8b49a72c330b6003c06a448a191613d82848c58cc78e64aa6d99869623ce4",
+        "encoded_frame": 292,
+        "native_time_s": 29.299999999998658,
+        "exact_decoded_frame": true,
+        "decoded_RGB_sha256": "66180e59a39dfa2500c48621fb0634df52222a05bc1d779e4eac55409f409600",
+        "phase_inferred": false
+      },
+      "source_evidence": {
+        "bytes": 4182,
+        "sha256": "382095fc8a6af8e12b9a1ba829f93e8586a103a5a14d21545344353891eb3b25"
+      }
+    }
+  ],
+  "source_artifact_digests": {
+    "ACT10_V8_TRAINING_CLOSED_CHECKED": {
+      "bytes": 50030,
+      "sha256": "584602032773c547caa6d1eb5ded3138fe67b69b10087f38e2ec8ffcebfa20a7"
+    },
+    "ACT10_V8_TRAINING_LEARNING_CURVE": {
+      "bytes": 12417,
+      "sha256": "688b6db8fb3edffa920ca92929ee82505445936e5fb98209ae6770b87b65acc7"
+    },
+    "ACT10_V8_KNOWN4_CLOSED_CHECKED": {
+      "bytes": 12046,
+      "sha256": "f03ef3871f0e561a7da19aa7fe4052ea5a888e6a3d38ae0c7db03c893e095d6f"
+    },
+    "ACT10_ALIGN_RECONSTRUCTION_DIAGNOSIS": {
+      "bytes": 3411,
+      "sha256": "0836f0c8b636c180151cbd41344c5a2f3bb519f0355619b24fbf744670776ce8"
+    },
+    "ACT10_ALIGN_RECONSTRUCTION_SPLINE_EXTREMA": {
+      "bytes": 1939,
+      "sha256": "f63d04d012bb1f36ec1695ad5623c5812af92d203b4e8fd6a1edf969b8e0b495"
+    },
+    "ACT10_ALIGN_INTERNAL_MARGIN_CPU_CANDIDATE": {
+      "bytes": 4205,
+      "sha256": "c3c3ef1f35ad401a913ddaefb6fd29ba6f40ca0ebb2a836dfe2d1b7995b789ef"
+    },
+    "ACT10_VAL_L3_L2_FAILURE_DIAGNOSIS": {
+      "bytes": 14351,
+      "sha256": "d8927d38c204c056dc17d578ab2841fa026eab29aac6fc60ea22115b1ccf7abe"
+    },
+    "ACT10_V8_BASE29_POOL_COUNTS": {
+      "bytes": 4397,
+      "sha256": "490fc9b7c4b3efaf0510ff57337adf55140cf9a810579d689caf89ec47fbda7f"
+    },
+    "ACT10_V8_MEASURED_CORRIDOR_COUNTS": {
+      "bytes": 11379,
+      "sha256": "f3430ae3bbbe61790c8810de51ec42ea554af4fa22b733646272be53b3498e6a"
+    },
+    "ACT10_SOURCE41_TERMINAL_SCOPE_DIAGNOSIS": {
+      "bytes": 20173,
+      "sha256": "dfce21a8d5db04db476eb7ab7ff878bc27138a393a28ab1687a0f0b5f1343475"
+    }
+  },
+  "limits": {
+    "model_accepted": false,
+    "fresh_generalization": false,
+    "hardware_validation": false,
+    "clinical_validation": false,
+    "new_matched_Astra_comparison": false,
+    "all_10_points": false,
+    "moving_patient": false,
+    "new_pose_generalization": false,
+    "neural_multimodal_policy": false
+  }
+}
