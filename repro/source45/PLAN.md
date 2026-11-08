@@ -12,6 +12,9 @@ conventions. Preserve the released root, historical capsules, blog and benchmark
 - [x] Run bounded actual synthetic CPU checks and record results, versions and skips.
 - [x] Document Source44/45 deltas and the missing original/native prerequisites.
 - [x] Review the additive diff, verify, explicitly commit this capsule, and stop.
+- [x] Repair SPEC P2 import evidence with an explicit post-pytest namespace check,
+  isolated actual-import RED/GREEN regression, and fresh default/optional receipts;
+  retain the rejected 793-module default run and move its Torch-spy test to opt-in.
 - [ ] Root obtains fresh SPEC then distinct QUALITY review before integration/publication.
 
 The complete original context is 1,724 files. This 304-file selection is neither

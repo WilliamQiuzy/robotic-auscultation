@@ -24,7 +24,6 @@
   ],
   "selected_cpu_tests": [
     "tests/test_ausc_act_refinement_warm_start.py::test_pins_exact_selected17000_original41_and_original_official_child",
-    "tests/test_ausc_act_refinement_warm_start.py::test_metadata_only_admission_preserves_v8_counts_and_excludes_parent_evaluations",
     "tests/test_ausc_act_refinement_warm_start.py::test_metadata_rejects_wrong_parent_probes_head_norm_optimizer_and_counts",
     "tests/test_ausc_act_refinement_warm_start.py::test_official_cpu_factory_random_tensors_when_available",
     "tests/test_ausc_act_refinement_data.py::test_teacher_windows_keep_mixed_h2_real_short_future_and_verbatim_targets",
@@ -70,7 +69,8 @@
   "optional_torch_cpu_tests": [
     "tests/test_ausc_act_refinement_warm_start.py::test_all54_bit_identical_tensor_shapes_dtypes_probes_and_fresh_adamw0",
     "tests/test_ausc_act_refinement_warm_start.py::test_import_rejects_any_tensor_or_probe_change_and_never_imports_optimizer",
-    "tests/test_ausc_act_training_v9.py::test_v9_all40_saved_task_ranking_states_predictions_and_exact_corruption"
+    "tests/test_ausc_act_training_v9.py::test_v9_all40_saved_task_ranking_states_predictions_and_exact_corruption",
+    "tests/test_ausc_act_refinement_warm_start.py::test_metadata_only_admission_preserves_v8_counts_and_excludes_parent_evaluations"
   ],
   "files": [
     {

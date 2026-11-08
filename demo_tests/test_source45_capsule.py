@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -97,6 +98,33 @@ class Source45Capsule(unittest.TestCase):
             with self.subTest(invalid=invalid), self.assertRaises(ValueError):
                 verifier.fixture_nodes(invalid, selected)
 
+    def test_post_run_torch_check_observes_an_actual_import_in_isolated_python(self):
+        with tempfile.TemporaryDirectory() as folder:
+            # This is an imported namespace witness, not the Torch library or
+            # a substitute model/runtime. No optional dependency is required.
+            (Path(folder) / 'torch.py').write_text('synthetic_import_witness = True\n')
+            result = subprocess.run([sys.executable, '-I', '-B', '-c', '''
+import importlib.util
+from pathlib import Path
+import sys
+spec = importlib.util.spec_from_file_location('source45_public_verifier', sys.argv[1])
+verifier = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(verifier)
+assert hasattr(verifier, 'check_torch_imports'), 'Explicit post-run Torch check required'
+assert verifier.check_torch_imports(optional_torch=False) == []
+sys.path.insert(0, sys.argv[2])
+import torch
+assert Path(torch.__file__) == Path(sys.argv[2]) / 'torch.py'
+try:
+    verifier.check_torch_imports(optional_torch=False)
+except ValueError as error:
+    assert 'optional-torch' in str(error)
+else:
+    raise AssertionError('Actual imported Torch namespace was not rejected')
+assert verifier.check_torch_imports(optional_torch=True) == ['torch']
+''', str(ADAPTER), folder], capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_real_selection_has_current_entries_and_explicit_optional_tensors(self):
         verifier = self.verifier()
         count = verifier.verify(CAPSULE)
@@ -112,10 +140,13 @@ class Source45Capsule(unittest.TestCase):
         verifier.fixture_nodes(selection['optional_torch_cpu_tests'], names)
         self.assertIn('test_native_transform_storage_and_signed_compression_are_not_analytic_equality',
                       ' '.join(selection['selected_cpu_tests']))
-        tensor_candidate = ('tests/test_ausc_act_training_v9.py::'
-                            'test_v9_all40_saved_task_ranking_states_predictions_and_exact_corruption')
-        self.assertIn(tensor_candidate, selection['optional_torch_cpu_tests'])
-        self.assertNotIn(tensor_candidate, selection['selected_cpu_tests'])
+        for tensor_candidate in (
+                'tests/test_ausc_act_training_v9.py::'
+                'test_v9_all40_saved_task_ranking_states_predictions_and_exact_corruption',
+                'tests/test_ausc_act_refinement_warm_start.py::'
+                'test_metadata_only_admission_preserves_v8_counts_and_excludes_parent_evaluations'):
+            self.assertIn(tensor_candidate, selection['optional_torch_cpu_tests'])
+            self.assertNotIn(tensor_candidate, selection['selected_cpu_tests'])
 
 
 if __name__ == '__main__':

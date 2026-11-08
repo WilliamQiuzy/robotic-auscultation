@@ -93,6 +93,17 @@ def fixture_nodes(nodes, selected):
     return nodes
 
 
+def check_torch_imports(*, optional_torch):
+    """Observe actual loaded namespaces after pytest; fail default on Torch."""
+    names = sorted(name for name in sys.modules if name == 'torch' or name.startswith('torch.'))
+    print('Torch module check: ' + json.dumps(dict(
+        method='post_pytest_sys_modules', loaded_torch_module_count=len(names),
+        optional_torch=optional_torch), sort_keys=True), flush=True)
+    if names and not optional_torch:
+        raise ValueError('Torch modules loaded without --optional-torch')
+    return names
+
+
 class ImportBoundary:
     """Reject loaded project/test-helper modules supplied by another checkout."""
     def __init__(self, root):
@@ -131,9 +142,11 @@ def run_fixtures(root, optional_torch=False):
         if require_local_module(module.__file__, root) != root / name:
             raise ValueError(f'Entry module origin differs: {name}')
     print(f'Entry imports: {len(selection["entry_points"])} exact Source45 capsule paths.', flush=True)
-    return pytest.main(['-c', '/dev/null', '--rootdir', str(root), '--confcutdir', str(root),
-                        '-p', 'no:cacheprovider', '-q', '-rs',
-                        *[str(root / name) for name in tests]], plugins=[ImportBoundary(root)])
+    result = pytest.main(['-c', '/dev/null', '--rootdir', str(root), '--confcutdir', str(root),
+                          '-p', 'no:cacheprovider', '-q', '-rs',
+                          *[str(root / name) for name in tests]], plugins=[ImportBoundary(root)])
+    check_torch_imports(optional_torch=optional_torch)
+    return result
 
 
 def main():

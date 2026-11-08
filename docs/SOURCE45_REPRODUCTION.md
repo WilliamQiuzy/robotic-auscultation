@@ -70,28 +70,36 @@ python3.11 -m venv .venv-source45
 `--fixtures` starts an unoptimized `-I -B` child with CUDA hidden and pytest
 plugin autoload disabled. Only this capsule and its test-helper directory are
 added as project import roots. The child imports all ten entry modules from
-their exact capsule paths, runs only the 43 listed original test functions
+their exact capsule paths, runs only the 42 listed original test functions
 (parameterizations count as separate cases), prints every skip reason, and
 checks loaded project/helper origins. Do not overlay the capsule onto the root,
 Source26, Source28 or another checkout with `PYTHONPATH`.
 
-Three additional original test functions use tiny **synthetic CPU tensors** to
-check 54-tensor initialization, numerical probes, forbidden optimizer import,
-a fresh AdamW state, and all-40 saved candidate tensor/prediction bindings. They are opt-in; no optimization update or training run is
-included:
+Four additional original test functions require Torch. Three use tiny
+**synthetic CPU tensors** to check 54-tensor initialization, numerical probes,
+forbidden optimizer import, a fresh AdamW state, and all-40 saved candidate
+tensor/prediction bindings. The fourth imports Torch to assert that metadata
+admission never calls `torch.load`. They are opt-in; no optimization update or
+training run is included:
 
 ```sh
 # Optional; install a CPU Torch build appropriate for the host, outside the capsule.
 .venv-source45/bin/python -I -B repro/source45/verify_capsule.py --fixtures --optional-torch
 ```
 
-The recorded default run was **131 passed, 2 skipped** from 43 test functions
-(133 parameterized cases), with no Torch import. The optional extension was
-**148 passed, 2 skipped** from 46 functions (150 cases), including the default
-profile. Both runs imported all ten entry modules from exact capsule paths and
-confined 140 loaded project/test modules to this capsule. Five adapter tests
-and the 96-test public demo regression suite also passed. These are local
-synthetic software results; GitHub Actions was not executed for this addition.
+The recorded default run was **130 passed, 2 skipped** from 42 test functions
+(132 parameterized cases). After pytest returned, the wrapper checked actual
+`sys.modules` entries for `torch` and `torch.*` and observed **zero**; a positive
+count fails the default command. The optional extension was **148 passed,
+2 skipped** from 46 functions (150 cases), including the default profile, and
+the same post-run check observed **1,126 Torch modules**. This records loaded
+namespaces at that check, not an all-time import trace. An isolated import
+regression verifies that the check detects and rejects an actual imported
+namespace in the default mode. Both profiles imported all ten entry modules
+from exact capsule paths and confined 140 loaded project/test modules to this
+capsule. Six adapter tests and the 97-test public demo regression suite also
+passed. These are local synthetic software results; GitHub Actions was not
+executed for this addition.
 
 The two pinned Official LeRobot factory checks remain in the default profile
 so their original environment skips are visible. An ordinary Torch install does
