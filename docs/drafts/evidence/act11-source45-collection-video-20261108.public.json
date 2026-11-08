@@ -1,0 +1,130 @@
+{
+  "schema": "wam_source45_actual_collection_video_v1",
+  "source_code_commit": "29024f00a8656865fe79242605580278561f463e",
+  "selection": {
+    "fixed_slot": "dart-02",
+    "fixed_collection_denominator": 8,
+    "episode_id": "act11-onpolicy-dart-02-cf518d1503ce",
+    "body": "p000758",
+    "pose": "476",
+    "site": "R3",
+    "split": "TRAIN",
+    "selection_reason": "first_declared_slot"
+  },
+  "qualification": {
+    "scope": "collection_teacher_data_only",
+    "data_qualified": true,
+    "case_teacher_windows": 17,
+    "all_eight_data_qualified": 8,
+    "all_eight_teacher_windows": 133,
+    "learner_prefix_executed": true,
+    "expert_intervention": true,
+    "benchmark_act_eligible": false,
+    "new_ACT11_model_result": false,
+    "model_qualified": false
+  },
+  "timeline": {
+    "capture_hz": 20,
+    "frames": 2093,
+    "encoded_duration_s": 104.65,
+    "native_final_time_s": 104.65833333332031,
+    "native_final_step_count": 25118,
+    "frame_time_source": "authenticated_frozen_writer_20Hz_index_plus_one_clock_contract",
+    "first_frame_native_time_s": 0.05,
+    "last_frame_native_time_s": 104.65,
+    "intervention_native_time_s": 25.099999999998897,
+    "intervention_physics_row": 6024,
+    "poster_frame_index": 501,
+    "poster_encoded_time_s": 25.05,
+    "poster_native_time_s_from_clock_contract": 25.1,
+    "poster_phase_inferred_from_image": false
+  },
+  "video": {
+    "file": "assets/source45_dart02_collection_data_qualified.mp4",
+    "bytes": 331378,
+    "sha256": "6483544c21465da64d3fea8eae49adf722bc4fb7dc0c746a0bb8649539a1c641",
+    "width": 256,
+    "height": 144,
+    "fps": 20,
+    "frames": 2093,
+    "duration_s": 104.65,
+    "codec": "H264",
+    "lossy": true,
+    "soundtrack": false
+  },
+  "poster": {
+    "file": "assets/source45_dart02_intervention_frame501.png",
+    "bytes": 21911,
+    "sha256": "09dc92f7bb5b361e50454a214b432cd239861bab152d0304c0ccd2f15e1e6b6a",
+    "width": 256,
+    "height": 144,
+    "derived_from_decoded_MP4_frame": true,
+    "cross_decoder_pixel_identity_claimed": false,
+    "decoder_rounding_note": "Decoder versions can round RGB differently; no cross-decoder pixel identity is claimed."
+  },
+  "conversion": {
+    "all_captured_frames_encoded": true,
+    "source_frame_CRC_checks_passed": true,
+    "source_JPEG_container_checks_passed": true,
+    "full_source_image_decode_passed": true,
+    "full_encoded_video_decode_passed": true,
+    "source_and_writer_bytes_unchanged": true,
+    "existing_decoder_functions_reused": [
+      "_read_frame",
+      "_check_jpeg_payload"
+    ],
+    "ffmpeg_threads": 1,
+    "niceness": 10,
+    "CPU_only": true,
+    "runtime_modules_imported": false,
+    "raw_episode_reader_run": false,
+    "physical_kernel_run": false,
+    "World_or_Isaac_launched": false,
+    "re_rendered": false,
+    "synthetic_frames": false,
+    "preencode_RGB_identity_claimed": false,
+    "raw_or_weights_downloaded": false
+  },
+  "source_artifact_digests": {
+    "closed_collection_manifest": {
+      "bytes": 54718,
+      "sha256": "19fe8ff5b16ad58960ff496033c1b21a4970cecc98df20fbf2409b16701a7eb2"
+    },
+    "closed_collection_control": {
+      "bytes": 2347,
+      "sha256": "fe38cd180fcba3065743ded00b9a6c00dee4d70cd8a025610aea9df36f6436a6"
+    },
+    "compact_RGB_capture": {
+      "bytes": 9244822,
+      "sha256": "9c06147c78de1fb52b3d0052b38ea6eda9ed29dfdf07edd9313afe1dd5f01102"
+    },
+    "compact_manifest": {
+      "bytes": 8018,
+      "sha256": "0ab7d361e3701ba30cf9907b1684eafa22945e9c674dd8a4a23e0b7cb17bac2e"
+    },
+    "compact_receipt": {
+      "bytes": 1305,
+      "sha256": "225d27c514b3f3bdb67fa03149ad8d4758421f23cb2c73afea5e98e369dd1326"
+    },
+    "approved_camera": {
+      "bytes": 8126,
+      "sha256": "aeac00eb5a963520e869c60efff52a300484bd1c4a49232067a669c525ad07f0"
+    },
+    "collection_sidecar": {
+      "bytes": 275021,
+      "sha256": "6214c99b83bd2a8400ff29fbe6f6cfab342ce51804bcb1ddf35747673a291ab3"
+    },
+    "qualified_bank_COMPLETE": {
+      "bytes": 1257,
+      "sha256": "3f9224619de589fa94154252a5e0e4a95646ace3a42a4ad6b7da068e7f0ee637"
+    },
+    "qualified_bank_METADATA": {
+      "bytes": 457250,
+      "sha256": "954dd4a3d3bfad981ab432a861dc05175af62b2a9aa09d896ef39a8fd6ca753a"
+    },
+    "unchanged_writer": {
+      "bytes": 70016,
+      "sha256": "385069835b2b8dce1094c6afbc79e83c1b990409025193c5a6ea978e17a1b738"
+    }
+  }
+}

@@ -1,0 +1,223 @@
+{
+  "schema": "wam_act11_source45_data_qualified_checkpoint_v1",
+  "evidence_date_utc": "2026-11-08",
+  "checkpoint": "new_fit_closed_native_post_owner_verification_blocked_before_Isaac",
+  "source_code_commit": "29024f00a8656865fe79242605580278561f463e",
+  "reader_contract": {
+    "separate_translation_length_and_rotation_angle": true,
+    "declared_float32_representation_envelope": true,
+    "preserve_signed_slider_measurement": true,
+    "same_source_exact_comparisons_relaxed": false,
+    "original_physical_gates_changed": false,
+    "PhysX_accuracy_proven": false
+  },
+  "failed_four_worker_collection": {
+    "fixed_declared_slots": 8,
+    "parallelism": 4,
+    "reason": "available_RAM_emergency_guard",
+    "available_RAM_guard_bytes": 2147483648,
+    "worker_final_results": 0,
+    "data_qualified": false,
+    "preserved_and_independently_backed_up": true,
+    "archive_bytes": 194298740,
+    "archive_sha256": "08bd4f407d87684b4ec42a7ef31f1e0d36f4d5edac8e13ba89b568bcba25a34c"
+  },
+  "new_collection": {
+    "fixed_denominator": 8,
+    "executed": 8,
+    "normal_owner_closed": true,
+    "teacher_windows": 133,
+    "maximum_parallelism": 2,
+    "worker_budget_bytes": 12884901888,
+    "reserve_bytes": 2147483648,
+    "underlying_guard_unchanged": true,
+    "learner_prefix_model": "ACT10_V8_selected_update_17000",
+    "expert_intervention": true,
+    "collection_only": true,
+    "benchmark_ACT_eligible": false,
+    "pure_ACT11_model_successes_claimed": false,
+    "independent_production_reader_data_qualified": 8
+  },
+  "qualified_banks": {
+    "enriched_measured_recovery": {
+      "qualified_sources": 17,
+      "windows": 2064,
+      "parent_windows": 274,
+      "original274_ordered_subsequence": true,
+      "genuine_Original40_full_physical_audit": true,
+      "new_independent_people_or_episodes_inferred_from_window_count": false,
+      "improved_near_handoff_coverage_claimed": false
+    },
+    "learner_prefix_expert_intervention": {
+      "data_qualified_episodes": 8,
+      "windows": 133
+    },
+    "earlier_measured_queries": {
+      "windows": 58,
+      "genuine_Original41_reader": true
+    }
+  },
+  "actual_CPU_preparation": {
+    "complete": true,
+    "elapsed_s": 182.83932503301185,
+    "base_origin_counts": {
+      "TRAIN": 8373,
+      "selection_VAL": 2345
+    },
+    "supplemental_bank_windows": {
+      "enriched_measured": 2064,
+      "on_policy_collection": 133,
+      "earlier_query": 58
+    },
+    "three_qualified_cached_banks_reused": true,
+    "exporters_or_native_episode_readers_rerun_during_preparation": false,
+    "normalization_refitted": false,
+    "task_subset_frozen_before_optimizer": true,
+    "optimizer_steps": 0,
+    "training_started": false,
+    "GPU_launched": false,
+    "fresh_payloads_opened": false
+  },
+  "actual_official_CPU_integration": {
+    "complete": true,
+    "normal_process_exit_code": 0,
+    "real_V9_gradient_norm": 0.4803033917858296,
+    "padding_poison_backward_zero_in_PAD_cells": true,
+    "unchanged_model_tensors": 54,
+    "optimizer_steps": 0
+  },
+  "preservation": {
+    "new_collection_raw_archive_bytes": 390217923,
+    "new_collection_raw_archive_sha256": "316201a9426f201f97f2f35cdfceaf5b00b1a5029541467747cd547bd792ea6c",
+    "independent_raw_member_files_verified": 770,
+    "independent_raw_backup_complete": true,
+    "supplemental_bank_files_independently_copied_and_SHA_verified": 45,
+    "not_full_environment_restore": true,
+    "raw_copied_to_Mac": false
+  },
+  "model_status_at_checkpoint": {
+    "ACT10_completed_updates": 20000,
+    "ACT10_selected_update": 17000,
+    "ACT10_known_qualified": 2,
+    "ACT10_known_denominator": 4,
+    "ACT10_accepted": false,
+    "ACT11_new_training_started": true,
+    "ACT11_known_cases_tested": 0,
+    "ACT11_model_qualified": false,
+    "fresh_cases_tested": 0,
+    "fresh_declared_scenarios": 32,
+    "fresh_gate_open": false,
+    "new_pure_ACT11_video_available": false,
+    "ACT11_completed_training": true,
+    "ACT11_selected_update": 9000,
+    "latest_closed_Isaac_policy": "ACT10_V8",
+    "ACT11_selected_model_native_admitted": false
+  },
+  "scope": {
+    "neural_input": "state17_history2",
+    "neural_stage": "L2_approach",
+    "analytic_stage": "Hall_L3",
+    "RGBD_recorded": true,
+    "RGBD_neural_input": false,
+    "audio": false,
+    "VLA": false,
+    "all_ten_points_qualified": false,
+    "general_population_qualified": false,
+    "moving_patient_qualified": false,
+    "real_robot_qualified": false,
+    "clinical_qualified": false
+  },
+  "source_artifact_digests": {
+    "enriched_export_COMPLETE": {
+      "bytes": 5238,
+      "sha256": "a782127dbce0e436b79ad2b0d7958f9d21b1f19dc3e1a19f4296c28fbbb51925"
+    },
+    "actual_CPU_preparation_COMPLETE": {
+      "bytes": 46354,
+      "sha256": "da17366a8c21c86ab7b986db345bc821d86cf2ecd99b7b272b660c605a8d7e93"
+    },
+    "actual_official_CPU_integration_COMPLETE": {
+      "bytes": 17934034,
+      "sha256": "c18cb6914a51b129eabda7a432c6c94b6a5e8f9c6234be1254583ffc5cc8459c"
+    },
+    "frozen_training_config": {
+      "bytes": 6582,
+      "sha256": "f137420228eae9d316bb062aae9f2dfa299d5560e1d8405efe84a3e1aed4683c"
+    },
+    "frozen_task_subset": {
+      "bytes": 651699,
+      "sha256": "7dffcdd78ff1650ca9d8dcca645ef34a5689c80769e744235fe6335368425af7"
+    },
+    "supplemental_bank_copy_manifest": {
+      "bytes": 9466,
+      "sha256": "ce455abd46f37fe0e7b4354162414ae36fb22256536395d3abe05a5af7d3f50f"
+    },
+    "V9_owner": {
+      "bytes": 9012,
+      "sha256": "cb9a6bca39f9bf4bf97151f288548746c536004dbc9c7b6217bdd7efdf1f4505"
+    },
+    "V9_training": {
+      "bytes": 4762231,
+      "sha256": "bc544be92c8823e89a8f8b74dc150c5d98ee893b2221ba4e83fe9eeee94b967c"
+    },
+    "V9_cpu_equivalence": {
+      "bytes": 96897,
+      "sha256": "2f8f407365c9cebd15af3878c324de07d298bfb671d58db7091e5593220d5b35"
+    },
+    "V9_selection": {
+      "bytes": 4450925,
+      "sha256": "1ca58c5311e52ca7b6eb89a429baa314a17d3a076d1b8caa703dee844c73f79d"
+    },
+    "V9_failure": {
+      "bytes": 244,
+      "sha256": "c4fe7f2c4f454f82b3fa0ae291414af1cabd0cfda690dde8978a0d5a4c894b7d"
+    },
+    "V9_traceback": {
+      "bytes": 1838,
+      "sha256": "01ffcbd4e43585e2ee8aafd1858ccd676c760a39a579cc78525d05c1a10b7f3e"
+    }
+  },
+  "actual_new_training": {
+    "completed_new_optimizer_updates": 20000,
+    "full_evaluations": 40,
+    "normal_original_owner_close": true,
+    "official_CPU_equivalence_passed": true,
+    "official_CPU_verified_candidates": 40,
+    "stored_selected_update": 9000,
+    "stored_selected_task_score": 0.8271509377637971,
+    "native_post_owner_admission_passed": false,
+    "selected_model_admitted_for_Isaac": false,
+    "new_Isaac_model_cases_tested": 0,
+    "model_qualified": false,
+    "run_id": "act11-refinement-v9-train-20261108-v2",
+    "training_started": true,
+    "completed_training": true
+  },
+  "verified_collection_media": {
+    "evidence_file": "evidence/act11-source45-collection-video-20261108.public.json",
+    "bytes": 4376,
+    "sha256": "bd3d53e0b56473deb799064f5d94bbfbe04d5a87419e38512c0fc59ae9a09cc6",
+    "data_qualified": true,
+    "expert_intervention": true,
+    "benchmark_ACT_eligible": false,
+    "new_ACT11_model_result": false
+  },
+  "public_reproduction_scope": {
+    "partial_code_and_CPU_fixtures": true,
+    "native_data_bundled": false,
+    "complete_native_runtime_bundled": false
+  },
+  "closed_training_scalar_evidence": {
+    "file": "evidence/act11-source45-v9-training-20261108.public.json",
+    "bytes": 13941,
+    "sha256": "6270e06d8afabfe3e4e7924d69b404965f553e03c69a570875ebf2a89110ff72"
+  },
+  "full40_training_figure": {
+    "file": "assets/act11-source45-v9-training-20261108.png",
+    "bytes": 165163,
+    "sha256": "1dbb76de82996f781f16b350a2596ea90cb0566bb67a53bee228510933c63e39",
+    "width": 1440,
+    "height": 760,
+    "offline_only": true
+  }
+}
