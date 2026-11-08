@@ -41,6 +41,26 @@ class ACT10ExpertDataPresentation(unittest.TestCase):
         self.assertEqual(combined['unchanged_native_origins'], {'TRAIN': 8373, 'selection_VAL': 2345})
         self.assertEqual(combined['computed_auxiliary_TRAIN_bodies'], 16)
 
+    def test_full_pool_diversity_does_not_imply_diverse_handoff_corridor(self):
+        e = json.loads(LEDGER.read_text())
+        c = e['measured_recovery_corridor']
+        self.assertEqual(c['metric'], 'dynamic_prepose_error')
+        self.assertEqual(c['threshold_m'], 0.012)
+        self.assertEqual((c['full_measured_windows'], c['corridor_measured_windows'], c['corridor_TRAIN_bodies']), (332, 53, 1))
+        q, d = c['query32'], c['dart37']
+        self.assertEqual((q['corridor_windows'], q['corridor_TRAIN_bodies'], q['R3_corridor_windows'], q['L3_corridor_windows']), (53, 1, 17, 36))
+        self.assertEqual((d['full_pool_windows'], d['full_pool_TRAIN_bodies'], d['corridor_windows'], d['corridor_TRAIN_bodies']), (274, 5, 0, 0))
+        self.assertEqual((d['slots'], d['slots_without_corridor_windows'], d['R3_full_pool_windows'], d['L3_full_pool_windows']), (17, 17, 164, 110))
+        self.assertEqual(q['corridor_windows'] + d['corridor_windows'], c['corridor_measured_windows'])
+        self.assertEqual(c['separate_skin_perturbation_trigger_mm'], e['late_DART_expert_bank']['skin_trigger_mm'])
+        self.assertEqual(c['separate_skin_perturbation_trigger_mm'], 35)
+        self.assertFalse(c['sampler_changed'] or c['selection_changed'] or c['model_queried'])
+        ref = e['source_artifact_digests']['measured_corridor_counts']
+        self.assertEqual((ref['bytes'], ref['sha256']), (11379, 'f3430ae3bbbe61790c8810de51ec42ea554af4fa22b733646272be53b3498e6a'))
+        paragraph = re.search(r'<p\b[^>]*\bid="iteration10-corridor-limit".*?</p>', self.html, re.S).group(0)
+        for fact in ['dynamic prepose error ≤12 mm', 'All 53', 'one TRAIN body', '0/274', 'all 17 slots', '35 mm skin trigger']:
+            self.assertIn(fact, paragraph)
+
     def test_preparation_and_started_training_are_not_model_acceptance(self):
         e = json.loads(LEDGER.read_text())
         t = e['ACT10_training_snapshot']

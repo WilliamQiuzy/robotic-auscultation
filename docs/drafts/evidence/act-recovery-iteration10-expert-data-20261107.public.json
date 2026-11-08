@@ -240,6 +240,11 @@
       "artifact": "ACT10_V8_TRAINING_STARTED_CHECKED.json",
       "bytes": 2637,
       "sha256": "4d8220dbdb1d8f79fd6abf72479569f9c2a699cde996951f726de36e0fc01a1e"
+    },
+    "measured_corridor_counts": {
+      "artifact": "ACT10_V8_MEASURED_CORRIDOR_COUNTS.json",
+      "bytes": 11379,
+      "sha256": "f3430ae3bbbe61790c8810de51ec42ea554af4fa22b733646272be53b3498e6a"
     }
   },
   "limits": {
@@ -248,5 +253,39 @@
     "causal_algorithm_or_speedup_claim": false,
     "hardware_validation": false,
     "raw_captures_arrays_and_weights_public": false
+  },
+  "measured_recovery_corridor": {
+    "scope": "Existing fit inventory metadata only; measured recovery banks, not all training data or a model result.",
+    "metric": "dynamic_prepose_error",
+    "threshold_m": 0.012,
+    "full_measured_windows": 332,
+    "corridor_measured_windows": 53,
+    "corridor_TRAIN_bodies": 1,
+    "query32": {
+      "full_pool_windows": 58,
+      "corridor_windows": 53,
+      "corridor_TRAIN_bodies": 1,
+      "R3_corridor_windows": 17,
+      "L3_corridor_windows": 36
+    },
+    "dart37": {
+      "full_pool_windows": 274,
+      "full_pool_TRAIN_bodies": 5,
+      "corridor_windows": 0,
+      "corridor_TRAIN_bodies": 0,
+      "slots": 17,
+      "slots_without_corridor_windows": 17,
+      "R3_full_pool_windows": 164,
+      "L3_full_pool_windows": 110
+    },
+    "separate_skin_perturbation_trigger_mm": 35,
+    "inventory": {
+      "bytes": 19337001,
+      "sha256": "42740fd53edf5ade3b06118a56263b9dfea663905954d7fea36afb606059bf32"
+    },
+    "raw_payloads_opened": false,
+    "model_queried": false,
+    "sampler_changed": false,
+    "selection_changed": false
   }
 }
