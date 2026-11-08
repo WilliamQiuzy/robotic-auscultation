@@ -1,0 +1,151 @@
+{
+  "schema": "wam_act11_source44_data_integrity_public_v1",
+  "scope": "Closed Source44 collection and reader failure; not ACT11 model acceptance",
+  "source43_collection": {
+    "source_code_commit": "f54f5e476e6be083b7f6c64b87b8649fd9744c27",
+    "executed": 8,
+    "worker_reported_positive": 8,
+    "normal_owner_closed": true,
+    "raw_preserved": true,
+    "native_STOP_witness_present": false,
+    "data_qualified": 0,
+    "data_failure": "Missing actual native STOP and interpolator capture witness; historical raw cannot be backfilled"
+  },
+  "source44_collection": {
+    "source_code_commit": "a3e7b0145fc5c8cb1b531749868c59e086659777",
+    "body": "p000758",
+    "pose": "476",
+    "target": "R3",
+    "split": "TRAIN",
+    "original_declared_slots": 8,
+    "executed": 1,
+    "intentionally_unlaunched": 7,
+    "controller": "ACT10 selected update 17000 warm student prefix plus analytic expert intervention",
+    "normal_owner_closed": true,
+    "owner_ended_utc": "2026-11-08T11:09:26.428868+00:00",
+    "worker_wall_s": 1630.4721073340042,
+    "worker_reported_positive": true,
+    "independent_STOP_witness_passed": true,
+    "independent_parking_and_physical_route_checks_passed": true,
+    "strict_same_source_checks": {
+      "measured_joint_positions": true,
+      "measured_joint_velocities": true,
+      "H2_history": true,
+      "history_times": true,
+      "actual_TCP_poses": true
+    },
+    "full_reader_passed": false,
+    "data_qualified": 0,
+    "data_failure": "Source-bound actual full TCP pose disagrees with measured joint FK",
+    "raw_and_failure_metadata_independently_backed_up": true,
+    "all8_Source44_collection_started": false
+  },
+  "pose_diagnostic": {
+    "diagnostic_only": true,
+    "captured_samples": 482,
+    "capture_hz": 20,
+    "comparison": "Native PhysX float32 measured TCP pose versus double precision analytic joint FK",
+    "rejected_mixed_matrix_absolute_tolerance": 1e-10,
+    "max_position_norm_m": 4.5215639763690366e-7,
+    "max_rotation_matrix_element": 1.0485400717685778e-6,
+    "max_rotation_rad": 1.3091678227151119e-6,
+    "boundary_signed_slider_m": -1.29766e-8,
+    "contact_accuracy_claimed": false
+  },
+  "reader_repair": {
+    "source_code_commit": "29024f00a8656865fe79242605580278561f463e",
+    "scope": "Cross precision pose consistency and signed compression algebra only",
+    "separate_length_and_angle": true,
+    "representation_envelope": "gamma64 = 64u / (1 - 64u), u = 2^-24; translation uses source-bound world/base and lever-arm scale, angle uses 2gamma64",
+    "preserve_actual_signed_compression": true,
+    "same_source_checks_relaxed": false,
+    "physical_standards_changed": false,
+    "PhysX_accuracy_proven": false,
+    "new_capture_qualification_claimed": false,
+    "next_required_evidence": "A new actual capture must pass the full independent reader and yield positive valid teacher windows before larger collection or training"
+  },
+  "model_status": {
+    "ACT10_known_qualified": 2,
+    "ACT10_known_denominator": 4,
+    "ACT10_accepted": false,
+    "ACT11_new_training_started": false,
+    "fresh_cases_tested": 0
+  },
+  "model_contract": {
+    "structured_state_dimension": 17,
+    "observation_history": 2,
+    "learned_stage": "L2",
+    "contact_stage": "analytic_Hall_L3",
+    "RGBD_recorded": true,
+    "RGBD_neural_input": false,
+    "audio": false,
+    "VLA": false,
+    "body_condition": "static_bare_SMPL"
+  },
+  "media": {
+    "role": "warm student + expert intervention; data rejected; not trained-model acceptance",
+    "video": {
+      "file": "assets/source44_dart02_collection_data_rejected.mp4",
+      "bytes": 532302,
+      "sha256": "910a476af137ea63805f580f957c1f42efa3367ac0cb1b15647825c73f49571b",
+      "frames": 2093,
+      "fps": 20,
+      "recorded_size": [256, 144],
+      "encoded_s": 104.65,
+      "native_last_time_s": 104.65833333333333,
+      "all_captured_frames_encoded": true,
+      "full_decode_passed": true,
+      "transcode": "Linux CPU from the original native camera recording",
+      "re_rendered": false,
+      "lossy_h264": true,
+      "preencode_RGB_identity_claimed": false
+    },
+    "poster": {
+      "file": "assets/source44_dart02_frame800.png",
+      "bytes": 23065,
+      "sha256": "7a25e17a72f457fe276096dde8c024922f174a91f8ab85c7b622466e4b53c863",
+      "frame_index": 800,
+      "native_time_s": 40.05,
+      "exact_decoded_MP4_frame": true,
+      "phase_inferred": false
+    }
+  },
+  "source_artifact_digests": {
+    "source44_media_COMPLETE": {
+      "bytes": 2859,
+      "sha256": "6b3ca19bf04ba52e1e616526a3632a5b9d435dba1593e4b1dd0d03e8c058ecbf"
+    },
+    "source44_original_camera_RGB": {
+      "bytes": 9246162,
+      "sha256": "1ae46668d98a8fc23c6f7c2d6a21df077942bc28fc171f388b42936e0c81d11b"
+    },
+    "source44_compact_receipt": {
+      "bytes": 1305,
+      "sha256": "3e3e5e0fa51783d77c8462533546465cd02a08bf43d635b2f1ac9d453a8a51c7"
+    },
+    "source44_run_report": {
+      "bytes": 1722827,
+      "sha256": "183db63f4e8610a8a98848828438ebc869e2494cf887d8cab00052f6021a580b"
+    },
+    "source44_raw_seal": {
+      "bytes": 2487,
+      "sha256": "d68a0383efc5382539a0f4d70dc8013a5b88e1cb048d5e0617a92ce112953ebb"
+    },
+    "source44_qualification_failure": {
+      "bytes": 702,
+      "sha256": "7c3725f519fe3bc4e4abe471e5001cd089e5b7976d75adff839e562e43a3e652"
+    },
+    "source44_pose_diagnostic": {
+      "sha256": "1aaa31a21f0743d1804dd8a3abb98514817e72e05079164859070f17e76fda35"
+    }
+  },
+  "unsupported_claims": {
+    "trained_model_acceptance": false,
+    "fresh_generalization": false,
+    "population_generalization": false,
+    "all_10_points": false,
+    "moving_patient": false,
+    "hardware_validation": false,
+    "clinical_validation": false
+  }
+}
