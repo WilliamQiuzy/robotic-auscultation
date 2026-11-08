@@ -1,0 +1,252 @@
+{
+  "schema": "act10_expert_recovery_data_public_v1",
+  "scope": "Expert recovery data qualification and declared ACT10 training only; no ACT10 model result or acceptance.",
+  "source_commits": {
+    "expert_collector_Source37": "f9c38dbfb3f36aea80fd785c7317f0fabb24fdcc",
+    "bank_reader_Source40": "95f8ef6ece094666875c3f041ae129a487eda397",
+    "ACT10_training_Source41": "c6590db44ff94448a7da34488b5ceaa7810f1134"
+  },
+  "same_failed_state_route_repair": {
+    "old_Source34_pilot": "aborted_at_dart02_ineligible",
+    "same_measured_q_dq_H2_and_history_times_bit_exact": true,
+    "same_120_perturbation_commands_bit_exact": true,
+    "old_numerical_routes_failed": 5,
+    "original_candidates_preserved": 29,
+    "added_search": "bounded_goal_near_detours_late_DART_only",
+    "new_rejected_candidates_before_pass": 44,
+    "successful_preview_commands": 264,
+    "canonical_goal_and_safety_limits_unchanged": true,
+    "expert_data_repair_not_ACT": true
+  },
+  "late_DART_expert_bank": {
+    "run_id": "act10-diverse-dart-20261107-v2",
+    "planned": 20,
+    "prepared": 17,
+    "CPU_plan_unavailable": 3,
+    "independently_qualified": 17,
+    "unavailable_proves_geometric_unreachability": false,
+    "measured_TRAIN_bodies": 5,
+    "TRAIN_IDs": [
+      "p000758",
+      "p001031",
+      "p000833",
+      "p000961",
+      "p000742"
+    ],
+    "known_poses": [
+      474,
+      476
+    ],
+    "targets": [
+      "R3",
+      "L3"
+    ],
+    "maximum_joint_perturbation_rad": 0.015,
+    "skin_trigger_mm": 35,
+    "bank_qualified": true,
+    "model_qualified": false,
+    "actual_student_failure_data": false,
+    "windows": 274,
+    "full_H20_windows": 274,
+    "valid_future_cells": 5480,
+    "label_boundary": {
+      "current_states_after_perturbation": 274,
+      "current_states_before_or_during_perturbation": 0,
+      "earlier_perturbation_H2_measurements": 17,
+      "earlier_H2_measurements_are_positive_labels": false
+    },
+    "labels_repaired": false,
+    "normalization_refitted": false,
+    "unchanged_physics": {
+      "C_protrusion_mm": 5,
+      "B_recess_about_mm": 1,
+      "TCP_mm": 132,
+      "camera_down_degrees": 7,
+      "body_condition": "static_bare_SMPL",
+      "B_plus_C_hold_N": [
+        3.5,
+        4.5
+      ],
+      "continuous_hold_min_s": 3,
+      "total_contact_max_N": 6,
+      "Hall_strict_max_N": 5.5,
+      "stroke_max_mm": 6,
+      "forbidden_force_exact_N": 0,
+      "local_plane_radius_mm": 23,
+      "disk_plane_tilt_max_deg": 3,
+      "full_mesh_clearance_mm": 3,
+      "release_and_home_required": true,
+      "guards_unchanged": true
+    }
+  },
+  "combined_measured_training_data": {
+    "earlier_query32": {
+      "episodes": 4,
+      "TRAIN_bodies": 1,
+      "windows": 58,
+      "label_scope": "valid_prefixes_not_full_H20"
+    },
+    "new_DART37": {
+      "episodes": 17,
+      "TRAIN_bodies": 5,
+      "windows": 274,
+      "label_scope": "all_full_H20"
+    },
+    "episodes": 21,
+    "windows": 332,
+    "physical_TRAIN_bodies": 6,
+    "computed_auxiliary_TRAIN_bodies": 16,
+    "computed_auxiliary_is_physical_data": false,
+    "unchanged_native_origins": {
+      "TRAIN": 8373,
+      "selection_VAL": 2345
+    },
+    "scope": "Physical identities in the two measured recovery banks only; not the identity count of all training data."
+  },
+  "observed_collection_cost": {
+    "scope": "All17 actual mixed cases; whole owner wall time; no causal speedup comparison.",
+    "whole_owner_wall_s": 8659.113262,
+    "native_simulation_s": 1908.7208333333333,
+    "compact_capture_bytes": 708784796,
+    "qualified_episodes_per_owner_wall_hour": 7.067698290605867,
+    "primary_archive": {
+      "bytes": 610831926,
+      "sha256": "88f79cde906c5d26897668660f1184ddee0d33d3d975cfa0b4809b2be979f5c4",
+      "members": 788,
+      "CAS_objects": 10,
+      "primary_and_independent_copy_verified": true
+    }
+  },
+  "ACT10_training_snapshot": {
+    "CPU_preparation_passed": true,
+    "official_CPU_integration_passed": true,
+    "started": true,
+    "launched_UTC": "2026-11-07T23:48:48.446731+00:00",
+    "complete": false,
+    "planned_new_updates": 20000,
+    "evaluation_every_updates": 500,
+    "planned_full_native_VAL_evaluations": 40,
+    "selection_rule": "earliest_minimum_masked_H20_MAE_across_all40_full_native_selection_VAL_evaluations",
+    "initialization": {
+      "warm_start": "ACT9",
+      "exact_tensors": 54,
+      "fresh_AdamW_initial_step": 0
+    },
+    "state_dimension": 17,
+    "observation_history": 2,
+    "action_horizon": 20,
+    "executed_cells": 10,
+    "posture_head": "smooth_posture_head_v2",
+    "attention_heads": 4,
+    "learned_motor_stage": "L2_approach",
+    "contact_controller": "analytic_Hall_L3",
+    "RGBD_recorded": true,
+    "RGBD_neural_inputs": false,
+    "Hall_neural_input": false,
+    "audio": false,
+    "known_development_cases": 0,
+    "fresh_cases": 0,
+    "model_accepted": false,
+    "completion_selected_checkpoint_and_model_results": "pending_at_this_snapshot"
+  },
+  "illustrative_expert_smoke": {
+    "body": "p000758",
+    "pose": "p000476_a001231_f0023",
+    "target": "R3",
+    "split": "TRAIN",
+    "role": "actual_Source37_expert_DART_recovery_separate_dart02_smoke",
+    "learned_ACT_inference": false,
+    "recording_of_full_17_episode_bank": false,
+    "full_decode_passed": true,
+    "source_frame_count_preserved": true,
+    "scene_rerendered": false,
+    "audio": false,
+    "source_RGB": {
+      "bytes": 9709388,
+      "sha256": "20559a7047418de99e848ad130ae99f08593765c6656626e8dd6770982f0be74"
+    },
+    "source_manifest": {
+      "bytes": 7838,
+      "sha256": "ca84b4b9dd0a7b861c093c41aabca90b5933d73a228a8b4963d073be3be6c7f5"
+    },
+    "native_report": {
+      "bytes": 945973,
+      "sha256": "fedeff761a214e71381ab3997b215be5acb33b2ea99de657a4bcaa3b5bf9e52c"
+    },
+    "video": {
+      "file": "assets/act-recovery-iteration10-expert-dart02-20261107.mp4",
+      "bytes": 639517,
+      "sha256": "293fe69c55ddb00aa18bee4194c86a3fa24ec5427e7b8f845b7a5dffd04cde81",
+      "frames": 2193,
+      "fps": 20,
+      "recorded_size": [
+        256,
+        144
+      ],
+      "encoded_s": 109.65,
+      "native_simulation_s": 109.68333333333334,
+      "native_physics_ticks": 26324
+    },
+    "poster": {
+      "file": "assets/act-recovery-iteration10-expert-dart02-20261107-poster.png",
+      "bytes": 34500,
+      "sha256": "e7a270b74c5feb4fb472728ba3ab5e51f2f2bc469504520eec85714b3e8bfdf4",
+      "encoded_frame": 1000,
+      "encoded_time_s": 50,
+      "display_size": [
+        768,
+        432
+      ],
+      "nearest_neighbor_scaled": true
+    }
+  },
+  "source_artifact_digests": {
+    "same_failed_state_comparison": {
+      "artifact": "ACT10_SOURCE37_ACTUAL_FAILED_STATE_COMPARISON.json",
+      "bytes": 1796,
+      "sha256": "fb02743f5526b55ff80161bb848d8ccab458f639b6f416557282f473015077cb"
+    },
+    "full_bank_qualification": {
+      "artifact": "ACT10_SOURCE40_FULL_BANK_QUALIFICATION.json",
+      "bytes": 6052,
+      "sha256": "0e138c4da506b310e5758c27a675f5a12eb54ae8ae670c84e4c91a426d57ad69"
+    },
+    "qualified_bank_scope": {
+      "artifact": "ACT10_SOURCE40_QUALIFIED_BANK_SCOPE.json",
+      "bytes": 11458,
+      "sha256": "b23a22f24dde2297a02a6b61b0b5dc910e3f03fde04d58dfb1972d73eba4eab4"
+    },
+    "closed_case_timings": {
+      "artifact": "ACT10_ALL17_CLOSED_CASE_TIMINGS.json",
+      "bytes": 20566,
+      "sha256": "e3aaccd694dd69a262f42852b42d474b5214024877ee50a58837b54a87ddb61b"
+    },
+    "CPU_preparation": {
+      "artifact": "ACT10_V8_PREPARATION_CHECKED.json",
+      "bytes": 3497,
+      "sha256": "01d7c712fb600dca8eb39abc23528ba2a1dbfc9e40d1693570c7fe1157361807"
+    },
+    "official_CPU_integration": {
+      "artifact": "ACT10_V8_OFFICIAL_CPU_INTEGRATION_CHECKED.json",
+      "bytes": 4691,
+      "sha256": "42c661db42d5ba171fab37912ffe41c81904002bcd15ad2ff201a7aec9af550e"
+    },
+    "training_launch": {
+      "artifact": "ACT10_V8_TRAINING_LAUNCHED.json",
+      "bytes": 2316,
+      "sha256": "20beba70a42a93a72af79a96c931d2744f5f86db15c06e94942e9991d91ca89a"
+    },
+    "training_started": {
+      "artifact": "ACT10_V8_TRAINING_STARTED_CHECKED.json",
+      "bytes": 2637,
+      "sha256": "4d8220dbdb1d8f79fd6abf72479569f9c2a699cde996951f726de36e0fc01a1e"
+    }
+  },
+  "limits": {
+    "data_gate_is_model_gate": false,
+    "population_generalization": false,
+    "causal_algorithm_or_speedup_claim": false,
+    "hardware_validation": false,
+    "raw_captures_arrays_and_weights_public": false
+  }
+}
