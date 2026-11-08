@@ -1,0 +1,133 @@
+{
+  "schema": "wam_source45_public_cpu_fixture_check_v1",
+  "scope": "PARTIAL_INSPECTION_CPU_CAPSULE",
+  "result_scope": "SYNTHETIC_CPU_ONLY",
+  "status": "PASS_WITH_TWO_EXPLICIT_OFFICIAL_ENVIRONMENT_SKIPS",
+  "checked_at_utc": "2026-11-08T13:42:43Z",
+  "code_commit": "29024f00a8656865fe79242605580278561f463e",
+  "complete_original_source_files": 1724,
+  "selected_original_files": 304,
+  "selected_original_bytes": 5775505,
+  "project_python_files": 242,
+  "original_test_and_helper_files": 57,
+  "original_static_text_dependencies": 5,
+  "source_selection_sha256": "ccca2490e775b4e58ac6b9bf6759b49f4346c065f6fdcb2fc4ab91894d037ccb",
+  "public_verifier_sha256": "0582f848ead768415236924cd5a13e570ee76477cd59a7d69c4f6243efe09eb3",
+  "python": "3.11.15",
+  "platform": "Darwin arm64",
+  "fixture_environment_packages": {
+    "numpy": "2.4.6",
+    "scipy": "1.17.1",
+    "pytest": "9.2.0",
+    "ruckig": "0.15.3",
+    "torch": "2.15.0"
+  },
+  "package_scope": "Observed external fixture environment versions only; not the original Official/native dependency lock. Torch is used only by the optional profile.",
+  "project_import_roots": [
+    "repro/source45",
+    "repro/source45/tests"
+  ],
+  "entry_modules_checked": [
+    "sim/ausc_policy/m2_act_refinement_warm_start.py",
+    "sim/ausc_policy/m2_act_refinement_data.py",
+    "sim/ausc_policy/m2_act_refinement_sampling.py",
+    "sim/ausc_policy/m2_act_task_selection.py",
+    "sim/ausc_policy/m2_act_onpolicy_collection.py",
+    "sim/ausc_policy/m2_stop_residual_trajectory.py",
+    "sim/ausc_policy/m2_act_auxiliary_train.py",
+    "sim/ausc_policy/m2_given_contact_evaluation.py",
+    "sim/ausc_policy/fresh_expert.py",
+    "sim/ausc_policy/m2_rebuild_paired_eval.py"
+  ],
+  "profiles": [
+    {
+      "name": "default_without_torch",
+      "command": "python -I -B repro/source45/verify_capsule.py --fixtures",
+      "selected_original_test_functions": 42,
+      "expanded_cases": 132,
+      "passed": 130,
+      "skipped": 2,
+      "failed": 0,
+      "pytest_seconds": 65.37,
+      "wall_seconds": 66.47,
+      "explicit_entry_imports_inside_capsule": 10,
+      "loaded_project_test_modules_inside_capsule": 140,
+      "transcript_sha256": "aa0f839494469b48ef7101758c8e7da6f2fcbad6715d9ada0421819e995469c1",
+      "torch_module_check": {
+        "loaded_torch_module_count": 0,
+        "method": "post_pytest_sys_modules",
+        "optional_torch": false
+      }
+    },
+    {
+      "name": "default_plus_optional_cpu_tensors",
+      "command": "python -I -B repro/source45/verify_capsule.py --fixtures --optional-torch",
+      "selected_original_test_functions": 46,
+      "expanded_cases": 150,
+      "passed": 148,
+      "skipped": 2,
+      "failed": 0,
+      "pytest_seconds": 67.08,
+      "wall_seconds": 68.24,
+      "explicit_entry_imports_inside_capsule": 10,
+      "loaded_project_test_modules_inside_capsule": 140,
+      "transcript_sha256": "190b6c70a973d33b752da28d8c8e79536d312020e6356f5950396e88615510ed",
+      "includes_default_profile": true,
+      "torch_module_check": {
+        "loaded_torch_module_count": 1126,
+        "method": "post_pytest_sys_modules",
+        "optional_torch": true
+      },
+      "optional_torch_cpu_contracts_only": true
+    }
+  ],
+  "skip_reasons": [
+    "tests/test_ausc_act_refinement_warm_start.py:267: Pinned official LeRobot environment unavailable; no substitute factory",
+    "tests/test_ausc_act_training_v9.py:347: Pinned official LeRobot environment is Linux-only; no substitute runtime"
+  ],
+  "adapter_tests": {
+    "command": "python -m unittest demo_tests.test_source45_capsule -v",
+    "passed": 6,
+    "failed": 0
+  },
+  "public_demo_regression": {
+    "command": "python -m unittest discover -s demo_tests -v",
+    "passed": 97,
+    "failed": 0
+  },
+  "synthetic_authorization_scope": "Original producer/reader fixture first verifies unmodified deployment authorization and Live Isaac source guards reject it, then scaffolds unavailable authorization/environment leaves. Source kind stays cpu_synthetic_test and physical_qualification stays false.",
+  "first_curation_attempt": {
+    "passed": 120,
+    "skipped": 2,
+    "failed": 12,
+    "reason": "AST-only selection omitted one original static config consumed by scene-store fixtures",
+    "correction": "Added exact original fresh_expert_retainer_tenpoint_near_v4.json, byte-identical to the already-public root; no source/fixture/guard change"
+  },
+  "physical_qualification": false,
+  "official_act_integration": false,
+  "native_isaac_or_physx_world_executed": false,
+  "genuine_native_episode_reader_executed": false,
+  "training_executed": false,
+  "optimization_updates_executed": 0,
+  "original40_or_41_archive_child_executed": false,
+  "operator_or_guarded_owner_executed": false,
+  "full_original_test_suite_executed": false,
+  "toy_20000_update_test_executed": false,
+  "benchmark_or_usable_model_result": false,
+  "raw_data_or_weights_included": false,
+  "github_actions_run_executed": false,
+  "verification_completed_at_utc": "2026-11-08T13:22:43Z",
+  "torch_module_check_scope": "Actual torch and torch.* entries observed in sys.modules after pytest returns; default fails on a positive count. This is a post-run snapshot, not an all-time import trace.",
+  "proof_correction": {
+    "withdrawn_previous_method": "PYTHONPROFILEIMPORTTIME is ignored by isolated Python (-I); absence of import-time lines was not evidence of no Torch import.",
+    "rejected_default_run": {
+      "pytest_passed": 131,
+      "pytest_skipped": 2,
+      "wrapper_passed": false,
+      "post_pytest_torch_module_count": 793,
+      "transcript_sha256": "89a5edb179c8661c375571c328d6c25af7dd7c31c5aba307e5d748c672c92d88",
+      "cause": "Original metadata-only admission test imports Torch to spy on torch.load; moved unchanged to the optional profile."
+    },
+    "regression": "An isolated -I -B child actually imports an invented torch.py namespace witness. Empty state passes; the actual imported namespace fails default and is observed/allowed only for optional. RED then GREEN verified."
+  }
+}
