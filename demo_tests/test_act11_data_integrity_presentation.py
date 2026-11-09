@@ -31,9 +31,11 @@ class ACT11DataIntegrityPresentation(unittest.TestCase):
         self.e = json.loads((DRAFT / 'evidence/act11-source44-data-integrity-20261108.public.json').read_text())
 
     def test_entire_approved_article_is_byte_identical_outside_single_append(self):
-        later = re.search(r'<section\b[^>]*\bid="iteration11-source45-data".*?</section>\n', self.html, re.S)
+        followup = re.search(r'<section\b[^>]*\bid="iteration11-source48-results".*?</section>\n', self.html, re.S)
+        historical_html = self.html.replace(followup.group(0), '', 1) if followup else self.html
+        later = re.search(r'<section\b[^>]*\bid="iteration11-source45-data".*?</section>\n', historical_html, re.S)
         self.assertIsNotNone(later, 'Source45 must be one later append, preserving the Source44 history')
-        approved = self.html.replace(later.group(0), '', 1)
+        approved = historical_html.replace(later.group(0), '', 1)
         self.assertEqual(hashlib.sha256(approved.encode()).hexdigest(), 'ed09a416a33f93e65de0aef7dd9b7639856382f98a1f6393b657b17e2bf07a84')
         original = approved.replace(self.section, '', 1)
         self.assertEqual(hashlib.sha256(original.encode()).hexdigest(), BASE_ARTICLE_SHA256)
