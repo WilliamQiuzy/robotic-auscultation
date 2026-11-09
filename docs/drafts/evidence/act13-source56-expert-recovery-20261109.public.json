@@ -166,7 +166,8 @@
         25
       ],
       "correcting_full_e10_windows": 201,
-      "quota_per_stratum": 16
+      "quota_per_stratum": 16,
+      "lower_bound_exclusive": true
     },
     "short_prefixes_excluded_from_full_e10": 9,
     "windows_are_not_independent_episodes": true,
@@ -232,9 +233,9 @@
       "sha256": "d7b249402abc86db62106efd543d12eb4fad42afdf80c4d201af9d2154a02947"
     },
     "poster": {
-      "file": "assets/act13-source56-near00-expert.poster.jpg",
-      "bytes": 4067,
-      "sha256": "c9e44c059d65c928e1339ffb3ff835ef9148ef47abdd8f25029d07d4e9c2af98"
+      "file": "assets/act13-source56-near00-expert.frame1440.poster.jpg",
+      "bytes": 4613,
+      "sha256": "81b64c92ab101431799711d767614b923c4b3a61ab2add5178812169a8f2c4dc"
     },
     "width": 256,
     "height": 144,
@@ -251,7 +252,7 @@
       "native_ticks_between_frames": 12,
       "no_resampled_or_duplicated_frames": true
     },
-    "poster_frame_index": 0,
+    "poster_frame_index": 1440,
     "media_origin": "faithful encoding of original compact RGB sensor frames",
     "encoding_only": true,
     "no_synthesized_frames": true,
@@ -259,6 +260,42 @@
     "frame_index": {
       "bytes": 511598,
       "sha256": "a4ab3d140c368bf4e91679a0c3d501a2c863f81df4d2b4205d66a9f54f802ae8"
+    },
+    "poster_history": [
+      {
+        "file": "assets/act13-source56-near00-expert.poster.jpg",
+        "bytes": 4067,
+        "sha256": "c9e44c059d65c928e1339ffb3ff835ef9148ef47abdd8f25029d07d4e9c2af98",
+        "video_frame": 0,
+        "physics_row": 11,
+        "time_s": 0.049999999999999996
+      }
+    ],
+    "poster_provenance": {
+      "original_frame": {
+        "observation_source_id": "native-17291",
+        "physics_row": 17291,
+        "record_kind": "paired",
+        "rgb_bytes": 4613,
+        "rgb_crc32": 3621077380,
+        "time_s": 72.05000000001664,
+        "video_frame": 1440
+      },
+      "source_rgb": {
+        "bytes": 10496852,
+        "sha256": "24391d7d967c85879051c372ded74427ccf4d8735b9c92ce7b4ccbe313ac28e6"
+      },
+      "source_header_offset_bytes": 6503348,
+      "source_frame_header_format": "<II",
+      "original_payload_sha256": "81b64c92ab101431799711d767614b923c4b3a61ab2add5178812169a8f2c4dc",
+      "crc_verified": true,
+      "decoder_passed": true,
+      "synthetic_frames": false,
+      "reencoded": false,
+      "verification_receipt": {
+        "bytes": 1594,
+        "sha256": "e48a05d0d508c83ec93c57fc945f47079dd12fad5b6e12ad037caee982369473"
+      }
     }
   },
   "closed_source_integrity": {
@@ -307,6 +344,11 @@
       "receipt": "SOURCE55_ACTUAL_CLOSED_SUMMARY.json",
       "bytes": 9593,
       "sha256": "82ea306d7509ac0f20d393273be32afb842f07c93ba6734546ff66ca064b533a"
+    },
+    {
+      "receipt": "SOURCE56_VERIFIED_ACTUAL_CONTACT_STILL.json",
+      "bytes": 2079,
+      "sha256": "239d5bb96fe70fec328136c2c19feb0929f0ec4e4bf3cfba70c9141b99071399"
     }
   ],
   "publication_boundary": "Small media and selected sanitized scalars only; source capture, datasets, weights and environment are not distributed here."

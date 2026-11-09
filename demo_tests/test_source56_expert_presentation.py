@@ -54,6 +54,12 @@ class Source56ExpertPresentation(unittest.TestCase):
             raw = (DRAFT / a['file']).read_bytes()
             self.assertEqual((len(raw), hashlib.sha256(raw).hexdigest()), (a['bytes'], a['sha256']))
         self.assertEqual(m['video']['sha256'], 'd7b249402abc86db62106efd543d12eb4fad42afdf80c4d201af9d2154a02947')
+        self.assertEqual(m['poster']['sha256'], '81b64c92ab101431799711d767614b923c4b3a61ab2add5178812169a8f2c4dc')
+        self.assertEqual(m['poster_frame_index'], 1440)
+        self.assertEqual(m['poster_provenance']['original_frame']['physics_row'], 17291)
+        self.assertEqual(m['poster_provenance']['original_frame']['time_s'], 72.05000000001664)
+        self.assertFalse(m['poster_provenance']['reencoded'])
+        self.assertTrue((DRAFT / m['poster_history'][0]['file']).is_file())
         self.assertEqual((m['width'], m['height'], m['fps'], m['frames']), (256, 144, 20, 2360))
         c = m['native_frame_clock']
         self.assertEqual((c['first_native_physics_row'], c['last_native_physics_row']), (11, 28319))
