@@ -1,4 +1,4 @@
-"""Keep historical evidence, pipeline admission and pending physics distinct."""
+"""Keep historical evidence, closed development results and unopened Fresh distinct."""
 import hashlib
 from html.parser import HTMLParser
 import json
@@ -50,28 +50,27 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.assertEqual((h['Astra']['actual_calls'], h['Astra']['completed_local_skills']), (24, 24))
         self.assertFalse(h['Astra']['learned_motor_policy'] or h['Astra']['causal_modality_effect'] or h['controlled_speed_comparison'])
 
-    def test_pending_physics_has_no_invented_rate_or_success_count(self):
+    def test_closed_known4_keeps_original_failures_and_Fresh_unopened(self):
         act = self.report['ACT11_V9']
         self.assertEqual((act['new_optimizer_updates'], act['evaluated_candidates'], act['selected_update']), (20000, 40, 9000))
         known = act['known4']
         self.assertEqual(known['declared_cases'], 4)
-        self.assertEqual(known['status'], 'PENDING_TERMINAL_PHYSICAL_EVIDENCE')
-        for key in ['completed_cases', 'qualified_cases', 'physical_success_rate']:
-            self.assertIsNone(known[key])
+        self.assertEqual(known['status'], 'CLOSED_KNOWN_DEVELOPMENT_2_OF_4_NOT_ACCEPTED')
+        self.assertEqual((known['completed_cases'], known['qualified_cases'], known['physical_success_rate']), (4, 2, 0.5))
         self.assertFalse(known['model_accepted'])
         self.assertTrue(known['new_model_video_available'])
-        self.assertEqual((known['native_closed_case_reports'], known['native_closed_positive_case_reports'], known['native_closed_negative_case_reports']), (3, 2, 1))
+        self.assertEqual((known['native_closed_case_reports'], known['native_closed_positive_case_reports'], known['native_closed_negative_case_reports']), (4, 2, 2))
         observed = known['case_observations']
         self.assertEqual(len({(c['subject_id'], c['target']) for c in observed}), 4)
         self.assertEqual(sum(c.get('native_reported_success') is True for c in observed), 2)
-        self.assertEqual(sum(c.get('native_reported_success') is False for c in observed), 1)
-        self.assertEqual(sum(c['native_terminal_status'] == 'RUNNING' for c in observed), 1)
+        self.assertEqual(sum(c.get('native_reported_success') is False for c in observed), 2)
+        self.assertFalse(any(c['native_terminal_status'] == 'RUNNING' for c in observed))
         self.assertEqual((observed[0]['role'], observed[0]['subject_id'], observed[0]['target']), ('Known TRAIN', 'p001120', 'R3'))
         self.assertTrue(observed[0]['native_reported_success'] and observed[0]['native_reported_physical_validation'])
-        self.assertEqual(observed[0]['independent_qualification'], 'PENDING')
+        self.assertEqual(observed[0]['independent_qualification'], 'QUALIFIED')
         fresh = act['fresh32']
         self.assertEqual((fresh['identities'] * fresh['known_poses'] * len(fresh['targets']), fresh['declared_scenarios'], fresh['declared_arm_slots']), (32, 32, 64))
-        self.assertEqual((fresh['status'], fresh['tested_cases']), ('GATED_NOT_MEASURED', 0))
+        self.assertEqual((fresh['status'], fresh['tested_cases']), ('BLOCKED_NOT_OPENED', 0))
         self.assertIsNone(fresh['physical_success_rate'])
         self.assertFalse(fresh['payloads_inspected_for_this_draft'])
         self.assertTrue(fresh['blocked_by_known_development_failure'])
@@ -83,7 +82,13 @@ class ACT11Source48Preparation(unittest.TestCase):
         limits = failure['streamed_diagnostic_reported']['original_interior_requirements']
         self.assertGreater(terminal['observed_tangent_mm'], limits['tangent_mm_at_most'])
         self.assertFalse(failure['Fresh32']['gate_open'] or failure['next_treatment']['new_training_result'])
-        self.assertEqual(failure['next_treatment']['status'], 'PREPARATION_ONLY_NOT_A_RESULT')
+        self.assertEqual(failure['next_treatment']['status'], 'UNTRAINED_NO_CLOSED_LOOP_RESULT')
+        final = json.loads((DRAFT / 'evidence' / known['final_evidence_file']).read_text())
+        self.assertEqual((final['fixed_cases'], final['executed_cases'], final['qualified_cases'], final['failed_cases'], final['infrastructure_failures']), (4, 4, 2, 2, 0))
+        self.assertEqual(sum(c['original_qualification_passed'] for c in final['cases']), 2)
+        self.assertTrue(all(c['worker_complete'] and c['worker_exit_code'] == c['cpu_child_exit_code'] == 0 and c['cpu_child_reaped'] for c in final['cases']))
+        self.assertFalse(final['model_accepted'] or final['Fresh32']['gate_open'])
+        self.assertIsNone(final['Fresh32']['physical_success_rate'])
         pipeline = self.report['pipeline_followup']
         self.assertTrue(pipeline['actual_Linux_proc_and_exec_parity_passed'] and pipeline['fresh_all40_canonical_producer_admission_passed'])
         self.assertFalse(pipeline['selected_weights_changed'] or pipeline['thresholds_changed'] or pipeline['new_training'] or pipeline['model_qualified'])
@@ -103,7 +108,7 @@ class ACT11Source48Preparation(unittest.TestCase):
             for key in ['href', 'src', 'poster']:
                 if attrs.get(key):
                     self.assertTrue((DRAFT / attrs[key]).is_file())
-        self.assertIn('未测量不是 0/32', self.section)
+        self.assertIn('不能记作 0/32', self.section)
         self.assertIn('高层技能选择', self.section)
         self.assertIn('104.65 秒采集视频保留其专家干预标签', self.section)
 
@@ -114,7 +119,7 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.assertTrue(case['actual_learned_policy'] and case['native_reported_success'] and case['native_reported_physical_validation'])
         self.assertFalse(case['expert_L2_fallback'] or case['model_qualified'])
         self.assertEqual((case['worker_exit_code'], case['native_reported_validation_errors'], case['native_terminal_status']), (0, [], 'COMPLETE'))
-        self.assertEqual(case['independent_whole_Known4_qualification'], 'PENDING')
+        self.assertEqual(case['independent_whole_Known4_qualification'], 'CLOSED_2_OF_4_MODEL_NOT_ACCEPTED')
         video = evidence['video']; clock = evidence['native_capture_clock']
         self.assertEqual((video['frames'], video['width'], video['height'], video['fps']), (1069, 640, 360, 10))
         self.assertAlmostEqual(video['encoded_s'], video['frames'] / video['fps'])

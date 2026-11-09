@@ -1,7 +1,7 @@
 {
-  "schema": "wam_act11_source48_local_results_preparation_v1",
+  "schema": "wam_act11_source48_known4_closed_results_v1",
   "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
-  "evidence_scope": "Closed historical metadata, actual known TRAIN evidence and a closed known selection-validation R3 learned-policy negative; full Known4 independent qualification pending",
+  "evidence_scope": "All four fixed known development cases closed under original qualification: two TRAIN passes and two selection-validation L2 deadline failures; model not accepted, Fresh not opened",
   "historical_matched8": {
     "historical_only": true,
     "new_ACT11_or_fresh32_evaluation": false,
@@ -155,13 +155,13 @@
     },
     "known4": {
       "declared_cases": 4,
-      "status": "PENDING_TERMINAL_PHYSICAL_EVIDENCE",
-      "completed_cases": null,
-      "qualified_cases": null,
-      "physical_success_rate": null,
+      "status": "CLOSED_KNOWN_DEVELOPMENT_2_OF_4_NOT_ACCEPTED",
+      "completed_cases": 4,
+      "qualified_cases": 2,
+      "physical_success_rate": 0.5,
       "model_accepted": false,
       "new_model_video_available": true,
-      "phase": "THREE_NATIVE_CASES_CLOSED_FINAL_SELECTION_L3_RUNNING_FULL_QUALIFICATION_PENDING",
+      "phase": "ALL_FOUR_ORIGINAL_CASES_CLOSED",
       "native_closed_positive_case_reports": 2,
       "case_observations": [
         {
@@ -174,10 +174,10 @@
           "worker_exit_code": 0,
           "genuine_model_queries": 50,
           "expert_L2_fallback": false,
-          "independent_qualification": "PENDING",
+          "independent_qualification": "QUALIFIED",
           "media_evidence_file": "act11-source48-known-train-r3-video-20261109.public.json",
           "independent_streamed_contact_subset_passed": true,
-          "full_native_qualification_pending": true
+          "full_native_qualification_pending": false
         },
         {
           "subject_id": "p001120",
@@ -188,7 +188,7 @@
           "native_reported_physical_validation": true,
           "genuine_model_queries": 52,
           "expert_L2_fallback": false,
-          "independent_qualification": "PENDING"
+          "independent_qualification": "QUALIFIED"
         },
         {
           "subject_id": "p000923",
@@ -199,20 +199,24 @@
           "native_reported_physical_validation": false,
           "genuine_model_queries": 241,
           "expert_L2_fallback": false,
-          "independent_qualification": "PENDING",
+          "independent_qualification": "FAILED_ORIGINAL_L2_DEADLINE",
           "diagnostic_evidence_file": "act11-source48-selection-r3-negative-20261109.public.json"
         },
         {
           "subject_id": "p000923",
           "target": "L3",
           "role": "Known selection validation",
-          "native_terminal_status": "RUNNING",
-          "native_reported_success": null,
-          "independent_qualification": "PENDING"
+          "native_terminal_status": "CLOSED_L2_DEADLINE_NEGATIVE",
+          "native_reported_success": false,
+          "independent_qualification": "FAILED_ORIGINAL_L2_DEADLINE",
+          "native_reported_physical_validation": false,
+          "genuine_model_queries": 241,
+          "expert_L2_fallback": false
         }
       ],
-      "native_closed_negative_case_reports": 1,
-      "native_closed_case_reports": 3
+      "native_closed_negative_case_reports": 2,
+      "native_closed_case_reports": 4,
+      "final_evidence_file": "act11-source48-known4-closed-20261109.public.json"
     },
     "fresh32": {
       "identities": 8,
@@ -228,7 +232,7 @@
       ],
       "declared_arm_slots": 64,
       "gate": "All four known development cases must physically qualify first",
-      "status": "GATED_NOT_MEASURED",
+      "status": "BLOCKED_NOT_OPENED",
       "tested_cases": 0,
       "qualified_cases": null,
       "physical_success_rate": null,

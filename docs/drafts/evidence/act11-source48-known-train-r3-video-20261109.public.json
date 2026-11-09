@@ -1,6 +1,6 @@
 {
   "schema": "wam_act11_source48_known_TRAIN_R3_actual_video_v1",
-  "scope": "One known TRAIN case; positive native terminal report, independent whole-Known4 qualification pending; not held-out evaluation",
+  "scope": "One qualified known TRAIN R3 case; whole Known4 closed2/4, model not accepted; not held-out evaluation",
   "case": {
     "subject_id": "p001120",
     "target": "R3",
@@ -16,8 +16,8 @@
     "native_reported_validation_errors": [],
     "worker_exit_code": 0,
     "native_terminal_status": "COMPLETE",
-    "independent_case_qualification": "PENDING",
-    "independent_whole_Known4_qualification": "PENDING",
+    "independent_case_qualification": "QUALIFIED",
+    "independent_whole_Known4_qualification": "CLOSED_2_OF_4_MODEL_NOT_ACCEPTED",
     "model_qualified": false,
     "selected_model_reference_digest": {
       "bytes": 11740097,
@@ -90,7 +90,7 @@
   },
   "limits": [
     "Known TRAIN case only; no held-out or general-population result.",
-    "Native positive report is separate from independent whole-batch qualification; Known4 success rate remains null.",
+    "This known TRAIN R3 case passed original qualification; whole Known4 closed2/4 on development cases, model not accepted.",
     "State-only neural L2 and analytic L3; not expert L2 replay, a learned motor policy from RGB-D/Hall, or a VLA.",
     "No audio, moving-patient, all-ten-site, real-robot or clinical claim."
   ],
@@ -100,7 +100,7 @@
     "native_hz": 240,
     "all_contact_subset_checks_passed": true,
     "full_original_native_qualifier_called": false,
-    "whole_Known4_qualification_pending": true,
+    "whole_Known4_qualification_pending": false,
     "metrics": {
       "longest_contiguous_HOLD_force_plane_rows": 720,
       "longest_contiguous_HOLD_force_plane_s": 3.0,
@@ -136,7 +136,8 @@
       "width": 1680,
       "height": 1050,
       "plot_sampling_hz": 20,
-      "metric_sampling_hz": 240
+      "metric_sampling_hz": 240,
+      "generation_status_annotation_is_historical": true
     },
     "source_summary_digest": {
       "bytes": 12301,
@@ -145,6 +146,7 @@
     "source_scalar_CSV_digest": {
       "bytes": 149100,
       "sha256": "e081a127668916fb981e07744bbc906533dd0e09331c91234107943ddffa894c"
-    }
+    },
+    "whole_Known4_final_evidence_file": "act11-source48-known4-closed-20261109.public.json"
   }
 }

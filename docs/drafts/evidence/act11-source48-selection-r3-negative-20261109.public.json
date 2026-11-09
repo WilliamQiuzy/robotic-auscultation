@@ -20,7 +20,7 @@
     "L3_entered": false,
     "expert_L2_fallback": false,
     "infrastructure_error_observed": false,
-    "whole_Known4_independent_qualification": "PENDING",
+    "whole_Known4_independent_qualification": "CLOSED_2_OF_4_MODEL_NOT_ACCEPTED",
     "new_failure_video_added": true
   },
   "streamed_diagnostic_reported": {
@@ -101,20 +101,20 @@
   },
   "next_treatment": {
     "name": "V10 task-space supervision",
-    "status": "PREPARATION_ONLY_NOT_A_RESULT",
+    "status": "UNTRAINED_NO_CLOSED_LOOP_RESULT",
     "proposal": "Add differentiable canonical FK translation/full-rotation supervision against corresponding valid real teacher targets on the same ACT output; preserve official normalized-joint loss and existing computed/static terminal inputs; add training weights only to existing valid E10 prefixes and near-terminal cells; no new native capture or qualified coverage is claimed; original physical gates unchanged.",
     "new_training_result": false,
     "new_model_acceptance": false
   },
   "known4": {
     "fixed_cases": 4,
-    "native_closed_case_reports": 3,
+    "native_closed_case_reports": 4,
     "native_positive_case_reports": 2,
-    "native_negative_case_reports": 1,
-    "last_case_running": "p000923/L3",
-    "independently_qualified_cases": null,
-    "final_physical_success_rate": null,
-    "model_qualified": false
+    "native_negative_case_reports": 2,
+    "independently_qualified_cases": 2,
+    "final_physical_success_rate": 0.5,
+    "model_qualified": false,
+    "final_evidence_file": "act11-source48-known4-closed-20261109.public.json"
   },
   "Fresh32": {
     "status": "BLOCKED_NOT_MEASURED",
