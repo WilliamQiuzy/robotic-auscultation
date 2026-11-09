@@ -7,7 +7,6 @@
     "fine_windows": 186,
     "recovery_windows": 1138,
     "physical_sources": 12,
-    "real_TRAIN_bodies": 6,
     "pose": "p000476_a001231_f0023",
     "new_demonstrations": 0,
     "strata": [
@@ -83,7 +82,10 @@
         "fine": 16,
         "recovery": 114
       }
-    ]
+    ],
+    "HuMMan_derived_TRAIN_identities": 6,
+    "origin": "native Isaac simulation expert-demonstration windows",
+    "identity_context": "six HuMMan-derived TRAIN body identities; not six real-patient robot experiments"
   },
   "sampling": {
     "native_slots": 32,
@@ -272,7 +274,8 @@
     "fresh_opened": false,
     "fresh_cases_executed": 0,
     "Known4_is_reused_development": true,
-    "additional_updates_are_a_causal_confound": true
+    "additional_updates_are_a_causal_confound": true,
+    "recordings_context": "actual learned-policy Isaac simulation recordings; not physical robot recordings"
   },
   "baseline": {
     "source": "Source52",

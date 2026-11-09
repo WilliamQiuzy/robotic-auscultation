@@ -45,6 +45,9 @@ class Source53Presentation(unittest.TestCase):
         self.assertEqual(sum(x['count'] for x in e['sampling']['actual_strata']), 8000)
         self.assertEqual(e['pool']['new_demonstrations'], 0)
         self.assertEqual(len({x['body'] for x in e['pool']['strata']}), 6)
+        self.assertEqual(e['pool'].get('origin'), 'native Isaac simulation expert-demonstration windows')
+        self.assertEqual(e['pool'].get('identity_context'), 'six HuMMan-derived TRAIN body identities; not six real-patient robot experiments')
+        self.assertEqual(e['scope'].get('recordings_context'), 'actual learned-policy Isaac simulation recordings; not physical robot recordings')
         self.assertFalse(e['scope']['fresh_opened'])
         for token in ['/Users/', '/opt/', '/workspace/', '.npz', '.npy', 'row_indices']:
             self.assertNotIn(token, p.read_text())
