@@ -1,8 +1,8 @@
 {
-  "schema": "wam_ACT12_V10_actual_training_Source51_diagnostic_Source52_CPU_recovered_v2",
+  "schema": "wam_ACT12_V10_Source52_closed_Known4_2_of_4_with_plateau_diagnosis_v3",
   "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
-  "status_snapshot_utc": "2026-11-09T07:03:27.163027+00:00",
-  "status_authority": "Actual Source49 closed optimization, Source51 TRAIN R3 native physical-subset and recorded CPU-exit negative, followed by actual Source52 CPU recovery; Source52 faithful full-exit probe and new Known4 remain pending",
+  "status_snapshot_utc": "2026-11-09T10:25:23.030809+00:00",
+  "status_authority": "Actual four-case Source52 closure and unchanged canonical qualification supersede only prior pending Source52 execution status. Source49 original fit failure and Source51 CPU-exit negative remain historical evidence.",
   "research_question": "Does genuine teacher TCP-pose supervision improve approach convergence before the unchanged L2 handoff?",
   "prior_Source48_V9": {
     "fixed_known_cases": 4,
@@ -31,7 +31,7 @@
       "valid_E10_cell_weight": 2,
       "observed_near_6mm_row_weight": 4,
       "reduction": "weighted valid-cell mean; padded cells removed before FK",
-      "retained_loss": "original official masked joint L1 and KL",
+      "retained_loss": "Original official masked joint L1; KL inactive because actual use_vae=False",
       "inference_correction_added": false,
       "policy_inputs_added": false,
       "labels_changed": false
@@ -50,7 +50,9 @@
     "selection_VAL_checkpoint_selection_retained": true,
     "Fresh_identity_exposure": false,
     "goal_supplied": "3D goal and full target pose",
-    "known_seated_poses": 2
+    "known_seated_poses": 2,
+    "use_vae": false,
+    "q_noise_std": 0
   },
   "Source49_actual_fit_and_original_failure": {
     "optimizer_updates_completed": 20000,
@@ -266,11 +268,15 @@
         "assets/act12-source51-train-r3.actual.mp4"
       ]
     },
-    "Source52_new_Known4": {
-      "started": false,
-      "executed_cases": 0,
-      "status": "PENDING",
-      "success_rate": null
+    "Source52_Known4": {
+      "fixed_cases": 4,
+      "executed_cases": 4,
+      "qualified_cases": 2,
+      "failed_cases": 2,
+      "infrastructure_failures": 0,
+      "status": "CLOSED_KNOWN_DEVELOPMENT_2_OF_4_NOT_ACCEPTED",
+      "development_only_success_rate": 0.5,
+      "all_four_CPU_closes_normal_reaped_no_signals": true
     },
     "Fresh32": {
       "gate_open": false,
@@ -281,26 +287,28 @@
       "success_rate": null,
       "actual_recordings": []
     },
-    "admission_order": [
-      "Source52 actual separate CPU recovery passed; no retraining",
-      "Faithful actual selected-model wire and full-exit close proof remains pending",
-      "New Known4 under unchanged complete qualification",
-      "Fresh paired evaluation only after all four Known cases qualify"
-    ],
     "model_accepted": false,
+    "admission_order": [
+      "Source52 actual selected-model wire and CPU close evidence passed",
+      "Source52 Known4 all four executed and closed: two TRAIN passes, two selection VAL L2 timeouts",
+      "Known4 all-pass gate failed; Fresh remains blocked and unopened"
+    ],
     "Source51_selected_model_full_exit_gate_passed": false,
-    "Source52_selected_model_full_exit_probe_passed": false
+    "Source52_actual_Known4_full_CPU_closes_passed": true
   },
   "scope_limits": [
-    "20k new optimizer updates and 40 offline evaluations are not contact success rates.",
-    "One TRAIN R3 passed only the unchanged native physical subset; recorded CPU-exit SIGTERM still fails complete qualification even though its exit code is zero.",
-    "Fixed Source51 Known4: 0/4 qualified; one TRAIN R3 physical cycle executed, second TRAIN L3 interrupted, both selection VAL cases unstarted. This is not four executed physical failures.",
-    "V9 already passed the same TRAIN R3; no improved VAL convergence or population generalization is established.",
-    "ACT neural L2 receives H2 state17 only and does not consume RGBD or Hall. Hall serves analytic L3 control; RGBD is recorded only; no audio input.",
-    "Given 3D goal and full target pose, two known seated poses, static bare SMPL R3/L3 simulation only; no VLA, all-ten-point, moving-patient, real-robot, clinical or population claim.",
-    "Fresh payloads remain unopened: 0 executed; success rate undefined, not 0/32.",
-    "Source52 CPU recovery is actual; faithful full-exit probe, new Known4 and Fresh physical evaluation remain pending.",
-    "Historical Expert/old ACT/Astra cohorts provide no V10 benchmark row."
+    "V10 actually executed all four fixed Known4 development cases: 2 qualified TRAIN positives, 2 closed selection VAL physical negatives, no infrastructure failures.",
+    "2/4 is the same development fraction as V9; no improved success rate, Fresh or generalization result.",
+    "Source51 earlier physical-subset pass and CPU-exit SIGTERM remain unchanged historical negatives; Source52 qualified TRAIN cases do not rewrite them.",
+    "Source49 original fit stage failed after 20k new updates; later CPU recovery verifies existing artifacts without retraining.",
+    "Qualified HOLD is simultaneous force plus plane for 3.000 s; total contact durations 4.725/4.7375 s are separate. VAL HOLD tilt is unknown/null, not zero.",
+    "Model raw R3 targets and independently read Native wrist-derived TCP both retain approximately 3.5 mm lateral error in the 90–92 s diagnostic window; main deficit precedes execution.",
+    "Coverage truncation supports a targeted TRAIN recovery experiment but is not established as the sole cause. Existing 66 ideal static near rows and 16 computed identities mean near data are not absent.",
+    "ACT receives H2 state17 only; RGBD and Hall are not neural inputs, Hall serves analytic L3, no audio.",
+    "6 actual native TRAIN identities and 16 computed auxiliary identities overlap and are not 22 physically captured bodies.",
+    "Given full target pose, static bare SMPL back, two known poses and R3/L3 only; no VLA, all-ten-point, moving-patient, real-robot, clinical or population claim.",
+    "Fresh 0 executed, completely unopened; success rate undefined, not 0/32.",
+    "V11 predeclaration is a plan for a partial state-only ACT supplemental bank and 1,000 new updates, not completed data, training, full multimodal M2 or acceptance."
   ],
   "source_summary_digests": {
     "V10_ACTUAL_POSTFIT_PROVENANCE_FAILURE.json": {
@@ -346,6 +354,38 @@
     "V10_SOURCE52_ACTUAL_CPU_RECOVERY.json": {
       "bytes": 53114,
       "sha256": "2d0a5ac919ef93e1bb8bb81a9a606e8713c718dcc4f0aa566ab0d6fe7b57ab45"
+    },
+    "SOURCE52_KNOWN4_CLOSED_RESULTS.json": {
+      "bytes": 23707,
+      "sha256": "2fee67f6e6ffa2f7f9de5c7775b62f642737eea99ad18419c25423871d147d81"
+    },
+    "SOURCE52_KNOWN4_ACTUAL_TERMINAL_REF.json": {
+      "bytes": 218,
+      "sha256": "56deb9ba923177d086adf6a39a4073a1f062032a9c06a1032a8e56a604ff0956"
+    },
+    "SOURCE52_KNOWN4_ACTUAL_MEDIA_p001120-r3.json": {
+      "bytes": 23916,
+      "sha256": "35161f550ab3c811a3e2056626422bc28ca5046b960e45cc1a2a54694fc5231b"
+    },
+    "SOURCE52_KNOWN4_ACTUAL_MEDIA_p000923-r3.json": {
+      "bytes": 23904,
+      "sha256": "c4e2b7ef38df79eb5f8b7b10794abcaa9f6c24b69d680ea2dd2d199f2e961384"
+    },
+    "V10_SOURCE52_SELECTIONVAL_PLATEAU_DIAGNOSIS.json": {
+      "bytes": 16408,
+      "sha256": "33449d59e3928956a15756b168d479769b0b07cc59c7692435991b85923e2cda"
+    },
+    "V10_SOURCE52_PLATEAU_ZERO_LATENT_NATIVE_FOLLOWUP.json": {
+      "bytes": 28112,
+      "sha256": "1e461674b14141ef96ddffa3add64612c96a34504d4a6c4c2ba4e495878a9218"
+    },
+    "V11_PILOT_SCOPE_PREDECLARATION.json": {
+      "bytes": 1179,
+      "sha256": "c0c1237bc9ccc9022f908ef08ead8d466c1263f4da557012123dcb433bad97dc"
+    },
+    "SOURCE52_KNOWN4_CLOSED_VAL_L3_LAST_OBSERVATION_SCALARS.json": {
+      "bytes": 1374,
+      "sha256": "a774464991e17156fb1e14ef83f3a8b9dcc7a9bf94b30c58a6336f3ec606e935"
     }
   },
   "Source49_actual_training_plot": {
@@ -545,6 +585,742 @@
       "scope": "Must use the actual unbuffered no-bytecode launch environment rather than the isolated smoke-test environment"
     },
     "new_Known4_after_recovery": "PENDING",
-    "Fresh32": "UNOPENED"
+    "Fresh32": "UNOPENED",
+    "status_scope": "Historical CPU recovery snapshot at 07:03 UTC. Its pending full-exit and Known4 fields describe that snapshot only; actual subsequent Source52 four-case closure is recorded separately below."
+  },
+  "publication_state_semantics": "LOCAL_DRAFT_NOT_PUBLISHED is the original report-creation snapshot, not a live hosting-status claim. This new update is prepared for review without publication.",
+  "previous_status_snapshot_utc": "2026-11-09T07:03:27.163027+00:00",
+  "historical_physical_status_before_Source52_closed": {
+    "Source51_Known4": {
+      "started": true,
+      "fixed_cases": 4,
+      "started_cases": 2,
+      "completed_physical_cases": 1,
+      "qualified_cases": 0,
+      "qualified_fraction": "0/4",
+      "success_rate": null,
+      "case_statuses": [
+        {
+          "case": "p001120/R3",
+          "split": "TRAIN",
+          "physical_subset_passed": true,
+          "full_exit_gate_passed": false,
+          "qualified": false
+        },
+        {
+          "case": "p001120/L3",
+          "split": "TRAIN",
+          "status": "INTERRUPTED_AFTER_SCOPED_CANCELLATION",
+          "qualified": false
+        },
+        {
+          "case": "p000923/R3",
+          "split": "selection_VAL",
+          "status": "UNSTARTED",
+          "qualified": false
+        },
+        {
+          "case": "p000923/L3",
+          "split": "selection_VAL",
+          "status": "UNSTARTED",
+          "qualified": false
+        }
+      ],
+      "remaining_batch_cancelled_through_original_guard": true,
+      "actual_recordings": [
+        "assets/act12-source51-train-r3.actual.mp4"
+      ]
+    },
+    "Source52_new_Known4": {
+      "started": false,
+      "executed_cases": 0,
+      "status": "PENDING",
+      "success_rate": null
+    },
+    "Fresh32": {
+      "gate_open": false,
+      "payloads_opened": false,
+      "started": false,
+      "executed_cases": 0,
+      "qualified_cases": null,
+      "success_rate": null,
+      "actual_recordings": []
+    },
+    "admission_order": [
+      "Source52 actual separate CPU recovery passed; no retraining",
+      "Faithful actual selected-model wire and full-exit close proof remains pending",
+      "New Known4 under unchanged complete qualification",
+      "Fresh paired evaluation only after all four Known cases qualify"
+    ],
+    "model_accepted": false,
+    "Source51_selected_model_full_exit_gate_passed": false,
+    "Source52_selected_model_full_exit_probe_passed": false
+  },
+  "Source52_Known4_closed": {
+    "fixed_cases": 4,
+    "executed_cases": 4,
+    "qualified_cases": 2,
+    "failed_cases": 2,
+    "infrastructure_failures": 0,
+    "development_only_physical_success_rate": 0.5,
+    "status": "CLOSED_KNOWN_DEVELOPMENT_2_OF_4_NOT_ACCEPTED",
+    "model_accepted": false,
+    "known4_all_passed": false,
+    "formal_acceptance": false,
+    "owner_normal": true,
+    "stable_final": true,
+    "terminal_errors": [],
+    "terminal_closure_original": {
+      "complete": false,
+      "normal_owner": true,
+      "qualified_dev_only": false,
+      "stable_final": true
+    },
+    "terminal_complete_flag_semantics": "False is the original whole-development qualification flag; all four episodes executed and closed, with two physical negatives.",
+    "all_bound_inputs_immutable_before_after": true,
+    "selected_update": 7000,
+    "selected_checkpoint": {
+      "bytes": 12227137,
+      "sha256": "459beff23699d5c7e5d79b8296a7cbc4029e7c5c4f8da824ba091d111431908b"
+    },
+    "consumer_code_commit": "b424ee78f5120b7aab6351b9b923189351d9f736",
+    "original_fit_stage_passed": false,
+    "original_gate": {
+      "camera_angle_deg": 7,
+      "continuous_hold_s": 3,
+      "expert_l2_fallback": false,
+      "forbidden_contact_N": 0,
+      "l2_deadline_s": 120,
+      "maximum_hold_force_N": 4.5,
+      "maximum_hold_tilt_deg": 3,
+      "minimum_hold_force_N": 3.5,
+      "normal_release_and_home_required": true,
+      "physics_hz": 240,
+      "scope": "Unchanged canonical native audit; policy declaration, not a new measurement."
+    },
+    "cases": [
+      {
+        "id": "p001120-r3",
+        "split": "TRAIN",
+        "pose_id": "p000474_a001230_f0000",
+        "target": "R3",
+        "actual_learned_L2_queries": 55,
+        "expert_L2_fallback": false,
+        "success": true,
+        "original_qualification_passed": true,
+        "outcome": "qualified_physical_positive",
+        "failure_reason": null,
+        "physical": {
+          "peak_contact_force_N": 4.0098657055240565,
+          "qualified_force_and_plane_HOLD_s": 3.0,
+          "continuous_contact_s_separate_metric": 4.725,
+          "HOLD_max_tilt_deg": 1.4999542503598104,
+          "forbidden_force_peak_N": 0.0,
+          "release_confirm_ticks": 48,
+          "home_settle_ticks": 120,
+          "original_gate_passed": true
+        },
+        "CPU_exit": {
+          "exit_code": 0,
+          "normal": true,
+          "reaped": true,
+          "signals": [],
+          "ref": {
+            "bytes": 1271,
+            "sha256": "c01a201b7e7a043b93d12a0e895d5537be96aa41ab23f9f74d481c8568823013"
+          }
+        },
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "runtime": {
+          "controller_wall_s": 1255.0613639649819,
+          "finalize_and_audit_wall_s": 1.9425755629781634,
+          "isaac_startup_wall_s": null,
+          "physics_dt_s": 0.004166666666666667,
+          "physics_steps": 26263,
+          "probe_setup_wall_s": 121.7757233910379,
+          "probe_wall_s": 1378.779662918998,
+          "render_capture_encode_wall_s": null,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null.",
+          "simulation_s": 109.42916666666666,
+          "worker_wall_s": 1544.4680800019996
+        },
+        "source_refs": {
+          "config": {
+            "bytes": 119961,
+            "sha256": "6b5d92797675bf4784d692cbbf102cbed9796b15e164b6e67d8b25ae0af94330"
+          },
+          "qualification": {
+            "bytes": 3280,
+            "sha256": "980e016d0f48fe445dbc30a0dc0ceb0f990b498df8e3f5bcc8c726c8818f1544"
+          },
+          "report": {
+            "bytes": 2726164,
+            "sha256": "2aec4be7561ac141cff498848b731d53eb2b93a552cca0c58947ae6c5374cc55"
+          },
+          "worker": {
+            "bytes": 673,
+            "sha256": "f0e7f71acf29364f1a5b49f6e840c38c569d4d8f0924ccf401e30ed6107ad250"
+          },
+          "cpu_handshake_trace": {
+            "bytes": 875280,
+            "sha256": "402bcc7d6e441808fcbdcdb69308a0476034076f34a88541c74a72c1dcf4f12e"
+          }
+        }
+      },
+      {
+        "id": "p001120-l3",
+        "split": "TRAIN",
+        "pose_id": "p000474_a001230_f0000",
+        "target": "L3",
+        "actual_learned_L2_queries": 52,
+        "expert_L2_fallback": false,
+        "success": true,
+        "original_qualification_passed": true,
+        "outcome": "qualified_physical_positive",
+        "failure_reason": null,
+        "physical": {
+          "peak_contact_force_N": 4.007117725173633,
+          "qualified_force_and_plane_HOLD_s": 3.0,
+          "continuous_contact_s_separate_metric": 4.7375,
+          "HOLD_max_tilt_deg": 1.9995198824782883,
+          "forbidden_force_peak_N": 0.0,
+          "release_confirm_ticks": 48,
+          "home_settle_ticks": 120,
+          "original_gate_passed": true
+        },
+        "CPU_exit": {
+          "exit_code": 0,
+          "normal": true,
+          "reaped": true,
+          "signals": [],
+          "ref": {
+            "bytes": 1271,
+            "sha256": "1f5b9c8c4e9e640e38b462c5e07f96d3d62a0a78eb00dd6fe1caa44d97a6d64d"
+          }
+        },
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "runtime": {
+          "controller_wall_s": 1331.050958730979,
+          "finalize_and_audit_wall_s": 1.9161363019957207,
+          "isaac_startup_wall_s": null,
+          "physics_dt_s": 0.004166666666666667,
+          "physics_steps": 25157,
+          "probe_setup_wall_s": 128.80488059401978,
+          "probe_wall_s": 1461.7719756269944,
+          "render_capture_encode_wall_s": null,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null.",
+          "simulation_s": 104.82083333333333,
+          "worker_wall_s": 1618.0255176799837
+        },
+        "source_refs": {
+          "config": {
+            "bytes": 119968,
+            "sha256": "4ce82adc0be598f4ac49eda0db90c6ca25d61416c328dfa131a6b1c6688dc8d2"
+          },
+          "qualification": {
+            "bytes": 3276,
+            "sha256": "28a8d3e84cb1f87d8cce26f747938983284d23f2ebe90a0a38282a6ab7682054"
+          },
+          "report": {
+            "bytes": 2605737,
+            "sha256": "d9783bdbdeb47aafef634ff705efa9081980225645c4171d08c2d7ebdc710749"
+          },
+          "worker": {
+            "bytes": 673,
+            "sha256": "e0d476399acb94c5cda4eb79f2fc8d26c221fe979d6416f36720c699f69c27e6"
+          },
+          "cpu_handshake_trace": {
+            "bytes": 829308,
+            "sha256": "962db0ac8a80c68920a5919b06caedcc6271197d1e3f40f94c649ca0c890deac"
+          }
+        }
+      },
+      {
+        "id": "p000923-r3",
+        "split": "selectionVAL",
+        "pose_id": "p000474_a001230_f0000",
+        "target": "R3",
+        "actual_learned_L2_queries": 241,
+        "expert_L2_fallback": false,
+        "success": false,
+        "original_qualification_passed": false,
+        "outcome": "closed_physical_negative",
+        "failure_reason": "R3: M2 L2 clock/120 second deadline failed",
+        "physical": {
+          "peak_contact_force_N": 0.0,
+          "qualified_force_and_plane_HOLD_s": 0.0,
+          "continuous_contact_s_separate_metric": 0.0,
+          "HOLD_max_tilt_deg": null,
+          "forbidden_force_peak_N": 0.0,
+          "release_confirm_ticks": null,
+          "home_settle_ticks": null,
+          "original_gate_passed": false
+        },
+        "CPU_exit": {
+          "exit_code": 0,
+          "normal": true,
+          "reaped": true,
+          "signals": [],
+          "ref": {
+            "bytes": 1273,
+            "sha256": "0225ed6acbf8cef3d1311c699485cb6d0a6fe35d2b6b2e8ec737607dd2490815"
+          }
+        },
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "runtime": {
+          "controller_wall_s": 1247.1611658959882,
+          "finalize_and_audit_wall_s": 1.8085681999800727,
+          "isaac_startup_wall_s": null,
+          "physics_dt_s": 0.004166666666666667,
+          "physics_steps": 29041,
+          "probe_setup_wall_s": 122.07903245498892,
+          "probe_wall_s": 1371.0487665509572,
+          "render_capture_encode_wall_s": null,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null.",
+          "simulation_s": 121.00416666666666,
+          "worker_wall_s": 1522.5350995719782
+        },
+        "source_refs": {
+          "config": {
+            "bytes": 120010,
+            "sha256": "473b8eca5c97e51e6b98d921b36cf8cd233b8540351bed8d775f0ee8e5f78edd"
+          },
+          "qualification": {
+            "bytes": 1445,
+            "sha256": "66c9df6e6fdeb1b4150b1966dd891f62040a9f85e6cf041220dcb6071c319432"
+          },
+          "report": {
+            "bytes": 4922461,
+            "sha256": "fd7933ced79e70f0c9d860cf723363230128f27af83ed13060db7d3f7d53d19f"
+          },
+          "worker": {
+            "bytes": 674,
+            "sha256": "0f6b4ed4654c61ff5c08488867bcda519b047c2a540f544962d5cfa408e02889"
+          },
+          "cpu_handshake_trace": {
+            "bytes": 3834102,
+            "sha256": "0a3108814f5061443b5b686b0a75b080613f48ef990248b11f622d97faad33c8"
+          }
+        }
+      },
+      {
+        "id": "p000923-l3",
+        "split": "selectionVAL",
+        "pose_id": "p000474_a001230_f0000",
+        "target": "L3",
+        "actual_learned_L2_queries": 241,
+        "expert_L2_fallback": false,
+        "success": false,
+        "original_qualification_passed": false,
+        "outcome": "closed_physical_negative",
+        "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+        "physical": {
+          "peak_contact_force_N": 0.0,
+          "qualified_force_and_plane_HOLD_s": 0.0,
+          "continuous_contact_s_separate_metric": 0.0,
+          "HOLD_max_tilt_deg": null,
+          "forbidden_force_peak_N": 0.0,
+          "release_confirm_ticks": null,
+          "home_settle_ticks": null,
+          "original_gate_passed": false
+        },
+        "CPU_exit": {
+          "exit_code": 0,
+          "normal": true,
+          "reaped": true,
+          "signals": [],
+          "ref": {
+            "bytes": 1273,
+            "sha256": "4ae47cd34ca94247f5697c0819b9fdeb4ac412deaa92d21973762da1b95d3cd0"
+          }
+        },
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "runtime": {
+          "controller_wall_s": 1674.9018620809657,
+          "finalize_and_audit_wall_s": 2.1215326029923744,
+          "isaac_startup_wall_s": null,
+          "physics_dt_s": 0.004166666666666667,
+          "physics_steps": 29041,
+          "probe_setup_wall_s": 134.327893890033,
+          "probe_wall_s": 1811.351288573991,
+          "render_capture_encode_wall_s": null,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null.",
+          "simulation_s": 121.00416666666666,
+          "worker_wall_s": 1968.686966482026
+        },
+        "source_refs": {
+          "config": {
+            "bytes": 120007,
+            "sha256": "154f44b6adc44af7a813fdfd3270fb4a8cb02df8d4f1f86fca08a93606cb6f1b"
+          },
+          "qualification": {
+            "bytes": 1445,
+            "sha256": "8f1db3ca53baee586dc1378b75c92c644b402bf7ab0cd9e1494a834c25da0104"
+          },
+          "report": {
+            "bytes": 4914243,
+            "sha256": "dda4fe93b41dceebd62de18ea7cd28dc828e111707c77414f95a8fa0785c5406"
+          },
+          "worker": {
+            "bytes": 673,
+            "sha256": "571ca423d9ff427b0a4e9aebaa2473ae9baf2100f6f34a588ba1f19cc3de07b4"
+          },
+          "cpu_handshake_trace": {
+            "bytes": 3830108,
+            "sha256": "25746a34b3de560e5ac2ef23dfee512c521c004e3949c5447044870ee6b44fe7"
+          }
+        }
+      }
+    ],
+    "source_refs": {
+      "terminal": {
+        "bytes": 34035,
+        "sha256": "e4b31c3e8f1239a9fdde82e80d161a313901add774e96d6bf91caf7c186ea208"
+      },
+      "owner": {
+        "bytes": 3504,
+        "sha256": "553216c0a27785e95437fb4d45829e084ffa53e33b5005610419ce219ba31857"
+      },
+      "wire_complete": {
+        "bytes": 25423,
+        "sha256": "51295ee71471a77202d3577d36900b751eddb3dd32291b92dc1645180c6757eb"
+      },
+      "recovery_certificate": {
+        "bytes": 19655580,
+        "sha256": "03fe228ecbeb7278d3a9c39586f9de7ac41bfd94bc3ff2c1186b516d5bc56afd"
+      },
+      "reviewed_inputs": {
+        "bytes": 2011,
+        "sha256": "91f1bd88acfba731d1067b38c23d19cf876bf375e047a551ba17577bf5e6bbe3"
+      }
+    },
+    "same_development_2_of_4_as_V9": true,
+    "success_rate_improvement_established": false,
+    "Fresh_payloads_opened": false
+  },
+  "Source52_actual_media": {
+    "p001120-r3": {
+      "split": "TRAIN",
+      "actual_learned_model": true,
+      "expert_replay": false,
+      "expert_L2_fallback": false,
+      "control_roles": {
+        "L2": "state-only ACT approach",
+        "L3": "analytic Hall contact, HOLD, release and home when admitted"
+      },
+      "original_case_qualification_passed": true,
+      "whole_model_accepted": false,
+      "video": {
+        "path": "assets/act12-source52-known-p001120-r3.actual.mp4",
+        "bytes": 646034,
+        "sha256": "3e0a0244882b009c37584d328bd94dcbd820f630b213638bf3e671e2a4f884e8"
+      },
+      "poster": {
+        "path": "assets/act12-source52-known-p001120-r3.poster.jpg",
+        "bytes": 9726,
+        "recorded_sim_s": 55.40000000001712,
+        "requested_sim_s": 55.37500000001591,
+        "selection": "Explicit meaningful recorded timestamp; exact existing decoded frame, no new render.",
+        "sha256": "99b54684dfaa2edbeb2c4c5e3b64d44e5badd33a158a4e5ad90dc7be98d7618f",
+        "video_frame": 553,
+        "video_playback_s": 55.3
+      },
+      "frame_index": {
+        "bytes": 99342,
+        "sha256": "c173d1b9bf24bb7b7e944f7ce55bd6a8195ba1f483e1dfebab917aa6e64c2406"
+      },
+      "frames": 1094,
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "encoded_s": 109.4,
+      "native_simulation_s": 109.42916666666666,
+      "first_recorded_native_s": 0.09999999999999999,
+      "last_recorded_native_s": 109.39999999998267,
+      "trailing_unrendered_ticks": 7,
+      "full_decode_passed": true,
+      "immutable_SHA_before_after": true,
+      "all_captured_frames_retained": true,
+      "synthetic_frames": false,
+      "poster_force_or_contact_inferred_from_appearance": false,
+      "wall_realtime": false,
+      "probe_wall_s": 1378.779662918998,
+      "worker_wall_s": 1544.4680800019996,
+      "clock_scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+    },
+    "p000923-r3": {
+      "split": "selectionVAL",
+      "actual_learned_model": true,
+      "expert_replay": false,
+      "expert_L2_fallback": false,
+      "control_roles": {
+        "L2": "state-only ACT approach",
+        "L3": "analytic Hall contact, HOLD, release and home when admitted"
+      },
+      "original_case_qualification_passed": false,
+      "whole_model_accepted": false,
+      "video": {
+        "path": "assets/act12-source52-known-p000923-r3.actual.mp4",
+        "bytes": 713779,
+        "sha256": "b1f729b29a32be57225745bd372ca51a71e3b9fa2a8a35ff7a5d6e421790766a"
+      },
+      "poster": {
+        "path": "assets/act12-source52-known-p000923-r3.poster.jpg",
+        "bytes": 9359,
+        "recorded_sim_s": 90.00000000000031,
+        "requested_sim_s": 90.0,
+        "selection": "Explicit meaningful recorded timestamp; exact existing decoded frame, no new render.",
+        "sha256": "8fbe2119d78ea65436b6d4f4ee1378e3222bfa9156562deb59c46a90bff27687",
+        "video_frame": 899,
+        "video_playback_s": 89.9
+      },
+      "frame_index": {
+        "bytes": 110112,
+        "sha256": "e6286eec62ae8d07f81df898f3bd518892299248dd984ef0166baa235fe3f230"
+      },
+      "frames": 1210,
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "encoded_s": 121.0,
+      "native_simulation_s": 121.00416666666666,
+      "first_recorded_native_s": 0.09999999999999999,
+      "last_recorded_native_s": 120.99999999997212,
+      "trailing_unrendered_ticks": 1,
+      "full_decode_passed": true,
+      "immutable_SHA_before_after": true,
+      "all_captured_frames_retained": true,
+      "synthetic_frames": false,
+      "poster_force_or_contact_inferred_from_appearance": false,
+      "wall_realtime": false,
+      "probe_wall_s": 1371.0487665509572,
+      "worker_wall_s": 1522.5350995719782,
+      "clock_scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+    }
+  },
+  "Source52_plateau_diagnosis": {
+    "scope": "Closed selection VAL p000923/R3 90–92 s only; L3 FK note is separate and is not a Native independent measurement.",
+    "window": {
+      "requested_s": [
+        90,
+        92
+      ],
+      "rows": 481,
+      "first_time_s": 90.00000000000031,
+      "last_time_s": 91.9999999999985
+    },
+    "original_handoff": {
+      "commanded_and_Native_observed_lateral_mm_at_most": 2,
+      "gap_error_mm_at_most": 1,
+      "full_rotation_deg_at_most": 4,
+      "stability_conditions_unchanged": true
+    },
+    "R3_scalars": {
+      "raw_target_fk_lateral_mm": {
+        "min": 3.323845979547379,
+        "mean": 3.4976691931115673,
+        "max": 3.6310985248342287,
+        "range": 0.30725254528684953
+      },
+      "issued_command_fk_lateral_mm": {
+        "min": 3.345554452596611,
+        "mean": 3.4940109405214295,
+        "max": 3.6055336188602753,
+        "range": 0.25997916626366413
+      },
+      "native_wrist_derived_tcp_lateral_mm": {
+        "min": 3.352261828631319,
+        "mean": 3.4935986393568066,
+        "max": 3.5959173033853125,
+        "range": 0.2436554747539934
+      },
+      "raw_target_to_issued_fk_distance_mm": {
+        "min": 0.015331185057901847,
+        "mean": 0.13689590390977152,
+        "max": 0.2660610429459006,
+        "range": 0.25072985788799873
+      },
+      "issued_fk_to_measured_fk_distance_mm": {
+        "min": 0.0015340162244458445,
+        "mean": 0.010273086102094797,
+        "max": 0.018655753777650993,
+        "range": 0.01712173755320515
+      },
+      "measured_fk_to_native_tcp_distance_mm": {
+        "min": 7.703770121638175e-05,
+        "mean": 0.00024848455977760186,
+        "max": 0.0004994968537475533,
+        "range": 0.0004224591525311716
+      }
+    },
+    "Native_TCP_semantics": "SDK wrist world pose plus configured offset minus measured slider compression; independent of URDF FK(q), not direct sensing of diaphragm mesh surface.",
+    "interpretation": "Dominant 1.3–1.6 mm lateral deficit already occurs in model raw targets; PD tracking is much smaller. These simultaneous absolute distances are not an additive signed causal decomposition. Small periodic motion remains, not an exact mathematical fixed point.",
+    "use_vae": false,
+    "posterior_branch_applicable": false,
+    "q_noise_std": 0,
+    "q_augmentation_enabled": false,
+    "Transformer_dropout_training_only": 0.1,
+    "dropout_primary_cause_established": false,
+    "native_TRAIN_coverage": {
+      "all_native_rows": 10628,
+      "within6mm_rows": 860,
+      "valid_future_length_histogram": {
+        "1": 47,
+        "2": 47,
+        "3": 47,
+        "4": 47,
+        "5": 44,
+        "6": 42,
+        "7": 39,
+        "8": 37,
+        "9": 32,
+        "10": 31,
+        "11": 31,
+        "12": 31,
+        "13": 31,
+        "14": 31,
+        "15": 31,
+        "16": 31,
+        "17": 31,
+        "18": 31,
+        "19": 31,
+        "20": 168
+      },
+      "shorter_than_H20": 692,
+      "shorter_than_E10": 382,
+      "within2mm_rows": 35,
+      "within2mm_valid_future_min": 1,
+      "within2mm_valid_future_max": 2,
+      "computed_static_near_rows": 66,
+      "computed_auxiliary_TRAIN_identities": 16,
+      "actual_native_TRAIN_identity_union": 6,
+      "previous_oracle_body": "p001120",
+      "missing_future_is_masked_not_zero_hold": true,
+      "no_near_data_claim_supported": false,
+      "coverage_is_proven_sole_cause": false
+    },
+    "selection_VAL_L3_last_model_query_contact_frame_lateral_mm": 20.965283124944236,
+    "L3_scalar_semantics": "Canonical model-input FK at the last NN input observation, before its final action cell; not an independently measured terminal Native TCP. The last observation and the final Native closure are different sampling points.",
+    "L3_scalar_source": {
+      "summary": {
+        "name": "SOURCE52_KNOWN4_CLOSED_VAL_L3_LAST_OBSERVATION_SCALARS.json",
+        "bytes": 1374,
+        "sha256": "a774464991e17156fb1e14ef83f3a8b9dcc7a9bf94b30c58a6336f3ec606e935"
+      },
+      "source_IPC": {
+        "bytes": 3830108,
+        "sha256": "25746a34b3de560e5ac2ef23dfee512c521c004e3949c5447044870ee6b44fe7"
+      },
+      "source_COMPLETE": {
+        "bytes": 4914243,
+        "sha256": "dda4fe93b41dceebd62de18ea7cd28dc828e111707c77414f95a8fa0785c5406"
+      },
+      "request_id": 241,
+      "observation_sim_s": 120.84999999997225,
+      "physics_row": 29004,
+      "native_final_physics_steps": 29041,
+      "native_final_sim_s": 121.00416666666666,
+      "independently_measured_terminal_Native_TCP": false,
+      "new_model_inference_or_native_actions": false,
+      "raw_transferred": false
+    },
+    "model_probe_or_repair_run_by_diagnosis": false,
+    "raw_rows_or_q_arrays_returned": false
+  },
+  "next_V11_coverage_pilot_predeclaration": {
+    "status_as_of_predeclaration": "PLAN_ONLY_NO_NEW_DATA_TRAINING_OR_QUALIFICATION",
+    "utc": "2026-11-09T10:39:24.821164+00:00",
+    "actual_TRAIN_identity_union": [
+      "p000742",
+      "p000758",
+      "p000833",
+      "p000961",
+      "p001031",
+      "p001120"
+    ],
+    "pose_ids": [
+      "p000476_a001231_f0023"
+    ],
+    "pose_scope": "One actual known pose2; other known pose excluded from this pilot",
+    "targets": [
+      "R3",
+      "L3"
+    ],
+    "strata": 12,
+    "maximum_recovery_episodes": 24,
+    "recovery_bands_mm": {
+      "fine": [
+        2,
+        6
+      ],
+      "broad": [
+        6,
+        25
+      ]
+    },
+    "primary_offset_mm": 20,
+    "conditional_extra_offset_mm": 4,
+    "labels": "Genuine H2 and raw setter targets with valid E10; balance body/target/pose coverage; no fabricated absent future",
+    "new_training_updates_planned": 1000,
+    "candidate_selection": "one_predeclared_final_candidate",
+    "normalization_losses_architecture_and_safety_unchanged": true,
+    "bank_scope": "Partial state-only L2 ACT supplemental bank, not full multimodal M2 or VLA",
+    "data_or_GPU_created_by_predeclaration": false,
+    "model_qualified": false,
+    "Fresh_payloads_opened": false
+  },
+  "Source52_results_and_coverage_figure": {
+    "path": "assets/act12-source52-known4-and-near-futures.actual.png",
+    "bytes": 147858,
+    "sha256": "3ca3982b61dae1566e67d30c8a72bdd42a3795d8e437c9f08e7053afb0158476",
+    "data": {
+      "case_ids": [
+        "p001120-r3",
+        "p001120-l3",
+        "p000923-r3",
+        "p000923-l3"
+      ],
+      "qualified_force_and_plane_HOLD_s": [
+        3.0,
+        3.0,
+        0.0,
+        0.0
+      ],
+      "HOLD_required_s": 3,
+      "native_near6_valid_future_histogram": {
+        "1": 47,
+        "2": 47,
+        "3": 47,
+        "4": 47,
+        "5": 44,
+        "6": 42,
+        "7": 39,
+        "8": 37,
+        "9": 32,
+        "10": 31,
+        "11": 31,
+        "12": 31,
+        "13": 31,
+        "14": 31,
+        "15": 31,
+        "16": 31,
+        "17": 31,
+        "18": 31,
+        "19": 31,
+        "20": 168
+      },
+      "native_near6_windows": 860,
+      "shorter_than_H20": 692,
+      "shorter_than_E10": 382,
+      "not_a_force_time_curve": true,
+      "computed_static_rows_excluded_from_histogram": true
+    },
+    "generator_sha256": "3264916363cbda57afeb0003d34780f7bc428b202ab2b433432b24d956907bfa",
+    "matplotlib_version": "3.11.2",
+    "scope": "Actual per-case qualified HOLD and original native TRAIN valid-future histogram only; no force-time curve or invented samples."
   }
 }
