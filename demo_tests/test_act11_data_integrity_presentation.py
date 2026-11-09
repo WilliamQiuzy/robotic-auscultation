@@ -31,10 +31,21 @@ class ACT11DataIntegrityPresentation(unittest.TestCase):
         self.e = json.loads((DRAFT / 'evidence/act11-source44-data-integrity-20261108.public.json').read_text())
 
     def test_entire_approved_article_is_byte_identical_outside_single_append(self):
-        followup = re.search(r'<section\b[^>]*\bid="iteration11-source48-results".*?</section>\n', self.html, re.S)
-        historical_html = self.html.replace(followup.group(0), '', 1) if followup else self.html
+        v10_id = 'iteration12-v10-postfit'
+        v10 = re.findall(r'<section\b[^>]*\bid="' + v10_id + r'".*?</section>\n', self.html, re.S)
+        self.assertEqual(len(v10), 1, 'V10 must remain one explicitly approved append')
+        ids = [attrs.get('id') for _, attrs in Elements(self.html).items]
+        self.assertEqual(ids.count(v10_id), 1)
+        self.assertEqual(ids.count('iteration11-source48-results'), 1)
+        self.assertLess(self.html.index('id="iteration11-source48-results"'), self.html.index('id="' + v10_id + '"'))
+        self.assertLess(self.html.index('id="' + v10_id + '"'), self.html.index('id="evaluation"'))
+        historical_html = self.html.replace(v10[0], '', 1)
+        followup = re.search(r'<section\b[^>]*\bid="iteration11-source48-results".*?</section>\n', historical_html, re.S)
+        self.assertIsNotNone(followup, 'Source48 must remain one later append')
+        historical_html = historical_html.replace(followup.group(0), '', 1)
         later = re.search(r'<section\b[^>]*\bid="iteration11-source45-data".*?</section>\n', historical_html, re.S)
         self.assertIsNotNone(later, 'Source45 must be one later append, preserving the Source44 history')
+        self.assertLess(self.html.index('id="iteration11-source45-data"'), self.html.index('id="iteration11-source48-results"'))
         approved = historical_html.replace(later.group(0), '', 1)
         self.assertEqual(hashlib.sha256(approved.encode()).hexdigest(), 'ed09a416a33f93e65de0aef7dd9b7639856382f98a1f6393b657b17e2bf07a84')
         original = approved.replace(self.section, '', 1)

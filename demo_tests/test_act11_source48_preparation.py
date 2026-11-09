@@ -29,7 +29,14 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.report = json.loads((DRAFT / 'evidence/act11-source48-results-preparation-20261108.public.json').read_text())
 
     def test_entire_previously_approved_article_is_preserved(self):
-        historical = self.html.replace(self.section, '', 1)
+        v10_id = 'iteration12-v10-postfit'
+        v10 = re.findall(r'<section\b[^>]*\bid="' + v10_id + r'".*?</section>\n', self.html, re.S)
+        self.assertEqual(len(v10), 1, 'V10 must remain one explicitly approved append')
+        ids = [attrs.get('id') for _, attrs in Elements(self.html).items]
+        self.assertEqual(ids.count(v10_id), 1)
+        self.assertLess(self.html.index('id="' + ENTRY + '"'), self.html.index('id="' + v10_id + '"'))
+        self.assertLess(self.html.index('id="' + v10_id + '"'), self.html.index('id="evaluation"'))
+        historical = self.html.replace(self.section, '', 1).replace(v10[0], '', 1)
         self.assertEqual(hashlib.sha256(historical.encode()).hexdigest(), BASE_ARTICLE_SHA256)
         self.assertEqual(self.html.count('id="' + ENTRY + '"'), 1)
         self.assertLess(self.html.index('id="iteration11-source45-data"'), self.html.index('id="' + ENTRY + '"'))
@@ -98,6 +105,7 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.assertLess(len(serialized.encode()), 12000)
         for private in ['/Users/', '/opt/', '/workspace/', '/mnt/', '.npz', '.npy', 'credential', 'ssh']:
             self.assertNotIn(private, serialized)
+        # This is the report's creation snapshot, not a live publication-status query.
         self.assertEqual(self.report['publication_state'], 'LOCAL_DRAFT_NOT_PUBLISHED')
         self.assertTrue(all(re.fullmatch('[0-9a-f]{64}', v['sha256']) for v in self.report['source_summary_digests'].values()))
         elements = Elements(self.section).items
@@ -107,7 +115,12 @@ class ACT11Source48Preparation(unittest.TestCase):
         for tag, attrs in elements:
             for key in ['href', 'src', 'poster']:
                 if attrs.get(key):
-                    self.assertTrue((DRAFT / attrs[key]).is_file())
+                    ref = attrs[key]
+                    if key == 'href' and ref.startswith('#'):
+                        ids = [a.get('id') for _, a in Elements(self.html).items]
+                        self.assertEqual(ids.count(ref[1:]), 1, ref)
+                    else:
+                        self.assertTrue((DRAFT / ref).is_file(), ref)
         self.assertIn('不能记作 0/32', self.section)
         self.assertIn('高层技能选择', self.section)
         self.assertIn('104.65 秒采集视频保留其专家干预标签', self.section)
