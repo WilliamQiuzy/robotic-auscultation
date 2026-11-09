@@ -1,0 +1,639 @@
+{
+  "schema": "wam_act13_source53_public_closed_v1",
+  "status": "closed known development negative control; model not qualified",
+  "source_code_commit": "5b8af7d549d04266235d699fdd37bfec801eab0b",
+  "pool": {
+    "windows": 1324,
+    "fine_windows": 186,
+    "recovery_windows": 1138,
+    "physical_sources": 12,
+    "real_TRAIN_bodies": 6,
+    "pose": "p000476_a001231_f0023",
+    "new_demonstrations": 0,
+    "strata": [
+      {
+        "body": "p000742",
+        "target": "R3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p000742",
+        "target": "L3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p000758",
+        "target": "R3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p000758",
+        "target": "L3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p000833",
+        "target": "R3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p000833",
+        "target": "L3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p000961",
+        "target": "R3",
+        "fine": 15,
+        "recovery": 96
+      },
+      {
+        "body": "p000961",
+        "target": "L3",
+        "fine": 15,
+        "recovery": 91
+      },
+      {
+        "body": "p001031",
+        "target": "R3",
+        "fine": 16,
+        "recovery": 87
+      },
+      {
+        "body": "p001031",
+        "target": "L3",
+        "fine": 17,
+        "recovery": 91
+      },
+      {
+        "body": "p001120",
+        "target": "R3",
+        "fine": 17,
+        "recovery": 113
+      },
+      {
+        "body": "p001120",
+        "target": "L3",
+        "fine": 16,
+        "recovery": 114
+      }
+    ]
+  },
+  "sampling": {
+    "native_slots": 32,
+    "native_unchanged_slots": 24,
+    "replacement_slots": 8,
+    "fine_slots": 4,
+    "recovery_slots": 4,
+    "per_band_R3_slots": 2,
+    "per_band_L3_slots": 2,
+    "planned_conditional_oracle_unchanged": true,
+    "actual_draws": 8000,
+    "maximum_body_imbalance_within_band_target": 1,
+    "actual_strata": [
+      {
+        "band": "fine",
+        "target": "L3",
+        "body": "p000742",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "L3",
+        "body": "p000758",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "L3",
+        "body": "p000833",
+        "count": 334
+      },
+      {
+        "band": "fine",
+        "target": "L3",
+        "body": "p000961",
+        "count": 334
+      },
+      {
+        "band": "fine",
+        "target": "L3",
+        "body": "p001031",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "L3",
+        "body": "p001120",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "R3",
+        "body": "p000742",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "R3",
+        "body": "p000758",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "R3",
+        "body": "p000833",
+        "count": 334
+      },
+      {
+        "band": "fine",
+        "target": "R3",
+        "body": "p000961",
+        "count": 333
+      },
+      {
+        "band": "fine",
+        "target": "R3",
+        "body": "p001031",
+        "count": 334
+      },
+      {
+        "band": "fine",
+        "target": "R3",
+        "body": "p001120",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "L3",
+        "body": "p000742",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "L3",
+        "body": "p000758",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "L3",
+        "body": "p000833",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "L3",
+        "body": "p000961",
+        "count": 334
+      },
+      {
+        "band": "recovery",
+        "target": "L3",
+        "body": "p001031",
+        "count": 334
+      },
+      {
+        "band": "recovery",
+        "target": "L3",
+        "body": "p001120",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "R3",
+        "body": "p000742",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "R3",
+        "body": "p000758",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "R3",
+        "body": "p000833",
+        "count": 334
+      },
+      {
+        "band": "recovery",
+        "target": "R3",
+        "body": "p000961",
+        "count": 334
+      },
+      {
+        "band": "recovery",
+        "target": "R3",
+        "body": "p001031",
+        "count": 333
+      },
+      {
+        "band": "recovery",
+        "target": "R3",
+        "body": "p001120",
+        "count": 333
+      }
+    ]
+  },
+  "training": {
+    "new_optimizer_steps": 1000,
+    "all54_AdamW_steps_equal1000": true,
+    "optimizer": "fresh AdamW",
+    "optimizer_resumed": false,
+    "warm_start": "Source49 selected step7000, independently recovered by Source52",
+    "initial54_tensors_bit_identical": true,
+    "candidate": "fixed final1000; validation diagnostic only",
+    "normal_owner": true,
+    "original_source49_owner_remains_failed": true,
+    "historical20000_plus1000_effective_gradient_lineage_claimed": false
+  },
+  "scope": {
+    "parameters": 2658823,
+    "state_only": true,
+    "state_dim": 17,
+    "history": 2,
+    "horizon": 20,
+    "execute": 10,
+    "observation_Hz": 20,
+    "decision_Hz": 2,
+    "analytic_Hall_L3": true,
+    "learned_Hall": false,
+    "RGBD_model_input": false,
+    "multimodal_VLA": false,
+    "physics_gates_changed": false,
+    "fresh_opened": false,
+    "fresh_cases_executed": 0,
+    "Known4_is_reused_development": true,
+    "additional_updates_are_a_causal_confound": true
+  },
+  "baseline": {
+    "source": "Source52",
+    "passed": 2,
+    "denominator": 4,
+    "TRAIN_passed": 2,
+    "selection_VAL_passed": 0,
+    "selection_VAL_failure": "original120sL2deadline",
+    "source51_historical_failure_preserved": true
+  },
+  "physical": {
+    "status": "closed",
+    "pose": "p000474_a001230_f0000",
+    "passed": 2,
+    "denominator": 4,
+    "executed": 4,
+    "infrastructure_negatives": 0,
+    "normal_owner": true,
+    "all4_CPU_exit0_reaped_no_signals": true,
+    "model_qualified": false,
+    "cases": [
+      {
+        "id": "p001120-r3",
+        "body": "p001120",
+        "target": "R3",
+        "split": "TRAIN",
+        "qualified_case_pass": true,
+        "failure_reason": null,
+        "qualifier_error": null,
+        "physical": {
+          "contact_force_peak_N": 4.012700382071856,
+          "continuous_contact_hold_s": 4.7,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 1.4999060208364061,
+          "canonical_normal_release_confirm_ticks": 48,
+          "canonical_home_settle_ticks": 120,
+          "source": "independently qualified native physical metrics",
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.002524874173104763,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9894871762438133,
+            "lip_N": 0.0,
+            "retainer_N": 4.012700382071856
+          }
+        },
+        "runtime": {
+          "probe_wall_s": 1338.9062265839893,
+          "probe_setup_wall_s": 68.8392509620171,
+          "controller_wall_s": 1268.2295711620245,
+          "finalize_and_audit_wall_s": 1.8374044599477202,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 24600,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 102.5,
+          "worker_wall_s": 1532.0042781170341,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "model_queries": 42,
+        "expert_L2_fallback": false,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "qualification_sha256": "949472f214f3955616fa9958817c90a1bb5a83a2102b147d2e5a5e34d9481938",
+        "media": {
+          "video": {
+            "file": "assets/act13-source53-known-p001120-r3.actual.mp4",
+            "bytes": 603473,
+            "sha256": "5a33f2d8a94408b617ead053430f13f0995c5d8c927f4c7a990480bc69c52dc3"
+          },
+          "poster": {
+            "file": "assets/act13-source53-known-p001120-r3.poster.jpg",
+            "bytes": 12346,
+            "sha256": "eb96797cd4c18873aa12ffb86885ab834f30cf54a6f8e6e6765d62a3582a210f"
+          },
+          "full_decode_passed": true,
+          "width": 640,
+          "height": 360,
+          "frames": 1025,
+          "fps": 10,
+          "encoded_s": 102.5,
+          "all_captured_frames_preserved": true,
+          "synthetic_frames": false,
+          "simulation_s": 102.5,
+          "trailing_unrendered_physics_ticks": 0,
+          "poster_frame": {
+            "physics_row": 11639,
+            "time_s": 48.50000000001163,
+            "video_frame": 484
+          },
+          "poster_phase_inferred": false,
+          "frame_index_sha256": "14011f344a8837419eef3e1ba2aa777aa6363ca0ad26de5ef5b5835c11f321d7"
+        }
+      },
+      {
+        "id": "p001120-l3",
+        "body": "p001120",
+        "target": "L3",
+        "split": "TRAIN",
+        "qualified_case_pass": true,
+        "failure_reason": null,
+        "qualifier_error": null,
+        "physical": {
+          "contact_force_peak_N": 4.0146316227921215,
+          "continuous_contact_hold_s": 4.720833333333333,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 1.9998488666827168,
+          "canonical_normal_release_confirm_ticks": 48,
+          "canonical_home_settle_ticks": 120,
+          "source": "independently qualified native physical metrics",
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.0024964306503534317,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9889117975956947,
+            "lip_N": 0.0,
+            "retainer_N": 4.0146316227921215
+          }
+        },
+        "runtime": {
+          "probe_wall_s": 1438.083926288993,
+          "probe_setup_wall_s": 75.27438522700686,
+          "controller_wall_s": 1360.9298721709638,
+          "finalize_and_audit_wall_s": 1.8796688910224475,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 23267,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 96.94583333333333,
+          "worker_wall_s": 1620.4907567029586,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "model_queries": 36,
+        "expert_L2_fallback": false,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "qualification_sha256": "0866e375e4bfc59150972cff4ee27c68075acfdd53461e2da1fb8136e82312f7",
+        "media": {
+          "video": {
+            "file": "assets/act13-source53-known-p001120-l3.actual.mp4",
+            "bytes": 663721,
+            "sha256": "680baa4b19c71cac36a9873a175837b4810d5924c2af2db8aa4ee436273bb998"
+          },
+          "poster": {
+            "file": "assets/act13-source53-known-p001120-l3.poster.jpg",
+            "bytes": 13475,
+            "sha256": "fa6786e43e8b16e65583d624f3032391333c941aef12c62d6631382726032d3a"
+          },
+          "full_decode_passed": true,
+          "width": 640,
+          "height": 360,
+          "frames": 969,
+          "fps": 10,
+          "encoded_s": 96.9,
+          "all_captured_frames_preserved": true,
+          "synthetic_frames": false,
+          "simulation_s": 96.94583333333333,
+          "trailing_unrendered_physics_ticks": 11,
+          "poster_frame": {
+            "physics_row": 10967,
+            "time_s": 45.7000000000094,
+            "video_frame": 456
+          },
+          "poster_phase_inferred": false,
+          "frame_index_sha256": "b7bd484858789d1527e9669465a8e8259aa3cae8ebb79ef6a84718a1dddef03f"
+        }
+      },
+      {
+        "id": "p000923-r3",
+        "body": "p000923",
+        "target": "R3",
+        "split": "selection_VAL",
+        "qualified_case_pass": false,
+        "failure_reason": "R3: M2 L2 clock/120 second deadline failed",
+        "qualifier_error": "ValueError: Actual closed successful learned native result without errors required",
+        "physical": {
+          "contact_force_peak_N": 0.0,
+          "continuous_contact_hold_s": 0.0,
+          "continuous_force_and_plane_hold_s": 0.0,
+          "maximum_hold_tilt_deg": null,
+          "canonical_normal_release_confirm_ticks": null,
+          "canonical_home_settle_ticks": null,
+          "source": "reported native negative scalars; no qualified contact",
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 9.650747756495548e-08,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 0.0,
+            "lip_N": 0.0,
+            "retainer_N": 0.0
+          }
+        },
+        "runtime": {
+          "probe_wall_s": 1378.828160855046,
+          "probe_setup_wall_s": 78.6327903700294,
+          "controller_wall_s": 1298.6624924690113,
+          "finalize_and_audit_wall_s": 1.5328780160052702,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 29041,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 121.00416666666666,
+          "worker_wall_s": 1561.5027978400467,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "model_queries": 241,
+        "expert_L2_fallback": false,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "qualification_sha256": "d7f5d05a247a52c2b9aaf33f8be170e9665f64996a923eb70736c6b9bc623764",
+        "media": {
+          "video": {
+            "file": "assets/act13-source53-known-p000923-r3.actual.mp4",
+            "bytes": 704271,
+            "sha256": "2476a8c02cc0f84c54ffb1ece8121ffbf17532b8d608ff62f482e78c3587c6c7"
+          },
+          "poster": {
+            "file": "assets/act13-source53-known-p000923-r3.poster.jpg",
+            "bytes": 11998,
+            "sha256": "64c5a8f7c5f705d0e69f5c4d345d49c6aa95333b04ff25a600c4c5667013f686"
+          },
+          "full_decode_passed": true,
+          "width": 640,
+          "height": 360,
+          "frames": 1210,
+          "fps": 10,
+          "encoded_s": 121.0,
+          "all_captured_frames_preserved": true,
+          "synthetic_frames": false,
+          "simulation_s": 121.00416666666666,
+          "trailing_unrendered_physics_ticks": 1,
+          "poster_frame": {
+            "physics_row": 21599,
+            "time_s": 90.00000000000031,
+            "video_frame": 899
+          },
+          "poster_phase_inferred": false,
+          "frame_index_sha256": "567163cb8f21afa04564123e2b0ccaf4b6cc2c17e89bf68055f495c7867de9c5"
+        }
+      },
+      {
+        "id": "p000923-l3",
+        "body": "p000923",
+        "target": "L3",
+        "split": "selection_VAL",
+        "qualified_case_pass": false,
+        "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+        "qualifier_error": "ValueError: Actual closed successful learned native result without errors required",
+        "physical": {
+          "contact_force_peak_N": 0.0,
+          "continuous_contact_hold_s": 0.0,
+          "continuous_force_and_plane_hold_s": 0.0,
+          "maximum_hold_tilt_deg": null,
+          "canonical_normal_release_confirm_ticks": null,
+          "canonical_home_settle_ticks": null,
+          "source": "reported native negative scalars; no qualified contact",
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 7.900261067561587e-08,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 0.0,
+            "lip_N": 0.0,
+            "retainer_N": 0.0
+          }
+        },
+        "runtime": {
+          "probe_wall_s": 1816.9409042680054,
+          "probe_setup_wall_s": 77.32469150796533,
+          "controller_wall_s": 1737.9989385980298,
+          "finalize_and_audit_wall_s": 1.6172741620102897,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 29041,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 121.00416666666666,
+          "worker_wall_s": 2003.1521646369947,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "model_queries": 241,
+        "expert_L2_fallback": false,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "qualification_sha256": "0d1b8af08fba3b05a58d581bb68e84577d966260c529ff5bafd15e39c1255663",
+        "media": {
+          "video": {
+            "file": "assets/act13-source53-known-p000923-l3.actual.mp4",
+            "bytes": 862621,
+            "sha256": "cdaae4fd06c2521dc8a94304cd7b0fea7fc33edbb28e7c72b545073bf1179112"
+          },
+          "poster": {
+            "file": "assets/act13-source53-known-p000923-l3.poster.jpg",
+            "bytes": 13556,
+            "sha256": "55a8d7979cf1859fb5ca60d4a350b91ece8b72db376e9d141d9295d9751e057d"
+          },
+          "full_decode_passed": true,
+          "width": 640,
+          "height": 360,
+          "frames": 1210,
+          "fps": 10,
+          "encoded_s": 121.0,
+          "all_captured_frames_preserved": true,
+          "synthetic_frames": false,
+          "simulation_s": 121.00416666666666,
+          "trailing_unrendered_physics_ticks": 1,
+          "poster_frame": {
+            "physics_row": 21599,
+            "time_s": 90.00000000000031,
+            "video_frame": 899
+          },
+          "poster_phase_inferred": false,
+          "frame_index_sha256": "567163cb8f21afa04564123e2b0ccaf4b6cc2c17e89bf68055f495c7867de9c5"
+        }
+      }
+    ]
+  },
+  "derived_scalar_sources": [
+    {
+      "file": "EXISTING_TRAIN_POOL_INVENTORY.json",
+      "sha256": "0b9daae3c110e593b3addb0185e650309c4ffa0f887da3bc8911a622e16b3ea3"
+    },
+    {
+      "file": "SOURCE53_INDEPENDENT_CLOSED_TRAINING_VERIFICATION.json",
+      "sha256": "f9ee9673ed96a20bf0979d640acc1a6aff1a7825a83e7a6ca147e8fbf2f625b7"
+    },
+    {
+      "file": "SOURCE52_KNOWN4_CLOSED_RESULTS.json",
+      "sha256": "2fee67f6e6ffa2f7f9de5c7775b62f642737eea99ad18419c25423871d147d81"
+    },
+    {
+      "file": "SOURCE53_KNOWN4_CLOSED_RESULTS.json",
+      "bytes": 16947,
+      "sha256": "1e12760d5b7246996a47babe5a2d9cb95e5bd95e0572cbcc15811a6e8f336bd2"
+    },
+    {
+      "file": "SOURCE53_KNOWN4_ACTUAL_MEDIA_EXPORT.json",
+      "bytes": 26126,
+      "sha256": "495486072faacc9814a189cfc68244b53d7d13b40693e7a2f9bb20b97a03c54a"
+    },
+    {
+      "file": "SOURCE53_KNOWN4_TIMED_POSTERS.json",
+      "bytes": 3743,
+      "sha256": "a6b6a4dd2d6a234e0eca04f87edc4fc6cff0e4ba73da37f6f1ab8e4eb82b0a32"
+    }
+  ],
+  "interpretation": {
+    "same_fixed_rate_as_Source52": true,
+    "balanced1000_control_sufficient": false,
+    "all_resampling_universally_fails_claimed": false,
+    "sole_coverage_cause_proven": false,
+    "next_recovery_collection": "CPU repair under review; no new demonstration or training claimed"
+  }
+}
