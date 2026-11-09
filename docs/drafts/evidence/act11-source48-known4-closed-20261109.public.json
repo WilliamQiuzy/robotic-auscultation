@@ -1,0 +1,130 @@
+{
+  "schema": "wam_ACT11_Source48_known4_original_qualification_closed_v1",
+  "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
+  "scope": "Four fixed known development cases only; not held-out evaluation or population performance",
+  "producer_code_commit": "29024f00a8656865fe79242605580278561f463e",
+  "consumer_code_commit": "c0e67121f15816d049e812c45486c053ef8c926a",
+  "selected_update": 9000,
+  "fixed_cases": 4,
+  "executed_cases": 4,
+  "qualified_cases": 2,
+  "failed_cases": 2,
+  "infrastructure_failures": 0,
+  "known_development_success_rate": 0.5,
+  "model_accepted": false,
+  "cases": [
+    {
+      "case_id": "p001120-r3",
+      "role": "Known TRAIN",
+      "native_success": true,
+      "native_physical_validation": true,
+      "original_qualification_passed": true,
+      "original_physical_gate_passed": true,
+      "worker_exit_code": 0,
+      "cpu_child_exit_code": 0,
+      "worker_complete": true,
+      "cpu_child_reaped": true,
+      "learned_policy": true,
+      "expert_L2_fallback": false,
+      "native_result_sha256": "7e1b80c156b543141ae30e5b56d446e06f935150f7afb5b76ba960134f3c4638",
+      "failure_reason": null
+    },
+    {
+      "case_id": "p001120-l3",
+      "role": "Known TRAIN",
+      "native_success": true,
+      "native_physical_validation": true,
+      "original_qualification_passed": true,
+      "original_physical_gate_passed": true,
+      "worker_exit_code": 0,
+      "cpu_child_exit_code": 0,
+      "worker_complete": true,
+      "cpu_child_reaped": true,
+      "learned_policy": true,
+      "expert_L2_fallback": false,
+      "native_result_sha256": "05d8b24c0f3758f2e3d54d25b7c472eb301e41377a54dab0bcec342a7a84d82b",
+      "failure_reason": null
+    },
+    {
+      "case_id": "p000923-r3",
+      "role": "Known selection validation",
+      "native_success": false,
+      "native_physical_validation": false,
+      "original_qualification_passed": false,
+      "original_physical_gate_passed": false,
+      "worker_exit_code": 0,
+      "cpu_child_exit_code": 0,
+      "worker_complete": true,
+      "cpu_child_reaped": true,
+      "learned_policy": true,
+      "expert_L2_fallback": false,
+      "native_result_sha256": "7999439a14dec9370a59de2301aa98a312162fb29d2391d3b1b44c2a78ff6c68",
+      "failure_reason": "R3: M2 L2 clock/120 second deadline failed"
+    },
+    {
+      "case_id": "p000923-l3",
+      "role": "Known selection validation",
+      "native_success": false,
+      "native_physical_validation": false,
+      "original_qualification_passed": false,
+      "original_physical_gate_passed": false,
+      "worker_exit_code": 0,
+      "cpu_child_exit_code": 0,
+      "worker_complete": true,
+      "cpu_child_reaped": true,
+      "learned_policy": true,
+      "expert_L2_fallback": false,
+      "native_result_sha256": "d4fd82fe6316ce3502ca649b70fc73108812fb01eca997d9bc49d18ddedb4b1f",
+      "failure_reason": "L3: M2 L2 clock/120 second deadline failed"
+    }
+  ],
+  "owner": {
+    "exit_code": 0,
+    "normal_closed": true,
+    "drained": true,
+    "released": true,
+    "signals": [],
+    "operator_closed": true,
+    "all_original_members_closed": true
+  },
+  "Fresh32": {
+    "gate_open": false,
+    "payloads_opened": false,
+    "executed_cases": 0,
+    "qualified_cases": null,
+    "physical_success_rate": null,
+    "reason": "Known4 required4/4 gate failed; neither selection-validation case entered a successful cycle"
+  },
+  "V10": {
+    "training_result": false,
+    "closed_loop_result": false
+  },
+  "source_digests": {
+    "closed_NEEDS_REPAIR": {
+      "bytes": 95404,
+      "sha256": "90f8ec9a3f536098f29136ee1b97868a72baf74cc93a6aa8b6c04f7a2d9398b8"
+    },
+    "owner_result": {
+      "bytes": 3417,
+      "sha256": "5d732018f89a9b11c420f3aa515cd33d18d199831b00f2405394d95c8e9657b2"
+    },
+    "independent_VAL2_final_backup_receipt": {
+      "bytes": 5629,
+      "sha256": "be9ba8ff4f7ea49bb9258b0550292f311a81135ee4d51541cd51b45fcfc8847c"
+    },
+    "independent_VAL2_final_backup_manifest": {
+      "bytes": 25231,
+      "sha256": "1e51fdac76e998d7eb0e69bbbe305ce89a29dc9f300a40a4687d860cd0dc464c"
+    },
+    "current_metadata_snapshot": {
+      "bytes": 126050,
+      "sha256": "a11ebb99a25c3a005bc34e8b4d5d786a2916fc1af219322ef20fc7916c08d76e"
+    }
+  },
+  "limits": [
+    "Known development2/4 is not model acceptance or a held-out result.",
+    "Both selection-validation failures retain the original120s cumulative L2 deadline and fixed four-case denominator.",
+    "Fresh executed0 is not a0/32 success rate.",
+    "No V10 training or closed-loop result is claimed."
+  ]
+}

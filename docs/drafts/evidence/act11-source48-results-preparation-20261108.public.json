@@ -1,0 +1,298 @@
+{
+  "schema": "wam_act11_source48_known4_closed_results_v1",
+  "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
+  "evidence_scope": "All four fixed known development cases closed under original qualification: two TRAIN passes and two selection-validation L2 deadline failures; model not accepted, Fresh not opened",
+  "historical_matched8": {
+    "historical_only": true,
+    "new_ACT11_or_fresh32_evaluation": false,
+    "source_code_commit": "ad8707e65ecdb9f2762fe5c99fde9bdbbfee7d2f",
+    "closed_utc": "2026-11-06T09:47:04.458570+00:00",
+    "cohort": {
+      "subject_count": 2,
+      "fixed_scenarios_per_arm": 8,
+      "total_planned_arm_slots": 24,
+      "denominator": "2 held-out identities x 2 known observed poses x R3/L3; eight repeated scenarios, not eight independent subjects"
+    },
+    "arms": {
+      "act": {
+        "role": "Learned state-only ACT L2 followed by unchanged analytic L3; no expert L2 fallback",
+        "native_episodes": 8,
+        "qualified": 0,
+        "failed": 8,
+        "unknown": 0,
+        "owner_normal_drained_released": true
+      },
+      "astra": {
+        "role": "Actual Astra high-level skill proposals; GivenContactExpert supplies analytic local motor/contact execution",
+        "native_episodes": 8,
+        "qualified": 8,
+        "failed": 0,
+        "unknown": 0,
+        "owner_normal_drained_released": true
+      },
+      "expert": {
+        "role": "Original GivenContactExpert analytic L2/local contact control; historical expert/Astra comparison episodes are not training data",
+        "native_episodes": 8,
+        "qualified": 8,
+        "failed": 0,
+        "unknown": 0,
+        "owner_normal_drained_released": true
+      }
+    },
+    "old_ACT_selected_update": 4500,
+    "old_ACT_guard_failures": {
+      "original_tick_mesh_clearance": 2,
+      "posture_joint_envelope": 6
+    },
+    "Astra": {
+      "actual_model": "gpt-6-astra",
+      "backend": "codex_exec",
+      "actual_calls": 24,
+      "completed_local_skills": 24,
+      "model_fallback_count": 0,
+      "learned_motor_policy": false,
+      "causal_modality_effect": false
+    },
+    "cases": [
+      {
+        "scenario_id": "p001030-p000474_a001230_f0000-r3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_original_tick_mesh_clearance_guard_negative"
+      },
+      {
+        "scenario_id": "p001030-p000474_a001230_f0000-l3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_command_posture_joint_envelope_negative"
+      },
+      {
+        "scenario_id": "p001030-p000476_a001231_f0023-r3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_command_posture_joint_envelope_negative"
+      },
+      {
+        "scenario_id": "p001030-p000476_a001231_f0023-l3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_original_tick_mesh_clearance_guard_negative"
+      },
+      {
+        "scenario_id": "p000956-p000474_a001230_f0000-r3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_command_posture_joint_envelope_negative"
+      },
+      {
+        "scenario_id": "p000956-p000474_a001230_f0000-l3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_command_posture_joint_envelope_negative"
+      },
+      {
+        "scenario_id": "p000956-p000476_a001231_f0023-r3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_command_posture_joint_envelope_negative"
+      },
+      {
+        "scenario_id": "p000956-p000476_a001231_f0023-l3",
+        "expert_qualified": true,
+        "old_ACT_qualified": false,
+        "Astra_qualified": true,
+        "old_ACT_guard": "physical_command_posture_joint_envelope_negative"
+      }
+    ],
+    "fresh_metadata_recheck_is_new_physical_qualification": false,
+    "video_descriptors": {
+      "count": 24,
+      "video_bytes_hashed_or_opened": false,
+      "new_video_asset_added": false
+    },
+    "controlled_speed_comparison": false
+  },
+  "ACT11_V9": {
+    "producer_source": 45,
+    "producer_code_commit": "29024f00a8656865fe79242605580278561f463e",
+    "new_optimizer_updates": 20000,
+    "warm_start": "ACT10 selected update17000",
+    "evaluated_candidates": 40,
+    "selected_update": 9000,
+    "actor": {
+      "type": "state-only ACT L2",
+      "state17": [
+        "measured joint positions7",
+        "target-relative TCP position3",
+        "rotation6D",
+        "prescribed goal confidence1"
+      ],
+      "observations": 2,
+      "prediction_cells": 20,
+      "executed_cells_up_to": 10,
+      "cell_rate_hz": 20,
+      "nominal_decision_rate_hz": 2
+    },
+    "control": "Learned approach and native handoff, then unchanged analytic L3 contact, hold, release and home; no expert L2 fallback",
+    "recorded_modalities": {
+      "RGB_D_neural_actor_input": false,
+      "Hall_ADC_neural_actor_input": false,
+      "Hall_ADC_analytic_L3_and_safety": true
+    },
+    "data_counts": {
+      "teacher_intervention_qualified_captures": 8,
+      "teacher_intervention_windows": 133,
+      "earlier_measured_query_windows": 58,
+      "enriched_existing_source_windows": 2064,
+      "windows_are_episodes": false
+    },
+    "known4": {
+      "declared_cases": 4,
+      "status": "CLOSED_KNOWN_DEVELOPMENT_2_OF_4_NOT_ACCEPTED",
+      "completed_cases": 4,
+      "qualified_cases": 2,
+      "physical_success_rate": 0.5,
+      "model_accepted": false,
+      "new_model_video_available": true,
+      "phase": "ALL_FOUR_ORIGINAL_CASES_CLOSED",
+      "native_closed_positive_case_reports": 2,
+      "case_observations": [
+        {
+          "subject_id": "p001120",
+          "target": "R3",
+          "role": "Known TRAIN",
+          "native_terminal_status": "COMPLETE",
+          "native_reported_success": true,
+          "native_reported_physical_validation": true,
+          "worker_exit_code": 0,
+          "genuine_model_queries": 50,
+          "expert_L2_fallback": false,
+          "independent_qualification": "QUALIFIED",
+          "media_evidence_file": "act11-source48-known-train-r3-video-20261109.public.json",
+          "independent_streamed_contact_subset_passed": true,
+          "full_native_qualification_pending": false
+        },
+        {
+          "subject_id": "p001120",
+          "target": "L3",
+          "role": "Known TRAIN",
+          "native_terminal_status": "COMPLETE",
+          "native_reported_success": true,
+          "native_reported_physical_validation": true,
+          "genuine_model_queries": 52,
+          "expert_L2_fallback": false,
+          "independent_qualification": "QUALIFIED"
+        },
+        {
+          "subject_id": "p000923",
+          "target": "R3",
+          "role": "Known selection validation",
+          "native_terminal_status": "CLOSED_L2_DEADLINE_NEGATIVE",
+          "native_reported_success": false,
+          "native_reported_physical_validation": false,
+          "genuine_model_queries": 241,
+          "expert_L2_fallback": false,
+          "independent_qualification": "FAILED_ORIGINAL_L2_DEADLINE",
+          "diagnostic_evidence_file": "act11-source48-selection-r3-negative-20261109.public.json"
+        },
+        {
+          "subject_id": "p000923",
+          "target": "L3",
+          "role": "Known selection validation",
+          "native_terminal_status": "CLOSED_L2_DEADLINE_NEGATIVE",
+          "native_reported_success": false,
+          "independent_qualification": "FAILED_ORIGINAL_L2_DEADLINE",
+          "native_reported_physical_validation": false,
+          "genuine_model_queries": 241,
+          "expert_L2_fallback": false
+        }
+      ],
+      "native_closed_negative_case_reports": 2,
+      "native_closed_case_reports": 4,
+      "final_evidence_file": "act11-source48-known4-closed-20261109.public.json"
+    },
+    "fresh32": {
+      "identities": 8,
+      "known_poses": 2,
+      "targets": [
+        "R3",
+        "L3"
+      ],
+      "declared_scenarios": 32,
+      "arms": [
+        "expert",
+        "ACT11"
+      ],
+      "declared_arm_slots": 64,
+      "gate": "All four known development cases must physically qualify first",
+      "status": "BLOCKED_NOT_OPENED",
+      "tested_cases": 0,
+      "qualified_cases": null,
+      "physical_success_rate": null,
+      "payloads_inspected_for_this_draft": false,
+      "gate_open": false,
+      "blocked_by_known_development_failure": true
+    }
+  },
+  "pipeline_followup": {
+    "consumer_source": 48,
+    "consumer_code_commit": "c0e67121f15816d049e812c45486c053ef8c926a",
+    "producer_source45_unchanged": true,
+    "change_scope": "Wire process-identity serialization and exact typed four-field match; original guard, CPU bridge and physics unchanged",
+    "earlier_owned_first4_attempt": "Weights loaded; zero policy queries and zero physics steps because start_ticks integer did not equal original guard string",
+    "actual_Linux_proc_and_exec_parity_passed": true,
+    "fresh_all40_canonical_producer_admission_passed": true,
+    "canonical_admission_elapsed_s": 310.56997066905024,
+    "native_consumer_ingress_passed": true,
+    "selected_weights_changed": false,
+    "thresholds_changed": false,
+    "new_training": false,
+    "model_qualified": false,
+    "original_guard_sha256": "35305b9151a1da5046023c4462acbfb50aadc2d997b073f4acabc356bd16dc5d",
+    "canonical_certificate": {
+      "bytes": 17950932,
+      "sha256": "77ee1e0213a70a1fdd0ca4c26a31351b8979b77ed592a120ed043a5fe8560db4"
+    }
+  },
+  "limits": [
+    "Historical8 and new ACT11 Known4/Fresh32 use different models and cohorts; do not combine denominators or rank across cohorts.",
+    "All goals are prescribed given contact poses; no anatomical visual target detection result.",
+    "Two historical held-out identities and repeated scenes do not establish general-population performance.",
+    "Static bare-body R3/L3 simulation only; no all-ten-site, moving-patient, real-robot, audio, VLA or clinical claim.",
+    "Pipeline receipt pass and teacher data qualification are not new learned-policy physical acceptance.",
+    "Historical video descriptors do not authenticate video bytes or authorize relabeling an old recording."
+  ],
+  "source_summary_digests": {
+    "HISTORICAL_SOURCE10_COMPARISON_SUMMARY_20261108.json": {
+      "bytes": 58534,
+      "sha256": "3ae36ef67f338dcfa5aa52eab67ed78567f0d75330c636f2a355940ead6427e9"
+    },
+    "SOURCE45_V9_TRAINING_LATEST.json": {
+      "bytes": 11461,
+      "sha256": "349c0c13363ff335d5b30d9e9e64459cc41ecc02f0c08291d023eae514300d9c"
+    },
+    "SOURCE48_CANONICAL_PRODUCER_ADMISSION.json": {
+      "bytes": 604,
+      "sha256": "43bd03f05f2893edd6cbe455ef6ca80fc0e5990967647552dda1d7cabb85193c"
+    },
+    "SOURCE48_ACTUAL_LINUX_IDENTITY_EXEC_PREFLIGHT.json": {
+      "bytes": 1777,
+      "sha256": "545e278c1caae01dfd632de5a553fd1ff86876616a2a1836fee062c4e19bf066"
+    },
+    "SOURCE48_ACTUAL_NATIVE_CONSUMER_INGRESS.json": {
+      "bytes": 756,
+      "sha256": "bdd0015aaa48fc0a8cadd5b5579634386b4d3e07df0d26320960f3afdbb795d1"
+    },
+    "SOURCE48_CONSUMER_DEPLOYMENT.json": {
+      "bytes": 983,
+      "sha256": "40a44521045ff8b32f10942cda8818a56272f4b4963e529e35c927969c4e2dfd"
+    }
+  }
+}

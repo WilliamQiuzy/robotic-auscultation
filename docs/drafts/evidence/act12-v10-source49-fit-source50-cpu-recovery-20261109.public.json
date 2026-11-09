@@ -1,0 +1,550 @@
+{
+  "schema": "wam_ACT12_V10_actual_training_Source51_diagnostic_Source52_CPU_recovered_v2",
+  "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
+  "status_snapshot_utc": "2026-11-09T07:03:27.163027+00:00",
+  "status_authority": "Actual Source49 closed optimization, Source51 TRAIN R3 native physical-subset and recorded CPU-exit negative, followed by actual Source52 CPU recovery; Source52 faithful full-exit probe and new Known4 remain pending",
+  "research_question": "Does genuine teacher TCP-pose supervision improve approach convergence before the unchanged L2 handoff?",
+  "prior_Source48_V9": {
+    "fixed_known_cases": 4,
+    "executed_cases": 4,
+    "qualified_cases": 2,
+    "model_accepted": false,
+    "two_TRAIN_cases_qualified": true,
+    "two_selection_VAL_cases_failed_original_120s_L2_deadline": true,
+    "R3_negative_diagnostic": "Approximately 5 mm terminal lateral residual in command and measurement; no STOP, ALIGN or analytic L3 entered",
+    "evidence_file": "act11-source48-known4-closed-20261109.public.json",
+    "historical_V10_untrained_fields": "True at Source48 closure; superseded only by the later actual optimization evidence below, not by physical results"
+  },
+  "V10_method": {
+    "producer_code_commit": "1fc6f493ba55eb0bb7833c932e0d7aac1e03379f",
+    "network": "same state-only neural ACT L2, unchanged posture head, state17 with H2, H20/E10",
+    "initialization": "Source45 selected update 9000, all 54 tensors; fresh AdamW without optimizer or scheduler import",
+    "new_optimizer_updates": 20000,
+    "candidate_interval_updates": 500,
+    "task_objective": {
+      "teacher": "existing genuine valid teacher action cells, without relabeling as final targets",
+      "prediction": "same post-head official forward graph; one forward per source group",
+      "active_TCP_offset_m": 0.132,
+      "coefficient": 0.25,
+      "translation": "SmoothL1 of predicted minus teacher TCP position scaled by 0.001 m, mean over xyz",
+      "rotation": "squared rotation-matrix Frobenius residual divided by twice the squared 4 degree scale",
+      "valid_E10_cell_weight": 2,
+      "observed_near_6mm_row_weight": 4,
+      "reduction": "weighted valid-cell mean; padded cells removed before FK",
+      "retained_loss": "original official masked joint L1 and KL",
+      "inference_correction_added": false,
+      "policy_inputs_added": false,
+      "labels_changed": false
+    },
+    "data_identity_exposure": {
+      "physical_teacher_TRAIN_identities": 6,
+      "computed_auxiliary_TRAIN_identities": 16,
+      "sets_overlap": true,
+      "computed_identities_are_not_new_physical_captures": true
+    },
+    "original_geometry_and_physical_thresholds_unchanged": true,
+    "approximate_parameter_count": 2660000,
+    "action_frequency_hz": 20,
+    "query_frequency_hz": 2,
+    "selection_VAL_used_for_gradients": false,
+    "selection_VAL_checkpoint_selection_retained": true,
+    "Fresh_identity_exposure": false,
+    "goal_supplied": "3D goal and full target pose",
+    "known_seated_poses": 2
+  },
+  "Source49_actual_fit_and_original_failure": {
+    "optimizer_updates_completed": 20000,
+    "evaluation_steps": [
+      500,
+      1000,
+      1500,
+      2000,
+      2500,
+      3000,
+      3500,
+      4000,
+      4500,
+      5000,
+      5500,
+      6000,
+      6500,
+      7000,
+      7500,
+      8000,
+      8500,
+      9000,
+      9500,
+      10000,
+      10500,
+      11000,
+      11500,
+      12000,
+      12500,
+      13000,
+      13500,
+      14000,
+      14500,
+      15000,
+      15500,
+      16000,
+      16500,
+      17000,
+      17500,
+      18000,
+      18500,
+      19000,
+      19500,
+      20000
+    ],
+    "candidate_models_retained": 40,
+    "prediction_files_retained": 80,
+    "selected_update_before_CPU_qualification": 7000,
+    "selected_checkpoint": {
+      "bytes": 12227137,
+      "sha256": "459beff23699d5c7e5d79b8296a7cbc4029e7c5c4f8da824ba091d111431908b"
+    },
+    "selected_summary": {
+      "bytes": 6038651,
+      "sha256": "34eb8ca6dcca5600595d77ed1b2ed07606f8f0ec9b01876526a32908e54e3d83"
+    },
+    "postfit_CPU_verification_passed": false,
+    "failure_reason": "Nested refinement-inventory verification re-entered the legacy query archive reader without propagating the V10 authenticated reader, causing provenance mismatch",
+    "original_owner_exit_code": 1,
+    "original_owner_completed": false,
+    "original_owner_normal": false,
+    "process_group_drained": true,
+    "GPU_released": true,
+    "termination_signals": [],
+    "original_owner": {
+      "bytes": 9314,
+      "sha256": "f8bfbba4875d0078f99fdfd24863eb08d24a26191c3e736b327520e3748c12a7"
+    },
+    "original_control_failure": {
+      "bytes": 268,
+      "sha256": "458e621fc9b263282fa696d0955037da82d9b3ae12781e87933d78217ec639b8"
+    },
+    "original_product_failure": {
+      "bytes": 18756,
+      "sha256": "6589a0edee46c62b7e69ba62c4f5de29f9eeca30cbb0922f4304b069dfb4da3f"
+    },
+    "original_negative_evidence_preserved": true,
+    "model_qualified": false,
+    "independent_backup": {
+      "all_files_SHA256_verified": true,
+      "destination_reread_SHA256_verified": true,
+      "verified_files": 163,
+      "verified_bytes": 1222421294,
+      "manifest": {
+        "bytes": 33487,
+        "sha256": "41ab295a18230dafec599ed5fd9140bc11bb1f1eeec1e8ad9cce89998f8cafa8"
+      },
+      "independent_receipt": {
+        "bytes": 6291,
+        "sha256": "3b0dd4ca4f6a4a8ae90205248e6289a7460dd823165b2dac40023aad34fcec69"
+      },
+      "original_failed_owner_preserved": true
+    },
+    "training_log_rows": 401,
+    "selected_update": 7000,
+    "selected_task_score": 0.8034891244260566,
+    "selected_target_means": {
+      "R3": 0.7230158020048296,
+      "L3": 0.8034891244260566
+    },
+    "offline_only": true
+  },
+  "Source50_separate_CPU_recovery": {
+    "consumer_code_commit": "67dc997b89b32b0d701b889f38849027381f0e92",
+    "actual_deployment_verified": true,
+    "source_files": 1738,
+    "source_manifest": {
+      "bytes": 300743,
+      "sha256": "5e9e0c51be9f70e16c55f4c62dc3bdec7a1f9f39694069ab362f484215e5e6ea"
+    },
+    "exact_source_closure": true,
+    "scope": "Authenticated consumer provenance and nested array-reader propagation; preserve the original runtime trained-head and posture-limit gate",
+    "weights_changed": false,
+    "geometry_changed": false,
+    "physical_thresholds_changed": false,
+    "retraining": false,
+    "original_failure_rewritten": false,
+    "state": "CPU_RECOVERY_PASSED_SELECTED_MODEL_WIRE_PENDING",
+    "running": false,
+    "passed": true,
+    "actual_recovery_certificate": {
+      "bytes": 19655579,
+      "sha256": "a7c1b91cb740fcf1b3fda05f113b99a2fb748c64c07d6ffa78fe9578a2b0f25c"
+    },
+    "deployment_receipt_is_not_CPU_recovery_success": true,
+    "root_complete": {
+      "bytes": 16583,
+      "sha256": "bea2499b17bc052794aa46c9204fa5a056434832c1e59e961d567ce0db60d02a"
+    },
+    "CPU_equivalence": {
+      "bytes": 113069,
+      "sha256": "df3b89040bc06ea6b1e7c78a3702258d3d09afd4fb8b6afdb37b980a5ec99109"
+    },
+    "verification": {
+      "selected_step": 7000,
+      "task_score": 0.8034891244260566,
+      "verified_candidates": 40
+    },
+    "selected_tensor_count": 54,
+    "all54_selected_tensors_unchanged": true,
+    "actual_optimizer_audit": {
+      "parameter_states": 54,
+      "minimum_step": 20000,
+      "maximum_step": 20000,
+      "optimizer_state_imported": false
+    },
+    "completed_optimizer_updates": 20000,
+    "CPU_comparisons": {
+      "train": {
+        "metric_atol": 1e-07,
+        "metric_rtol": 1e-05,
+        "passed": true,
+        "prediction_atol": 1e-06,
+        "prediction_max_abs_rad": 1.9174889667183947e-06,
+        "prediction_rtol": 1e-05
+      },
+      "validation": {
+        "metric_atol": 1e-07,
+        "metric_rtol": 1e-05,
+        "passed": true,
+        "prediction_atol": 1e-06,
+        "prediction_max_abs_rad": 1.4637857232990825e-06,
+        "prediction_rtol": 1e-05
+      }
+    },
+    "closure_identity_snapshot_files": 34887,
+    "elapsed_s": 449.6005347140017,
+    "optimizer_updates_during_recovery": 0,
+    "GPU_execution_during_recovery": false,
+    "original_CPU_operator_live": false,
+    "original_stage_still_failed": true,
+    "original_failure_preserved": true,
+    "status_scope": "Historical actual Source50 CPU recovery only; it does not supersede Source51 physical and full-exit negative or establish Source52 full-exit success"
+  },
+  "V10_physical_results": {
+    "Source51_Known4": {
+      "started": true,
+      "fixed_cases": 4,
+      "started_cases": 2,
+      "completed_physical_cases": 1,
+      "qualified_cases": 0,
+      "qualified_fraction": "0/4",
+      "success_rate": null,
+      "case_statuses": [
+        {
+          "case": "p001120/R3",
+          "split": "TRAIN",
+          "physical_subset_passed": true,
+          "full_exit_gate_passed": false,
+          "qualified": false
+        },
+        {
+          "case": "p001120/L3",
+          "split": "TRAIN",
+          "status": "INTERRUPTED_AFTER_SCOPED_CANCELLATION",
+          "qualified": false
+        },
+        {
+          "case": "p000923/R3",
+          "split": "selection_VAL",
+          "status": "UNSTARTED",
+          "qualified": false
+        },
+        {
+          "case": "p000923/L3",
+          "split": "selection_VAL",
+          "status": "UNSTARTED",
+          "qualified": false
+        }
+      ],
+      "remaining_batch_cancelled_through_original_guard": true,
+      "actual_recordings": [
+        "assets/act12-source51-train-r3.actual.mp4"
+      ]
+    },
+    "Source52_new_Known4": {
+      "started": false,
+      "executed_cases": 0,
+      "status": "PENDING",
+      "success_rate": null
+    },
+    "Fresh32": {
+      "gate_open": false,
+      "payloads_opened": false,
+      "started": false,
+      "executed_cases": 0,
+      "qualified_cases": null,
+      "success_rate": null,
+      "actual_recordings": []
+    },
+    "admission_order": [
+      "Source52 actual separate CPU recovery passed; no retraining",
+      "Faithful actual selected-model wire and full-exit close proof remains pending",
+      "New Known4 under unchanged complete qualification",
+      "Fresh paired evaluation only after all four Known cases qualify"
+    ],
+    "model_accepted": false,
+    "Source51_selected_model_full_exit_gate_passed": false,
+    "Source52_selected_model_full_exit_probe_passed": false
+  },
+  "scope_limits": [
+    "20k new optimizer updates and 40 offline evaluations are not contact success rates.",
+    "One TRAIN R3 passed only the unchanged native physical subset; recorded CPU-exit SIGTERM still fails complete qualification even though its exit code is zero.",
+    "Fixed Source51 Known4: 0/4 qualified; one TRAIN R3 physical cycle executed, second TRAIN L3 interrupted, both selection VAL cases unstarted. This is not four executed physical failures.",
+    "V9 already passed the same TRAIN R3; no improved VAL convergence or population generalization is established.",
+    "ACT neural L2 receives H2 state17 only and does not consume RGBD or Hall. Hall serves analytic L3 control; RGBD is recorded only; no audio input.",
+    "Given 3D goal and full target pose, two known seated poses, static bare SMPL R3/L3 simulation only; no VLA, all-ten-point, moving-patient, real-robot, clinical or population claim.",
+    "Fresh payloads remain unopened: 0 executed; success rate undefined, not 0/32.",
+    "Source52 CPU recovery is actual; faithful full-exit probe, new Known4 and Fresh physical evaluation remain pending.",
+    "Historical Expert/old ACT/Astra cohorts provide no V10 benchmark row."
+  ],
+  "source_summary_digests": {
+    "V10_ACTUAL_POSTFIT_PROVENANCE_FAILURE.json": {
+      "bytes": 2744,
+      "sha256": "a552a8910066510131239c5b47248b762432c2d32f5fae2e2a05656b2ce989d0"
+    },
+    "INDEPENDENT_SOURCE49_FULL20K_POSTFIT_FAILURE_BACKUP.json": {
+      "bytes": 7180,
+      "sha256": "beafaef86d48f88159f015f5f3030d12401ae43e6769922dcbdcee1628b8b094"
+    },
+    "SOURCE50_ACTUAL_REVIEWED_DEPLOYMENT.json": {
+      "bytes": 2139,
+      "sha256": "814ca0f73ac8627a51756c98f1791a575fa4cbe21936ee3e8469f92d38c69ae3"
+    },
+    "V10_SOURCE50_ACTUAL_CPU_RECOVERY.json": {
+      "bytes": 3820,
+      "sha256": "30936651ffd982202e325351c5449d24036db021e804e35acc5f11f72dbaaadf"
+    },
+    "V10_SOURCE49_TRAINING_CHART.json": {
+      "bytes": 823,
+      "sha256": "d3c6951713c067d646e401cf0e5624d702775c7334f6a65f776d1e8d9b9fb538"
+    },
+    "V10_SOURCE49_CLOSED_TRAINING_SCALARS.json": {
+      "bytes": 1407820,
+      "sha256": "18569bd7fca58b3c999988d1ee9f13ee5b4644967e0905593dec547ba45f4663"
+    },
+    "SOURCE51_R3_PHYSICAL_SUBSET_ONLY.json": {
+      "bytes": 3963,
+      "sha256": "fa7aeb312a8f8a868de1e9c0fc017bf820d5bad643fd2b53e5b75bafe8b0437a"
+    },
+    "SOURCE51_R3_DIAGNOSTIC_ACTUAL_MEDIA.json": {
+      "bytes": 2592,
+      "sha256": "053f06474ab2e4be2a96f4ca45b86ea0880d2ec7193f4b0860c6eaca2880de78"
+    },
+    "V10_SOURCE51_ACTUAL_OWNED_CPU_CLOSE_NEGATIVE.json": {
+      "bytes": 4265,
+      "sha256": "47cfc322626bcc0e108a259c15cef0684365842c656c480fafb2e4a3f1e762a3"
+    },
+    "V10_SOURCE51_KNOWN4_SCOPED_CANCELLATION.json": {
+      "bytes": 447,
+      "sha256": "fccbafd0f03336bebb1546973336525fa39f1ebe158e3066800e2024faa80ac3"
+    },
+    "V10_SOURCE52_ACTUAL_CPU_RECOVERY.json": {
+      "bytes": 53114,
+      "sha256": "2d0a5ac919ef93e1bb8bb81a9a606e8713c718dcc4f0aa566ab0d6fe7b57ab45"
+    }
+  },
+  "Source49_actual_training_plot": {
+    "metrics_log": {
+      "bytes": 924653,
+      "sha256": "01301c26980547572363ac2b2ba0c1be76e89948af1876f58dc72b6e439c1838"
+    },
+    "training_rows": 401,
+    "evaluation_rows": 40,
+    "all_40_candidates_shown": true,
+    "completed_new_updates": 20000,
+    "selected_update": 7000,
+    "selected_task_score": 0.8034891244260566,
+    "selected_target_means": {
+      "R3": 0.7230158020048296,
+      "L3": 0.8034891244260566
+    },
+    "score_definition": "Maximum over R3/L3 of each target mean of max(TCP translation error / 1 mm, TCP rotation error / 4 degrees); lower is better",
+    "score_units": "dimensionless",
+    "contact_success_rate": false,
+    "training_line_smoothing": "10 logged values moving average; original scalar values also plotted",
+    "public_chart": {
+      "path": "assets/act12-v10-training-and-selection.actual.png",
+      "bytes": 277803,
+      "sha256": "9ca3abbf8ea15eccff0ac47c139bebd022afde0f99f19f412c31662411a390fd"
+    }
+  },
+  "Source51_actual_TRAIN_R3_diagnostic": {
+    "model": "ACT V10 selected update7000",
+    "consumer_code_commit": "7819f7c3b67ae67071f7de85ef1c2f00e6c63de2",
+    "case": "p001120/R3",
+    "split": "TRAIN",
+    "held_out": false,
+    "actual_learned_model": true,
+    "expert_replay": false,
+    "actual_learned_L2_queries": 55,
+    "expert_L2_fallback": false,
+    "control_roles": {
+      "L2_approach": "learned state-only ACT",
+      "L3_contact_hold_release_home": "analytic Hall controller"
+    },
+    "unchanged_canonical_native_physical_subset_passed": true,
+    "verifier": "unchanged canonical residual.verify_native_physical",
+    "native_events": 26263,
+    "native_frequency_hz": 240,
+    "simulation_s": 109.42916666666666,
+    "continuous_HOLD_ticks": 720,
+    "continuous_HOLD_s": 3.0,
+    "normal_force_peak_N": 4.0098657055240565,
+    "Hall_peak_N": 3.9902611882612566,
+    "forbidden_force_peak_N": 0.0,
+    "off_front_force_peak_N": 0.0,
+    "compression_peak_mm": 2.5253465864807367,
+    "HOLD_max_tilt_deg": 1.4999542503598104,
+    "HOLD_interval_s": [
+      53.87500000001591,
+      56.87083333335163
+    ],
+    "release_confirm_ticks": 48,
+    "home_settle_ticks": 120,
+    "probe_wall_s": 1403.2357127550058,
+    "wall_time_scope": "Excludes earlier Kit startup, result serialization and worker teardown; playback follows simulation time, not wall realtime",
+    "original_CPU_exit": {
+      "exit_code": 0,
+      "recorded_normal_exit": true,
+      "signals": [
+        "SIGTERM"
+      ],
+      "full_exit_gate_passed": false,
+      "zero_exit_code_does_not_override_signal_failure": true,
+      "receipt": {
+        "bytes": 1288,
+        "sha256": "de36fb247c5e370ee175462215e00a44bfecfcf0660c8ecc5b6fb2f54894cb86"
+      }
+    },
+    "whole_model_qualified": false,
+    "formal_acceptance": false,
+    "training_eligible": false,
+    "V9_same_TRAIN_R3_already_passed": true,
+    "VAL_improvement_established": false,
+    "source_refs": {
+      "native_physical_result": {
+        "bytes": 3556,
+        "sha256": "6ebee4757b833f078a699695c8b2accbfdb87fe6b6d0ee8321a6dbac744a5385"
+      },
+      "configuration": {
+        "bytes": 119961,
+        "sha256": "2b3e69ee730bfd64c3fae5475bfdc9a1b1dc0feabbfae1e5e7124855485c251f"
+      },
+      "native_result": {
+        "bytes": 2726178,
+        "sha256": "d4858e7de0df30ab3018b5bc233199daa32dab991843cf238985dfff707a367e"
+      },
+      "native_trace_retained_private": {
+        "bytes": 52843904,
+        "sha256": "7e2a138a3bc2bdb269a7c3841508904a739d6d755a0b9d328c56b4874c33183b"
+      },
+      "plot_scalars_20hz": {
+        "bytes": 186439,
+        "sha256": "7c6f0bca0f1522a5a213d4f9f9ec5b001ac34b00d0821cf62ef6b2bc70fa3708"
+      },
+      "media_receipt": {
+        "bytes": 2217,
+        "sha256": "ab317f5b1026891bfb6cf4dba60539261f0746fe1e9ff3c6f8bde5b7d03e33a7"
+      },
+      "frame_index": {
+        "bytes": 99342,
+        "sha256": "c173d1b9bf24bb7b7e944f7ce55bd6a8195ba1f483e1dfebab917aa6e64c2406"
+      }
+    },
+    "public_media": {
+      "video": {
+        "path": "assets/act12-source51-train-r3.actual.mp4",
+        "bytes": 645215,
+        "sha256": "8d2ce5174942a5c6f977d61c86e3b709d7f77b4583400996c11fb005e58842b6"
+      },
+      "poster": {
+        "path": "assets/act12-source51-train-r3.actual-frame554.jpg",
+        "bytes": 9751,
+        "sha256": "9a7e4887a904dccbcdee08d320c1195b21ed3e1a394e06d7d75b70061be571ee"
+      },
+      "force_chart": {
+        "path": "assets/act12-source51-train-r3-physical-subset.actual.png",
+        "bytes": 154563,
+        "sha256": "fcbe0531f4b02c708622bc4e08e047fc3fb2b5d9b2f56584b517045236290884"
+      }
+    },
+    "video": {
+      "width": 640,
+      "height": 360,
+      "fps": 10,
+      "frames": 1094,
+      "playback_s": 109.4,
+      "simulation_s": 109.42916666666666,
+      "first_frame": {
+        "video_frame": 0,
+        "physics_row": 23,
+        "time_s": 0.09999999999999999
+      },
+      "last_frame": {
+        "video_frame": 1093,
+        "physics_row": 26255,
+        "time_s": 109.39999999998267
+      },
+      "trailing_native_ticks_without_image": 7,
+      "poster_frame_index": 554,
+      "poster_native_s": 55.5000000000172,
+      "full_decode_passed": true,
+      "synthetic_frames": false,
+      "phase_or_force_inferred_from_poster": false,
+      "audio": false
+    },
+    "force_chart_scope": "20 Hz actual scalar display; unchanged physical verifier independently checks all 26,263 events at 240 Hz. Learned ACT approach plus analytic Hall contact; one TRAIN case only, no improved VAL claim."
+  },
+  "Source52_new_separate_CPU_recovery": {
+    "consumer_code_commit": "b424ee78f5120b7aab6351b9b923189351d9f736",
+    "actual_recovery_certificate": {
+      "bytes": 19655580,
+      "sha256": "03fe228ecbeb7278d3a9c39586f9de7ac41bfd94bc3ff2c1186b516d5bc56afd"
+    },
+    "actual_complete": {
+      "bytes": 16583,
+      "sha256": "2f9ec930b07086f75cbb87937e51b8980ec201143756a4036f2af136f10f92b6"
+    },
+    "passed": true,
+    "elapsed_s": 455.1426290940144,
+    "verified_candidates": 40,
+    "selected_update": 7000,
+    "selected_checkpoint": {
+      "bytes": 12227137,
+      "sha256": "459beff23699d5c7e5d79b8296a7cbc4029e7c5c4f8da824ba091d111431908b"
+    },
+    "selected_tensors_unchanged": 54,
+    "training_audit": {
+      "completed_updates": 20000,
+      "train_log_rows": 401,
+      "evaluation_rows": 40,
+      "optimizer": {
+        "maximum_step": 20000,
+        "minimum_step": 20000,
+        "optimizer_state_imported": false,
+        "parameter_states": 54
+      }
+    },
+    "optimizer_updates_during_recovery": 0,
+    "GPU_execution": false,
+    "operator_pid_present_at_snapshot": false,
+    "operator_exit_code": 0,
+    "operator_normal_exit": true,
+    "original_Source49_and_Source51_failures_preserved": true,
+    "original_stage_passed": false,
+    "model_qualified": false,
+    "change_scope": "Only EOF-close metadata processing optimized; original 2 s wait, selected weights, physics and thresholds unchanged",
+    "faithful_full_exit_probe": {
+      "passed": false,
+      "status": "PENDING",
+      "scope": "Must use the actual unbuffered no-bytecode launch environment rather than the isolated smoke-test environment"
+    },
+    "new_Known4_after_recovery": "PENDING",
+    "Fresh32": "UNOPENED"
+  }
+}

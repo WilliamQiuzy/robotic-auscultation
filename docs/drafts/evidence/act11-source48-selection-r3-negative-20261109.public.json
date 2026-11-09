@@ -1,0 +1,203 @@
+{
+  "schema": "wam_ACT11_V9_known_selection_R3_closed_negative_v1",
+  "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
+  "scope": "Known selection-validation p000923/R3; actual learned closed-loop negative, not held-out evaluation",
+  "producer_code_commit": "29024f00a8656865fe79242605580278561f463e",
+  "consumer_code_commit": "c0e67121f15816d049e812c45486c053ef8c926a",
+  "selected_update": 9000,
+  "case": {
+    "subject_id": "p000923",
+    "target": "R3",
+    "role": "Known selection validation",
+    "closed": true,
+    "native_reported_success": false,
+    "native_reported_physical_validation": false,
+    "actual_physics_steps": 29041,
+    "genuine_model_queries": 241,
+    "L2_deadline_s": 120,
+    "STOP_entered": false,
+    "ALIGN_entered": false,
+    "L3_entered": false,
+    "expert_L2_fallback": false,
+    "infrastructure_error_observed": false,
+    "whole_Known4_independent_qualification": "CLOSED_2_OF_4_MODEL_NOT_ACCEPTED",
+    "new_failure_video_added": true
+  },
+  "streamed_diagnostic_reported": {
+    "rows": 29041,
+    "physical_violation_rows": 0,
+    "interior_handoff_triggers": 0,
+    "terminal": {
+      "command_tangent_mm": 4.9580339159824796,
+      "observed_tangent_mm": 4.970802945029581,
+      "normal_gap_error_mm": 0.5997515334861154,
+      "rotation_error_deg": 0.2300202762835324,
+      "speed_mm_per_s": 0.4419527149865784
+    },
+    "original_interior_requirements": {
+      "tangent_mm_at_most": 2,
+      "normal_gap_error_mm_at_most": 1,
+      "rotation_error_deg_at_most": 4,
+      "speed_mm_per_s_at_most": 10
+    },
+    "early_approach": {
+      "first_brief_coarse_trigger_sim_s": 21.4875,
+      "nearest_grid_sim_s": 21.5,
+      "nearest_grid_tangent_mm": 1.831,
+      "nearest_grid_normal_gap_error_mm": 1.84,
+      "nearest_grid_speed_mm_per_s": 19.545,
+      "simultaneous_interior_handoff_pass": false
+    },
+    "interpretation": "Failure occurred before STOP/ALIGN/L3 entry. Terminal commanded and observed lateral residuals were both about5mm; no causal attribution from a single case.",
+    "source_artifact_binding": "FINAL_DIAGNOSIS_SUMMARY_HASH_BOUND",
+    "actual_trigger_candidates": 2400,
+    "source_diagnosis_digest": {
+      "bytes": 18818,
+      "sha256": "5c0b1e6411363e48cddb9200fb40de0096de2c0379ff7e26db4597b8f38524d5"
+    },
+    "action_semantics_authenticated": true
+  },
+  "label_audit_reported": {
+    "TRAIN_near_6mm_windows": 860,
+    "last_valid_labels_interior_and_reducing_error": 860,
+    "near_onpolicy_windows": 57,
+    "oracle_terminal_disagreement_found": false,
+    "physically_measured_TRAIN_body_ids": [
+      "p000742",
+      "p000758",
+      "p000833",
+      "p000961",
+      "p001031",
+      "p001120"
+    ],
+    "physically_measured_TRAIN_body_count": 6,
+    "computed_auxiliary_TRAIN_body_ids": [
+      "p000451",
+      "p000513",
+      "p000595",
+      "p000742",
+      "p000758",
+      "p000810",
+      "p000833",
+      "p000835",
+      "p000847",
+      "p000878",
+      "p000908",
+      "p000961",
+      "p001031",
+      "p001109",
+      "p001120",
+      "p001182"
+    ],
+    "computed_auxiliary_TRAIN_body_count": 16,
+    "computed_bodies_are_measured_native_bodies": false,
+    "body_lists_overlap": true,
+    "identity_denominator_note": "Computed auxiliary training exposure across16 identities is not measured physical supervision across16 bodies. Six measured TRAIN identities union includes Base29 and admitted recovery banks; episodes/windows/cells have distinct denominators. Base validation2345windows remain excluded from optimization.",
+    "early_query_near_windows": 28,
+    "near_onpolicy_windows_with_at_least_E10_valid_future": 0,
+    "early_query_near_windows_with_at_least_E10_valid_future": 0,
+    "near_onpolicy_quasistatic_H2_windows": 0,
+    "early_query_quasistatic_H2_windows": 0
+  },
+  "next_treatment": {
+    "name": "V10 task-space supervision",
+    "status": "UNTRAINED_NO_CLOSED_LOOP_RESULT",
+    "proposal": "Add differentiable canonical FK translation/full-rotation supervision against corresponding valid real teacher targets on the same ACT output; preserve official normalized-joint loss and existing computed/static terminal inputs; add training weights only to existing valid E10 prefixes and near-terminal cells; no new native capture or qualified coverage is claimed; original physical gates unchanged.",
+    "new_training_result": false,
+    "new_model_acceptance": false
+  },
+  "known4": {
+    "fixed_cases": 4,
+    "native_closed_case_reports": 4,
+    "native_positive_case_reports": 2,
+    "native_negative_case_reports": 2,
+    "independently_qualified_cases": 2,
+    "final_physical_success_rate": 0.5,
+    "model_qualified": false,
+    "final_evidence_file": "act11-source48-known4-closed-20261109.public.json"
+  },
+  "Fresh32": {
+    "status": "BLOCKED_NOT_MEASURED",
+    "gate_open": false,
+    "block_reason": "Current V9 already has a known development L2 deadline negative; the required4/4 gate is not met",
+    "tested_cases": 0,
+    "success_rate": null
+  },
+  "status_snapshot": {
+    "updated_utc": "2026-11-09T01:18:48.410354+00:00",
+    "bytes": 121073,
+    "sha256": "d7037daccc34a811595cd0445264afd2ec0973f3c3fbb19cf18d11a08b6f93d3"
+  },
+  "limits": [
+    "Known development scene only; no held-out or general-population result.",
+    "Partial native case counts do not establish independently qualified full-batch success.",
+    "Contact-subset diagnostics and zero physical violation rows do not replace full original qualification.",
+    "A task-space V10 plan is not completed training or a new scientific result."
+  ],
+  "loss_and_selection": {
+    "training": "Official normalized-joint loss; TCP geometry is selector-only in V9",
+    "stored_selected_task_score": 0.8271509377637971,
+    "mean_task_score_guarantees_terminal_handoff": false,
+    "causal_loss_vs_coverage_ablation": false
+  },
+  "media": {
+    "video": {
+      "file": "assets/act11-source48-known-val-r3-20261109.mp4",
+      "bytes": 693881,
+      "sha256": "9edbf22032fe9e1a7e297ffcc4ddfc0dbf6903ad84617c4d3b980c9ecac88fb7",
+      "frames": 1210,
+      "fps": 10,
+      "width": 640,
+      "height": 360,
+      "duration_s": 121.0,
+      "all_captured_frames_retained": true,
+      "full_decode_passed": true,
+      "plays_sim_time_1x": true,
+      "real_time_execution_claim": false
+    },
+    "poster": {
+      "file": "assets/act11-source48-known-val-r3-90s-20261109.jpg",
+      "bytes": 9450,
+      "sha256": "c57be37de602105dbb987b4876bba942da3111580d59ea205141ecac334c263a",
+      "episode_playback_time_s": 90
+    },
+    "native_sim_s": 121.00416666666666,
+    "first_frame": {
+      "video_frame": 0,
+      "physics_row": 23,
+      "time_s": 0.09999999999999999
+    },
+    "last_frame": {
+      "video_frame": 1209,
+      "physics_row": 29039,
+      "time_s": 120.99999999997212
+    },
+    "trailing_unrendered_ticks": 1,
+    "native_result_digest": {
+      "bytes": 4941019,
+      "sha256": "7999439a14dec9370a59de2301aa98a312162fb29d2391d3b1b44c2a78ff6c68"
+    },
+    "frame_index_digest": {
+      "bytes": 110112,
+      "sha256": "e6286eec62ae8d07f81df898f3bd518892299248dd984ef0166baa235fe3f230"
+    },
+    "source_media_summary_digest": {
+      "bytes": 3453,
+      "sha256": "9d9ea3f50ccfda41842d87e8f13ea289bb75d961c71677140776e9a001941d4e"
+    }
+  },
+  "pose_error_figure": {
+    "file": "assets/act11-source48-known-val-r3-pose-error-20261109.png",
+    "bytes": 136384,
+    "sha256": "e9cb727011e577995f757b27595bc94e81974f3de80770dafe9ec50bab13d7bb",
+    "width": 1500,
+    "height": 1020,
+    "scalar_samples": 120,
+    "sampling_hz": 1,
+    "source_scalar_CSV_digest": {
+      "bytes": 11250,
+      "sha256": "5529383a56a2d1321adec768be6fa32cc94e95a653d7820850104e85b8b2c244"
+    },
+    "scope": "Scalar visualization only; cannot resolve brief21.5s coarse entry/exit. Zero actual handoff entry is established by all2400 native trigger-grid checks, not this1Hz plot."
+  }
+}
