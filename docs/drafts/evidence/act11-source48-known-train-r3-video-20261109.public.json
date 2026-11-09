@@ -1,0 +1,150 @@
+{
+  "schema": "wam_act11_source48_known_TRAIN_R3_actual_video_v1",
+  "scope": "One known TRAIN case; positive native terminal report, independent whole-Known4 qualification pending; not held-out evaluation",
+  "case": {
+    "subject_id": "p001120",
+    "target": "R3",
+    "role": "Known TRAIN development",
+    "actor": "ACT11 / V9 selected update9000",
+    "producer_code_commit": "29024f00a8656865fe79242605580278561f463e",
+    "consumer_code_commit": "c0e67121f15816d049e812c45486c053ef8c926a",
+    "actual_learned_policy": true,
+    "genuine_model_queries": 50,
+    "expert_L2_fallback": false,
+    "native_reported_success": true,
+    "native_reported_physical_validation": true,
+    "native_reported_validation_errors": [],
+    "worker_exit_code": 0,
+    "native_terminal_status": "COMPLETE",
+    "independent_case_qualification": "PENDING",
+    "independent_whole_Known4_qualification": "PENDING",
+    "model_qualified": false,
+    "selected_model_reference_digest": {
+      "bytes": 11740097,
+      "sha256": "6db5693affcb0dee080e81413549ece9bc2d642f59e5087a917b7ae76e377159"
+    },
+    "native_terminal_result_digest": {
+      "bytes": 2934811,
+      "sha256": "7e1b80c156b543141ae30e5b56d446e06f935150f7afb5b76ba960134f3c4638"
+    },
+    "worker_result_digest": {
+      "bytes": 664,
+      "sha256": "b68d8dda938c9609df8808d14e99185b9d5c3e7ddcb630509c3a627389c73e25"
+    }
+  },
+  "controller": "Neural ACT L2 approach and handoff, then unchanged analytic L3 contact, hold, release and home",
+  "video": {
+    "file": "assets/act11-source48-known-train-r3-20261109.mp4",
+    "bytes": 635315,
+    "sha256": "d0d2329069c95e18c396c4551316c277dd4914ce9dfb416e9c215513cbc095ae",
+    "codec": "h264",
+    "frames": 1069,
+    "width": 640,
+    "height": 360,
+    "fps": 10,
+    "encoded_s": 106.9,
+    "all_captured_frames_retained": true,
+    "full_decode_passed": true,
+    "new_simulation_or_rerender_for_publication": false,
+    "full_episode_sim_time_playback": true,
+    "real_time_execution_claim": false,
+    "camera": "Original approved RobotCam"
+  },
+  "native_capture_clock": {
+    "physics_steps": 25674,
+    "physics_dt_s": 0.004166666666666667,
+    "simulation_s": 106.975,
+    "first_frame": {
+      "video_frame": 0,
+      "physics_row": 23,
+      "time_s": 0.09999999999999999
+    },
+    "last_frame": {
+      "video_frame": 1068,
+      "physics_row": 25655,
+      "time_s": 106.89999999998494
+    },
+    "trailing_unrendered_ticks": 18,
+    "source_frame_index_digest": {
+      "bytes": 97021,
+      "sha256": "969ddecb88d15ae116972efdef98d685c41ec2927806680c3c263024c68e49c3"
+    }
+  },
+  "poster": {
+    "file": "assets/act11-source48-known-train-r3-55s-20261109.jpg",
+    "bytes": 12108,
+    "sha256": "c5b7f49293741e0d4ce128f63f432ab7121d27d86a25ebf413dc72067d7aecdd",
+    "episode_playback_time_s": 55.0,
+    "precise_HOLD_start_claim": false
+  },
+  "runtime": {
+    "controller_wall_s": 1230.6829712019535,
+    "probe_wall_s": 1367.5860255719745,
+    "probe_minutes": 22.793100426199576,
+    "scope": "Probe includes setup, controller and audit; excludes earlier Kit startup, result serialization and worker teardown. Controller includes planning, physics, safety and capture.",
+    "real_time_claim": false
+  },
+  "source_integrity_summary_digest": {
+    "bytes": 2657,
+    "sha256": "592e09adee530d64df5146e25bad64ed5fe162066034495d9f2434f16c814ebb"
+  },
+  "limits": [
+    "Known TRAIN case only; no held-out or general-population result.",
+    "Native positive report is separate from independent whole-batch qualification; Known4 success rate remains null.",
+    "State-only neural L2 and analytic L3; not expert L2 replay, a learned motor policy from RGB-D/Hall, or a VLA.",
+    "No audio, moving-patient, all-ten-site, real-robot or clinical claim."
+  ],
+  "contact_subset": {
+    "scope": "Independent streamed contact-subset crosscheck of this one closed known TRAIN case; not full native or benchmark qualification",
+    "all_native_rows": 25674,
+    "native_hz": 240,
+    "all_contact_subset_checks_passed": true,
+    "full_original_native_qualifier_called": false,
+    "whole_Known4_qualification_pending": true,
+    "metrics": {
+      "longest_contiguous_HOLD_force_plane_rows": 720,
+      "longest_contiguous_HOLD_force_plane_s": 3.0,
+      "normal_force_peak_N": 4.024136210585271,
+      "hall_peak_N": 3.9909048425317715,
+      "compression_peak_mm": 2.5261552073061466,
+      "maximum_HOLD_measured_tilt_deg": 1.4997469205227132,
+      "forbidden_peak_by_group_N": {
+        "carriage_other": 0.0,
+        "contact_rim": 0.0,
+        "forbidden": 0.0,
+        "frame": 0.0,
+        "lip": 0.0
+      },
+      "retainer_front_off_front_force_peak_N": 0.0
+    },
+    "HOLD_required_force_band_N": [
+      3.5,
+      4.5
+    ],
+    "native_report_scalar_absolute_differences": {
+      "HOLD_force_plane_duration_abs_difference_s": 0.0,
+      "force_band_duration_abs_difference_s": 0.0,
+      "hall_peak_abs_difference_N": 0.0,
+      "maximum_hold_tilt_abs_difference_deg": 0.0,
+      "normal_peak_abs_difference_N": 0.0,
+      "stroke_peak_abs_difference_m": 0.0
+    },
+    "figure": {
+      "file": "assets/act11-source48-known-train-r3-contact-20261109.png",
+      "bytes": 154499,
+      "sha256": "bcb0acb3e6621171dbfa9d55019e8ec796c73c115a2230d0b0e5c8175eb45a8e",
+      "width": 1680,
+      "height": 1050,
+      "plot_sampling_hz": 20,
+      "metric_sampling_hz": 240
+    },
+    "source_summary_digest": {
+      "bytes": 12301,
+      "sha256": "484a60ceba3e86c7e704652b2963ddde6413f1ea8bade6f4840c7297eaded3c1"
+    },
+    "source_scalar_CSV_digest": {
+      "bytes": 149100,
+      "sha256": "e081a127668916fb981e07744bbc906533dd0e09331c91234107943ddffa894c"
+    }
+  }
+}

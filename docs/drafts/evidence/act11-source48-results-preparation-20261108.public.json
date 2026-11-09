@@ -1,7 +1,7 @@
 {
   "schema": "wam_act11_source48_local_results_preparation_v1",
   "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
-  "evidence_scope": "Closed historical metadata and current pipeline receipts; new ACT11 physical result pending terminal evidence",
+  "evidence_scope": "Closed historical metadata, pipeline receipts and one known TRAIN ACT11 native positive case report; independent whole-Known4 physical qualification pending",
   "historical_matched8": {
     "historical_only": true,
     "new_ACT11_or_fresh32_evaluation": false,
@@ -160,8 +160,26 @@
       "qualified_cases": null,
       "physical_success_rate": null,
       "model_accepted": false,
-      "new_model_video_available": false,
-      "phase": "ACTUAL_CLOSED_LOOP_TEST_RUNNING_CONTACT_OUTCOME_PENDING"
+      "new_model_video_available": true,
+      "phase": "ACTUAL_CLOSED_LOOP_TEST_RUNNING_CONTACT_OUTCOME_PENDING",
+      "native_closed_positive_case_reports": 1,
+      "case_observations": [
+        {
+          "subject_id": "p001120",
+          "target": "R3",
+          "role": "Known TRAIN",
+          "native_terminal_status": "COMPLETE",
+          "native_reported_success": true,
+          "native_reported_physical_validation": true,
+          "worker_exit_code": 0,
+          "genuine_model_queries": 50,
+          "expert_L2_fallback": false,
+          "independent_qualification": "PENDING",
+          "media_evidence_file": "act11-source48-known-train-r3-video-20261109.public.json",
+          "independent_streamed_contact_subset_passed": true,
+          "full_native_qualification_pending": true
+        }
+      ]
     },
     "fresh32": {
       "identities": 8,
