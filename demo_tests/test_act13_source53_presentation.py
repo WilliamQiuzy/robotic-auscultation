@@ -12,6 +12,8 @@ ENTRY = 'iteration13-source53-balanced'
 class Source53Presentation(unittest.TestCase):
     def test_one_append_preserves_the_exact_source52_article(self):
         html = (DRAFT / 'act-recovery-20261106.html').read_text()
+        # A later, separately tested append must not alter this historical snapshot.
+        html = re.sub(r'<section\b[^>]*\bid="iteration13-source56-expert-data".*?</section>\n', '', html, flags=re.S)
         sections = re.findall(r'<section\b[^>]*\bid="' + ENTRY + r'".*?</section>\n', html, re.S)
         self.assertEqual(len(sections), 1)
         self.assertEqual(hashlib.sha256(html.replace(sections[0], '', 1).encode()).hexdigest(),
