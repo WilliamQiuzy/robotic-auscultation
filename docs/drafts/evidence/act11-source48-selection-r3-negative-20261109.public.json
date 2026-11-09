@@ -61,9 +61,6 @@
     "TRAIN_near_6mm_windows": 860,
     "last_valid_labels_interior_and_reducing_error": 860,
     "near_onpolicy_windows": 57,
-    "near_onpolicy_query_windows": 28,
-    "near_onpolicy_query_windows_with_at_least_E10_valid_future": 0,
-    "stationary_near_onpolicy_query_windows": 0,
     "oracle_terminal_disagreement_found": false,
     "physically_measured_TRAIN_body_ids": [
       "p000742",
@@ -95,12 +92,17 @@
     "computed_auxiliary_TRAIN_body_count": 16,
     "computed_bodies_are_measured_native_bodies": false,
     "body_lists_overlap": true,
-    "identity_denominator_note": "Computed auxiliary training exposure across16 identities is not measured physical supervision across16 bodies. Six measured TRAIN identities union includes Base29 and admitted recovery banks; episodes/windows/cells have distinct denominators. Base validation2345windows remain excluded from optimization."
+    "identity_denominator_note": "Computed auxiliary training exposure across16 identities is not measured physical supervision across16 bodies. Six measured TRAIN identities union includes Base29 and admitted recovery banks; episodes/windows/cells have distinct denominators. Base validation2345windows remain excluded from optimization.",
+    "early_query_near_windows": 28,
+    "near_onpolicy_windows_with_at_least_E10_valid_future": 0,
+    "early_query_near_windows_with_at_least_E10_valid_future": 0,
+    "near_onpolicy_quasistatic_H2_windows": 0,
+    "early_query_quasistatic_H2_windows": 0
   },
   "next_treatment": {
     "name": "V10 task-space supervision",
     "status": "PREPARATION_ONLY_NOT_A_RESULT",
-    "proposal": "Add differentiable canonical FK translation/full-rotation supervision against corresponding valid real teacher targets on the same ACT output; preserve official normalized-joint loss; TRAIN-only terminal weighting and measured E10 coverage; original physical gates unchanged.",
+    "proposal": "Add differentiable canonical FK translation/full-rotation supervision against corresponding valid real teacher targets on the same ACT output; preserve official normalized-joint loss and existing computed/static terminal inputs; add training weights only to existing valid E10 prefixes and near-terminal cells; no new native capture or qualified coverage is claimed; original physical gates unchanged.",
     "new_training_result": false,
     "new_model_acceptance": false
   },
