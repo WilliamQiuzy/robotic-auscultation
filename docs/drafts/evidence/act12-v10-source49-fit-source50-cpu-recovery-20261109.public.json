@@ -382,6 +382,10 @@
     "V11_PILOT_SCOPE_PREDECLARATION.json": {
       "bytes": 1179,
       "sha256": "c0c1237bc9ccc9022f908ef08ead8d466c1263f4da557012123dcb433bad97dc"
+    },
+    "SOURCE52_KNOWN4_CLOSED_VAL_L3_LAST_OBSERVATION_SCALARS.json": {
+      "bytes": 1374,
+      "sha256": "a774464991e17156fb1e14ef83f3a8b9dcc7a9bf94b30c58a6336f3ec606e935"
     }
   },
   "Source49_actual_training_plot": {
@@ -1199,8 +1203,31 @@
       "no_near_data_claim_supported": false,
       "coverage_is_proven_sole_cause": false
     },
-    "selection_VAL_L3_terminal_lateral_approx_mm": 20.97,
-    "L3_scalar_semantics": "Model FK diagnostic only; not an independently read Native TCP scalar.",
+    "selection_VAL_L3_last_model_query_contact_frame_lateral_mm": 20.965283124944236,
+    "L3_scalar_semantics": "Canonical model-input FK at the last NN input observation, before its final action cell; not an independently measured terminal Native TCP. The last observation and the final Native closure are different sampling points.",
+    "L3_scalar_source": {
+      "summary": {
+        "name": "SOURCE52_KNOWN4_CLOSED_VAL_L3_LAST_OBSERVATION_SCALARS.json",
+        "bytes": 1374,
+        "sha256": "a774464991e17156fb1e14ef83f3a8b9dcc7a9bf94b30c58a6336f3ec606e935"
+      },
+      "source_IPC": {
+        "bytes": 3830108,
+        "sha256": "25746a34b3de560e5ac2ef23dfee512c521c004e3949c5447044870ee6b44fe7"
+      },
+      "source_COMPLETE": {
+        "bytes": 4914243,
+        "sha256": "dda4fe93b41dceebd62de18ea7cd28dc828e111707c77414f95a8fa0785c5406"
+      },
+      "request_id": 241,
+      "observation_sim_s": 120.84999999997225,
+      "physics_row": 29004,
+      "native_final_physics_steps": 29041,
+      "native_final_sim_s": 121.00416666666666,
+      "independently_measured_terminal_Native_TCP": false,
+      "new_model_inference_or_native_actions": false,
+      "raw_transferred": false
+    },
     "model_probe_or_repair_run_by_diagnosis": false,
     "raw_rows_or_q_arrays_returned": false
   },
