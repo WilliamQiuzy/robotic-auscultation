@@ -1,0 +1,262 @@
+{
+  "schema": "wam_ACT12_V10_Source49_fit_Source50_CPU_recovered_v1",
+  "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
+  "status_snapshot_utc": "2026-11-09T04:16:34.157774+00:00",
+  "status_authority": "Actual terminal Source50 CPU recovery summary supersedes the earlier running-state metadata snapshot; physical admission remains pending",
+  "research_question": "Does genuine teacher TCP-pose supervision improve approach convergence before the unchanged L2 handoff?",
+  "prior_Source48_V9": {
+    "fixed_known_cases": 4,
+    "executed_cases": 4,
+    "qualified_cases": 2,
+    "model_accepted": false,
+    "two_TRAIN_cases_qualified": true,
+    "two_selection_VAL_cases_failed_original_120s_L2_deadline": true,
+    "R3_negative_diagnostic": "Approximately 5 mm terminal lateral residual in command and measurement; no STOP, ALIGN or analytic L3 entered",
+    "evidence_file": "act11-source48-known4-closed-20261109.public.json",
+    "historical_V10_untrained_fields": "True at Source48 closure; superseded only by the later actual optimization evidence below, not by physical results"
+  },
+  "V10_method": {
+    "producer_code_commit": "1fc6f493ba55eb0bb7833c932e0d7aac1e03379f",
+    "network": "same state-only neural ACT L2, unchanged posture head, state17 with H2, H20/E10",
+    "initialization": "Source45 selected update 9000, all 54 tensors; fresh AdamW without optimizer or scheduler import",
+    "new_optimizer_updates": 20000,
+    "candidate_interval_updates": 500,
+    "task_objective": {
+      "teacher": "existing genuine valid teacher action cells, without relabeling as final targets",
+      "prediction": "same post-head official forward graph; one forward per source group",
+      "active_TCP_offset_m": 0.132,
+      "coefficient": 0.25,
+      "translation": "SmoothL1 of predicted minus teacher TCP position scaled by 0.001 m, mean over xyz",
+      "rotation": "squared rotation-matrix Frobenius residual divided by twice the squared 4 degree scale",
+      "valid_E10_cell_weight": 2,
+      "observed_near_6mm_row_weight": 4,
+      "reduction": "weighted valid-cell mean; padded cells removed before FK",
+      "retained_loss": "original official masked joint L1 and KL",
+      "inference_correction_added": false,
+      "policy_inputs_added": false,
+      "labels_changed": false
+    },
+    "data_identity_exposure": {
+      "physical_teacher_TRAIN_identities": 6,
+      "computed_auxiliary_TRAIN_identities": 16,
+      "sets_overlap": true,
+      "computed_identities_are_not_new_physical_captures": true
+    },
+    "original_geometry_and_physical_thresholds_unchanged": true
+  },
+  "Source49_actual_fit_and_original_failure": {
+    "optimizer_updates_completed": 20000,
+    "evaluation_steps": [
+      500,
+      1000,
+      1500,
+      2000,
+      2500,
+      3000,
+      3500,
+      4000,
+      4500,
+      5000,
+      5500,
+      6000,
+      6500,
+      7000,
+      7500,
+      8000,
+      8500,
+      9000,
+      9500,
+      10000,
+      10500,
+      11000,
+      11500,
+      12000,
+      12500,
+      13000,
+      13500,
+      14000,
+      14500,
+      15000,
+      15500,
+      16000,
+      16500,
+      17000,
+      17500,
+      18000,
+      18500,
+      19000,
+      19500,
+      20000
+    ],
+    "candidate_models_retained": 40,
+    "prediction_files_retained": 80,
+    "selected_update_before_CPU_qualification": 7000,
+    "selected_checkpoint": {
+      "bytes": 12227137,
+      "sha256": "459beff23699d5c7e5d79b8296a7cbc4029e7c5c4f8da824ba091d111431908b"
+    },
+    "selected_summary": {
+      "bytes": 6038651,
+      "sha256": "34eb8ca6dcca5600595d77ed1b2ed07606f8f0ec9b01876526a32908e54e3d83"
+    },
+    "postfit_CPU_verification_passed": false,
+    "failure_reason": "Nested refinement-inventory verification re-entered the legacy query archive reader without propagating the V10 authenticated reader, causing provenance mismatch",
+    "original_owner_exit_code": 1,
+    "original_owner_completed": false,
+    "original_owner_normal": false,
+    "process_group_drained": true,
+    "GPU_released": true,
+    "termination_signals": [],
+    "original_owner": {
+      "bytes": 9314,
+      "sha256": "f8bfbba4875d0078f99fdfd24863eb08d24a26191c3e736b327520e3748c12a7"
+    },
+    "original_control_failure": {
+      "bytes": 268,
+      "sha256": "458e621fc9b263282fa696d0955037da82d9b3ae12781e87933d78217ec639b8"
+    },
+    "original_product_failure": {
+      "bytes": 18756,
+      "sha256": "6589a0edee46c62b7e69ba62c4f5de29f9eeca30cbb0922f4304b069dfb4da3f"
+    },
+    "original_negative_evidence_preserved": true,
+    "model_qualified": false,
+    "independent_backup": {
+      "all_files_SHA256_verified": true,
+      "destination_reread_SHA256_verified": true,
+      "verified_files": 163,
+      "verified_bytes": 1222421294,
+      "manifest": {
+        "bytes": 33487,
+        "sha256": "41ab295a18230dafec599ed5fd9140bc11bb1f1eeec1e8ad9cce89998f8cafa8"
+      },
+      "independent_receipt": {
+        "bytes": 6291,
+        "sha256": "3b0dd4ca4f6a4a8ae90205248e6289a7460dd823165b2dac40023aad34fcec69"
+      },
+      "original_failed_owner_preserved": true
+    }
+  },
+  "Source50_separate_CPU_recovery": {
+    "consumer_code_commit": "67dc997b89b32b0d701b889f38849027381f0e92",
+    "actual_deployment_verified": true,
+    "source_files": 1738,
+    "source_manifest": {
+      "bytes": 300743,
+      "sha256": "5e9e0c51be9f70e16c55f4c62dc3bdec7a1f9f39694069ab362f484215e5e6ea"
+    },
+    "exact_source_closure": true,
+    "scope": "Authenticated consumer provenance and nested array-reader propagation; preserve the original runtime trained-head and posture-limit gate",
+    "weights_changed": false,
+    "geometry_changed": false,
+    "physical_thresholds_changed": false,
+    "retraining": false,
+    "original_failure_rewritten": false,
+    "state": "CPU_RECOVERY_PASSED_SELECTED_MODEL_WIRE_PENDING",
+    "running": false,
+    "passed": true,
+    "actual_recovery_certificate": {
+      "bytes": 19655579,
+      "sha256": "a7c1b91cb740fcf1b3fda05f113b99a2fb748c64c07d6ffa78fe9578a2b0f25c"
+    },
+    "deployment_receipt_is_not_CPU_recovery_success": true,
+    "root_complete": {
+      "bytes": 16583,
+      "sha256": "bea2499b17bc052794aa46c9204fa5a056434832c1e59e961d567ce0db60d02a"
+    },
+    "CPU_equivalence": {
+      "bytes": 113069,
+      "sha256": "df3b89040bc06ea6b1e7c78a3702258d3d09afd4fb8b6afdb37b980a5ec99109"
+    },
+    "verification": {
+      "selected_step": 7000,
+      "task_score": 0.8034891244260566,
+      "verified_candidates": 40
+    },
+    "selected_tensor_count": 54,
+    "all54_selected_tensors_unchanged": true,
+    "actual_optimizer_audit": {
+      "parameter_states": 54,
+      "minimum_step": 20000,
+      "maximum_step": 20000,
+      "optimizer_state_imported": false
+    },
+    "completed_optimizer_updates": 20000,
+    "CPU_comparisons": {
+      "train": {
+        "metric_atol": 1e-07,
+        "metric_rtol": 1e-05,
+        "passed": true,
+        "prediction_atol": 1e-06,
+        "prediction_max_abs_rad": 1.9174889667183947e-06,
+        "prediction_rtol": 1e-05
+      },
+      "validation": {
+        "metric_atol": 1e-07,
+        "metric_rtol": 1e-05,
+        "passed": true,
+        "prediction_atol": 1e-06,
+        "prediction_max_abs_rad": 1.4637857232990825e-06,
+        "prediction_rtol": 1e-05
+      }
+    },
+    "closure_identity_snapshot_files": 34887,
+    "elapsed_s": 449.6005347140017,
+    "optimizer_updates_during_recovery": 0,
+    "GPU_execution_during_recovery": false,
+    "original_CPU_operator_live": false,
+    "original_stage_still_failed": true,
+    "original_failure_preserved": true
+  },
+  "V10_physical_results": {
+    "Known4": {
+      "started": false,
+      "executed_cases": 0,
+      "qualified_cases": null,
+      "success_rate": null,
+      "actual_recordings": []
+    },
+    "Fresh32": {
+      "gate_open": false,
+      "payloads_opened": false,
+      "started": false,
+      "executed_cases": 0,
+      "qualified_cases": null,
+      "success_rate": null,
+      "actual_recordings": []
+    },
+    "admission_order": [
+      "Actual separate CPU recovery certificate passed; this step is complete",
+      "Actual selected-model CPU wire and full EOF close proof",
+      "New Known4 under unchanged physical qualification",
+      "Fresh paired evaluation only after all four Known cases qualify"
+    ],
+    "model_accepted": false,
+    "selected_model_wire_full_EOF_passed": false
+  },
+  "scope_limits": [
+    "20k optimizer updates and all 40 offline candidates are not physical rollout results.",
+    "Neural L2 receives two state17 observations; analytic Hall L3 supplies contact, hold, release and home.",
+    "RGBD is recorded only; Hall is not a neural input. No audio or VLA.",
+    "Static bare-body given-target R3/L3 simulation only; no all-ten-point, moving-patient, real-robot, clinical or population-generalization claim.",
+    "The historical matched eight-scenario Expert/old ACT/Astra cohort is a different model and cohort; it supplies no V10 benchmark row."
+  ],
+  "source_summary_digests": {
+    "V10_ACTUAL_POSTFIT_PROVENANCE_FAILURE.json": {
+      "bytes": 2744,
+      "sha256": "a552a8910066510131239c5b47248b762432c2d32f5fae2e2a05656b2ce989d0"
+    },
+    "INDEPENDENT_SOURCE49_FULL20K_POSTFIT_FAILURE_BACKUP.json": {
+      "bytes": 7180,
+      "sha256": "beafaef86d48f88159f015f5f3030d12401ae43e6769922dcbdcee1628b8b094"
+    },
+    "SOURCE50_ACTUAL_REVIEWED_DEPLOYMENT.json": {
+      "bytes": 2139,
+      "sha256": "814ca0f73ac8627a51756c98f1791a575fa4cbe21936ee3e8469f92d38c69ae3"
+    },
+    "V10_SOURCE50_ACTUAL_CPU_RECOVERY.json": {
+      "bytes": 3820,
+      "sha256": "30936651ffd982202e325351c5449d24036db021e804e35acc5f11f72dbaaadf"
+    }
+  }
+}
