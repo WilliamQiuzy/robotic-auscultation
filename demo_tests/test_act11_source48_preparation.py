@@ -60,9 +60,12 @@ class ACT11Source48Preparation(unittest.TestCase):
             self.assertIsNone(known[key])
         self.assertFalse(known['model_accepted'])
         self.assertTrue(known['new_model_video_available'])
-        self.assertEqual(known['native_closed_positive_case_reports'], 1)
+        self.assertEqual((known['native_closed_case_reports'], known['native_closed_positive_case_reports'], known['native_closed_negative_case_reports']), (3, 2, 1))
         observed = known['case_observations']
-        self.assertEqual(len(observed), 1)
+        self.assertEqual(len({(c['subject_id'], c['target']) for c in observed}), 4)
+        self.assertEqual(sum(c.get('native_reported_success') is True for c in observed), 2)
+        self.assertEqual(sum(c.get('native_reported_success') is False for c in observed), 1)
+        self.assertEqual(sum(c['native_terminal_status'] == 'RUNNING' for c in observed), 1)
         self.assertEqual((observed[0]['role'], observed[0]['subject_id'], observed[0]['target']), ('Known TRAIN', 'p001120', 'R3'))
         self.assertTrue(observed[0]['native_reported_success'] and observed[0]['native_reported_physical_validation'])
         self.assertEqual(observed[0]['independent_qualification'], 'PENDING')
@@ -71,6 +74,16 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.assertEqual((fresh['status'], fresh['tested_cases']), ('GATED_NOT_MEASURED', 0))
         self.assertIsNone(fresh['physical_success_rate'])
         self.assertFalse(fresh['payloads_inspected_for_this_draft'])
+        self.assertTrue(fresh['blocked_by_known_development_failure'])
+        self.assertFalse(fresh['gate_open'])
+        failure = json.loads((DRAFT / 'evidence/act11-source48-selection-r3-negative-20261109.public.json').read_text())
+        self.assertFalse(failure['case']['native_reported_success'] or failure['case']['STOP_entered'] or failure['case']['ALIGN_entered'] or failure['case']['L3_entered'])
+        self.assertEqual((failure['case']['actual_physics_steps'], failure['case']['genuine_model_queries']), (29041, 241))
+        terminal = failure['streamed_diagnostic_reported']['terminal']
+        limits = failure['streamed_diagnostic_reported']['original_interior_requirements']
+        self.assertGreater(terminal['observed_tangent_mm'], limits['tangent_mm_at_most'])
+        self.assertFalse(failure['Fresh32']['gate_open'] or failure['next_treatment']['new_training_result'])
+        self.assertEqual(failure['next_treatment']['status'], 'PREPARATION_ONLY_NOT_A_RESULT')
         pipeline = self.report['pipeline_followup']
         self.assertTrue(pipeline['actual_Linux_proc_and_exec_parity_passed'] and pipeline['fresh_all40_canonical_producer_admission_passed'])
         self.assertFalse(pipeline['selected_weights_changed'] or pipeline['thresholds_changed'] or pipeline['new_training'] or pipeline['model_qualified'])
@@ -83,8 +96,8 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.assertEqual(self.report['publication_state'], 'LOCAL_DRAFT_NOT_PUBLISHED')
         self.assertTrue(all(re.fullmatch('[0-9a-f]{64}', v['sha256']) for v in self.report['source_summary_digests'].values()))
         elements = Elements(self.section).items
-        self.assertEqual(sum(tag == 'video' for tag, _ in elements), 1)
-        self.assertEqual(sum(tag == 'img' for tag, _ in elements), 1)
+        self.assertEqual(sum(tag == 'video' for tag, _ in elements), 2)
+        self.assertEqual(sum(tag == 'img' for tag, _ in elements), 2)
         self.assertFalse(any(tag in ['canvas', 'iframe'] for tag, _ in elements))
         for tag, attrs in elements:
             for key in ['href', 'src', 'poster']:
@@ -125,6 +138,17 @@ class ACT11Source48Preparation(unittest.TestCase):
         self.assertIn('已知 TRAIN 场景，非留出测试', self.section)
         self.assertIn('不代表实时执行', self.section)
         serialized = json.dumps(evidence)
+        for private in ['/Users/', '/opt/', '/workspace/', '/mnt/', '.npz', '.npy', 'credential', 'ssh']:
+            self.assertNotIn(private, serialized)
+        failure = json.loads((DRAFT / 'evidence/act11-source48-selection-r3-negative-20261109.public.json').read_text())
+        for asset in [failure['media']['video'], failure['media']['poster'], failure['pose_error_figure']]:
+            raw = (DRAFT / asset['file']).read_bytes()
+            self.assertEqual((len(raw), hashlib.sha256(raw).hexdigest()), (asset['bytes'], asset['sha256']))
+        video = failure['media']['video']
+        self.assertEqual((video['frames'], video['fps']), (1210, 10))
+        self.assertAlmostEqual(video['duration_s'], video['frames'] / video['fps'])
+        self.assertEqual(failure['media']['trailing_unrendered_ticks'], 1)
+        serialized = json.dumps(failure)
         for private in ['/Users/', '/opt/', '/workspace/', '/mnt/', '.npz', '.npy', 'credential', 'ssh']:
             self.assertNotIn(private, serialized)
 

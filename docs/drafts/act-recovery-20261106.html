@@ -175,7 +175,7 @@
 <p class="body-6">Scope remains state17/H2 neural L2 approach plus analytic Hall L3. RGBD is recorded, not a neural input; no audio or VLA is used. These static bare body R3/L3 collections establish no all ten point, general population, moving patient, real robot or clinical claim. <a href="evidence/act11-source45-data-qualified-20261108.public.json">Read the scoped evidence and source digests</a> · <a href="../SOURCE45_REPRODUCTION.md">Inspect the Source45 reproduction boundaries</a>. The public capsule supplies partial code and CPU fixtures; native data and runtime are not bundled.</p></section>
 <section class="exp-section reveal" id="iteration11-source48-results" lang="zh-CN" aria-labelledby="iteration11-source48-results-title" style="scroll-margin-top:var(--spacing-900)">
 <p class="eyebrow caption-3">ACT11 / V9 · 本地草稿，四例独立资格待收口 · 2026 年 11 月 9 日 UTC</p>
-<h2 class="heading-3" id="iteration11-source48-results-title">首个已知案例已关闭。<br>四例资格仍待核验。</h2>
+<h2 class="heading-3" id="iteration11-source48-results-title">已知开发出现负例。<br>新身份测试仍关闭。</h2>
 <p class="body-3"><strong>研究问题。</strong> 补入真实学习器状态上的专家恢复示范后，ACT 能否在原有门限下完成接近、交接、接触、保持、释放与归位？前节保留当时的阻塞记录；下面区分已关闭的历史比较、当前模型配置和仍待收口的新评估。</p>
 <p class="body-3"><strong>当前配置。</strong> Source45 的 ACT11 / V9 从 ACT10 的已选第 17,000 步权重开始，完成 <strong>20,000 次新的优化更新</strong>；四十个候选中仍选择第 <strong>9,000</strong> 步。新增八次合格的<strong>学习器前缀 + 专家干预采集</strong>提供 133 个教师窗口，另有 58 个早期查询窗口和从既有采集中更密集提取的 2,064 个窗口。窗口数不等于 episode 数，数据资格也不等于学习策略成功。</p>
 <figure class="exp-recording">
@@ -191,15 +191,41 @@
 <img src="assets/act11-source48-known-train-r3-contact-20261109.png" width="1680" height="1050" loading="lazy" alt="已知 TRAIN p001120 R3 的真实接触力曲线：法向力与 Hall 力升至约 4 N，连续保持 3 秒后卸载归零；浅绿区域为 3.5 至 4.5 N，完整四例独立资格仍待核验">
 <figcaption class="caption-2"><strong>首例接触子集复核通过，完整四例合同审计仍待完成。</strong> 图中浅绿横带为保持阶段要求的 3.5–4.5 N，深绿时段为连续 720 个原生行，即 3.000 秒的力与接触平面共同合格区间。图按 20 Hz 展示；峰值和判据来自全部 25,674 个 240 Hz 原生行：法向力峰值 4.024 N、Hall 力峰值 3.991 N、保持最大倾角 1.50°，各禁止受力组与非前表面 retainer 受力均为 0 N。六项重算标量与原生终态报告的差均为零。这项子集复核不等于完整模型验收。<a href="assets/act11-source48-known-train-r3-contact-20261109.png">打开完整力曲线</a> · <a href="evidence/act11-source48-known-train-r3-video-20261109.public.json">查看原生行数、标量与来源哈希</a>。</figcaption>
 </figure>
+<div id="iteration11-source48-selection-r3-negative" aria-labelledby="iteration11-source48-selection-r3-negative-title" style="scroll-margin-top:var(--spacing-900)">
+<p class="eyebrow caption-3">已关闭负例 · 已知 selection VAL p000923 / R3</p>
+<h3 class="heading-5" id="iteration11-source48-selection-r3-negative-title">接近目标后，仍未满足交接。</h3>
+<p class="body-3">实际 ACT11 执行了 <strong>241 次模型查询、29,041 个原生物理步</strong>，在原始 <strong>120 秒 L2 时限</strong>内未进入交接，按原判据关闭为负例。失败发生在 STOP、ALIGN 与解析 L3 之前；没有专家 L2 兜底。全行流式诊断中的物理违规行数为零，仍不能替代完成接触流程的要求。</p>
+<figure class="exp-recording">
+<div class="video-top"><strong class="title-3">真实 ACT11 / V9 · selection VAL R3 负例</strong><span class="caption-2">L2 超时 · 未进入 STOP / ALIGN / L3</span></div>
+<div class="video-box" data-state="loading" aria-busy="true">
+<video id="iteration11-source48-known-val-r3-video" controls playsinline preload="metadata" poster="assets/act11-source48-known-val-r3-90s-20261109.jpg" width="640" height="360" aria-describedby="iteration11-source48-known-val-r3-caption" aria-label="真实 ACT11 已知 selection VAL p000923 R3 失败录像；241 次学习策略查询后触及原始 L2 时限，未进入 STOP、ALIGN 或解析 L3，无专家 L2 兜底，非新身份测试">
+<source src="assets/act11-source48-known-val-r3-20261109.mp4" type="video/mp4">下载<a href="assets/act11-source48-known-val-r3-20261109.mp4">完整失败录像</a>。</video>
+<div class="video-state" role="status" aria-live="polite"><div class="video-skeleton" aria-hidden="true"><span></span><span></span></div><span class="caption-2" data-recording-message>Loading the actual recording…</span><button class="button-sm" data-recording-retry hidden type="button">Try loading again</button></div>
+</div>
+<figcaption class="caption-2" id="iteration11-source48-known-val-r3-caption"><strong>已知 selection VAL 负例，非新身份结果。</strong> p000923 / R3，ACT11 第 9,000 步权重实际完成 241 次模型查询，在原始 120 秒累计 L2 时限关闭失败；未开始 STOP、ALIGN 或解析 L3，没有专家 L2 兜底。保留全部 1,210 帧，640×360、10 fps：121 秒视频 / 121.004 秒原生仿真时间，其中包含 1 秒准备阶段，L2 累计时限仍为 120 秒；最后一个物理 tick 未捕获图像。海报为本回合 90 秒画面。按仿真时间播放，不代表实时执行。<a href="assets/act11-source48-known-val-r3-20261109.mp4">打开完整失败 MP4</a> · <a href="evidence/act11-source48-selection-r3-negative-20261109.public.json">查看负例诊断、帧时钟与媒体哈希</a>。</figcaption>
+</figure>
+<figure class="exp-recording">
+<img src="assets/act11-source48-known-val-r3-pose-error-20261109.png" width="1500" height="1020" loading="lazy" alt="ACT11 已知 selection VAL R3 的一赫兹位姿误差图：命令与实测切向误差终段均约五毫米，超过二毫米内部交接上限；法向间隙误差约零点六毫米，未进入 STOP、ALIGN 或解析接触">
+<figcaption class="caption-2"><strong>切向残差持续存在，交接未开始。</strong> 图为 120 个 1 Hz 标量样本：全程图用对数轴，末段图放大约 5 mm 的命令与实测切向残差，以及约 0.6 mm 的法向误差。虚线为原始 2 mm 切向与 1 mm 法向内部上限；旋转和速度也必须同时合格。1 Hz 图不能解析约 21.5 秒前后的短暂粗区间进入与退出；零交接结论来自全部 2,400 个原生触发网格检查。该例属于已知开发验证集，仍保留原始时限与负结果。<a href="assets/act11-source48-known-val-r3-pose-error-20261109.png">打开完整误差图</a> · <a href="evidence/act11-source48-selection-r3-negative-20261109.public.json">查看标量、判据与来源哈希</a>。</figcaption>
+</figure>
+<div class="table-scroll exp-table" role="region" tabindex="0" aria-label="失败 selection R3 的终态实测量与原始交接条件"><table><thead><tr><th class="caption-3" scope="col">交接条件</th><th class="caption-3" scope="col">终态实测</th><th class="caption-3" scope="col">原始上限</th></tr></thead><tbody>
+<tr><th class="body-6" scope="row">切向误差</th><td class="body-6"><strong>4.971 mm</strong>（命令 4.958 mm）</td><td class="body-6">2 mm · 未满足</td></tr>
+<tr><th class="body-6" scope="row">法向间隙误差</th><td class="body-6">0.600 mm</td><td class="body-6">1 mm</td></tr>
+<tr><th class="body-6" scope="row">旋转误差</th><td class="body-6">0.230°</td><td class="body-6">4°</td></tr>
+<tr><th class="body-6" scope="row">速度</th><td class="body-6">0.442 mm/s</td><td class="body-6">10 mm/s</td></tr>
+</tbody></table></div>
+<p class="body-3">早期在约 21.4875 秒短暂进入较粗接近区间；最接近的 21.5 秒诊断网格点虽有 <strong>1.831 mm 切向误差</strong>，法向间隙误差仍为 <strong>1.840 mm</strong>、速度为 <strong>19.545 mm/s</strong>，未同时满足交接条件。随后出现侧向漂移。终态命令与实测均停在约 5 mm 侧向残差，后续实验需要直接检验任务空间收敛，不能只凭较小关节拟合误差推断完成交接。</p>
+<p class="body-6">诊断中的 860 个 ≤6 mm TRAIN 窗口，其最后有效教师目标均满足内部条件并减小误差；所查 57 个近目标 on-policy 窗口中，实际查询近目标窗口为 28 个，没有至少 E10 有效未来，也没有静止查询窗口。真实物理教师轨迹的 TRAIN 身份并集为 <strong>6 个</strong>，计算辅助训练涉及 <strong>16 个</strong>身份；两者重叠，不能将计算曝光称为十六个真实采集身体。V9 的训练损失仍是归一化关节误差，TCP 几何只参与检查点选择；平均任务分数 0.827 不保证每次闭环满足交接。下一版 <strong>V10 仅处于准备阶段</strong>：计划在同一次 ACT 输出的真实有效教师动作上加入可微正运动学任务空间监督，保留原关节损失，以 TRAIN 数据预定末段权重与慢速 E10 覆盖；不把中间动作强制为终点，不伪造保持或未来动作。原始物理门限继续保留，尚无 V10 新训练或闭环结果。<a href="evidence/act11-source48-selection-r3-negative-20261109.public.json">查看关闭负例、条件与诊断范围</a>。</p>
+</div>
 <div class="table-scroll exp-table" role="region" tabindex="0" aria-label="历史比较与当前 ACT11 评估的独立分母和状态">
 <table><thead><tr><th class="caption-3" scope="col">实验与范围</th><th class="caption-3" scope="col">观察到的结果</th><th class="caption-3" scope="col">可支持的结论</th></tr></thead><tbody>
 <tr><th class="body-6" scope="row">历史匹配比较<br>2 个留出身份 × 2 个已知姿态 × R3/L3</th><td class="body-6">解析专家 8/8<br>旧 ACT 第 4,500 步 0/8<br>Astra 高层技能 + 解析执行 8/8</td><td class="body-6">同一组 8 个场景，共 24 次实际回合；与当前 ACT11 属于不同模型和队列</td></tr>
-<tr><th class="body-6" scope="row">ACT11 / V9<br>4 个已知开发案例</th><td class="body-6"><strong>首个已知 TRAIN R3 原生报告为正；四例独立资格待收口</strong></td><td class="body-6">单例终态已关闭，尚无整批独立资格结果或成功率</td></tr>
-<tr><th class="body-6" scope="row">后续新身份配对测试<br>8 身份 × 2 已知姿态 × R3/L3</th><td class="body-6">未测量；32 场景，专家与 ACT 共 64 个计划槽位</td><td class="body-6">仅当已知开发案例全部 4/4 合格后开放；未测量不是 0/32</td></tr>
+<tr><th class="body-6" scope="row">ACT11 / V9<br>4 个已知开发案例</th><td class="body-6"><strong>原生已关闭三例：两个 TRAIN 正报告，selection R3 超时负例；最后 L3 仍进行中</strong></td><td class="body-6">固定分母仍为四例；整批独立资格与最终成功率待收口</td></tr>
+<tr><th class="body-6" scope="row">后续新身份配对测试<br>8 身份 × 2 已知姿态 × R3/L3</th><td class="body-6">未测量；32 场景，专家与 ACT 共 64 个计划槽位</td><td class="body-6">本轮 V9 已有已知开发负例，未满足 4/4 开放条件；未测量不是 0/32</td></tr>
 </tbody></table></div>
 <p class="body-3"><strong>历史结果的含义。</strong> 上表历史链已在 11 月 6 日关闭，24 次 native episode 及其 owner 均正常结束、排空并释放资源。旧 ACT 的八次负结果包含六次姿态门限和两次网格间隙门限。Astra 确有 <strong>24 次 gpt-6-astra / codex_exec 调用</strong>，负责高层技能选择，底层运动与接触由 GivenContactExpert 解析执行；它不是学得的底层运动策略或 VLA。该结果不能因果证明 Hall 或深度输入的贡献，也不能用两个身份推断一般人群表现。三组并行度不同，不能据此比较速度。</p>
 <p class="body-6"><strong>一条工程经验。</strong> 后续真实 Official 全四十候选证书解决了前节的跨 NumPy 诊断问题，权重和门限未改。最初四次测试虽然已加载权重，但因进程身份 start_ticks 的整数与字符串不匹配，查询数和物理步数均为零。Source48 只修正身份传输序列化并加强四字段类型精确匹配；原 guard、CPU bridge 与物理逻辑不变。实际 Linux 进程及 exec 一致性、重新执行的四十候选核验已经通过。这些是管线证据，不是模型物理验收。</p>
-<p class="body-3" id="iteration11-source48-physical-status"><strong>当前观察结果与下一步。</strong> 第一个已知 TRAIN R3 回合已正常关闭，原生 success 与 physicalValidation 报告均为 true，错误列表为空；其全部 25,674 行的独立接触子集复核通过，但<strong>完整原生合同与四例资格审计仍待完成</strong>。完整四例测试继续进行，模型尚未验收，整批结果与成功率仍为空。只有四例均通过原始独立资格，才开展上表固定的新身份配对测试。前节的 104.65 秒采集视频保留其专家干预标签。</p>
+<p class="body-3" id="iteration11-source48-physical-status"><strong>当前观察结果与下一步。</strong> TRAIN R3 录像与独立接触子集只支持该已知案例。当前四个固定开发案例中已有三例原生终态关闭：两个 TRAIN 正报告，一个 selection VAL R3 超时负例；最后的 selection VAL L3 仍在进行。<strong>完整四例独立资格待收口，模型未验收，新身份测试未开放</strong>。本轮 V9 已未满足原先要求的 4/4 开放条件；V10 任务空间目标是下一次实验计划。前节的 104.65 秒采集视频保留其专家干预标签。</p>
 <p class="body-6"><strong>解释范围。</strong> 神经策略只读取两帧 state17：7 个关节量、3 个目标相对 TCP 位置量、6D 旋转和 1 个给定目标置信度。H20/E10 的动作单元为 20 Hz，名义决策频率 2 Hz；学习的 L2 接近交接后由解析 L3 接触、保持和释放，不使用专家 L2 兜底。RGBD 仅记录，Hall/ADC 用于解析 L3 与安全控制，均非神经输入；这些静态裸身 R3/L3 仿真不支持音频、全部十点、移动患者、真实机器人或临床结论。<a href="evidence/act11-source48-results-preparation-20261108.public.json">查看小型报告、独立分母与来源摘要哈希</a>。</p>
 </section>
 <section class="exp-section reveal" id="evaluation" aria-labelledby="evaluation-title"><p class="eyebrow caption-3">Frozen before training</p><h2 class="heading-3" id="evaluation-title">Eight fresh identities.<br>Thirty two declared scenarios.</h2>

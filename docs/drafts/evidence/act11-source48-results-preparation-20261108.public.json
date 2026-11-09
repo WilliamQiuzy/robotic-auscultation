@@ -1,7 +1,7 @@
 {
   "schema": "wam_act11_source48_local_results_preparation_v1",
   "publication_state": "LOCAL_DRAFT_NOT_PUBLISHED",
-  "evidence_scope": "Closed historical metadata, pipeline receipts and one known TRAIN ACT11 native positive case report; independent whole-Known4 physical qualification pending",
+  "evidence_scope": "Closed historical metadata, actual known TRAIN evidence and a closed known selection-validation R3 learned-policy negative; full Known4 independent qualification pending",
   "historical_matched8": {
     "historical_only": true,
     "new_ACT11_or_fresh32_evaluation": false,
@@ -161,8 +161,8 @@
       "physical_success_rate": null,
       "model_accepted": false,
       "new_model_video_available": true,
-      "phase": "ACTUAL_CLOSED_LOOP_TEST_RUNNING_CONTACT_OUTCOME_PENDING",
-      "native_closed_positive_case_reports": 1,
+      "phase": "THREE_NATIVE_CASES_CLOSED_FINAL_SELECTION_L3_RUNNING_FULL_QUALIFICATION_PENDING",
+      "native_closed_positive_case_reports": 2,
       "case_observations": [
         {
           "subject_id": "p001120",
@@ -178,8 +178,41 @@
           "media_evidence_file": "act11-source48-known-train-r3-video-20261109.public.json",
           "independent_streamed_contact_subset_passed": true,
           "full_native_qualification_pending": true
+        },
+        {
+          "subject_id": "p001120",
+          "target": "L3",
+          "role": "Known TRAIN",
+          "native_terminal_status": "COMPLETE",
+          "native_reported_success": true,
+          "native_reported_physical_validation": true,
+          "genuine_model_queries": 52,
+          "expert_L2_fallback": false,
+          "independent_qualification": "PENDING"
+        },
+        {
+          "subject_id": "p000923",
+          "target": "R3",
+          "role": "Known selection validation",
+          "native_terminal_status": "CLOSED_L2_DEADLINE_NEGATIVE",
+          "native_reported_success": false,
+          "native_reported_physical_validation": false,
+          "genuine_model_queries": 241,
+          "expert_L2_fallback": false,
+          "independent_qualification": "PENDING",
+          "diagnostic_evidence_file": "act11-source48-selection-r3-negative-20261109.public.json"
+        },
+        {
+          "subject_id": "p000923",
+          "target": "L3",
+          "role": "Known selection validation",
+          "native_terminal_status": "RUNNING",
+          "native_reported_success": null,
+          "independent_qualification": "PENDING"
         }
-      ]
+      ],
+      "native_closed_negative_case_reports": 1,
+      "native_closed_case_reports": 3
     },
     "fresh32": {
       "identities": 8,
@@ -199,7 +232,9 @@
       "tested_cases": 0,
       "qualified_cases": null,
       "physical_success_rate": null,
-      "payloads_inspected_for_this_draft": false
+      "payloads_inspected_for_this_draft": false,
+      "gate_open": false,
+      "blocked_by_known_development_failure": true
     }
   },
   "pipeline_followup": {
