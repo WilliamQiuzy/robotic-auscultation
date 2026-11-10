@@ -1,0 +1,146 @@
+{
+  "schema": "wam_source58_l3_expert_repair_public_v1",
+  "run": {
+    "run_id": "act13-source58-finite-near-01-primary-20261109-v1",
+    "controller": "analytic expert",
+    "context": "native Isaac simulation",
+    "split": "TRAIN",
+    "stratum_id": "near-01",
+    "point": "L3",
+    "pose": "pose2",
+    "owner_exit_code": 0,
+    "owner_drained": true,
+    "owner_signals": [],
+    "native_ticks": 29058,
+    "simulated_s": 121.075,
+    "owner_phase_wall_s": 1411.8767628460191,
+    "startup_before_owner_approx_wall_s": 149,
+    "native_child_wall_s": 1407.4114002520218,
+    "probe_wall_s": 1269.8727804429946,
+    "capture_bytes": 53489917,
+    "strict_attribution_verified": true,
+    "original_owner_normal": true,
+    "operational_qualification_passed": true,
+    "postflight_errors": []
+  },
+  "previous_source56_l3": {
+    "closed_before_contact": true,
+    "native_ticks": 6084,
+    "simulated_s": 25.35,
+    "closed_summary": {
+      "bytes": 42315,
+      "sha256": "3524f39ba3cc9f827b375461267adf03bbc5c4eebde9cd994f87138ab7db8e66"
+    }
+  },
+  "source58_observations": {
+    "point_success": true,
+    "motion_complete": true,
+    "c_retainer_peak_force_n": 3.9783731231395705,
+    "continuous_force_and_plane_hold_s": 3,
+    "max_hold_tilt_deg": 1.5005297131244724,
+    "forbidden_force_n": 0,
+    "lip_force_n": 0,
+    "frame_force_n": 0,
+    "diaphragm_force_n": 0,
+    "hall_peak_n": 3.9907227984704883,
+    "max_compression_m": 0.002513221697881818,
+    "home_complete": true,
+    "recovery_completed": true,
+    "restore_returned": true,
+    "early_handoff": false,
+    "preview_steps": 336,
+    "cached_finish_replans": 1
+  },
+  "evidence": {
+    "native_complete": {
+      "bytes": 1394474,
+      "sha256": "cf9a05bac7c24bf5c49591d58979475f58e98595bcf2ea10b5f4267a83ef49b4"
+    },
+    "recovery_sidecar": {
+      "bytes": 236284,
+      "sha256": "fd3719f23aff3ece54e31a1a72b1414ca3c6238e82253a19311cec9c77d21b16"
+    },
+    "postflight_core_audit": {
+      "bytes": 338558,
+      "sha256": "bb8ef42912113891921af02f120ada915de385fc21e2deeaa2ccb76e3a6d6beb"
+    },
+    "verified_media": {
+      "bytes": 5095,
+      "sha256": "0b04972f885ec5aee995298f1eb5aa5e3d2f1236df417a849edc6a61e3eedead"
+    }
+  },
+  "model_context": {
+    "source53_known_development_cases_passed": 2,
+    "source53_known_development_cases_run": 4,
+    "source59_warm_copy_tensors": 54,
+    "source59_train_probes": 4,
+    "new_optimizer_steps_at_capture": 0,
+    "neural_input": "two consecutive 17-dimensional state observations",
+    "contact_controller": "analytic Hall",
+    "fresh_cases_executed_at_capture": 0
+  },
+  "source58_prior_r3": {
+    "source": "Source58",
+    "point": "R3",
+    "episodes": 1,
+    "full_e10_fine_windows": 49,
+    "full_e10_recovery_windows": 201
+  },
+  "source58_l3_windows": {
+    "point": "L3",
+    "episodes": 1,
+    "full_e10_fine_windows": 48,
+    "full_e10_recovery_windows": 202
+  },
+  "source58_cohort_at_l3_close": {
+    "source": "Source58 only",
+    "expert_episodes": 2,
+    "train_bodies_represented": 1,
+    "declared_train_bodies": 6,
+    "qualified_strata": 2,
+    "declared_strata": 12,
+    "fine_full_e10_windows": 97,
+    "recovery_full_e10_windows": 403,
+    "overlapping_windows_total": 500,
+    "full_bank_training_admitted": false
+  },
+  "media": {
+    "video": {
+      "file": "assets/act13-source58-near01-expert.actual.mp4",
+      "bytes": 378888,
+      "sha256": "cf41fa4487e7a65dd7473625b1ecaa94cea283df00eab7e81c301e76f8bbcfc5"
+    },
+    "poster": {
+      "file": "assets/act13-source58-near01-expert.frame1335.poster.jpg",
+      "bytes": 4900,
+      "sha256": "b5278fe49130fd4cb734c7b2b0698b1d6810414fe8cdf2ed38372a988f9c6271"
+    },
+    "clock_and_decode": {
+      "every_original_jpeg_crc32_verified": true,
+      "every_video_presentation_timestamp_checked": true,
+      "ffmpeg_entire_stream_decode": true,
+      "ffprobe_frame_count": 2421,
+      "fps": 20,
+      "height": 144,
+      "native_duration_s": 121.075,
+      "native_ticks": 29058,
+      "source_frame_step_ticks": 12,
+      "terminal_ticks_after_last_frame": 6,
+      "unique_source_rows": 2421,
+      "video_duration_s": 121.05,
+      "width": 256
+    },
+    "synthetic_frames": false,
+    "resampled_or_duplicated_frames": false,
+    "poster_frame": {
+      "origin": "original CRC-verified JPEG payload copied byte for byte",
+      "zero_based_index": 1335,
+      "native_physics_row": 16031,
+      "native_time_s": 66.8,
+      "encoded_video_timestamp_s": 66.75,
+      "hold_elapsed_s": 1.5,
+      "retainer_n": 3.9294280046239276,
+      "tilt_deg": 1.5003367899850035
+    }
+  }
+}
