@@ -14,7 +14,7 @@
     "native_ticks": 29058,
     "simulated_s": 121.075,
     "owner_phase_wall_s": 1411.8767628460191,
-    "startup_before_owner_approx_wall_s": 149,
+    "launch_to_native_child_started_wall_s": 149.465202,
     "native_child_wall_s": 1407.4114002520218,
     "probe_wall_s": 1269.8727804429946,
     "capture_bytes": 53489917,
