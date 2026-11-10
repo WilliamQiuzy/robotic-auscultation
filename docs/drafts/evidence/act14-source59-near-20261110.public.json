@@ -1,0 +1,553 @@
+{
+  "schema": "source59_actual_near_act_development_public_v1",
+  "date_utc": "2026-11-10",
+  "source_code_commit": "27fd4e15609a6d00905ae965b5c418abd6eea274",
+  "data": {
+    "new_actual_expert_episodes": 12,
+    "train_body_identities": 6,
+    "pose_templates": 1,
+    "pose_id": "p000476_a001231_f0023",
+    "targets": [
+      "R3",
+      "L3"
+    ],
+    "overlapping_correcting_e10_windows": 3000,
+    "fine": 579,
+    "recovery": 2421,
+    "raw_bank_windows": 3108,
+    "windows_are_not_demonstrations": true,
+    "core_and_operational_training_eligible": true,
+    "full_auscultation_pass": false,
+    "multimodal_m2_corpus": false,
+    "producer_qualification_sha256": "6791e86bbab107f23f6bc92882f6849de2f60ee761e35d9f363ed0a2dcc1532a",
+    "original_fullbank_cli_exit_receipt_recovered": false,
+    "subsequent_original_cold_replay_and_official_admission_passed": true
+  },
+  "training": {
+    "treatment_new_optimizer_steps": 1000,
+    "control_new_optimizer_steps": 1000,
+    "normal_owners": true,
+    "initialization": "same Source53 warm54, fresh AdamW, no optimizer import",
+    "paired_identity_passed": true,
+    "selected_step": 1000,
+    "selection_method": "fixed_final1000_only",
+    "validation_used_for_selection": false,
+    "treatment_checkpoint_sha256": "cc07f56542dc268c0a56479f9da196ff2f231882a1cf6fb8890657ed957b0b19",
+    "control_checkpoint_sha256": "1433f76c30e76100508b5f2aeafe6531de4765214d8305500b1cd9e2cfa970ce",
+    "control_physical_evaluated": false,
+    "control_not_started_reason": "Treatment did not pass the predeclared Known4 gate; no physical causal comparison is claimed",
+    "treatment_owner_elapsed_s": 338.587849,
+    "treatment_owner_start_utc": "2026-11-10T18:12:47.100237+00:00",
+    "treatment_owner_end_utc": "2026-11-10T18:18:25.688086+00:00",
+    "control_owner_elapsed_s": 338.849154,
+    "control_owner_start_utc": "2026-11-10T18:34:05.935818+00:00",
+    "control_owner_end_utc": "2026-11-10T18:39:44.784972+00:00"
+  },
+  "physical": {
+    "status": "closed",
+    "normal_owner": true,
+    "denominator": 4,
+    "executed": 4,
+    "passed": 3,
+    "infrastructure_negatives": 0,
+    "model_qualified": false,
+    "train_passed": 2,
+    "train_denominator": 2,
+    "development_validation_passed": 1,
+    "development_validation_denominator": 2,
+    "cases": [
+      {
+        "id": "p001120-r3",
+        "subject_id": "p001120",
+        "split": "train",
+        "target_id": "R3",
+        "pose_id": "p000474_a001230_f0000",
+        "qualified_case_pass": true,
+        "success": true,
+        "failure_reason": null,
+        "physical": {
+          "unchanged_physical_gate_passed": true,
+          "metric_source": "Bound existing canonical native qualification; original qualifier recomputes continuous HOLD >= 720 ticks. Point scalars alone do not establish a pass.",
+          "point_force_audit_passed": true,
+          "point_local_plane_audit_passed": true,
+          "continuous_contact_hold_s": 4.729166666666667,
+          "contact_force_peak_N": 4.017601792804077,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 1.49984050581262,
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.002525966614484787,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.990906663280487,
+            "lip_N": 0.0,
+            "retainer_N": 4.017601792804077
+          },
+          "canonical_maximum_force_N": {
+            "carriage_other_N": 0.0,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.990906663280487,
+            "lip_N": 0.0,
+            "retainer_N": 4.017601792804077
+          },
+          "canonical_normal_release_confirm_ticks": 48,
+          "canonical_home_settle_ticks": 120
+        },
+        "runtime": {
+          "probe_wall_s": 1545.4156820470234,
+          "probe_setup_wall_s": 80.05644712701906,
+          "controller_wall_s": 1463.9327215309604,
+          "finalize_and_audit_wall_s": 1.4265133890439756,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 26699,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 111.24583333333334,
+          "worker_wall_s": 1746.6126249399967,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "cpu_request_count": 59,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "expert_l2_fallback": false,
+        "media": {
+          "video": {
+            "file": "assets/act14-source59-known-p001120-r3.actual.mp4",
+            "bytes": 660040,
+            "sha256": "5c218ed37f63b72e7c97769ddcd3e96ea138ba218c177cdbca7a9b58b17f30de"
+          },
+          "poster": {
+            "file": "assets/act14-source59-known-p001120-r3.poster.png",
+            "bytes": 80514,
+            "sha256": "2065a3b60304612d0b9e954d83873d938d7b81f9b3067c718355fd98284467d0"
+          },
+          "full_decode_passed": true,
+          "original_video_bytes_preserved": true,
+          "width": 640,
+          "height": 360,
+          "fps": 10,
+          "frames": 1112,
+          "playback_s": 111.2,
+          "poster_frame": {
+            "physics_row": 13871,
+            "time_s": 57.80000000001903,
+            "video_frame": 577
+          },
+          "poster_selection": "Actual HOLD frame; image alone is not qualification",
+          "first_native_physics_row": 23,
+          "last_native_physics_row": 26687,
+          "native_ticks_between_frames": 24,
+          "native_ticks_after_last_frame": 11,
+          "no_synthesized_frames": true
+        },
+        "receipt_sha256": {
+          "config": "1ed4ac61fda4ec4c7b75b9125cba1a724d95f23991d1e0107218539c63d86977",
+          "native_result": "aff037a7f9df6619b24d7aea96a05a3cb65e12a965e74edd1e15d41a4f81d9dc",
+          "native_complete": "aff037a7f9df6619b24d7aea96a05a3cb65e12a965e74edd1e15d41a4f81d9dc",
+          "worker_result": "b9a618fd0038d548676e5d7204104e516e5beef6e69bf80ca31f7125762ba7ce",
+          "qualification": "c9e1138528f9dc09539d7e7043f1cdca0b710adcf5176cfce76302f02f577508"
+        }
+      },
+      {
+        "id": "p001120-l3",
+        "subject_id": "p001120",
+        "split": "train",
+        "target_id": "L3",
+        "pose_id": "p000474_a001230_f0000",
+        "qualified_case_pass": true,
+        "success": true,
+        "failure_reason": null,
+        "physical": {
+          "unchanged_physical_gate_passed": true,
+          "metric_source": "Bound existing canonical native qualification; original qualifier recomputes continuous HOLD >= 720 ticks. Point scalars alone do not establish a pass.",
+          "point_force_audit_passed": true,
+          "point_local_plane_audit_passed": true,
+          "continuous_contact_hold_s": 4.7375,
+          "contact_force_peak_N": 4.018420007885397,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 1.999654287658838,
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.0024962557945400476,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9890993590649533,
+            "lip_N": 0.0,
+            "retainer_N": 4.018420007885397
+          },
+          "canonical_maximum_force_N": {
+            "carriage_other_N": 0.0,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9890993590649533,
+            "lip_N": 0.0,
+            "retainer_N": 4.018420007885397
+          },
+          "canonical_normal_release_confirm_ticks": 48,
+          "canonical_home_settle_ticks": 120
+        },
+        "runtime": {
+          "probe_wall_s": 1304.826706050022,
+          "probe_setup_wall_s": 82.52249779098202,
+          "controller_wall_s": 1220.8403644260252,
+          "finalize_and_audit_wall_s": 1.4638438330148347,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 22747,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 94.77916666666667,
+          "worker_wall_s": 1493.9600503440015,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "cpu_request_count": 31,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "expert_l2_fallback": false,
+        "media": {
+          "video": {
+            "file": "assets/act14-source59-known-p001120-l3.actual.mp4",
+            "bytes": 650219,
+            "sha256": "e63a4623e8265d3c782d603aa5563efe801446aa198f6a17894a6803f46aafb8"
+          },
+          "poster": {
+            "file": "assets/act14-source59-known-p001120-l3.poster.png",
+            "bytes": 87302,
+            "sha256": "286e4d8a825fa559ebde6c11992fe1dc59ffe837e58432dd97074abee47acb80"
+          },
+          "full_decode_passed": true,
+          "original_video_bytes_preserved": true,
+          "width": 640,
+          "height": 360,
+          "fps": 10,
+          "frames": 947,
+          "playback_s": 94.7,
+          "poster_frame": {
+            "physics_row": 10703,
+            "time_s": 44.60000000000853,
+            "video_frame": 445
+          },
+          "poster_selection": "Actual HOLD frame; image alone is not qualification",
+          "first_native_physics_row": 23,
+          "last_native_physics_row": 22727,
+          "native_ticks_between_frames": 24,
+          "native_ticks_after_last_frame": 19,
+          "no_synthesized_frames": true
+        },
+        "receipt_sha256": {
+          "config": "0c51951fe785c770e2c0b87ec49ed3443fdb267ac37a828bc1cb011ead2e7839",
+          "native_result": "4f5326781e78c09aa8482c624f998ea1a5366be8a02389fc109ce571db2b50af",
+          "native_complete": "4f5326781e78c09aa8482c624f998ea1a5366be8a02389fc109ce571db2b50af",
+          "worker_result": "c609881e679e58c1a9a553b074c33ae39ed2915197814c02d70d732327f1b988",
+          "qualification": "f799beff7e1d0b9e688bb068fa9cf4da0cc16a80cd0d54b8c2e845f238345243"
+        }
+      },
+      {
+        "id": "p000923-r3",
+        "subject_id": "p000923",
+        "split": "validation",
+        "target_id": "R3",
+        "pose_id": "p000474_a001230_f0000",
+        "qualified_case_pass": true,
+        "success": true,
+        "failure_reason": null,
+        "physical": {
+          "unchanged_physical_gate_passed": true,
+          "metric_source": "Bound existing canonical native qualification; original qualifier recomputes continuous HOLD >= 720 ticks. Point scalars alone do not establish a pass.",
+          "point_force_audit_passed": true,
+          "point_local_plane_audit_passed": true,
+          "continuous_contact_hold_s": 4.745833333333334,
+          "contact_force_peak_N": 3.997976630758053,
+          "continuous_force_and_plane_hold_s": 3.0,
+          "maximum_hold_tilt_deg": 1.4994504933808221,
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 0.0025712924543768167,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9894415465566375,
+            "lip_N": 0.0,
+            "retainer_N": 3.997976630758053
+          },
+          "canonical_maximum_force_N": {
+            "carriage_other_N": 0.0,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 3.9894415465566375,
+            "lip_N": 0.0,
+            "retainer_N": 3.997976630758053
+          },
+          "canonical_normal_release_confirm_ticks": 48,
+          "canonical_home_settle_ticks": 120
+        },
+        "runtime": {
+          "probe_wall_s": 1229.2371619250043,
+          "probe_setup_wall_s": 76.54674304201035,
+          "controller_wall_s": 1151.2041392079554,
+          "finalize_and_audit_wall_s": 1.4862796750385314,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 26279,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 109.49583333333334,
+          "worker_wall_s": 1414.971642620978,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "cpu_request_count": 55,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "expert_l2_fallback": false,
+        "media": {
+          "video": {
+            "file": "assets/act14-source59-known-p000923-r3.actual.mp4",
+            "bytes": 635328,
+            "sha256": "d2e451154973b4b2b9d66901868ffa53f6eaa871b6e73abdd0816d3c1ce1e9e1"
+          },
+          "poster": {
+            "file": "assets/act14-source59-known-p000923-r3.poster.png",
+            "bytes": 80665,
+            "sha256": "a11d080f6a44cedd4a4d66e0b34336c409b7d4a3218de1aaebb2f2ec5ded4ef9"
+          },
+          "full_decode_passed": true,
+          "original_video_bytes_preserved": true,
+          "width": 640,
+          "height": 360,
+          "fps": 10,
+          "frames": 1094,
+          "playback_s": 109.4,
+          "poster_frame": {
+            "physics_row": 13463,
+            "time_s": 56.10000000001768,
+            "video_frame": 560
+          },
+          "poster_selection": "Actual HOLD frame; image alone is not qualification",
+          "first_native_physics_row": 23,
+          "last_native_physics_row": 26255,
+          "native_ticks_between_frames": 24,
+          "native_ticks_after_last_frame": 23,
+          "no_synthesized_frames": true
+        },
+        "receipt_sha256": {
+          "config": "c8874343dd4871aa293ccc2d915d6ace049b7a6b480c5520eeb4200abc42b709",
+          "native_result": "4855d291c875686068591072b56e175dfad616eab15bad4a6c190f6c75def510",
+          "native_complete": "4855d291c875686068591072b56e175dfad616eab15bad4a6c190f6c75def510",
+          "worker_result": "d4b3ecd64279c6d4121152b5fda6dfe88110745a9ab238d9df2e75c3068fe9b2",
+          "qualification": "b1cabdeec4d9dd8e55a3afad24e07b2c4acdc0c66e4a9c018c423b2fd3b9ab58"
+        }
+      },
+      {
+        "id": "p000923-l3",
+        "subject_id": "p000923",
+        "split": "validation",
+        "target_id": "L3",
+        "pose_id": "p000474_a001230_f0000",
+        "qualified_case_pass": false,
+        "success": false,
+        "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+        "physical": {
+          "unchanged_physical_gate_passed": false,
+          "metric_source": "Bound existing canonical native qualification; original qualifier recomputes continuous HOLD >= 720 ticks. Point scalars alone do not establish a pass.",
+          "point_force_audit_passed": false,
+          "point_local_plane_audit_passed": false,
+          "continuous_contact_hold_s": 0.0,
+          "contact_force_peak_N": 0.0,
+          "continuous_force_and_plane_hold_s": 0.0,
+          "maximum_hold_tilt_deg": null,
+          "reported_force_audit_maxima": {
+            "carriage_other_N": 0.0,
+            "compression_m": 7.96519472601176e-08,
+            "contact_rim_N": 0.0,
+            "diaphragm_N": 0.0,
+            "forbidden_N": 0.0,
+            "frame_N": 0.0,
+            "hall_N": 0.0,
+            "lip_N": 0.0,
+            "retainer_N": 0.0
+          },
+          "canonical_maximum_force_N": {},
+          "canonical_normal_release_confirm_ticks": null,
+          "canonical_home_settle_ticks": null
+        },
+        "runtime": {
+          "probe_wall_s": 1720.7611916519818,
+          "probe_setup_wall_s": 76.89788891799981,
+          "controller_wall_s": 1642.5234051059815,
+          "finalize_and_audit_wall_s": 1.3398976280004717,
+          "isaac_startup_wall_s": null,
+          "render_capture_encode_wall_s": null,
+          "physics_steps": 29041,
+          "physics_dt_s": 0.004166666666666667,
+          "simulation_s": 121.00416666666666,
+          "worker_wall_s": 1904.6461553759873,
+          "scope": "Probe excludes earlier Kit startup, result serialization and worker teardown; worker wall includes worker lifecycle. Unmeasured clocks remain null."
+        },
+        "cpu_request_count": 241,
+        "cpu_normal": true,
+        "worker_normal": true,
+        "infrastructure_error": false,
+        "expert_l2_fallback": false,
+        "media": {
+          "video": {
+            "file": "assets/act14-source59-known-p000923-l3.actual.mp4",
+            "bytes": 854560,
+            "sha256": "6c08c37ab032f14eba0204a6edda1dcdbf3bd9ddf3ecc1388fecd403b95288fc"
+          },
+          "poster": {
+            "file": "assets/act14-source59-known-p000923-l3.poster.png",
+            "bytes": 84822,
+            "sha256": "0126d30419589f66fd9b3b18e5ea90195c0dccd6d2f43aa95cbf8fe89225bd6a"
+          },
+          "full_decode_passed": true,
+          "original_video_bytes_preserved": true,
+          "width": 640,
+          "height": 360,
+          "fps": 10,
+          "frames": 1210,
+          "playback_s": 121.0,
+          "poster_frame": {
+            "physics_row": 7991,
+            "time_s": 33.299999999999535,
+            "video_frame": 332
+          },
+          "poster_selection": "Closest recorded surface gap; no contact success implied",
+          "first_native_physics_row": 23,
+          "last_native_physics_row": 29039,
+          "native_ticks_between_frames": 24,
+          "native_ticks_after_last_frame": 1,
+          "no_synthesized_frames": true
+        },
+        "receipt_sha256": {
+          "config": "31ee458768d3791adde1b238d5696b9506fe0e491717ceecefd7593b77821384",
+          "native_result": "350f2760c27245fbedf7e010c12bf36d197c04925d0add60be3d6ad9fd8dd4bf",
+          "native_complete": "350f2760c27245fbedf7e010c12bf36d197c04925d0add60be3d6ad9fd8dd4bf",
+          "worker_result": "6eb4cd9cc1ac168e715d5e025698bc0bb53b012f83ffb55318331ce8c1f70d5e",
+          "qualification": "1b2792d72a2de082f8df4008174f5bd50feb32f57ba824082e54b200cd91cfdd"
+        }
+      }
+    ],
+    "independent_qualification_sha256": "04bcabda348525bef89c38e154a3e5e31f98d159dd036d1ae437127275b8ef04",
+    "closed_terminal_sha256": "1b4173f3194c212cc8ca63ad1d64936905a131c05adb545a75cc9288facb6a75",
+    "physical_thresholds_changed": false
+  },
+  "offline": {
+    "original_diagnostic_sha256": "1d084d0827bb05cc93944baead839c294d88edc2c3dfac4a70bcdd4c50b10107",
+    "all54_unchanged": true,
+    "new_optimizer_steps": 0,
+    "new_gpu_owner": false,
+    "mask_protocol": "Only genuine unpadded cells; E10 fixed observed q0, raw relative joint MAE",
+    "hold": "Zero relative action on the identical rows",
+    "rows": [
+      {
+        "e10_hold_mae_mrad": 0.9919508441727689,
+        "e10_mae_mrad": 1.0489025951809259,
+        "first_hold_mae_mrad": 0.33573962767151855,
+        "first_mae_mrad": 1.1008792376549181,
+        "fully_padded_rows": 0,
+        "h20_hold_mae_mrad": 1.7105540874917167,
+        "h20_mae_mrad": 1.129230931636397,
+        "population": "new_near_all_eligible",
+        "rows": 3000,
+        "valid_cells": 59340
+      },
+      {
+        "e10_hold_mae_mrad": 0.9461880409077021,
+        "e10_mae_mrad": 0.8351056648603943,
+        "first_hold_mae_mrad": 0.3204325357777435,
+        "first_mae_mrad": 0.7513996739721741,
+        "fully_padded_rows": 0,
+        "h20_hold_mae_mrad": 1.631397444604286,
+        "h20_mae_mrad": 1.0151784149479572,
+        "population": "new_near_target",
+        "rows": 1500,
+        "target_id": "R3",
+        "valid_cells": 29670
+      },
+      {
+        "e10_hold_mae_mrad": 1.0377136474378355,
+        "e10_mae_mrad": 1.2626995255014577,
+        "first_hold_mae_mrad": 0.35104671956529365,
+        "first_mae_mrad": 1.4503588013376625,
+        "fully_padded_rows": 0,
+        "h20_hold_mae_mrad": 1.7897107303791486,
+        "h20_mae_mrad": 1.243283448324837,
+        "population": "new_near_target",
+        "rows": 1500,
+        "target_id": "L3",
+        "valid_cells": 29670
+      }
+    ],
+    "selection_performed": false,
+    "physical_success_credit": false
+  },
+  "failure": {
+    "case_id": "p000923-l3",
+    "l2_queries": 241,
+    "last_query_sim_s": 120.7999999999723,
+    "last_lateral_mm": 19.269441325996265,
+    "last_normal_coordinate_mm": -22.352264262985848,
+    "prescribed_prepose_gap_mm": 25,
+    "last_full_relative_angle_deg": 1.9110247926785118,
+    "contact_force_peak_N": 0,
+    "qualified_hold_s": 0,
+    "original_l2_timeout_s": 120,
+    "last_query_metric_scope": "Model input reference geometry at the last inference query; not an independent measurement of the terminal TCP."
+  },
+  "scope": {
+    "model": "H2/state17 ACT L2 plus analytic Hall L3",
+    "neural_rgbd_input": false,
+    "neural_hall_input": false,
+    "acoustic_input": false,
+    "prescribed_3d_reference": true,
+    "known_cases_are_reused_development": true,
+    "fresh_opened": false,
+    "fresh_cases_tested": 0,
+    "fresh_success_rate": null,
+    "tenpoint_model_qualified": false,
+    "real_hardware_validated": false,
+    "recordings_context": "Actual learned-policy Isaac simulation recordings; not physical robot recordings",
+    "source59_control_comparison_available": false
+  },
+  "cost": {
+    "total_native_simulation_s": 436.52500000000003,
+    "sum_worker_wall_s": 6560.1904732809635,
+    "sum_probe_wall_s": 5800.240741674032,
+    "whole_owner_wall_s": null,
+    "interpretation": "Worker includes each worker lifecycle; probe excludes earlier Kit startup, serialization and teardown. Sum is not the whole owner or collection/training cost. Unknown clocks remain null."
+  },
+  "next_experiment": {
+    "status": "implementation_only",
+    "question": "Can the existing near TRAIN data actually be fitted?",
+    "probe_new_optimizer_steps": 0,
+    "production_training_started": false,
+    "capacity_probe_is_not_deployable": true,
+    "plan": "Fixed bounded TRAIN-only capacity test, then repair sampling/coverage according to measurements; original physical gate before sealed Fresh"
+  },
+  "historical_article_sha256_before_append": "02d28d8418c8e7cb844a1280edcd701fc9d6139e06648d434beb1d1b1b6594ef",
+  "plot": {
+    "png": {
+      "file": "assets/act14-source59-near-fit-20261110.png",
+      "bytes": 151115,
+      "sha256": "8c0c36faba2b4e3252a8b81a3ee8f80b8376a2d984fbdf8a939d3463c8459e56"
+    },
+    "svg": {
+      "file": "assets/act14-source59-near-fit-20261110.svg",
+      "bytes": 102005,
+      "sha256": "9b985e5d29d9ab646d0e1bf409eebc55aa5178cc1e62c3eecbe69f198f626a37"
+    }
+  }
+}

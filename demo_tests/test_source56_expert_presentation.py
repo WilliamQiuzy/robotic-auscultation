@@ -12,6 +12,7 @@ ENTRY = 'iteration13-source56-expert-data'
 class Source56ExpertPresentation(unittest.TestCase):
     def test_single_append_preserves_the_exact_merged_source53_article(self):
         html = (DRAFT / 'act-recovery-20261106.html').read_text()
+        html = re.sub(r'<section\b[^>]*\bid="iteration14-source59-near-fit".*?</section>\n', '', html, flags=re.S)
         html = re.sub(r'<section\b[^>]*\bid="iteration13-source58-l3-repair".*?</section>\n', '', html, flags=re.S)
         sections = re.findall(r'<section\b[^>]*\bid="' + ENTRY + r'".*?</section>\n', html, re.S)
         self.assertEqual(len(sections), 1)
