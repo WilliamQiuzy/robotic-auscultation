@@ -1,0 +1,148 @@
+{
+  "schema": "act16-source62-fixed-field-public-v1",
+  "historical_article_sha256_before_append": "73e89d574c07cc8fbeed1ed6d0d49bb517ea778b40f090bd79970dde2b454970",
+  "source60_read_only_source59_replay": {
+    "case": "Source59 development L3",
+    "new_optimizer_updates": 0,
+    "target_prepose_offset_mm": 25,
+    "causal_conclusion_established": false,
+    "late_queries": [
+      {
+        "query": 120,
+        "source59_sim_s": 60.30000000002102,
+        "prepose_error_mm": 18.88435365589756,
+        "intended_e10_progress_mm": -0.016351237838108545,
+        "measured_progress_mm": -0.029963975084982053
+      },
+      {
+        "query": 180,
+        "source59_sim_s": 90.30000000000004,
+        "prepose_error_mm": 19.420547938385056,
+        "intended_e10_progress_mm": 0.011973252617082153,
+        "measured_progress_mm": -0.0014591231037570651
+      },
+      {
+        "query": 220,
+        "source59_sim_s": 110.29999999998185,
+        "prepose_error_mm": 19.448580028612778,
+        "intended_e10_progress_mm": 0.013725173691540249,
+        "measured_progress_mm": -0.00039689572271583984
+      },
+      {
+        "query": 241,
+        "source59_sim_s": 120.7999999999723,
+        "prepose_error_mm": 19.45049802830443,
+        "intended_e10_progress_mm": 0.013621487701346524,
+        "measured_progress_mm": null
+      }
+    ]
+  },
+  "source61_train_capacity": {
+    "train_windows": 3000,
+    "new_optimizer_updates": 1000,
+    "actual_draws": 64000,
+    "elapsed_wall_s": 80.16143103002105,
+    "capacity_fit_gate_passed": true,
+    "checkpoint_used_for_source62": false,
+    "l3_e10_mae_mrad": {
+      "before": 1.2627022949250177,
+      "after": 0.44035497853542444,
+      "hold": 1.0377136474378355
+    }
+  },
+  "source62_paired_training": {
+    "same_source59_warm_start": true,
+    "same_training_corpus": true,
+    "same_base_rng_and_n1n2_draws": true,
+    "same_auxiliary_draws": true,
+    "validation_checkpoint_selection": false,
+    "arms": {
+      "near8": {
+        "new_optimizer_updates": 4000,
+        "actual_draws": 256000,
+        "near_draws": 32000,
+        "worker_wall_s": 630.3474819289986,
+        "owner_wall_s": 635.494371
+      },
+      "near16": {
+        "new_optimizer_updates": 4000,
+        "actual_draws": 256000,
+        "near_draws": 64000,
+        "worker_wall_s": 610.6072437170078,
+        "owner_wall_s": 615.569706
+      }
+    }
+  },
+  "source62_cpu_field": {
+    "reused_source": "Source59 development L3",
+    "progress_definition": "Starting translation error to the prescribed prepose minus error at the E10 predicted raw target (forward kinematics). Positive values move toward the prepose.",
+    "l3_teacher_e10_mae_mrad": {
+      "near8": 0.7360584893213393,
+      "near16": 0.5579335329285723
+    },
+    "earlier_query": {
+      "query": 60,
+      "source59_sim_s": 30.2999999999986,
+      "origin_prepose_error_mm": 6.822744683351222,
+      "predicted_e10_progress_mm": {
+        "near8": -0.5990968542319832,
+        "near16": 0.6725036329770777
+      }
+    },
+    "late_queries": [
+      {
+        "query": 120,
+        "source59_sim_s": 60.30000000002102,
+        "origin_prepose_error_mm": 18.88435365589756,
+        "predicted_e10_progress_mm": {
+          "near8": -0.28528914542498285,
+          "near16": -0.3513498038570404
+        }
+      },
+      {
+        "query": 180,
+        "source59_sim_s": 90.30000000000004,
+        "origin_prepose_error_mm": 19.420547938385056,
+        "predicted_e10_progress_mm": {
+          "near8": -0.2559290943944177,
+          "near16": -0.33104300037530265
+        }
+      },
+      {
+        "query": 220,
+        "source59_sim_s": 110.29999999998185,
+        "origin_prepose_error_mm": 19.448580028612778,
+        "predicted_e10_progress_mm": {
+          "near8": -0.25402420975696316,
+          "near16": -0.32952205853001004
+        }
+      },
+      {
+        "query": 241,
+        "source59_sim_s": 120.7999999999723,
+        "origin_prepose_error_mm": 19.45049802830443,
+        "predicted_e10_progress_mm": {
+          "near8": -0.25427969713271636,
+          "near16": -0.32948797540784014
+        }
+      }
+    ],
+    "veto_prepose_error_above_mm": 2,
+    "veto_progress_at_or_below_mm": 0.025,
+    "near16_veto": true
+  },
+  "scope": {
+    "new_isaac_cases": 0,
+    "new_isaac_recordings": 0,
+    "fresh_opened": false,
+    "fresh_cases_tested": 0,
+    "model_qualified": false
+  },
+  "plot": {
+    "file": "assets/act15-source61-capacity-and-source59-l3-field-20261110.png",
+    "bytes": 128726,
+    "sha256": "41dddab2caf4b714e0cb0cca7154504748b82a7fd682d1229e9901b884d8fa49",
+    "left_scope": "Source61 TRAIN-only capacity diagnostic",
+    "right_scope": "Source60 read-only analysis of the historical Source59 development L3 case"
+  }
+}
