@@ -1,0 +1,105 @@
+{
+  "schema": "wam_act17_a40_closed_known4_public_v1",
+  "code_commit": "e4eb14cd5df9dc70129046d76db731856cb68d5a",
+  "original_weight_sha256": "aca7b65697694815b001be82520f86fa907cc719ed8db3f4c985b8a3916946e8",
+  "original_known4_batch_sha256": "0340176e5506bc6b286143f31f9b4429670cd748966fdb3bef338e72863567bd",
+  "original_guard_sha256": "35305b9151a1da5046023c4462acbfb50aadc2d997b073f4acabc356bd16dc5d",
+  "resource_samples": 589,
+  "resource_errors": 0,
+  "normal_owner": true,
+  "planned_known_cases": 4,
+  "executed_known_cases": 4,
+  "physical_successes": 3,
+  "infrastructure_errors": 0,
+  "fresh_scenarios_executed": 0,
+  "validation_l3": {
+    "closest_lateral": {
+      "query": 55,
+      "observed_at_s": 28.04999999999873,
+      "phase": "APPROACH",
+      "lateral_error_mm": 4.074676535729365,
+      "normal_prepose_error_mm": 1.603356819004368
+    },
+    "last": {
+      "query": 240,
+      "observed_at_s": 120.54999999997253,
+      "phase": "APPROACH",
+      "lateral_error_mm": 21.844693371253125,
+      "normal_prepose_error_mm": 0.6277625947804615
+    },
+    "handoff_lateral_limit_mm": 2,
+    "approach_deadline_s": 120,
+    "query_count": 240
+  },
+  "cases": [
+    {
+      "id": "p001120-r3",
+      "target_id": "R3",
+      "split": "train",
+      "handoff_sim_s": 29.220833333331996,
+      "l2_handoff_passed": true,
+      "physical_gate_passed": true,
+      "infrastructure_error": false,
+      "failure_reason": null,
+      "first_contact_sim_s": 49.06250000001208,
+      "hold_s": 3.0,
+      "returned_home": true,
+      "C_peak_N": 4.013079128485897
+    },
+    {
+      "id": "p001120-l3",
+      "target_id": "L3",
+      "split": "train",
+      "handoff_sim_s": 27.69999999999875,
+      "l2_handoff_passed": true,
+      "physical_gate_passed": true,
+      "infrastructure_error": false,
+      "failure_reason": null,
+      "first_contact_sim_s": 47.01666666667712,
+      "hold_s": 3.0,
+      "returned_home": true,
+      "C_peak_N": 4.009637497105712
+    },
+    {
+      "id": "p000923-r3",
+      "target_id": "R3",
+      "split": "validation",
+      "handoff_sim_s": 30.829166666665238,
+      "l2_handoff_passed": true,
+      "physical_gate_passed": true,
+      "infrastructure_error": false,
+      "failure_reason": null,
+      "first_contact_sim_s": 50.56666666667994,
+      "hold_s": 3.0,
+      "returned_home": true,
+      "C_peak_N": 4.001703157067533
+    },
+    {
+      "id": "p000923-l3",
+      "target_id": "L3",
+      "split": "validation",
+      "handoff_sim_s": null,
+      "l2_handoff_passed": false,
+      "physical_gate_passed": false,
+      "infrastructure_error": false,
+      "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+      "first_contact_sim_s": null,
+      "hold_s": 0.0,
+      "returned_home": false,
+      "C_peak_N": 0.0
+    }
+  ],
+  "figure": {
+    "file": "assets/act17-a40-validation-l3-trace-20261111.png",
+    "bytes": 75922,
+    "sha256": "741c151c7a534790b2d08f98955299145ec53123ea83badeb2d019ad08d280d7"
+  },
+  "video": {
+    "file": "assets/act17-a40-closed-val-l3.actual.mp4",
+    "bytes": 872731,
+    "sha256": "e21508beb8034670b6ee74f2ec293df72b49c52ce3fb80022c9e3748643ef4e1",
+    "frames": 1210,
+    "fps": 10
+  },
+  "terminal_sha256": "f93ab23dcd03e56cbc37084ce819f1fcb3b82ae91e20f0b30f4fa7675f444ff7"
+}
