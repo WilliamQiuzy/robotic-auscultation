@@ -47,6 +47,7 @@ class ACT11Source48Preparation(unittest.TestCase):
         source58 = re.findall(r'<section\b[^>]*\bid="iteration13-source58-l3-repair".*?</section>\n', self.html, re.S)
         self.assertEqual(len(source58), 1, 'Source58 must remain one separate append')
         historical = self.html.replace(self.section, '', 1).replace(v10[0], '', 1).replace(v11[0], '', 1).replace(source56[0], '', 1).replace(source58[0], '', 1).replace(source59[0], '', 1).replace(source62[0], '', 1)
+        historical = re.sub(r'<section\b[^>]*\bid="iteration17-source67-known4".*?</section>\n', '', historical, flags=re.S)
         self.assertEqual(hashlib.sha256(historical.encode()).hexdigest(), BASE_ARTICLE_SHA256)
         self.assertEqual(self.html.count('id="' + ENTRY + '"'), 1)
         self.assertLess(self.html.index('id="iteration11-source45-data"'), self.html.index('id="' + ENTRY + '"'))

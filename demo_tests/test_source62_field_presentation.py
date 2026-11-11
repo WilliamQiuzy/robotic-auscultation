@@ -22,7 +22,8 @@ class Source62FieldPresentation(unittest.TestCase):
         self.evidence = json.loads(self.public_json)
 
     def test_append_preserves_the_full_source59_article(self):
-        prior = self.html.replace(self.section, '', 1).encode()
+        html = re.sub(r'<section\b[^>]*\bid="iteration17-source67-known4".*?</section>\n', '', self.html, flags=re.S)
+        prior = html.replace(self.section, '', 1).encode()
         self.assertEqual(hashlib.sha256(prior).hexdigest(), BASE_ARTICLE_SHA256)
         self.assertEqual(self.evidence['historical_article_sha256_before_append'], BASE_ARTICLE_SHA256)
         self.assertLess(self.html.index('id="iteration14-source59-near-fit"'), self.html.index('id="' + ENTRY + '"'))

@@ -13,6 +13,7 @@ class Source53Presentation(unittest.TestCase):
     def test_one_append_preserves_the_exact_source52_article(self):
         html = (DRAFT / 'act-recovery-20261106.html').read_text()
         html = re.sub(r'<section\b[^>]*\bid="iteration16-source62-field".*?</section>\n', '', html, flags=re.S)
+        html = re.sub(r'<section\b[^>]*\bid="iteration17-source67-known4".*?</section>\n', '', html, flags=re.S)
         html = re.sub(r'<section\b[^>]*\bid="iteration14-source59-near-fit".*?</section>\n', '', html, flags=re.S)
         # A later, separately tested append must not alter this historical snapshot.
         html = re.sub(r'<section\b[^>]*\bid="iteration13-source56-expert-data".*?</section>\n', '', html, flags=re.S)
