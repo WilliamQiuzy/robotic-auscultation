@@ -18,7 +18,8 @@ class Source59EvidencePresentation(unittest.TestCase):
     def test_append_preserves_entire_previously_approved_article(self):
         sections = re.findall(r'<section\b[^>]*\bid="'+ENTRY+r'".*?</section>\n', self.html, re.S)
         self.assertEqual(len(sections), 1)
-        prior = self.html.replace(sections[0], '', 1).encode()
+        html = re.sub(r'<section\b[^>]*\bid="iteration16-source62-field".*?</section>\n', '', self.html, flags=re.S)
+        prior = html.replace(sections[0], '', 1).encode()
         self.assertEqual(hashlib.sha256(prior).hexdigest(), self.e['historical_article_sha256_before_append'])
         self.assertEqual(hashlib.sha256(prior).hexdigest(), '02d28d8418c8e7cb844a1280edcd701fc9d6139e06648d434beb1d1b1b6594ef')
         self.assertLess(self.html.index('id="iteration13-source58-l3-repair"'), self.html.index('id="'+ENTRY+'"'))
