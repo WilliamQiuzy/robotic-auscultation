@@ -19,6 +19,7 @@ class Source59EvidencePresentation(unittest.TestCase):
         sections = re.findall(r'<section\b[^>]*\bid="'+ENTRY+r'".*?</section>\n', self.html, re.S)
         self.assertEqual(len(sections), 1)
         html = re.sub(r'<section\b[^>]*\bid="iteration16-source62-field".*?</section>\n', '', self.html, flags=re.S)
+        html = re.sub(r'<section\b[^>]*\bid="iteration17-source67-known4".*?</section>\n', '', html, flags=re.S)
         prior = html.replace(sections[0], '', 1).encode()
         self.assertEqual(hashlib.sha256(prior).hexdigest(), self.e['historical_article_sha256_before_append'])
         self.assertEqual(hashlib.sha256(prior).hexdigest(), '02d28d8418c8e7cb844a1280edcd701fc9d6139e06648d434beb1d1b1b6594ef')
