@@ -1,0 +1,195 @@
+{
+  "schema": "wam_act17_matched_recovery_public_evidence_v1",
+  "date_utc": "2026-11-11",
+  "source_commit": "33b085aeb929ec6f699cc5f80e2f31c316e07b50",
+  "expert_original_completed_cases": 4,
+  "expert_original_full_e10": 79,
+  "expert_repair_completed_cases": 1,
+  "expert_repair_full_e10": 21,
+  "eligible_l3_e10_by_case": {
+    "l3-p474-outward": 11,
+    "l3-p474-tilt": 0,
+    "l3-p476-tangent": 1,
+    "l3-p476-tangent-repair": 12
+  },
+  "training_distinct_recovery_windows": 23,
+  "training_steps": 4000,
+  "initial_tensor_count": 54,
+  "preserved_draws": 224000,
+  "recovery_draws": 32000,
+  "replacement_draws_by_pose": {
+    "p000474_a001230_f0000": 16000,
+    "p000476_a001231_f0023": 16000
+  },
+  "late_development_l3_prediction": [
+    {
+      "query": 120,
+      "observed_at_s": 60.30000000002102,
+      "prepose_error_mm": 18.88435365589756,
+      "act17_mm": 0.1000750326390687,
+      "source59_mm": -0.016351237838108545,
+      "near16_mm": -0.3513498038570404
+    },
+    {
+      "query": 180,
+      "observed_at_s": 90.30000000000004,
+      "prepose_error_mm": 19.420547938385056,
+      "act17_mm": 0.11269656526567928,
+      "source59_mm": 0.011973252617082153,
+      "near16_mm": -0.33104300037530265
+    },
+    {
+      "query": 220,
+      "observed_at_s": 110.29999999998185,
+      "prepose_error_mm": 19.448580028612778,
+      "act17_mm": 0.11393725929640652,
+      "source59_mm": 0.013725173691540249,
+      "near16_mm": -0.32952205853001004
+    },
+    {
+      "query": 241,
+      "observed_at_s": 120.7999999999723,
+      "prepose_error_mm": 19.45049802830443,
+      "act17_mm": 0.11382664430078293,
+      "source59_mm": 0.013621487701346524,
+      "near16_mm": -0.32948797540784014
+    }
+  ],
+  "stationary_gate_rejected": false,
+  "phase_prediction_only": true,
+  "r3_last_queries": [
+    {
+      "subject": "p001120",
+      "query": 30,
+      "act17_mm": 2.145659387827102,
+      "source59_mm": 1.977763779382272,
+      "near16_mm": 2.3964646925410733
+    },
+    {
+      "subject": "p000923",
+      "query": 30,
+      "act17_mm": 2.2938050829938987,
+      "source59_mm": 2.066338678352622,
+      "near16_mm": 2.4208820501784203
+    }
+  ],
+  "planned_known_cases": 4,
+  "independently_verified_complete_cases": 3,
+  "known_batch_valid": false,
+  "fresh_scenarios_executed": 0,
+  "resource_interruptions": 2,
+  "resource_query_timeout_s": 15,
+  "scope": "Two given-pose points. ACT H2/state17 L2 plus analytic Hall L3. Isaac only.",
+  "cases": [
+    {
+      "id": "p001120-r3",
+      "subject_id": "p001120",
+      "split": "train",
+      "target_id": "R3",
+      "individual_case_pass": true,
+      "handoff_sim_s": 29.220833333331996,
+      "first_contact_sim_s": 49.06250000001208,
+      "qualified_hold_s": 3.000000000000044,
+      "retainer_peak_N": 4.013079128485897,
+      "forbidden_peak_N": 0.0,
+      "lip_peak_N": 0.0,
+      "release_confirm_ticks": 48,
+      "home_settle_ticks": 120,
+      "simulation_s": 110.18333333333334,
+      "worker_wall_s": 1329.3730303950142,
+      "max_hold_tilt_deg": 1.4998220460244474,
+      "video": {
+        "file": "act17-source67-known-p001120-r3.actual.mp4",
+        "bytes": 648025,
+        "sha256": "cc14b173f30d72ea0fbd1540d2a6194b1151e51618804d9b5105e9c52237d687",
+        "frames": 1101,
+        "fps": 10,
+        "camera": "/World/RobotCam"
+      },
+      "qualification_sha256": "1003e268182e117828170c5136fe5dfcb4398ac17601866159e6d5be92b8e38a"
+    },
+    {
+      "id": "p001120-l3",
+      "subject_id": "p001120",
+      "split": "train",
+      "target_id": "L3",
+      "individual_case_pass": true,
+      "handoff_sim_s": 27.69999999999875,
+      "first_contact_sim_s": 47.01666666667712,
+      "qualified_hold_s": 3.000000000000044,
+      "retainer_peak_N": 4.009637497105712,
+      "forbidden_peak_N": 0.0,
+      "lip_peak_N": 0.0,
+      "release_confirm_ticks": 48,
+      "home_settle_ticks": 120,
+      "simulation_s": 104.69583333333334,
+      "worker_wall_s": 1680.501273870992,
+      "max_hold_tilt_deg": 1.9994927863430487,
+      "video": {
+        "file": "act17-source67-known-p001120-l3.actual.mp4",
+        "bytes": 721800,
+        "sha256": "5b0400f2d03cf8c08525a22de1210f1da9bba9dbd99f7fae2adf15f94ed57ffd",
+        "frames": 1046,
+        "fps": 10,
+        "camera": "/World/RobotCam"
+      },
+      "qualification_sha256": "d5b735491edd00f9f44f4368c4a6c8347175243e4d1f56cd47b365aebe561906"
+    },
+    {
+      "id": "p000923-r3",
+      "subject_id": "p000923",
+      "split": "validation",
+      "target_id": "R3",
+      "individual_case_pass": true,
+      "handoff_sim_s": 30.829166666665238,
+      "first_contact_sim_s": 50.56666666667994,
+      "qualified_hold_s": 3.000000000000044,
+      "retainer_peak_N": 4.001703157067533,
+      "forbidden_peak_N": 0.0,
+      "lip_peak_N": 0.0,
+      "release_confirm_ticks": 48,
+      "home_settle_ticks": 120,
+      "simulation_s": 111.72083333333333,
+      "worker_wall_s": 1404.4368523050216,
+      "max_hold_tilt_deg": 1.499536432527373,
+      "video": {
+        "file": "act17-source67-known-p000923-r3.actual.mp4",
+        "bytes": 650091,
+        "sha256": "a715839388491e953013bf4b8511494971a6b7ef74195e658d5066192931cdba",
+        "frames": 1117,
+        "fps": 10,
+        "camera": "/World/RobotCam"
+      },
+      "qualification_sha256": "7f3defa2b4a690255b0211f6d7e57c10d4cb065adafc15335c9402d8f33aa04d"
+    },
+    {
+      "id": "p000923-l3",
+      "subject_id": "p000923",
+      "split": "validation",
+      "target_id": "L3",
+      "individual_case_pass": null,
+      "physical_result_available": false,
+      "last_partial_sim_s": 11.549999999999665,
+      "partial_accepted_queries": 22,
+      "last_partial_phase": "FREE"
+    }
+  ],
+  "figure": {
+    "file": "act17-source67-fixed-l3-direction-20261111.png",
+    "bytes": 73077,
+    "sha256": "521c4008d2b41ac65e127bac47c6005b44209a5459fefc18bd4e260d3726c4b3"
+  },
+  "poster": {
+    "file": "act17-source67-known-p000923-r3.poster.png",
+    "bytes": 81569,
+    "sha256": "21aa438f5cd57af1641b2846a2b0f2e7278b398a03328dea72cad5909034d852",
+    "frame": {
+      "video_frame": 576,
+      "physics_row": 13847,
+      "time_s": 57.70000000001895
+    }
+  },
+  "independent_case_audit_sha256": "bf559d6781d1c0f1f6e0412432c83867068148fca99b4ad6b40be7f22190bea3",
+  "training_audit_sha256": "a9f6ce4c3a4dfb1bc418dcc618b2cfc205f5583ba205dab0f7113645245180ef",
+  "cpu_replay_sha256": "b27cb10305791062d5455245886f142f3788209b0e473c2997016f6a2f5f32a9"
+}
