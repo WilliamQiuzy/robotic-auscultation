@@ -437,6 +437,13 @@
 <video id="iteration17-signed-l3-validation-video" controls playsinline preload="metadata" width="640" height="360" aria-label="Source69 在 Isaac 里实际接近 L3 并超时"><source src="assets/act17-source69-validation-l3.actual.mp4" type="video/mp4"></video>
 <figcaption class="caption-2">实际运行的 1,210 帧，10 fps。录像保留从 home 到接近超时的原仿真时间。</figcaption></figure>
 </div>
+<div id="iteration17-l3-entry-reweight" style="scroll-margin-top:var(--spacing-900)">
+<h3 class="heading-4">L3 走偏前加权对照</h3>
+<p class="body-3">Source71 从同一份 Source59 初始权重训练 4,000 步。每批保留 Source69 的 60 个原抽样位置，包括 p476 恢复数据。其余 4 个位置改为抽取 11 个已通过物理审计的 p474 名义接近窗口。逐步核对共保留 240,000 次抽样，更换 16,000 次。</p>
+<p class="body-3">固定在 Source69 实际记录的验证 L3 状态上，E10 推进在第一次走偏的查询从 −0.216 mm 降到 −0.379 mm，第 60 次查询从 −1.652 mm 降到 −3.206 mm。两项 CPU 方向门均未通过。Source71 因此未进入 Isaac Known4，Fresh32 保持封存。</p>
+<p class="body-3">p474 的合格训练窗口在第 55、56 次查询附近只匹配同一条，第 57–60 次查询均为 0。随后在同坐姿的训练人体实际轨迹上选出四个接近时刻，使用原 240 Hz 插值器和原关节、速度、加速度及 jerk 界限做了 431 次数值预览。在最晚的时刻，0.50 秒扰动的候选可覆盖第 55–58 次查询附近。随后从同一状态扫描 512 个固定种子与幅度组合，464 个通过 1 秒指令预览的原数值限制。取这些预览的 0.75 秒截面时，第 55–60 次查询均有近邻候选。预览没有执行碰撞检查或物理接触，也没有产出专家标签。</p>
+<p class="body-3">另行回放了 Source69 的四条推理请求序列，CPU 预测逐值一致。两个原本退出超时的序列各空闲 120 秒后再退出，实测为 1.53 秒和 1.17 秒，均在原 2 秒门限内。Isaac 现场退出超时仍待定位。</p>
+</div>
 </section>
 <section class="exp-section reveal" id="evaluation" aria-labelledby="evaluation-title"><p class="eyebrow caption-3">Frozen before training</p><h2 class="heading-3" id="evaluation-title">Eight fresh identities.<br>Thirty two declared scenarios.</h2>
 <p class="body-3">The earlier p001030/p000956 benchmark is now development visible. A new deterministic cohort excludes all previously reconstructed development and evaluation identities. Its eight body identities, two known seated poses and R3/L3 define <strong>32 scenarios per system</strong>, frozen before new training. These identities enter neither optimization nor checkpoint selection.</p>
