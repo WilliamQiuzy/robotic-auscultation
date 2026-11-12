@@ -444,6 +444,21 @@
 <p class="body-3">p474 的合格训练窗口在第 55、56 次查询附近只匹配同一条，第 57–60 次查询均为 0。随后在同坐姿的训练人体实际轨迹上选出四个接近时刻，使用原 240 Hz 插值器和原关节、速度、加速度及 jerk 界限做了 431 次数值预览。在最晚的时刻，0.50 秒扰动的候选可覆盖第 55–58 次查询附近。随后从同一状态扫描 512 个固定种子与幅度组合，464 个通过 1 秒指令预览的原数值限制。取这些预览的 0.75 秒截面时，第 55–60 次查询均有近邻候选。预览没有执行碰撞检查或物理接触，也没有产出专家标签。</p>
 <p class="body-3">另行回放了 Source69 的四条推理请求序列，CPU 预测逐值一致。两个原本退出超时的序列各空闲 120 秒后再退出，实测为 1.53 秒和 1.17 秒，均在原 2 秒门限内。Isaac 现场退出超时仍待定位。</p>
 </div>
+<div id="iteration17-l3-late-physical-recovery" style="scroll-margin-top:var(--spacing-900)">
+<h3 class="heading-4">L3 走偏后的实际专家恢复</h3>
+<p class="body-3">在两次 Isaac 试验中，原始 0.75 秒扰动的目标在 26.65 秒触发 J3 指令限位，两次均在扰动执行前终止。随后用原姿态限制和 3 mm 全网格碰撞检查筛选扰动。两个新种子的 180 个 240 Hz 指令逐条通过离线筛选，并在 Isaac 内通过原生路径检查后执行。</p>
+<p class="body-3">两例从 home 启动，复现相同训练人体的已记录接近动作。扰动结束后，解析专家从实测状态重新规划。两例均完成交接、接触、连续保持 3.00 秒、卸力和归位。独立审计核对了实际指令、相机观测和标签时间，并保留了 26 个恢复窗口，其中 8 个具有完整的 10 步有效纠正动作。</p>
+<div class="table-scroll exp-table" role="region" tabindex="0" aria-label="L3 实际专家恢复结果"><table><thead><tr><th class="caption-3" scope="col">训练人体 L3 扰动</th><th class="caption-3" scope="col">接触环峰值 / 禁止部件受力</th><th class="caption-3" scope="col">保持期最大倾角</th><th class="caption-3" scope="col">完整 E10 纠正窗口</th></tr></thead><tbody>
+<tr><th class="body-6" scope="row">910108 · 0.015 rad</th><td class="body-6">4.012 N / 0 N</td><td class="body-6">2.00°</td><td class="body-6">4</td></tr>
+<tr><th class="body-6" scope="row">910909 · 0.030 rad</th><td class="body-6">4.021 N / 0 N</td><td class="body-6">2.00°</td><td class="body-6">4</td></tr>
+</tbody></table></div>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">L3 扰动 910108</strong><span class="caption-2">解析专家 · Isaac 原始相机</span></div>
+<video id="iteration17-l3-late-910108" controls playsinline preload="metadata" width="256" height="144" aria-label="Isaac 中第一条 L3 扰动恢复完整回合"><source src="assets/act17-source75-p474-l3-910108.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">2,114 帧，20 fps，覆盖 105.70 秒仿真相机时间。</figcaption></figure>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">L3 扰动 910909</strong><span class="caption-2">解析专家 · Isaac 原始相机</span></div>
+<video id="iteration17-l3-late-910909" controls playsinline preload="metadata" width="256" height="144" aria-label="Isaac 中第二条 L3 扰动恢复完整回合"><source src="assets/act17-source75-p474-l3-910909.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">2,115 帧，20 fps，覆盖 105.75 秒仿真相机时间。</figcaption></figure>
+</div>
 </section>
 <section class="exp-section reveal" id="evaluation" aria-labelledby="evaluation-title"><p class="eyebrow caption-3">Frozen before training</p><h2 class="heading-3" id="evaluation-title">Eight fresh identities.<br>Thirty two declared scenarios.</h2>
 <p class="body-3">The earlier p001030/p000956 benchmark is now development visible. A new deterministic cohort excludes all previously reconstructed development and evaluation identities. Its eight body identities, two known seated poses and R3/L3 define <strong>32 scenarios per system</strong>, frozen before new training. These identities enter neither optimization nor checkpoint selection.</p>
