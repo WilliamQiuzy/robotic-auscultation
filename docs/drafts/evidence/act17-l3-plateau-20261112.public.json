@@ -1,0 +1,404 @@
+{
+  "schema": "wam_public_act17_l3_plateau_v1",
+  "capture_audit_sha256": "c80a96ca70ddec277460bc1a815bfec9a4909afa327d1e2d775c786b08031f15",
+  "source_commit": "9753b726ef4939fbb212b95ca97a1a767163506b",
+  "attempted": 2,
+  "qualified": 2,
+  "usable_e10": 23,
+  "qualified_recovery_windows": 41,
+  "cases": [
+    {
+      "id": "p000833-p474-l3",
+      "subject": "p000833",
+      "actual_plateau": {
+        "angle_deg": 2.8495139174225135,
+        "distance_to_requested_mm": 0.004156948883890932,
+        "lateral_mm": 19.24919290134404,
+        "prepose_error_mm": 19.431037385879538,
+        "xyz_prepose_mm": [
+          -6.299517334610916,
+          -18.189214076042163,
+          2.6521286805686226
+        ]
+      },
+      "windows": 20,
+      "full_e10_toward": 11,
+      "hold_s": 3.0,
+      "peak_contact_ring_N": 4.029888064884327,
+      "forbidden_peak_N": 0.0,
+      "hold_max_tilt_deg": 1.5009369681202749,
+      "wall_s": 1756.4800461829873,
+      "sim_s": 103.13333333333334,
+      "final_phase": "DONE",
+      "video": {
+        "sha256": "2d0d54bee979011a97eabacfe435ad0cdb24ded4f4e7d8e281dbda525c84b378",
+        "bytes": 314161,
+        "frames": 2062,
+        "duration_s": 103.1,
+        "source": "actual_isaac_approved_rgb_20hz",
+        "asset": "act17-l3-plateau-p000833-p474-l3.actual.mp4"
+      }
+    },
+    {
+      "id": "p000742-p474-l3",
+      "subject": "p000742",
+      "actual_plateau": {
+        "angle_deg": 2.849600945460392,
+        "distance_to_requested_mm": 0.0025712825939724084,
+        "lateral_mm": 19.250919953506095,
+        "prepose_error_mm": 19.432715342973175,
+        "xyz_prepose_mm": [
+          -6.3001859059569405,
+          -18.190810224030173,
+          2.651887355210613
+        ]
+      },
+      "windows": 21,
+      "full_e10_toward": 12,
+      "hold_s": 3.0,
+      "peak_contact_ring_N": 4.0201377233609605,
+      "forbidden_peak_N": 0.0,
+      "hold_max_tilt_deg": 2.0005949420549576,
+      "wall_s": 1772.5514912080253,
+      "sim_s": 106.875,
+      "final_phase": "DONE",
+      "video": {
+        "sha256": "43673866282759139637878872de606e91e2216441ac02940c313efae25d36d6",
+        "bytes": 336214,
+        "frames": 2137,
+        "duration_s": 106.85,
+        "source": "actual_isaac_approved_rgb_20hz",
+        "asset": "act17-l3-plateau-p000742-p474-l3.actual.mp4"
+      }
+    }
+  ],
+  "candidate": {
+    "source_commit": "afe1aad430a14785a77cfa0ba25034eda95f5b0f",
+    "candidate": "Source83",
+    "selected_windows": [
+      {
+        "body": "p000833",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000833-p474-l3",
+        "source_sample_index": 0,
+        "offset_mm": [
+          -6.299404199642955,
+          -18.189296057655934,
+          2.6520770881295377
+        ],
+        "progress_mm": 19.43107040774397
+      },
+      {
+        "body": "p000833",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000833-p474-l3",
+        "source_sample_index": 3,
+        "offset_mm": [
+          -6.354155949403676,
+          -17.851515752452613,
+          2.5065040045087543
+        ],
+        "progress_mm": 19.11372477515484
+      },
+      {
+        "body": "p000833",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000833-p474-l3",
+        "source_sample_index": 6,
+        "offset_mm": [
+          -5.892665676588771,
+          -16.191564032071106,
+          1.94232381866322
+        ],
+        "progress_mm": 17.33963310934577
+      },
+      {
+        "body": "p000833",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000833-p474-l3",
+        "source_sample_index": 10,
+        "offset_mm": [
+          -4.226264999938974,
+          -11.556012437721002,
+          1.4697723164416656
+        ],
+        "progress_mm": 12.392052693191285
+      },
+      {
+        "body": "p000742",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000742-p474-l3",
+        "source_sample_index": 0,
+        "offset_mm": [
+          -6.300239407281773,
+          -18.19062551501219,
+          2.6517642049696253
+        ],
+        "progress_mm": 19.432542977461665
+      },
+      {
+        "body": "p000742",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000742-p474-l3",
+        "source_sample_index": 3,
+        "offset_mm": [
+          -6.37268110785321,
+          -17.889477693679627,
+          2.4959704122865487
+        ],
+        "progress_mm": 19.153964208757245
+      },
+      {
+        "body": "p000742",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000742-p474-l3",
+        "source_sample_index": 7,
+        "offset_mm": [
+          -5.510088035994211,
+          -15.47520509506346,
+          1.8563126159287653
+        ],
+        "progress_mm": 16.531453033203665
+      },
+      {
+        "body": "p000742",
+        "pose": "p000474_a001230_f0000",
+        "target": "L3",
+        "capture_case": "p000742-p474-l3",
+        "source_sample_index": 11,
+        "offset_mm": [
+          -3.9781101728065686,
+          -10.88168997928407,
+          1.4412805600076268
+        ],
+        "progress_mm": 11.67535125716794
+      }
+    ],
+    "old_p474_retained": 3,
+    "p476_retained": 11,
+    "actual_training_steps": 4000,
+    "training_audit_sha256": "5a4e07af079b9628e91cd8827aded5d9858931655726c4af722e0bdbb7d85aa6",
+    "unchanged_draws": 240000,
+    "changed_draws": 16000,
+    "cpu_direction_sha256": "4abdafe4028c110887a3ea6c91b54b6da790bfab7d3d7b85890f0d23c9599132",
+    "stationary_l3": [
+      {
+        "index": 120,
+        "intended_progress_mm": 0.7297869827389185,
+        "source59_intended_progress_mm": -0.016351237838108545
+      },
+      {
+        "index": 180,
+        "intended_progress_mm": 0.7696814819589584,
+        "source59_intended_progress_mm": 0.011973252617082153
+      },
+      {
+        "index": 220,
+        "intended_progress_mm": 0.772152385713845,
+        "source59_intended_progress_mm": 0.013725173691540249
+      },
+      {
+        "index": 241,
+        "intended_progress_mm": 0.772160647427885,
+        "source59_intended_progress_mm": 0.013621487701346524
+      }
+    ],
+    "measured_l3": [
+      {
+        "index": 119,
+        "intended_e10_progress_mm": 0.6508149761086379,
+        "prepose_error_mm": 21.83065775329693,
+        "sim_s": 60.05000000002082,
+        "source67_e10_progress_mm": 0.014256295397395036
+      },
+      {
+        "index": 180,
+        "intended_e10_progress_mm": 0.6519197312510805,
+        "prepose_error_mm": 21.854127484994564,
+        "sim_s": 90.54999999999981,
+        "source67_e10_progress_mm": 0.020633188492997334
+      },
+      {
+        "index": 220,
+        "intended_e10_progress_mm": 0.6517564997536383,
+        "prepose_error_mm": 21.8538913608591,
+        "sim_s": 110.54999999998162,
+        "source67_e10_progress_mm": 0.02076207777636796
+      },
+      {
+        "index": 240,
+        "intended_e10_progress_mm": 0.651617271866666,
+        "prepose_error_mm": 21.85371168381877,
+        "sim_s": 120.54999999997253,
+        "source67_e10_progress_mm": 0.020545684400204323
+      }
+    ],
+    "source69_measured_l3": [
+      {
+        "index": 120,
+        "intended_e10_progress_mm": 0.255829813772241,
+        "prepose_error_mm": 18.385053086092537,
+        "sim_s": 60.20000000002094,
+        "source69_e10_progress_mm": -0.004716384886570779
+      },
+      {
+        "index": 180,
+        "intended_e10_progress_mm": 0.2700281110740299,
+        "prepose_error_mm": 18.516835961630097,
+        "sim_s": 90.20000000000013,
+        "source69_e10_progress_mm": 0.005943919124650421
+      },
+      {
+        "index": 220,
+        "intended_e10_progress_mm": 0.27073244375890937,
+        "prepose_error_mm": 18.52109306770912,
+        "sim_s": 110.19999999998194,
+        "source69_e10_progress_mm": 0.005368798410088971
+      },
+      {
+        "index": 241,
+        "intended_e10_progress_mm": 0.2666059916335506,
+        "prepose_error_mm": 18.522884127058983,
+        "sim_s": 120.69999999997239,
+        "source69_e10_progress_mm": 0.0026864200019538487
+      }
+    ],
+    "stationary_l3_veto": false,
+    "measured_l3_veto": false
+  },
+  "known4": {
+    "qualification_sha256": "39c0b35611b71142875bc027639257f75adaf083baef164e6d896453539abe63",
+    "actual_attempted": 4,
+    "qualified": 1,
+    "infrastructure_errors": 2,
+    "outcomes": [
+      {
+        "id": "p001120-r3",
+        "split": "train",
+        "target": "R3",
+        "physical_qualified": true,
+        "infrastructure_error": false,
+        "handoff_success_count": 1,
+        "final_phase": "DONE",
+        "hold_s": 3.0,
+        "simulation_s": 111.22083333333333,
+        "wall_s": 1470.9552748990245,
+        "forbidden_peak_N": 0.0,
+        "failure_reason": null,
+        "native_result_sha256": "bab6ec7aa98bfd198af9d2009cf3018b5f88b6cb2fd10133bf3baaef73aa7cac",
+        "qualification_sha256": "138ed0465f3488f05bbd64e228c2813a9dfd9081964f700f5b2c4e2425a667b1"
+      },
+      {
+        "id": "p001120-l3",
+        "split": "train",
+        "target": "L3",
+        "physical_qualified": false,
+        "infrastructure_error": true,
+        "handoff_success_count": 0,
+        "final_phase": "APPROACH",
+        "hold_s": 0.0,
+        "simulation_s": 121.00416666666666,
+        "wall_s": null,
+        "forbidden_peak_N": 0.0,
+        "failure_reason": "Pilot CPU child did not exit normally",
+        "native_result_sha256": "faffb7d92eb0d6b184b532e2075031755558a2f0fe6aae5f747c33ce5fd05b4d",
+        "qualification_sha256": null,
+        "native_motion_failure_reason": "M2 L2 clock/120 second deadline failed",
+        "video": {
+          "asset": "act17-source83-known4-p001120-l3.actual.mp4",
+          "sha256": "dd29f5d1001d6c9c195d14b6c7e85b09f3c759c6ec5d846cad166e726e06f570",
+          "bytes": 806265,
+          "frames": 1210,
+          "fps": 10
+        }
+      },
+      {
+        "id": "p000923-r3",
+        "split": "validation",
+        "target": "R3",
+        "physical_qualified": false,
+        "infrastructure_error": true,
+        "handoff_success_count": 1,
+        "final_phase": "DONE",
+        "hold_s": 3.0,
+        "simulation_s": 106.94166666666666,
+        "wall_s": null,
+        "forbidden_peak_N": 0.0,
+        "failure_reason": "Pilot CPU child did not exit normally",
+        "native_result_sha256": "913e208cb00fdd46a9f259e4c30d2201899afc4ea627c2b321ab54543dfda744",
+        "qualification_sha256": null
+      },
+      {
+        "id": "p000923-l3",
+        "split": "validation",
+        "target": "L3",
+        "physical_qualified": false,
+        "infrastructure_error": false,
+        "handoff_success_count": 0,
+        "final_phase": "APPROACH",
+        "hold_s": 0.0,
+        "simulation_s": 121.00416666666666,
+        "wall_s": 1844.5642482680269,
+        "forbidden_peak_N": 0.0,
+        "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+        "native_result_sha256": "be35617d9a90dabdead5fc92d44047ef02269989cd7fddee7c0305bfffed251f",
+        "qualification_sha256": "4e606cad8589eff848ec4caeaebabb15dc3e347ca5b91fc36e9d30ad0d1cb0c5",
+        "native_motion_failure_reason": "M2 L2 clock/120 second deadline failed",
+        "video": {
+          "asset": "act17-source83-known4-p000923-l3.actual.mp4",
+          "sha256": "60c83534e26b277815741671c6ee60eb27d8677784b588e87db61300cb9924d2",
+          "bytes": 822083,
+          "frames": 1210,
+          "fps": 10
+        }
+      }
+    ],
+    "fresh_opened": false,
+    "l3_trajectory_diagnostic_sha256": "e9082a9f19c4625d324365b68a273b2e8b84ae46d89f03196ee72b6747c18722",
+    "handoff_thresholds": {
+      "tangent_m": 0.002,
+      "gap_error_m": 0.001,
+      "full_rotation_rad": 0.06981317007977318,
+      "speed_m_s": 0.01
+    },
+    "l3_last_accepted_requests": {
+      "p000923-l3": {
+        "query": 241,
+        "time_s": 120.74999999997235,
+        "lateral_mm": 8.76437167811146,
+        "normal_error_mm": 3.5633934606981756,
+        "prepose_error_mm": 9.461077310107386,
+        "e10_progress_mm": 0.007645296647529776
+      },
+      "p001120-l3": {
+        "query": 241,
+        "time_s": 120.64999999997244,
+        "lateral_mm": 1.1166460487463037,
+        "normal_error_mm": 1.4781831326660908,
+        "prepose_error_mm": 1.8525452145303418,
+        "e10_progress_mm": -0.00024510891501239307
+      }
+    },
+    "new_training_origin_prepose_error_mm": [
+      11.675351258308863,
+      19.43254297860259
+    ],
+    "r3_fixed_offline_progress_median_mm": {
+      "p001120": {
+        "source69": 460.8735360253836,
+        "source83": 454.226135884426
+      },
+      "p000923": {
+        "source69": 444.5329567416764,
+        "source83": 436.26373538828943
+      }
+    }
+  }
+}
