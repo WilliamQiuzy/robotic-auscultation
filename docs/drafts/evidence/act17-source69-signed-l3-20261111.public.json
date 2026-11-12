@@ -1,0 +1,247 @@
+{
+  "scope": "Two-point Isaac development study. Fresh32 sealed. The ACT policy runs L2; contact uses the original analytic Hall controller.",
+  "capture": {
+    "physically_and_label_audited": 3,
+    "attempted": 3,
+    "hold_s": 3.0,
+    "new_eligible_E10_windows": {
+      "p474_near": 0,
+      "p476_retreat": 0,
+      "p476_plateau": 11
+    },
+    "retained_original_p474_windows": 11
+  },
+  "training": {
+    "completed_updates": 4000,
+    "unchanged_56_positions": 224000,
+    "unchanged_p474_draws": 16000,
+    "changed_p476_draws": 16000
+  },
+  "historical_observations_cpu": [
+    {
+      "index": 55,
+      "intended_e10_progress_mm": -1.424436162929089,
+      "prepose_error_mm": 4.378783159722605,
+      "sim_s": 28.04999999999873,
+      "source67_e10_progress_mm": -0.36170511235087943
+    },
+    {
+      "index": 56,
+      "intended_e10_progress_mm": -1.993055702880974,
+      "prepose_error_mm": 4.4697363821399625,
+      "sim_s": 28.5499999999987,
+      "source67_e10_progress_mm": -0.8000614203468341
+    },
+    {
+      "index": 57,
+      "intended_e10_progress_mm": -2.258908818458657,
+      "prepose_error_mm": 4.873876093299409,
+      "sim_s": 29.049999999998672,
+      "source67_e10_progress_mm": -1.138125787009189
+    },
+    {
+      "index": 58,
+      "intended_e10_progress_mm": -2.2721170050487496,
+      "prepose_error_mm": 5.526366425181177,
+      "sim_s": 29.549999999998644,
+      "source67_e10_progress_mm": -1.2725784952509827
+    },
+    {
+      "index": 60,
+      "intended_e10_progress_mm": -1.804269664791505,
+      "prepose_error_mm": 7.190918930599453,
+      "sim_s": 30.549999999998587,
+      "source67_e10_progress_mm": -1.2379062856902987
+    },
+    {
+      "index": 61,
+      "intended_e10_progress_mm": -1.5235204896639,
+      "prepose_error_mm": 8.1381586288106,
+      "sim_s": 31.04999999999856,
+      "source67_e10_progress_mm": -1.1959724498781217
+    },
+    {
+      "index": 64,
+      "intended_e10_progress_mm": -0.8501334689606956,
+      "prepose_error_mm": 10.822228398475655,
+      "sim_s": 32.54999999999894,
+      "source67_e10_progress_mm": -0.8978471526326679
+    },
+    {
+      "index": 70,
+      "intended_e10_progress_mm": -0.29366795774672205,
+      "prepose_error_mm": 14.638552298690605,
+      "sim_s": 35.550000000001326,
+      "source67_e10_progress_mm": -0.5914979050868681
+    },
+    {
+      "index": 119,
+      "intended_e10_progress_mm": 0.41504217094983886,
+      "prepose_error_mm": 21.83065775329693,
+      "sim_s": 60.05000000002082,
+      "source67_e10_progress_mm": 0.014256295397395036
+    },
+    {
+      "index": 180,
+      "intended_e10_progress_mm": 0.41345236511899586,
+      "prepose_error_mm": 21.854127484994564,
+      "sim_s": 90.54999999999981,
+      "source67_e10_progress_mm": 0.020633188492997334
+    },
+    {
+      "index": 220,
+      "intended_e10_progress_mm": 0.41347408736183056,
+      "prepose_error_mm": 21.8538913608591,
+      "sim_s": 110.54999999998162,
+      "source67_e10_progress_mm": 0.02076207777636796
+    },
+    {
+      "index": 240,
+      "intended_e10_progress_mm": 0.41329028136086876,
+      "prepose_error_mm": 21.85371168381877,
+      "sim_s": 120.54999999997253,
+      "source67_e10_progress_mm": 0.020545684400204323
+    }
+  ],
+  "known4": {
+    "fixed_denominator": 4,
+    "executed_cases": 4,
+    "physical_successes": 1,
+    "infrastructure_errors": 2,
+    "fresh_opened": false
+  },
+  "known4_cases": [
+    {
+      "id": "p001120-r3",
+      "split": "train",
+      "target": "R3",
+      "qualified": true,
+      "handoff": true,
+      "hold_s": 3.0,
+      "controller_motion_complete": true,
+      "contact_peak_N": 4.018354378418961,
+      "failure_reason": null,
+      "cpu_exit": {
+        "normal": true,
+        "code": 0,
+        "signals": [],
+        "requests": 50
+      }
+    },
+    {
+      "id": "p001120-l3",
+      "split": "train",
+      "target": "L3",
+      "qualified": false,
+      "handoff": true,
+      "hold_s": 3.0,
+      "controller_motion_complete": true,
+      "contact_peak_N": 4.009393903420034,
+      "failure_reason": "Pilot CPU child did not exit normally",
+      "cpu_exit": {
+        "normal": false,
+        "code": -15,
+        "signals": [
+          "SIGTERM"
+        ],
+        "requests": 54
+      }
+    },
+    {
+      "id": "p000923-r3",
+      "split": "validation",
+      "target": "R3",
+      "qualified": false,
+      "handoff": true,
+      "hold_s": 3.0,
+      "controller_motion_complete": true,
+      "contact_peak_N": 4.000867469603052,
+      "failure_reason": "Pilot CPU child did not exit normally",
+      "cpu_exit": {
+        "normal": false,
+        "code": -15,
+        "signals": [
+          "SIGTERM"
+        ],
+        "requests": 47
+      }
+    },
+    {
+      "id": "p000923-l3",
+      "split": "validation",
+      "target": "L3",
+      "qualified": false,
+      "handoff": false,
+      "hold_s": 0.0,
+      "controller_motion_complete": false,
+      "contact_peak_N": 0.0,
+      "failure_reason": "L3: M2 L2 clock/120 second deadline failed",
+      "cpu_exit": {
+        "normal": true,
+        "code": 0,
+        "signals": [],
+        "requests": 241
+      }
+    }
+  ],
+  "known4_run": {
+    "normal_owner": true,
+    "gpu_released": true,
+    "resource_guard_errors": 0,
+    "preflight_cpu_eof_s": 1.1671684249304235
+  },
+  "validation_l3": {
+    "count": 241,
+    "closest_lateral": {
+      "query": 53,
+      "sim_s": 26.699999999998806,
+      "xyz_mm": [
+        -2.120357401389884,
+        3.5396488479465282,
+        0.8976973378518558
+      ],
+      "lateral_mm": 4.126139779066876,
+      "prepose_error_mm": 4.222663849607775,
+      "proposed_e10_progress_mm": -0.2155596396766546,
+      "measured_to_next_query_mm": -0.17987047622063468
+    },
+    "last": {
+      "query": 241,
+      "sim_s": 120.69999999997239,
+      "xyz_mm": [
+        -6.233463872478831,
+        -17.383685836385027,
+        1.4313040476504248
+      ],
+      "lateral_mm": 18.467501322800338,
+      "prepose_error_mm": 18.52288412705896,
+      "proposed_e10_progress_mm": 0.0026864200019289797
+    },
+    "late_medians": {
+      "lateral_mm": 18.46125351250781,
+      "prepose_error_mm": 18.51676613281768,
+      "proposed_e10_progress_mm": 0.003811704493026369,
+      "measured_to_next_query_mm": -0.0008013867971676802
+    },
+    "late_queries": 122,
+    "failure_reason": "L3: M2 L2 clock/120 second deadline failed"
+  },
+  "fresh32_scenarios_executed": 0,
+  "assets": {
+    "coverage": {
+      "file": "act17-source69-signed-l3-coverage.png",
+      "bytes": 114967,
+      "sha256": "cc013f14607c09cb6166742c85e24d18a7578ac1a4fdb1a63b992b67c8d43b2f"
+    },
+    "expert": {
+      "file": "act17-source69-p476-expert-recovery.actual.mp4",
+      "bytes": 672952,
+      "sha256": "bff17c32a16859aaff477a966dac657e5f090a2aa82498141d71688e45b439cd"
+    },
+    "validation_l3": {
+      "file": "act17-source69-validation-l3.actual.mp4",
+      "bytes": 849283,
+      "sha256": "855616584d04d9d8a4855356dde78d66cd3efd358d095666da6a083318bb9d1c"
+    }
+  }
+}
