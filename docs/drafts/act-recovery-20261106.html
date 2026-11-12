@@ -416,6 +416,27 @@
 <p class="body-3">验证 L3 在仿真 28.05 秒时，已记录的最小横向误差为 <strong>4.07 mm</strong>，交接要求为 2 mm 以内。最后一次查询的横向误差为 <strong>21.84 mm</strong>，随后触发 L2 的 120 秒时限。该回合没有交接、接触、保持或归位资格，Fresh32 保持封存。<a href="evidence/act17-a40-closed-known4-20261111.public.json">逐例闭环证据</a>。</p>
 <figure class="exp-chart"><div class="exp-plot-scroll" role="region" tabindex="0" aria-label="验证 L3 实测横向误差，可横向滚动"><img src="assets/act17-a40-validation-l3-trace-20261111.png" width="1411" height="697" loading="lazy" alt="横向误差先降至 4.07 毫米，随后增至 21.84 毫米；原交接要求 2 毫米以内。"></div><figcaption class="body-6">曲线来自实际闭环查询时的测量状态。<a href="assets/act17-a40-closed-val-l3.actual.mp4">打开完整 Isaac 录像</a>。</figcaption></figure>
 </div>
+<div id="iteration17-signed-l3-recovery" style="scroll-margin-top:var(--spacing-900)">
+<h3 class="heading-4">补 L3 走偏后的专家恢复数据</h3>
+<p class="body-3">把验证 L3 实际走过的状态投影到听诊点坐标系。上一轮入训的 23 个恢复窗口中，三个偏离区域的覆盖数为 0。新的三个训练人体回合都通过物理审计并保持接触 3.00 秒。只有 p476 的后段偏移回合提供了 11 个完整且朝预接触目标推进的 E10 窗口。</p>
+<figure class="exp-chart"><div class="exp-plot-scroll" role="region" tabindex="0" aria-label="验证 L3 实测偏移与训练覆盖，可横向滚动"><img src="assets/act17-source69-signed-l3-coverage.png" width="1925" height="924" loading="lazy" alt="验证 L3 的实测横向轨迹、训练候选的 CPU 预览及上一轮 ACT17 恢复窗口数量"></div><figcaption class="caption-2">实线和圆点来自旧 ACT17 在 Isaac 的实际轨迹。空心菱形是三次训练人体扰动的 CPU 预览。</figcaption></figure>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">p476 后段偏移恢复</strong><span class="caption-2">解析专家 · Isaac 原始相机</span></div>
+<video id="iteration17-signed-l3-expert-video" controls playsinline preload="metadata" width="256" height="144" aria-label="Isaac 中 p476 训练人体的 L3 专家恢复回合"><source src="assets/act17-source69-p476-expert-recovery.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">相机原始帧共 2,222 帧，20 fps，覆盖 111.10 秒仿真。该回合的独立审计确认了接触、保持和归位。</figcaption></figure>
+<p class="body-3">Source69 从相同的 Source59 初始权重完成 4,000 步。逐步核对确认，和上一轮相比，224,000 次原批次抽样与 16,000 次 p474 恢复抽样完全一致，只更换了 16,000 次 p476 抽样。</p>
+<p class="body-3">在旧 ACT17 实际到达的四个后段状态上，Source69 的 E10 预测推进从每块 0.014–0.021 mm 增到 0.413–0.415 mm。走偏初段的八个状态仍预测远离目标，最差为 −2.27 mm。这两个数来自固定历史观测上的 CPU 推理，物理闭环由 Known4 单独验收。</p>
+<p class="body-3">A40 上的 Known4 四例全部执行，<strong>1/4 通过独立验收</strong>。训练 L3 和验证 R3 的原生记录均显示接触、保持和归位完成，但两个 ACT 推理子进程都超出退出时限并收到 SIGTERM，因此这两例验收无效。</p>
+<div class="table-scroll exp-table" role="region" tabindex="0" aria-label="Source69 Known4 逐例结果"><table><thead><tr><th class="caption-3" scope="col">身体 / 用途 / 点位</th><th class="caption-3" scope="col">Isaac 记录</th><th class="caption-3" scope="col">独立验收</th></tr></thead><tbody>
+<tr><th class="body-6" scope="row">p001120 / TRAIN / R3</th><td class="body-6">已交接、接触、保持 3.00 秒并归位</td><td class="body-6">通过</td></tr>
+<tr><th class="body-6" scope="row">p001120 / TRAIN / L3</th><td class="body-6">已交接、接触、保持 3.00 秒并归位</td><td class="body-6">CPU 子进程退出超时，验收无效</td></tr>
+<tr><th class="body-6" scope="row">p000923 / 开发验证 / R3</th><td class="body-6">已交接、接触、保持 3.00 秒并归位</td><td class="body-6">CPU 子进程退出超时，验收无效</td></tr>
+<tr><th class="body-6" scope="row">p000923 / 开发验证 / L3</th><td class="body-6">未交接，未进入接触</td><td class="body-6">L2 接近超时</td></tr>
+</tbody></table></div>
+<p class="body-3">验证 L3 最接近时横向误差为 4.13 mm，仍在 2 mm 交接范围外。末次查询为 18.47 mm，触发原 L2 120 秒时限。Source69 在自己闭环进入的后段状态上，E10 推进中位数只有 0.0038 mm，实测下一查询几乎原地不动。Fresh32 保持封存。<a href="evidence/act17-source69-signed-l3-20261111.public.json">查看训练抽样、方向复核及逐例结果</a>。</p>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">验证 L3 的完整接近超时</strong><span class="caption-2">Source69 ACT · Isaac 原始相机</span></div>
+<video id="iteration17-signed-l3-validation-video" controls playsinline preload="metadata" width="640" height="360" aria-label="Source69 在 Isaac 里实际接近 L3 并超时"><source src="assets/act17-source69-validation-l3.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">实际运行的 1,210 帧，10 fps。录像保留从 home 到接近超时的原仿真时间。</figcaption></figure>
+</div>
 </section>
 <section class="exp-section reveal" id="evaluation" aria-labelledby="evaluation-title"><p class="eyebrow caption-3">Frozen before training</p><h2 class="heading-3" id="evaluation-title">Eight fresh identities.<br>Thirty two declared scenarios.</h2>
 <p class="body-3">The earlier p001030/p000956 benchmark is now development visible. A new deterministic cohort excludes all previously reconstructed development and evaluation identities. Its eight body identities, two known seated poses and R3/L3 define <strong>32 scenarios per system</strong>, frozen before new training. These identities enter neither optimization nor checkpoint selection.</p>
