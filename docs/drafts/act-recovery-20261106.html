@@ -499,6 +499,43 @@
 <video id="act17-source83-known4-p000923-l3" controls playsinline preload="metadata" width="640" height="360" aria-label="Source83 在 Isaac 上执行 p000923 的 L3"><source src="assets/act17-source83-known4-p000923-l3.actual.mp4" type="video/mp4"></video>
 <figcaption class="caption-2">1,210 帧，10 fps。未交接，接近达原 120 秒时限。</figcaption></figure>
 </div>
+<div id="iteration17-l3-normal-gap-recovery" style="scroll-margin-top:var(--spacing-900)">
+<h3 class="heading-4">横向已对齐后的 L3 法向纠正</h3>
+<p class="body-3">在同两个训练人体上复现横向误差不超过 2 mm、法向偏差为 1.5–3 mm 的状态。解析专家从实测状态重新规划。两例均按原标准交接、接触、保持、卸力并归位。</p>
+<div class="table-scroll exp-table" role="region" tabindex="0" aria-label="两例实际法向恢复和物理验收"><table><thead><tr><th class="caption-3" scope="col">训练人体</th><th class="caption-3" scope="col">实测横向误差</th><th class="caption-3" scope="col">实测法向误差</th><th class="caption-3" scope="col">合格法向窗口</th><th class="caption-3" scope="col">连续保持</th><th class="caption-3" scope="col">接触环峰值 / 禁止部件</th></tr></thead><tbody>
+<tr><th class="body-6" scope="row">p000833</th><td class="body-6">1.13 mm</td><td class="body-6">1.80 mm</td><td class="body-6">5</td><td class="body-6">3.00 s</td><td class="body-6">4.018 N / 0 N</td></tr>
+<tr><th class="body-6" scope="row">p000742</th><td class="body-6">1.26 mm</td><td class="body-6">2.75 mm</td><td class="body-6">7</td><td class="body-6">3.00 s</td><td class="body-6">4.060 N / 0 N</td></tr>
+</tbody></table></div>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">p000833 · L3 法向纠正</strong><span class="caption-2">解析专家 · Isaac 原始相机</span></div>
+<video id="iteration17-l3-normal-gap-p000833" controls playsinline preload="metadata" width="256" height="144" aria-label="p000833 在 Isaac 实际执行 L3 法向纠正"><source src="assets/act17-l3-normal-gap-p000833-p474-l3.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">2,042 帧，20 fps，覆盖 102.10 秒仿真相机时间。录像保留从 home 到纠正、接触和归位的全过程。</figcaption></figure>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">p000742 · L3 法向纠正</strong><span class="caption-2">解析专家 · Isaac 原始相机</span></div>
+<video id="iteration17-l3-normal-gap-p000742" controls playsinline preload="metadata" width="256" height="144" aria-label="p000742 在 Isaac 实际执行 L3 法向纠正"><source src="assets/act17-l3-normal-gap-p000742-p474-l3.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">2,108 帧，20 fps，覆盖 105.40 秒仿真相机时间。录像保留从 home 到纠正、接触和归位的全过程。</figcaption></figure>
+<p class="body-3"><a href="evidence/act17-l3-normal-gap-20261112.public.json">查看实验数据和录像校验值</a>。</p>
+<h4 class="heading-5">固定 4,000 步的 ACT 对照</h4>
+<p class="body-3">Source88 与 Source83 使用同一 Source59 初始权重、同一损失和逐步相同的抽样索引。22 个恢复样本位置中替换 4 个，两个训练人体各 2 个。4 个窗口分别包含 9、5、9 和 3 个实际动作，后续缺失动作由掩码排除。</p>
+<p class="body-3">在 Source83 的冻结验证观测中，横向误差 1.72 mm、法向误差 2.81 mm 的那一次查询，10 步预测的法向推进从 −0.066 mm 变为 +0.073 mm。该对照只使用已记录观测。真实交接和接触以 Isaac 结果为准。</p>
+<h4 class="heading-5">Source88 的 Isaac Known4 和 CPU 退出</h4>
+<p class="body-3">四例全部执行，2/4 通过独立物理验收。本轮未达到 4/4，Fresh32 保持封存。四例 CPU 子进程均以状态码 0 正常退出，耗时 0.665–1.166 秒，全部满足原 2 秒门限。</p>
+<div class="table-scroll exp-table" role="region" tabindex="0" aria-label="Source88 Known4 实测闭环和 CPU 退出"><table><thead><tr><th class="caption-3" scope="col">场景</th><th class="caption-3" scope="col">实际执行</th><th class="caption-3" scope="col">接触保持</th><th class="caption-3" scope="col">CPU 退出</th><th class="caption-3" scope="col">独立验收</th></tr></thead><tbody>
+<tr><th class="body-6" scope="row">p001120 / R3</th><td class="body-6">已交接、接触、保持、卸力并归位</td><td class="body-6">3.00 s</td><td class="body-6">0.966 s</td><td class="body-6">通过</td></tr>
+<tr><th class="body-6" scope="row">p001120 / L3</th><td class="body-6">未交接，接近达原 120 秒时限</td><td class="body-6">0.00 s</td><td class="body-6">1.166 s</td><td class="body-6">未通过</td></tr>
+<tr><th class="body-6" scope="row">p000923 / R3</th><td class="body-6">已交接、接触、保持、卸力并归位</td><td class="body-6">3.00 s</td><td class="body-6">0.765 s</td><td class="body-6">通过</td></tr>
+<tr><th class="body-6" scope="row">p000923 / L3</th><td class="body-6">未交接，接近达原 120 秒时限</td><td class="body-6">0.00 s</td><td class="body-6">0.665 s</td><td class="body-6">未通过</td></tr>
+</tbody></table></div>
+<p class="body-3">p001120-l3 末次查询的横向误差为 0.91 mm，法向误差为 1.24 mm。验证人体 L3 最接近时的横向误差为 3.30 mm、法向误差为 2.90 mm。末次查询横向误差为 12.89 mm、法向误差为 3.57 mm。</p>
+<figure class="exp-recording"><img src="assets/act17-source88-known4-l3-error-20261112.png" loading="lazy" width="1760" height="800" alt="Source83 和 Source88 实际执行两个 L3 场景的横向和法向误差对比"><figcaption class="caption-2">两代策略在 Isaac 的实际查询状态。虚线为原交接距离上限。</figcaption></figure>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">p001120 · ACT L3</strong><span class="caption-2">Source88 · Isaac 原始相机</span></div>
+<video id="act17-source88-known4-p001120-l3" controls playsinline preload="metadata" width="640" height="360" aria-label="Source88 在 Isaac 实际执行 p001120 的 L3"><source src="assets/act17-source88-known4-p001120-l3.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">1,210 帧，10 fps。未交接，接近达原 120 秒时限。</figcaption></figure>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">p000923 · ACT R3</strong><span class="caption-2">Source88 · Isaac 原始相机</span></div>
+<video id="act17-source88-known4-p000923-r3" controls playsinline preload="metadata" width="640" height="360" aria-label="Source88 在 Isaac 实际执行 p000923 的 R3"><source src="assets/act17-source88-known4-p000923-r3.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">1,052 帧，10 fps。已交接、接触、保持、卸力并归位。</figcaption></figure>
+<figure class="exp-recording"><div class="video-top"><strong class="title-3">p000923 · ACT L3</strong><span class="caption-2">Source88 · Isaac 原始相机</span></div>
+<video id="act17-source88-known4-p000923-l3" controls playsinline preload="metadata" width="640" height="360" aria-label="Source88 在 Isaac 实际执行 p000923 的 L3"><source src="assets/act17-source88-known4-p000923-l3.actual.mp4" type="video/mp4"></video>
+<figcaption class="caption-2">1,210 帧，10 fps。未交接，接近达原 120 秒时限。</figcaption></figure>
+</div>
 </section>
 <section class="exp-section reveal" id="evaluation" aria-labelledby="evaluation-title"><p class="eyebrow caption-3">Frozen before training</p><h2 class="heading-3" id="evaluation-title">Eight fresh identities.<br>Thirty two declared scenarios.</h2>
 <p class="body-3">The earlier p001030/p000956 benchmark is now development visible. A new deterministic cohort excludes all previously reconstructed development and evaluation identities. Its eight body identities, two known seated poses and R3/L3 define <strong>32 scenarios per system</strong>, frozen before new training. These identities enter neither optimization nor checkpoint selection.</p>
