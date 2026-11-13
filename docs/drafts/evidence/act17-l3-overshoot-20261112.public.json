@@ -1,0 +1,248 @@
+{
+  "schema": "wam_act17_source97_overshoot_public_v1",
+  "captures": [
+    {
+      "subject": "p000833",
+      "profile": "brake",
+      "qualified": true,
+      "corrective_windows": 7,
+      "hold_s": 3.0,
+      "forbidden_peak_N": 0.0,
+      "parked_tangent_mm": 0.6672335893900126,
+      "parked_normal_mm": 0.4392421329763724,
+      "actual_handoff_s": 29.3,
+      "failure": null,
+      "audit_error": null,
+      "motion_witness": {
+        "first_speed_mm_s": 4.878257417539258,
+        "first_tick": 6732,
+        "last_tick": 6828,
+        "min_speed_ratio": 0.8385268204116164
+      },
+      "run_sha256": "93be703cc8c3e837b34369494f5eadc013db4fabcf0d00099c3ae51d034043c8",
+      "video": {
+        "asset": "act17-l3-overshoot-p000833-p474-l3-brake.actual.mp4",
+        "sha256": "05953509411ae91e64124f8712ba6393a8ae182b679a3beb689949474c94a9bd",
+        "frames": 2051,
+        "fps": 20
+      }
+    },
+    {
+      "subject": "p000742",
+      "profile": "brake",
+      "qualified": true,
+      "corrective_windows": 7,
+      "hold_s": 3.0,
+      "forbidden_peak_N": 0.0,
+      "parked_tangent_mm": 0.7317190817615579,
+      "parked_normal_mm": 0.38931282896021574,
+      "actual_handoff_s": 30.483333333333334,
+      "failure": null,
+      "audit_error": null,
+      "motion_witness": {
+        "first_speed_mm_s": 4.682539586355237,
+        "first_tick": 7020,
+        "last_tick": 7140,
+        "min_speed_ratio": 0.8656308319491972
+      },
+      "run_sha256": "5489ae22253d7df53e0f53f08da652f891bd85cb4a2bbe12a0fe6fdc845d88b8"
+    },
+    {
+      "subject": "p000833",
+      "profile": "reverse",
+      "qualified": true,
+      "corrective_windows": 9,
+      "hold_s": 3.0,
+      "forbidden_peak_N": 0.0,
+      "parked_tangent_mm": 0.6905445496994815,
+      "parked_normal_mm": 0.46049384500112395,
+      "actual_handoff_s": 30.270833333333332,
+      "failure": null,
+      "audit_error": null,
+      "motion_witness": {
+        "first_tick": 6960,
+        "last_tick": 7056,
+        "overshoot_mm": 1.970913776638117,
+        "peak_index": 4,
+        "recovered_mm": 0.4560562537467314
+      },
+      "run_sha256": "c1ee6ae57033c14768b14eaa65296187db42e539ab8beae3d98449b882fdfc23"
+    },
+    {
+      "subject": "p000742",
+      "profile": "reverse",
+      "qualified": true,
+      "corrective_windows": 9,
+      "hold_s": 3.0,
+      "forbidden_peak_N": 0.0,
+      "parked_tangent_mm": 0.36480564263624604,
+      "parked_normal_mm": 0.32815147429305497,
+      "actual_handoff_s": 31.441666666666666,
+      "failure": null,
+      "audit_error": null,
+      "motion_witness": {
+        "first_tick": 7248,
+        "last_tick": 7344,
+        "overshoot_mm": 1.9356848527945723,
+        "peak_index": 5,
+        "recovered_mm": 0.4135587422268374
+      },
+      "run_sha256": "51ce24508e814213977e20e295a7b9281be2cd12109667ec8075373bbab98831",
+      "video": {
+        "asset": "act17-l3-overshoot-p000742-p474-l3-reverse.actual.mp4",
+        "sha256": "a899f3daaa7e07ac7a80763988f5d607497e4b3764e5dfe5376c3693f4b3a96b",
+        "frames": 2144,
+        "fps": 20
+      }
+    }
+  ],
+  "windows_by_profile": {
+    "brake": 14,
+    "reverse": 18
+  },
+  "capture_audit_sha256": "54e3d4709a1f97f6a0c8621d5db91ae50672681816927e61d7d99ac7f2d2e6d9",
+  "training": {
+    "steps": 4000,
+    "unchanged_slots": 18,
+    "changed_slots": [
+      1,
+      5,
+      8,
+      9
+    ],
+    "checkpoint_sha256": "359ffd0447badd43a58b4b8c5ac81de3cf56d9b46e8609d8a6b5ef57177f7e25"
+  },
+  "known4": {
+    "attempted": 4,
+    "passed": 3,
+    "qualification_sha256": "ee62475c9fadcf963e30dd9f7b4f7cdaa0266d5e443a01636f53181edee2c1af",
+    "cpu_exit_limit_s": 2,
+    "outcomes": [
+      {
+        "id": "p001120-r3",
+        "split": "train",
+        "passed": true,
+        "cpu_normal": true,
+        "cpu_exit_s": 0.8667584789218381,
+        "hold_s": 3.0,
+        "final_phase": "DONE",
+        "handoff": 1,
+        "failure": null,
+        "forbidden_N": 0.0
+      },
+      {
+        "id": "p001120-l3",
+        "split": "train",
+        "passed": true,
+        "cpu_normal": true,
+        "cpu_exit_s": 0.8166989739984274,
+        "hold_s": 3.0,
+        "final_phase": "DONE",
+        "handoff": 1,
+        "failure": null,
+        "forbidden_N": 0.0,
+        "video": {
+          "asset": "act17-source97-known4-p001120-l3.actual.mp4",
+          "sha256": "603581bb4d10ee6ee6f92cbaa65290f4ae4cadefcc27785364b22860c34c9f1b",
+          "frames": 1030,
+          "fps": 10
+        }
+      },
+      {
+        "id": "p000923-r3",
+        "split": "validation",
+        "passed": true,
+        "cpu_normal": true,
+        "cpu_exit_s": 0.7669858309673145,
+        "hold_s": 3.0,
+        "final_phase": "DONE",
+        "handoff": 1,
+        "failure": null,
+        "forbidden_N": 0.0
+      },
+      {
+        "id": "p000923-l3",
+        "split": "validation",
+        "passed": false,
+        "cpu_normal": true,
+        "cpu_exit_s": 0.8168904049089178,
+        "hold_s": 0.0,
+        "final_phase": "APPROACH",
+        "handoff": 0,
+        "failure": "L3: M2 L2 clock/120 second deadline failed",
+        "forbidden_N": 0.0,
+        "video": {
+          "asset": "act17-source97-known4-p000923-l3.actual.mp4",
+          "sha256": "b4595d7b34b6450964cefe868f67a07c127b412c95d6bb2e5286b8cedc1e7de3",
+          "frames": 1210,
+          "fps": 10
+        }
+      }
+    ],
+    "l3": [
+      {
+        "case": "p001120-l3",
+        "closest": {
+          "query": 50,
+          "sim_s": 25.149999999998894,
+          "offset_mm": [
+            -2.8642115983399314,
+            2.8272048224431146,
+            0.2968615220974753
+          ],
+          "lateral_mm": 4.024524218850048,
+          "normal_error_mm": 0.2968615220974753,
+          "prepose_error_mm": 4.035458084457404
+        },
+        "last": {
+          "query": 50,
+          "sim_s": 25.149999999998894,
+          "offset_mm": [
+            -2.8642115983399314,
+            2.8272048224431146,
+            0.2968615220974753
+          ],
+          "lateral_mm": 4.024524218850048,
+          "normal_error_mm": 0.2968615220974753,
+          "prepose_error_mm": 4.035458084457404
+        },
+        "completed_handoffs": 1
+      },
+      {
+        "case": "p000923-l3",
+        "closest": {
+          "query": 63,
+          "sim_s": 31.69999999999852,
+          "offset_mm": [
+            -2.9091584956191276,
+            0.4934992344871028,
+            1.1218968679836163
+          ],
+          "lateral_mm": 2.950719344002798,
+          "normal_error_mm": 1.1218968679836163,
+          "prepose_error_mm": 3.156801740601356
+        },
+        "last": {
+          "query": 241,
+          "sim_s": 120.69999999997239,
+          "offset_mm": [
+            5.680046823169587,
+            -4.956006790894812,
+            1.6916742970986867
+          ],
+          "lateral_mm": 7.538231571449262,
+          "normal_error_mm": 1.6916742970986867,
+          "prepose_error_mm": 7.725716610920876
+        },
+        "completed_handoffs": 0
+      }
+    ],
+    "validation_plot_sha256": "db2ccf5578da1588ba18f784a1fc2745b367eeddecfc07493de9b6c2bf414c8b",
+    "validation_peak_overshoot_mm": {
+      "Source92": 11.163020421701393,
+      "Source97": 10.147843825243001
+    }
+  },
+  "fresh32": null,
+  "trajectory_plot_sha256": "374f0b58b19c9a04d8c89ea7e8ce7a7fddbc28ee66d637dfec1ae2b3cddd7639"
+}
