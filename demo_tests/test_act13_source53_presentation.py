@@ -18,6 +18,7 @@ class Source53Presentation(unittest.TestCase):
         # A later, separately tested append must not alter this historical snapshot.
         html = re.sub(r'<section\b[^>]*\bid="iteration13-source56-expert-data".*?</section>\n', '', html, flags=re.S)
         html = re.sub(r'<section\b[^>]*\bid="iteration13-source58-l3-repair".*?</section>\n', '', html, flags=re.S)
+        html = re.sub(r'<section\b[^>]*\bid="iteration17-source99-approach-feedback".*?</section>\n', '', html, flags=re.S)
         sections = re.findall(r'<section\b[^>]*\bid="' + ENTRY + r'".*?</section>\n', html, re.S)
         self.assertEqual(len(sections), 1)
         self.assertEqual(hashlib.sha256(html.replace(sections[0], '', 1).encode()).hexdigest(),
