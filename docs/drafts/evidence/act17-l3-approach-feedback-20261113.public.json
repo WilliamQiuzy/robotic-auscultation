@@ -1,0 +1,128 @@
+{
+  "schema": "wam_act17_source99_approach_feedback_public_v1",
+  "method": "act17_with_bounded_precontact_tcp_feedback_v1",
+  "completed_optimization_steps": 4000,
+  "checkpoint_sha256": "720942ea8bd770ddd012a8158e7d13488145add189f642025019372921b71690",
+  "trajectory_figure": {
+    "asset": "act17-source99-validation-l3-trajectory.png",
+    "sha256": "a73c5ca1a8b73f98d26ba70e48553216bc6f01f63b1d18e71e062fc58b9531c4"
+  },
+  "equivalent_tensor_bits_to_source98": true,
+  "known4": {
+    "executed": 4,
+    "qualified": 4,
+    "qualification_sha256": "a5bd1fe91b81f8271362155a9ac1cc80e8f2f37ab5c8e94587a66fd3a6f45ad5",
+    "rows": [
+      {
+        "id": "p001120-r3",
+        "split": "train",
+        "handoff_s": 28.845833333331964,
+        "parked_tangent_mm": 1.9709167432707766,
+        "parked_normal_mm": 0.13927672710807928,
+        "hold_s": 3.0,
+        "forbidden_N": 0.0,
+        "home_settle_ticks": 120,
+        "release_confirm_ticks": 48,
+        "final_q_abs_max_rad": 7.008254243601186e-08,
+        "cpu_eof_s": 0.8671649660682306,
+        "max_hold_tilt_deg": 1.4997413830092403,
+        "sim_s": 111.04166666666667,
+        "wall_s": 1672.1033401140012
+      },
+      {
+        "id": "p001120-l3",
+        "split": "train",
+        "handoff_s": 25.24583333333217,
+        "parked_tangent_mm": 1.8121407349015985,
+        "parked_normal_mm": 0.12369061875274964,
+        "hold_s": 3.0,
+        "forbidden_N": 0.0,
+        "home_settle_ticks": 120,
+        "release_confirm_ticks": 48,
+        "final_q_abs_max_rad": 7.008281244225145e-08,
+        "cpu_eof_s": 0.7161371239926666,
+        "max_hold_tilt_deg": 1.9996820863303402,
+        "sim_s": 103.7375,
+        "wall_s": 1776.1259344880236
+      },
+      {
+        "id": "p000923-r3",
+        "split": "validation",
+        "handoff_s": 25.82916666666547,
+        "parked_tangent_mm": 1.9562878575609095,
+        "parked_normal_mm": 0.24672852196731127,
+        "hold_s": 3.0,
+        "forbidden_N": 0.0,
+        "home_settle_ticks": 120,
+        "release_confirm_ticks": 48,
+        "final_q_abs_max_rad": 7.008234348404585e-08,
+        "cpu_eof_s": 0.8673599880421534,
+        "max_hold_tilt_deg": 1.4995288469214725,
+        "sim_s": 108.09166666666667,
+        "wall_s": 1513.5249576349743
+      },
+      {
+        "id": "p000923-l3",
+        "split": "validation",
+        "handoff_s": 24.208333333332227,
+        "parked_tangent_mm": 1.859314223817012,
+        "parked_normal_mm": 0.18612266380026166,
+        "hold_s": 3.0,
+        "forbidden_N": 0.0,
+        "home_settle_ticks": 120,
+        "release_confirm_ticks": 48,
+        "final_q_abs_max_rad": 7.00782294416058e-08,
+        "cpu_eof_s": 0.6664862970355898,
+        "max_hold_tilt_deg": 2.0005820782483354,
+        "sim_s": 105.275,
+        "wall_s": 1666.0731661649188
+      }
+    ]
+  },
+  "known4_video": {
+    "asset": "act17-source99-known4-p000923-l3.actual.mp4",
+    "sha256": "4a176a36da75bf2df55e222feb9af966fc976592ca56dc37dc3452fec6bf16c2",
+    "frames": 1052,
+    "fps": 10
+  },
+  "fresh32": {
+    "status": "infrastructure_interruption_no_terminal",
+    "planned_cases": 32,
+    "cpu_prepared_cases": 30,
+    "act_acceptance_verified": false,
+    "selected_recordings": [
+      {
+        "scenario": "p000519-p000474_a001230_f0000-l3",
+        "arm": "expert",
+        "asset": "act17-source99-fresh32-l3-expert.actual.mp4",
+        "sha256": "d90f65f61a26bac53a73a9495e6c1f3d195a24f62d319f38bf5e630d41de460a",
+        "frames": 1101,
+        "fps": 10
+      },
+      {
+        "scenario": "p000519-p000474_a001230_f0000-l3",
+        "arm": "act",
+        "asset": "act17-source99-fresh32-l3-act.actual.mp4",
+        "sha256": "e4282369abfc8bb18f38934027d489f9626531cd22ddc181cd9bf5efb0e02925",
+        "frames": 1092,
+        "fps": 10
+      },
+      {
+        "scenario": "p000519-p000474_a001230_f0000-r3",
+        "arm": "expert",
+        "asset": "act17-source99-fresh32-r3-expert.actual.mp4",
+        "sha256": "1115916dd1e97e816644debdfaf282658e31f959db280054671b270b1b93b37f",
+        "frames": 1160,
+        "fps": 10
+      },
+      {
+        "scenario": "p000519-p000474_a001230_f0000-r3",
+        "arm": "act",
+        "asset": "act17-source99-fresh32-r3-act.actual.mp4",
+        "sha256": "f7863d0b016dbef7491a849b706ca5cb9afb901e935d75e40ebf4fefb70ae7bc",
+        "frames": 1088,
+        "fps": 10
+      }
+    ]
+  }
+}

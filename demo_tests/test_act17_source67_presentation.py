@@ -14,6 +14,7 @@ EVIDENCE = 'evidence/act17-source67-matched-recovery-20261111.public.json'
 class ACT17Source67Presentation(unittest.TestCase):
     def test_append_preserves_the_approved_article(self):
         page = (DRAFT / 'act-recovery-20261106.html').read_bytes()
+        page = re.sub(rb'<section\b[^>]*\bid="iteration17-source99-approach-feedback".*?</section>\n', b'', page, flags=re.S)
         sections = re.findall(rb'<section\b[^>]*\bid="' + ENTRY.encode() + rb'".*?</section>\n', page, re.S)
         self.assertEqual(len(sections), 1)
         prior = page.replace(sections[0], b'', 1)

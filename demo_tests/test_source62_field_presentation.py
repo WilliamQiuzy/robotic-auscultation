@@ -23,6 +23,7 @@ class Source62FieldPresentation(unittest.TestCase):
 
     def test_append_preserves_the_full_source59_article(self):
         html = re.sub(r'<section\b[^>]*\bid="iteration17-source67-known4".*?</section>\n', '', self.html, flags=re.S)
+        html = re.sub(r'<section\b[^>]*\bid="iteration17-source99-approach-feedback".*?</section>\n', '', html, flags=re.S)
         prior = html.replace(self.section, '', 1).encode()
         self.assertEqual(hashlib.sha256(prior).hexdigest(), BASE_ARTICLE_SHA256)
         self.assertEqual(self.evidence['historical_article_sha256_before_append'], BASE_ARTICLE_SHA256)
